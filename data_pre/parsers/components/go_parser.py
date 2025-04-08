@@ -72,7 +72,7 @@ class GoParser(TreeSitterParser):
                 used_types.append(type_name)
         return used_types
         
-    def enitre_file_parsing(self):
+    def entire_file_parsing(self):
         def get_file_package(root_node):
             """Helper function to get the code of all the imports in a go file."""
             imports_file_locations = {}

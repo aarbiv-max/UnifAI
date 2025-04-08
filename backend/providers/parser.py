@@ -13,7 +13,7 @@ def get_parser(repo_local_path, file_paths, framework, project_name, organizatio
     """
     framework = framework.lower()
     
-    if framework in ["go", "typescript"]:
+    if framework in ["go", "typescript", "python"]:
         return TreeSitterParserWrapper(repo_local_path, file_paths, project_name, organization_name)
     elif framework == "robot":
         return RobotParserWrapper(repo_local_path, file_paths, project_name, organization_name)

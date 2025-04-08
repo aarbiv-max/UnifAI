@@ -1,10 +1,17 @@
+import ctypes
 import re
 import os
 import uuid
 from .tree_sitter_parser import TreeSitterParser
 
-PYTHON_LANGUAGE_PATH = '/home/cloud-user/Projects/playGround/tree-sitter-playground/tree-sitter-python/libtree-sitter-python.so'
+# PYTHON_LANGUAGE_PATH = '/home/cloud-user/Projects/playGround/tree-sitter-playground/tree-sitter-python/libtree-sitter-python.so'
 PYTHON_FILE_PATH = '/home/cloud-user/Projects/example/test/test_sample.py'
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+data_pre_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+so_files_dir = os.path.join(data_pre_dir, "so_files")
+PYTHON_LANGUAGE_PATH = os.path.join(so_files_dir, "python.so")
+python_lib = ctypes.CDLL(PYTHON_LANGUAGE_PATH)
 
 class PythonParser(TreeSitterParser):
     """
