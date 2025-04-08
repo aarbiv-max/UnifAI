@@ -4,16 +4,13 @@ metadata:
   name: {{ .Release.Name }}-np
   namespace: {{ .Values.global.namespace }}
 spec:
-  podSelector:
-    matchLabels:
-      app: {{ .Release.Name }}-np
-
+  podSelector: {}  # Selects all pods in the namespace
   policyTypes:
     - Ingress
+    - Egress
   ingress:
-    - ports:
-      - port: 27017
-        protocol: TCP
-    - ports:
-      - port: 15672
-        protocol: TCP
+    - from:
+        - namespaceSelector: {}  # Allows traffic from any namespace
+  egress:
+    - to:
+        - namespaceSelector: {}  # Allows traffic to any namespace

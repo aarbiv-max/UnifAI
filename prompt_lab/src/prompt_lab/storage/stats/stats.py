@@ -6,8 +6,8 @@ class Stats:
     Generic tracker for prompts progress, independent of the underlying storage.
     """
 
-    DEFAULT_PROGRESS_ID = "progress_data"
     DEFAULT_VALUES = {
+        "type": "progress_data",
         "number_of_elements": 0,
         "number_of_prompts": 0,
         "prompts_retried": 0,
@@ -17,23 +17,25 @@ class Stats:
         "exported": "",
     }
 
-    def __init__(self, statistics_handler):
+    def __init__(self, statistics_handler, process_id):
         """
         :param statistics_handler: A MongoDataHandler instance for managing progress data.
         """
         self.statistics_handler = statistics_handler
+        self.process_id = process_id
         self._initialize_progress_data()
 
     def _initialize_progress_data(self) -> None:
         """
         Ensure progress data exists in the storage, initializing it if necessary.
-        """
-        existing_data = list(self.statistics_handler.read_data(
-            query={"_id": self.DEFAULT_PROGRESS_ID}
-        ))
+        """        
+        existing_data = list(self.statistics_handler.read_data(query={"_id": self.process_id}))
+
         if not existing_data:
-            # Initialize in MongoDB
-            self.statistics_handler.append_record({"_id": self.DEFAULT_PROGRESS_ID, **self.DEFAULT_VALUES})
+            # Generate a new document with self.process_id as _id
+            new_record = {"_id": self.process_id, **self.DEFAULT_VALUES}
+            self.statistics_handler.append_record(new_record)
+
 
     def _validate_key(self, key: str) -> None:
         """
@@ -49,68 +51,59 @@ class Stats:
         """
         Sync `prompts_generated` to be equal to `prompts_processed` in the database.
         """
-        progress_data = self.get_stats()  # Retrieve the current progress data
+        progress_data = self.get_stats()
         prompts_processed = progress_data.get("prompts_processed", 0)
 
         self.statistics_handler.update_record(
-            query={"_id": self.DEFAULT_PROGRESS_ID},
+            query={"_id": self.process_id},
             update={"$set": {"prompts_generated": prompts_processed}}
         )
 
     def increment(self, key: str, amount: int = 1) -> None:
         """
         Increment a specific progress key directly in the database.
-
-        :param key: The key to increment.
-        :param amount: The amount to increment by.
         """
         self._validate_key(key)
         self.statistics_handler.update_record(
-            query={"_id": self.DEFAULT_PROGRESS_ID},
+            query={"_id": self.process_id},
             update={"$inc": {key: amount}}
         )
 
-    def set_value(self, key: str, value: int) -> None:
+    def set_value(self, key: str, value: Any) -> None:
         """
         Set a specific progress key to a specific value directly in the database.
-
-        :param key: The key to set.
-        :param value: The value to set the key to.
         """
         self._validate_key(key)
         self.statistics_handler.update_record(
-            query={"_id": self.DEFAULT_PROGRESS_ID},
+            query={"_id": self.process_id},
             update={"$set": {key: value}}
         )
 
     def get_stats(self) -> Dict[str, Any]:
         """
         Retrieve the current progress data directly from the database.
-
-        :return: A dictionary of progress data.
         """
-        progress_data = list(self.statistics_handler.read_data(
-            query={"_id": self.DEFAULT_PROGRESS_ID}
-        ))  # Convert the generator to a list
+        
+        progress_data = list(self.statistics_handler.read_data(query={"_id": self.process_id}))
 
         if not progress_data:
             raise RuntimeError("Progress data not found in the database.")
 
-        return progress_data[0]  # Return the first record
+        return progress_data[0]
 
     def reset_progress(self) -> None:
         """
         Reset all progress values to their default state directly in the database.
         """
         self.statistics_handler.update_record(
-            query={"_id": self.DEFAULT_PROGRESS_ID},
+            query={"_id": self.process_id},
             update={"$set": self.DEFAULT_VALUES}
         )
 
     def increment_with_processed(self, key: str, amount: int = 1) -> None:
         """
         Increment a specific key and also increment `prompts_processed`.
-
+        
         :param key: The key to increment.
         :param amount: The amount to increment by.
         """
@@ -136,15 +129,15 @@ class Stats:
     def set_number_of_prompts(self, value: int) -> None:
         self.set_value("number_of_prompts", value)
 
-    def set_exported(self, url) -> None:
+    def set_exported(self, url: str) -> None:
         self.set_value("exported", url)
 
     def is_done(self) -> bool:
         """
         Check if all generated prompts have been processed.
-
+        
         This queries the database to ensure the latest data is used.
-
+        
         :return: True if done, False otherwise.
         """
         progress_data = self.get_stats()
@@ -156,33 +149,29 @@ class Stats:
     def get_number_of_elements(self) -> int:
         """
         Retrieve the current value of 'number_of_elements' directly from the database.
-
+        
         :return: The value of 'number_of_elements'.
         """
-        progress_data = self.get_stats()
-        return progress_data.get("number_of_elements", 0)
+        return self.get_stats().get("number_of_elements", 0)
 
     def get_number_of_prompts(self) -> int:
         """
         Retrieve the current value of 'number_of_prompts' directly from the database.
-
+        
         :return: The value of 'number_of_prompts'.
         """
-        progress_data = self.get_stats()
-        return progress_data.get("number_of_prompts", 0)
+        return self.get_stats().get("number_of_prompts", 0)
 
     def get_processed_num(self) -> int:
         """
         Retrieve the current value of 'prompts_processed' directly from the database.
-
+        
         :return: The value of 'prompts_processed'.
         """
-        progress_data = self.get_stats()
-        return progress_data.get("prompts_processed", 0)
+        return self.get_stats().get("prompts_processed", 0)
 
     def is_exported(self) -> bool:
-        progress_data = self.get_stats()
-        return bool(progress_data.get("exported", ""))
+        return bool(self.get_stats().get("exported", ""))
 
     def close(self):
         """

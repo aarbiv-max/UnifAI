@@ -1,0 +1,94 @@
+for file mount
+
+ConfigMapTrainCmd:
+  metadata:
+    name: trainer-configmap-cmd
+    namespace: tag-ai--pipeline
+  data: 
+    trainer_args.yaml: |
+      ### model
+      model_name_or_path: Qwen/Qwen2.5-Coder-7B-Instruct
+      trust_remote_code: "true" 
+    
+      ### method
+      stage: sft
+      do_train: "true"
+      finetuning_type: lora
+      lora_rank: 16 
+      lora_alpha: 16 
+      lora_dropout: 0.1 
+      lora_target: all
+
+      ### dataset
+      dataset: eco-gotests
+      dataset_dir: data
+      template: qwen
+      cutoff_len: 8192
+      max_samples: 10000
+      preprocessing_num_workers: 16
+
+      ### output
+      output_dir: saves/test
+      logging_steps: 5
+      save_steps: 46
+      plot_loss: "true"
+      overwrite_output_dir: "true"
+      report_to: none
+      packing: "false"
+
+      ### train
+      per_device_train_batch_size: 1
+      gradient_accumulation_steps: 32
+      max_grad_norm: 1.0
+      flash_attn: auto
+      learning_rate: 5e-05
+      num_train_epochs: 20.0
+      lr_scheduler_type: cosine
+      warmup_ratio: 0.1
+      warmup_steps: 0
+      bf16: "true"
+      ddp_timeout: 180000000
+      optim: adamw_torch 
+
+
+for env ref:
+
+ConfigMapTrainCmd:
+  metadata:
+    name: trainer-configmap-cmd
+    namespace: tag-ai--pipeline
+  data: 
+      model_name_or_path: "Qwen/Qwen2.5-Coder-7B-Instruct"
+      trust_remote_code: "true" 
+      stage: "sft"
+      do_train: "true"
+      finetuning_type: "lora"
+      lora_rank: "16" 
+      lora_alpha: "16" 
+      lora_dropout: "0.1" 
+      lora_target: "all"
+      dataset: "eco-gotests"
+      dataset_dir: "data"
+      template: "qwen"
+      cutoff_len: "8192"
+      max_samples: "10000"
+      preprocessing_num_workers: "16"
+      output_dir: "saves/test"
+      logging_steps: "5"
+      save_steps: "46"
+      plot_loss: "true"
+      overwrite_output_dir: "true"
+      report_to: "none"
+      packing: "false"
+      per_device_train_batch_size: "1"
+      gradient_accumulation_steps: "32"
+      max_grad_norm: "1.0"
+      flash_attn: "auto"
+      learning_rate: "5e-05"
+      num_train_epochs: "20.0"
+      lr_scheduler_type: "cosine"
+      warmup_ratio: "0.1"
+      warmup_steps: "0"
+      bf16: "true"
+      ddp_timeout: "180000000"
+      optim: "adamw_torch"

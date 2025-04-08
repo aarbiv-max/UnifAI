@@ -104,7 +104,7 @@ spec:
             path: /health
             port: 8000
             scheme: HTTP
-          initialDelaySeconds: {{ ternary 900 120 .Values.global.enable_toleration }}
+          initialDelaySeconds: {{ ternary 900 60 .Values.global.enable_toleration }}
           periodSeconds: 60
           timeoutSeconds: 60
           successThreshold: 1

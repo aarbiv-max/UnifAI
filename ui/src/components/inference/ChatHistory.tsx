@@ -6,6 +6,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import moment from 'moment';
+import { ConfirmationModal } from '../shared/ConfirmationModal';
 
 interface ChatMessage {
   id: string;
@@ -91,6 +92,12 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ modelId, isStreaming, onChatS
     }
   };
 
+  const handleDeleteConfirm = () => {
+    if (selectedSessionId) { 
+      deleteSession(selectedSessionId);
+    }
+  }
+
   return (
     <Paper elevation={3} sx={{ width: '95%', marginTop: '10px', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
@@ -174,23 +181,8 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ modelId, isStreaming, onChatS
       </List>
 
       {/* Delete confirmation Modal */}
-      <Dialog open={deleteConfirmationModal} onClose={handleCloseDeleteModal}>
-        <DialogTitle>Are you sure you want to delete this chat?</DialogTitle>
-        <DialogContent>
-          <Typography> You selected the chat "{selectedTitle}"</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDeleteModal} sx={{color: 'black'}}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => {if (selectedSessionId) { deleteSession(selectedSessionId); }}}
-            color="primary"
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmationModal text={`Are you sure you want to delete this chat: ${selectedTitle}?`} open={deleteConfirmationModal} onClose={handleCloseDeleteModal} handleClick={handleDeleteConfirm}/>
+      
     </Paper>
   );
 };

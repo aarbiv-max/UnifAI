@@ -1,4 +1,6 @@
 global:
+  connection:
+  process_id:
   namespace: 
   reviewer_replica:
   reviewer_env:

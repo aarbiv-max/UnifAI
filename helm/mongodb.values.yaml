@@ -10,6 +10,13 @@ securityContext: {}
 image:
   registry: "images.paas.redhat.com/genie"
   repository: "mongo"
+resources:
+  requests:
+    memory: "1Gi"     
+    cpu: "1"       
+  limits:
+    memory: "1Gi"     
+    cpu: "1"  
 storage:
   ## Internal volume name and prefix of a created PVC
   volumeName: "genie-mongodb-volume"
@@ -25,7 +32,13 @@ storage:
   labels:
     paas.redhat.com/appcode: TAG-001
 
-
+networkPolicy:
+  ## Ingress and Egress policies
+   ingress: 
+   - ports:
+      - port: 27017
+        protocol: TCP
+   egress: {}
       
 
 

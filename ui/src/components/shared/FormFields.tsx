@@ -1,6 +1,7 @@
-import { TextField, MenuItem, FormControlLabel, Checkbox, Typography, Box, Tooltip, styled, TooltipProps, tooltipClasses } from '@mui/material';
+import { TextField, MenuItem, FormControlLabel, Checkbox, Typography, Box, Tooltip, styled, TooltipProps, tooltipClasses, Button } from '@mui/material';
 import { Controller } from 'react-hook-form';
 import InfoIcon from '@mui/icons-material/Info';
+import { useRef } from 'react';
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -41,6 +42,7 @@ interface FormFileUploadProps {
   control: any;
   errors: any;
   onFileUpload: (files: FileList | null) => void;
+  accept?: string;
 }
 
 const LightTooltip = styled(({ className, ...props }: TooltipProps) => (
@@ -67,9 +69,10 @@ export const FormField: React.FC<FormFieldProps> = ({
   return (
     <div className="form-group">
       <div style={{ display: "flex", alignItems: "center", gap: 1, cursor: "pointer" }}>
-        <LightTooltip title={tooltip || ""} disableHoverListener={!tooltip} arrow>
-            <InfoIcon fontSize={'small'} sx={{ color: "gray", margin: "0px 4px 5px 0px" }} />
-        </LightTooltip>
+        {tooltip &&
+          <LightTooltip title={tooltip || ""} disableHoverListener={!tooltip} arrow>
+              <InfoIcon fontSize={'small'} sx={{ color: "gray", margin: "0px 4px 5px 0px" }} />
+          </LightTooltip>}
         <label>{label}</label>
       </div>
       <Controller
@@ -173,3 +176,30 @@ export const FormFileUpload: React.FC<FormFileUploadProps> = ({ name, label, con
     {errors[name] && <Typography color="error">{errors[name]?.message}</Typography>}
   </div>
 );
+
+export const FormFileUploadHelm: React.FC<FormFileUploadProps> = ({ name, label, control, errors, onFileUpload, accept }) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleButtonClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  return (
+    <div className="form-group">
+      <label>{label}</label>
+      <input
+        type="file"
+        accept={accept}
+        ref={fileInputRef}
+        style={{ display: 'none' }} 
+        onChange={(e) => onFileUpload(e.target.files)}
+      />
+      <Button className="end-button" variant="contained" onClick={handleButtonClick}>
+        Choose File
+      </Button>
+      {errors[name] && <Typography color="error">{errors[name]?.message}</Typography>}
+    </div>
+  );
+};

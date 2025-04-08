@@ -63,7 +63,7 @@ securityContext: {}
 service:
   # Suffix of the headless service name
   headlessServiceSuffix: internal
-  type: ClusterIP
+  type: LoadBalancer
   port: 27017
   ## The node port (only relevant for type LoadBalancer or NodePort)
   nodePort:
@@ -77,13 +77,13 @@ service:
   labels: {}
 
 ## Resource limits and requests
-resources: {}
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+resources: 
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+  requests:
+    cpu: 1000m
+    memory: 1024Mi
 
 ## Custom startup probe (overwrites default startup probe)
 customStartupProbe: {}

@@ -6,6 +6,7 @@ and defers export logic to an HFExporter.
 """
 
 from typing import Dict, Any, Iterator, Set, List
+
 from .data_repository import DataRepository
 from ..datahandler import HuggingFaceDataHandler, MongoDataHandler
 from ..exporters import HFExporter
@@ -13,6 +14,7 @@ from ..stats import Stats
 from pymongo import errors
 from prompt_lab.utils import logger
 from prompt_lab.prompt import Prompt
+from bson import ObjectId
 
 
 class HybridHFMongoRepository(DataRepository):
@@ -28,13 +30,14 @@ class HybridHFMongoRepository(DataRepository):
             input_handler: HuggingFaceDataHandler,
             processed_handler: MongoDataHandler,
             stats_handler: MongoDataHandler,
-            exporter: HFExporter
+            exporter: HFExporter,
+            process_id: str = None
     ):
         self.input_handler = input_handler
         self.processed_handler = processed_handler
-        self.stats_handler = Stats(stats_handler)
+        self.stats_handler = Stats(stats_handler, process_id=ObjectId(process_id) if process_id else None)
         self.exporter = exporter
-
+        
     # input handler
     def load_input_data(self) -> Iterator[Dict[str, Any]]:
         return self.input_handler.read_data()
@@ -52,10 +55,11 @@ class HybridHFMongoRepository(DataRepository):
 
         for record in transformed_data:
             try:
-                self.processed_handler.append_record(record)
+                self.processed_handler.update_record({"_id": record["_id"]}, {"$set": record}, upsert=True)
                 increment_callback()
-            except errors.DuplicateKeyError as e:
-                logger.error(f"DuplicateKeyError for uuid {record['uuid']} in processed collection: {e}")
+            except errors.DuplicateKeyError:
+                logger.warning(f"DuplicateKeyError: Prompt with _id {record['_id']} already exists. Skipping.")
+
 
     def save_pass_prompts(self, prompts: List[Dict[str, Any]]) -> None:
         """

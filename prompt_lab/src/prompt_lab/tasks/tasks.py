@@ -40,7 +40,8 @@ def initialize_mongo_handlers_and_repository(config, db_name):
         exporter=HFExporter(
             repo_id=config.get("output_dataset_repo"),
             file_name=config.get("output_dataset_file_name")
-        )
+        ),
+        process_id=config.get("process_id")
     )
     return repository
 

@@ -9,6 +9,7 @@ import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css'; // Import Quill styles
 import '../../styles.css';
+import { ConfirmationModal } from '../shared/ConfirmationModal';
 
 // Register the language
 SyntaxHighlighter.registerLanguage('python', python);
@@ -324,71 +325,7 @@ const SavedPrompts: React.FC = () => {
           </Box>
         </Box>
       </Modal>
-      <Modal open={deleteModalOpen} onClose={handleDeleteClose}>
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 400,
-            bgcolor: 'background.paper',
-            borderRadius: '8px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-            p: 3,
-          }}
-        >
-          <Typography 
-            variant="h6" 
-            component="h2" 
-            sx={{ 
-              mb: 2,
-              fontWeight: 500,
-              color: '#1a1a1a'
-            }}
-          >
-            Are you sure you want to delete '{promptToDelete?.promptName}' prompt?
-          </Typography>
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            mt: 3,
-            pt: 2,
-            borderTop: '1px solid #eaeaea'
-          }}>
-            <button 
-              onClick={handleDeleteClose}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: '1px solid #e0e0e0',
-                backgroundColor: '#ffffff',
-                color: '#666666',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                fontWeight: 500,
-              }}
-            >
-              No
-            </button>
-            <button 
-              onClick={handleDeleteConfirm}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: '#dc2626',
-                color: 'white',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                fontWeight: 500,
-              }}
-            >
-              Yes
-            </button>
-          </Box>
-        </Box>
-      </Modal>
+      <ConfirmationModal text={`Are you sure you want to delete '${promptToDelete?.promptName}' prompt?`} open={deleteModalOpen} onClose={handleDeleteClose} handleClick={handleDeleteConfirm}/>
     </div>
   );
 };
