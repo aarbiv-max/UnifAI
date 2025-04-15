@@ -10,6 +10,11 @@ securityContext: {}
 image:
   registry: "images.paas.redhat.com/genie"
   repository: "mongo"
+
+service:
+  type: LoadBalancer
+
+
 resources:
   requests:
     memory: "1Gi"     
@@ -17,6 +22,7 @@ resources:
   limits:
     memory: "1Gi"     
     cpu: "1"  
+
 storage:
   ## Internal volume name and prefix of a created PVC
   volumeName: "genie-mongodb-volume"

@@ -1,6 +1,7 @@
 import ctypes
 import re
 import os
+import uuid
 from .tree_sitter_parser import TreeSitterParser
 
 # Get the path to so_files inside data_pre
@@ -14,8 +15,8 @@ go_lib = ctypes.CDLL(ROBOT_LANGUAGE_PATH)
 ROBOT_FILE_PATH =  '/home/cloud-user/Projects/Robot-POC-InstructLab/24.0/8103_Zabbix_server_is_running_in_all_manage_nodes.robot'
 
 class RobotParser(TreeSitterParser):
-    def __init__(self, language_path=ROBOT_LANGUAGE_PATH, language_name='robot', file_path=ROBOT_FILE_PATH, realtive_path=ROBOT_FILE_PATH, project_name=""):
-        super().__init__(language_path, language_name, file_path, realtive_path, project_name)
+    def __init__(self, language_path=ROBOT_LANGUAGE_PATH, language_name='robot', file_path=ROBOT_FILE_PATH, realtive_path=ROBOT_FILE_PATH, project_name="", file_git_path=""):
+        super().__init__(language_path, language_name, file_path, realtive_path, project_name, file_git_path)
         self.test_cases = []
 
     def get_main_section_node(self, root_node, section_name):
@@ -973,13 +974,14 @@ class RobotParser(TreeSitterParser):
 
                 return {
                     "code": code,
+                    "uuid": str(uuid.uuid4()),
                     "settings": f"{library_mapping}",
                     "variables": f"{variables_mapping}",
                     "name": f"{name}",
                     "documentation": f"{documentation}",
                     # "calls": type_mapping,  # The new keyword mappings per definition
                     "imports_file_locations": f"{imports_file_locations}",  # Mapped resource imports
-                    "file_location": f"https://scm.cci.nokia.net/cia/automation-tests-ncs/24/{self.realtive_path}",
+                    "file_location": self.file_git_path,
                     "element_type": type,  # Either 'Test_Case' or 'Keyword'
                     "project_name": self.project_name
                 }
@@ -1096,9 +1098,10 @@ class RobotParser(TreeSitterParser):
             """Helper function to extract entire robot code."""
             return {
                 "code": content,
+                "uuid": str(uuid.uuid4()),
                 "name": f"{self.realtive_path}",
                 "imports_file_locations": f"{map_imports_file_locations()}",  # Mapped resource imports
-                "file_location": f"https://scm.cci.nokia.net/cia/automation-tests-ncs/24/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "element_type": file_type,  # Either 'Test' or 'Resource'
                 "project_name": self.project_name
             }

@@ -408,10 +408,18 @@ pipeline {
                         sh("oc project ${params.namespace}")
                         echo("Deploy Helm container")
                         sh("podman run -dt --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
-                        echo("Removing previous pods")
-                        sh("podman exec -t helmfile bash -c 'pods=\$(helmfile list| grep genie|awk \"{ print \$1}\") && helmfile destroy \$pods'")
-                        echo("Deploy/update Helm chart")
-                        sh("podman exec -t helmfile helmfile apply")
+                        echo("Removing previous helms")
+                        sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.yaml --deleteWait'")
+                        sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile1.yaml --deleteWait'")
+                        echo("Wait for the key resourc is deleted")
+                        sh("until ! oc get deployment,statefulset,svc | grep 'genie\|mongo\|rabbitmq'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
+                        sh("sleep 10") 
+
+                        echo("Deploy/update Helmfile1 for mongodb and rabbitmq")
+                        sh("podman exec -t helmfile helmfile -f helmfile1.yaml apply")
+                        sh("sleep 10") 
+                        echo("Deploy/update Helmfile2 for everything else")
+                        sh("podman exec -t helmfile helmfile -f helmfile2.yaml apply")
                         script{
                             GUI_EP = sh(
                                 script: 'oc get route genie-ui -n tag-ai--runtime-int -o jsonpath="{.spec.host}"',

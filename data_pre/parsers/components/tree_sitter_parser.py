@@ -1,29 +1,30 @@
 from tree_sitter import Language, Parser
 
 class TreeSitterParser:
-    def __init__(self, language_path, language_name, file_path, realtive_path, project_name):
+    def __init__(self, language_path, language_name, file_path, realtive_path, project_name, file_git_path):
         self.language = Language(language_path, language_name)
         self.parser = Parser()
         self.parser.set_language(self.language)
         self.file_path = file_path
         self.realtive_path = realtive_path
         self.project_name= project_name
-
+        self.file_git_path = file_git_path
+        
     @staticmethod
-    def create_parser(file_path, realtive_path=None, project_name=""):
+    def create_parser(file_path, realtive_path=None, project_name="", file_git_path=""):
         from .robot_parser import RobotParser
         from .go_parser import GoParser
         from .type_script_parser import TypeScriptParser
         from .python_parser import PythonParser
         
         if file_path.endswith('.robot'):
-            return RobotParser(file_path=file_path, realtive_path=realtive_path, project_name=project_name)
+            return RobotParser(file_path=file_path, realtive_path=realtive_path, project_name=project_name, file_git_path = file_git_path)
         elif file_path.endswith('.go'):
-            return GoParser(file_path=file_path, realtive_path=realtive_path, project_name=project_name)
+            return GoParser(file_path=file_path, realtive_path=realtive_path, project_name=project_name, file_git_path = file_git_path)
         elif file_path.endswith('.ts') or file_path.endswith('.tsx') or file_path.endswith('.js'):
-            return TypeScriptParser(file_path=file_path, realtive_path=realtive_path, project_name=project_name)
+            return TypeScriptParser(file_path=file_path, realtive_path=realtive_path, project_name=project_name, file_git_path = file_git_path)
         elif file_path.endswith('.py'):
-            return PythonParser(file_path=file_path, realtive_path=realtive_path, project_name=project_name)
+            return PythonParser(file_path=file_path, realtive_path=realtive_path, project_name=project_name, file_git_path = file_git_path)
         # TODO: Need to implement parser for TSX (GENIE-86/https://issues.redhat.com/browse/GENIE-86)
         # elif file_path.endswith('.tsx'):
         #     return TypeScriptCompiledParser(file_path=file_path, realtive_path=realtive_path, project_name=project_name)
