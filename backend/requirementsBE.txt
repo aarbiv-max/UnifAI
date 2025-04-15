@@ -4,6 +4,7 @@ websocket-client
 websockets 
 scapy
 pymongo
+supervisor
 uwsgi
 webargs
 flask_pymongo

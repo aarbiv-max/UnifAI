@@ -17,7 +17,7 @@ global:
 image:
   repository: images.paas.redhat.com/genie/vllm-openai
   tag: "latest"
-  pullPolicy: IfNotPresent  
+  pullPolicy: Always  
 
 resources:
   requests:

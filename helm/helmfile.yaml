@@ -34,7 +34,17 @@ releases:
     needs:
       - genie-mongodb
       - genie-rabbitmq
-
+    hooks:
+      - events: ["presync"]
+        showlogs: true
+        command: bash
+        args:
+          - "-c"
+          - |
+              LB_ADDR=$(kubectl get svc mongodb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+              kubectl delete configmap mongodb-lb-config 
+              kubectl create configmap mongodb-lb-config --from-literal=MONGO_EXT_ADDR="$LB_ADDR" --dry-run=client -o yaml | kubectl apply -f -
+              
   - name: genie-llm-be
     chart: ./genie-llm-be
     wait: true

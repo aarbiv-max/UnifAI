@@ -1,4 +1,6 @@
 global:
+  connection:
+  process_id:
   namespace: 
   promptlab_env:
 

@@ -6,18 +6,20 @@ metadata:
 data:
   wait-for-services.sh: |
     export REVIEWER_NUM="{{.Values.global.vllm_reviewer_replica}}"
-
+    MONGODB_IP="{{ default (printf "%s-mongodb-svc" .Release.Name) .Values.global.connection }}:27017"
+    echo "$MONGODB_IP"
+    
     while [ "$(curl -s -o /dev/null -w "%{http_code}" -u genie:genie123 http://{{ .Release.Name }}-rabbitmq-svc:15672/api/overview)" != "200" ]; do
       echo "Waiting for RabbitMQ service to be ready...";
       sleep 5;
     done;
     echo "RabbitMQ service is up!"
     
-    while [ "$(curl -s -o /dev/null -w "%{http_code}" http://{{ .Release.Name }}-mongodb-svc:27017)" != "200" ]; do
-      echo "Waiting for MongoDB service to be ready...";
+    while [ "$(curl -s -o /dev/null -w "%{http_code}" http://$MONGODB_IP)" != "200" ]; do
+      echo "Waiting for MongoDB service to be ready at $MONGODB_IP...";
       sleep 5;
     done;
-    echo "MongoDB service is up!"
+    echo "MongoDB service is up at $MONGODB_IP."
 
     if [ "$CHART_NAME" != "vllm" ]; then
 
@@ -27,7 +29,7 @@ data:
         done;
         echo "Vllm-orbiter service is up!"
 
-        if [ "$REVIEWER_NUM" -gt 0 ]; then
+        if [ "$REVIEWER" == "true" ]; then
 
           while [ "$(curl -s -o /dev/null -w "%{http_code}" http://{{ .Release.Name }}-vllm-reviewer-svc:8000/health)" != "200" ]; do
             echo "Waiting for Vllm-reviewer service to be ready...";

@@ -1,4 +1,6 @@
 global:
+  connection:
+  process_id:
   namespace: 
   orbiter_replica:
   promptlab_env: 

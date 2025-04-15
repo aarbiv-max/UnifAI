@@ -43,6 +43,12 @@ spec:
           - name: "{{ $key }}"
             value: "{{ $value }}"
           {{- end }}
+          
+          - name: MONGO_EXT_ADDR
+            valueFrom:
+              configMapKeyRef:
+                name: mongodb-lb-config
+                key: MONGO_EXT_ADDR
 
           ports:
             - name: http

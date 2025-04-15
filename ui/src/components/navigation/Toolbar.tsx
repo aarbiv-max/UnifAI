@@ -24,8 +24,7 @@ interface DropdownItems {
 
 const dropdownAllItems: DropdownItems[] = [
   { title: 'About', items: [{ label: 'Welcome', path: '/' }, { label: 'Understanding AI', path: '/ai-content' }] },
-  { title: 'Dataset', items: [{ label: 'Creating Dataset', path: '/create-dataset' }, { label: 'Available Datasets', path: '/dataset-table' }] },
-  { title: 'Training', items: [{ label: 'Train New Model', path: '/train-form' }, { label: 'Available Trained Models', path: '/form-table' }] },
+  { title: 'Dataset', items: [{ label: 'Creating Dataset', path: '/create-dataset' },{ label: 'Preparing Dataset', path: '/prepare-dataset' }, { label: 'Dataset Progress', path: '/deployed-datasets' }, { label: 'Available Datasets', path: '/dataset-table' }] },  { title: 'Training', items: [{ label: 'Train New Model', path: '/train-form' }, { label: 'Available Trained Models', path: '/form-table' }] },
   { title: 'Inference', items: [{ label: 'Generate Automatic Test', path: '/chatbot' }, { label: 'Saved Prompts', path: '/saved-prompts' }] },
   { title: 'Statistics', items: [{ label: 'Graphs', path: '/statistics' }] },
 ];

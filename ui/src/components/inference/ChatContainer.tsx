@@ -24,6 +24,7 @@ import Prism from 'prismjs';
 import 'prismjs/themes/prism-okaidia.css';
 import { ChatSidebar } from './ChatSidebar';
 import CodeValidationModal from './CodeValidation';
+import { LoadingOverlay } from '../shared/LoadingOverlay';
 
 interface FormData {
   project: string;
@@ -45,19 +46,6 @@ interface RatingData {
   rating: number;
   ratingText: string;
 }
-
-interface LoadingProps {
-  loadType: string;
-}
-
-const LoadingOverlay: React.FC<LoadingProps> = ({loadType}) => (
-  <div className="loading-overlay">
-    <ReactLoading type="bubbles" color="#000" height={100} width={100} />
-    <h2 style={{ marginTop: '20px', fontSize: '1.5em', textAlign: 'center', color: '#000' }}>
-      Please be patient while we {loadType} the requested model. This process may take up to 4 minutes.
-    </h2>
-  </div>
-);
 
 const ModelSelection: React.FC<ModelSelectionProps> = ({ models, onSelectModel }) => {
   const { control, handleSubmit, watch, setValue } = useForm<FormData>();
@@ -871,11 +859,12 @@ const ChatComponent: React.FC = () => {
   
   // const modelType = getModelType();
   const modelType : 'llama' | 'qwen' | null = selectedModel?.modelType || null;
+  const loadingOverlayText = `Please be patient while we ${loadingModel ? "load" : "unload"} the requested model. This process may take up to 2 minutes.`
 
   return (
     <>
       {loadingModel || unloadingModel ? (
-        <LoadingOverlay loadType={loadingModel ? "load" : "unload"} />
+        <LoadingOverlay text={loadingOverlayText}/>
       ) : selectedModel ? (
         <div className="chat-container-wrapper">
           <ChatSidebar 

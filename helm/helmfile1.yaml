@@ -1,0 +1,20 @@
+#podman run -dt --workdir /helm/charts/helm -v .:/helm/charts -v ~/.kube/:/helm/.kube --name helmfile ghcr.io/helmfile/helmfile:latest bash
+
+helmDefaults:
+    createNamespace: false
+    wait: false
+
+releases:
+  - name: genie-mongodb
+    chart: ./mongodb
+    wait: true
+    timeout: 300
+    values:
+      - "./mongodb.values.yaml"
+
+  - name: genie-rabbitmq
+    chart: ./rabbitmq
+    wait: true
+    values:
+      - "./rabbitmq.values.yaml"
+

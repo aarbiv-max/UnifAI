@@ -17,7 +17,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 from bson.json_util import dumps, RELAXED_JSON_OPTIONS
 from flask import Response
-
+import json 
+import yaml
 
 def composed(*decs):
     def deco(f):
@@ -565,3 +566,32 @@ def to_json(obj):
 
 def json_response(obj):
     return Response(to_json(obj), mimetype="application/json")
+
+def json_to_yaml(json_input):
+    """
+    Convert JSON data (string or dictionary) to YAML format,
+    save to a file in /tmp directory, and return the full file path.
+    
+    :param json_input: JSON string or Python dictionary
+    :return: Full path of the saved YAML file
+    """
+    if isinstance(json_input, str):
+        json_data = json.loads(json_input)
+    else:
+        json_data = json_input
+
+    yaml_data = yaml.dump(json_data, default_flow_style=False, sort_keys=False)
+
+    # Define the file path in /tmp
+    file_path = '/tmp/output.yaml'
+
+    # Write the YAML data to a file in /tmp
+    with open(file_path, 'w') as file:
+        file.write(yaml_data)
+    yaml_data = yaml.safe_load(yaml_data)
+    # Return the full file path
+    return file_path ,yaml_data
+
+def helm_response(success: bool, data):
+    status = "success" if success else "failed"
+    return {"status": status, "data": data}

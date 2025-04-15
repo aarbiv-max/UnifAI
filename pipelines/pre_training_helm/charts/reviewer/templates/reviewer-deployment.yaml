@@ -71,10 +71,24 @@ spec:
           value: $({{ .Release.Name | upper }}_RABBITMQ_SVC_SERVICE_HOST)
         - name: RABBITMQ_PORT
           value: $({{ .Release.Name | upper }}_RABBITMQ_SVC_SERVICE_PORT)
+
+        {{- if .Values.global.connection }}
+        - name: MONGODB_IP
+          value: {{ .Values.global.connection }}
+        - name: MONGODB_PORT
+          value: "27017"
+        {{- else }}
         - name: MONGODB_IP
           value: $({{ .Release.Name | upper }}_MONGODB_SVC_SERVICE_HOST)
         - name: MONGODB_PORT
           value: $({{ .Release.Name | upper }}_MONGODB_SVC_SERVICE_PORT)
+        {{- end }}
+        
+        {{- if .Values.global.process_id }}
+        - name: PROCESS_ID
+          value: {{ .Values.global.process_id }}
+        {{- end }}
+
         - name: VLLM_IP
           value: $({{ .Release.Name | upper }}_VLLM_REVIEWER_SVC_SERVICE_HOST)
         - name: VLLM_PORT

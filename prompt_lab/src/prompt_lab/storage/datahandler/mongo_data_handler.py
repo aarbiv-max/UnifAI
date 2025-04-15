@@ -62,7 +62,8 @@ class MongoDataHandler(DataHandler):
         """
         Insert a single record (document) into the collection.
         """
-        self.collection.insert_one(record)
+        id = self.collection.insert_one(record)
+        return id
 
     def append_records(self, records: List[Dict[str, Any]]) -> None:
         """

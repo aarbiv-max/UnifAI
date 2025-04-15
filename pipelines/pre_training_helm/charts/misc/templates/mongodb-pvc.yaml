@@ -1,3 +1,4 @@
+{{- if not .Values.global.connection }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -14,3 +15,4 @@ spec:
     requests:
       storage: {{ .Values.mongodb.persistence.size }}
   storageClassName: {{ .Values.mongodb.persistence.storageClass }}
+{{- end }}

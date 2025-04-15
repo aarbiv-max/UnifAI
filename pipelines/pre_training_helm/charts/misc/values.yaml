@@ -16,10 +16,10 @@ mongodb:
   image:
     repository: mongo
     tag: "latest"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   service:
     name: mongodb
-    type: ClusterIP
+    type: LoadBalancer
     port: 27017
   persistence:
     enabled: true
@@ -34,6 +34,6 @@ rabbitmq:
     pullPolicy: Always
   service:
     name: rabbitmq
-    type: ClusterIP
+    type: LoadBalancer
     port: 5672
     managementPort: 15672

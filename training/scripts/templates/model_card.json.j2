@@ -1,0 +1,24 @@
+{
+    "name": "{{ env["MODEL_NAME"] | default('default-model-name') |trim}}",
+    "base_model": "{{ env["MODEL_NAME_OR_PATH"] | default('') |trim}}" ,
+    "context_length": "{{ env["CUTOFF_LEN"] | default('16384') |trim}}",
+    "model_type": "{{ env["TEMPLATE"] | default(qwen) |trim}}",
+    "quantized": "{{ env["QUANTIZATION"] | default(true) |trim}}",
+    "finetune_steps": [
+        {
+            "base_model": "{{ env["MODEL_NAME_OR_PATH"] | default('') |trim}}",
+            "step": 2,
+            "data": "{{ env["DATASET_REPO"] | default('') |trim}}",
+            "epochs": "{{ env["NUM_TRAIN_EPOCHS"] | default('') |trim}}",
+            "batch_size": "{{ env["BATCH_SIZE"] | default('') |trim}}",
+            "dataset_size": "{{ env["DATASET_SIZE"] | default("") |trim}}",
+            "num_tests": ""
+        }
+    ],
+    "project": "{{ env["PROJECT"] | default('default-project') |trim}}",
+    "prompt_template": {
+        "user_tag": "<|start_header_id|>user<|end_header_id|>",
+        "end_tag": "<|eot_id|>",
+        "assistant_tag": "<|start_header_id|>assistant<|end_header_id|>"
+    }
+}

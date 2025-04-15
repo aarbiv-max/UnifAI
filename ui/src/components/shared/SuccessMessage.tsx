@@ -2,7 +2,11 @@ import React from 'react';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { Box, Typography } from '@mui/material';
 
-const SuccessMessage: React.FC = () => {
+interface MessageProps {
+  text: string;
+}
+
+const SuccessMessage: React.FC<MessageProps> = ({text}) => {
   return (
     <Box
       sx={{
@@ -24,7 +28,7 @@ const SuccessMessage: React.FC = () => {
           margin: '20px',
         }}
       >
-        Form has been submitted, dataset generation will start soon
+        {text}
       </Typography>
     </Box>
   );

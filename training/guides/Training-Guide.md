@@ -37,11 +37,24 @@ Edit the `data/dataset_info.json` file to include your dataset information. For 
   "hf_hub_url": "your_huggingface_repo",
   "columns": {
     "prompt": "input",
-    "response": "output"
+    "response": "output",
+    "system": "system"
   }
 }
 ```
-Replace `your_dataset`, `your_huggingface_repo`, `input`, and `output` with your dataset name, Hugging Face repository, and column names respectively.
+Replace `your_dataset`, `your_huggingface_repo`, `input`, `output` and `system` with your dataset name, Hugging Face repository, and column names respectively.
+In our case we use the column names `question` and `answer`, so a sataset section will look like the example below:
+
+```json
+"mpc_training": {
+  "hf_hub_url": "oodeh/mpc_training",
+  "columns": {
+    "prompt": "question",
+    "response": "answer",
+    "system": "system"
+  }
+}
+```
 
 ### 3. Run Training Command
 Use the following command to train the model:
@@ -165,6 +178,13 @@ llamafactory-cli train \
     --lora_target all \
     --disable_gradient_checkpointing False
 ```
+
+NOTE: it's possible to run the command with a yaml file instead of running the long command, in that case the user needs to fill a yaml file with all relevant fields and run the command
+
+```
+llamafactory-cli train <arguments file path>
+```
+for examples please refer to this [link](https://github.com/hiyouga/LLaMA-Factory/tree/main/examples)
 
 ## LLM Training framework and overview session
 [Session video](https://drive.google.com/file/d/16FSwz422uMIGqbDvpIL7XWKjPoirT2wN/view)
