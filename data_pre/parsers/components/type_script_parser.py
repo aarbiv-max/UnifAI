@@ -74,7 +74,7 @@ class TypeScriptParser(TreeSitterParser):
                 relevant_imports.append({"import_name": matching_imports, "import_path": import_info['import_path']})
         return relevant_imports
         
-    def enitre_file_parsing(self):
+    def entire_file_parsing(self):
         def extract_entire_code(node, content, file_type):
             """Helper function to extract entire typescript file code."""
             used_imports = self.get_all_imports(node)
