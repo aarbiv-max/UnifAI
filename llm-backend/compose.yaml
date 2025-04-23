@@ -24,7 +24,7 @@ services:
       - "443:443"
     container_name: llm-backend
     environment:
-      - HUGGING_FACE_HUB_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=hf_xxxx
     #entrypoint: ["bash", "-lc", "sleep infinity"]
     deploy:
       resources:

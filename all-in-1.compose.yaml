@@ -87,8 +87,8 @@ services:
         condition: service_healthy
 
     environment:
-      - HUGGING_FACE_HUB_TOKEN=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
-      - HF_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - HF_TOKEN=${HF_TOKEN}
       - BACKEND_ENV=PRODUCTION
       - MONGODB_HOST=mongodb
     #entrypoint: ["sleep", "infinity"]
