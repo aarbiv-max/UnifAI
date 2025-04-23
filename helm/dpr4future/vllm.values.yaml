@@ -1,4 +1,4 @@
-HF_TOKEN: "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"
+HF_TOKEN: "hf_xxxx"
 VLLM_CONFIG_ROOT: '/tmp/usage'
 HF_HOME: '/tmp/'
 

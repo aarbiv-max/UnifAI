@@ -48,7 +48,7 @@ cover/
 .ipynb_checkpoints
 *.iml
 # Environments
-.env
+#.env
 .envrc
 *.env
 

@@ -46,7 +46,7 @@ services:
 
     command: reviewer
     environment:
-      - HUGGING_FACE_HUB_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
 
   prompt_processor:
     image: localhost/prompt_lab:latest
@@ -58,7 +58,7 @@ services:
       context: prompt_lab
       dockerfile: Dockerfile
     environment:
-      - HUGGING_FACE_HUB_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
 
   prompt_submitter:
     image: localhost/prompt_lab:latest
@@ -67,7 +67,7 @@ services:
       - genie-network
     command: prompt_submitter
     environment:
-      - HUGGING_FACE_HUB_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
 
   prompt_dispatcher:
     image: localhost/prompt_lab:latest
@@ -76,7 +76,7 @@ services:
       - genie-network
     command: prompt_dispatcher
     environment:
-      - HUGGING_FACE_HUB_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
 
 volumes:
   rabbitmq_data:

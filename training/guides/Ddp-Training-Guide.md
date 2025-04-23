@@ -59,7 +59,7 @@ pip install flash-attn
 ### Step 4: Authenticate with Hugging Face
 
 ```bash
-huggingface-cli login --token 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
+huggingface-cli login --token hf_xxxxx # with your own token
 ```
 
 ---
