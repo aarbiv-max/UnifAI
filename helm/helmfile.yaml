@@ -50,5 +50,11 @@ releases:
     wait: true
     values:
       - "genie-llm-be.values.yaml"
+      - env:
+          HF_TOKEN: {{ env "HF_TOKEN" | quote }}
+          HF_HOME: {{ env "HF_HOME" | default "/tmp" | quote }}
+          VLLM_CONFIG_ROOT: {{ env "VLLM_CONFIG_ROOT" | default "/tmp/usage" | quote }}
+          BACKEND_ENV: "production"
+
     needs:
       - genie-mongodb
