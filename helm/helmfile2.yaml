@@ -33,6 +33,8 @@ releases:
               kubectl create configmap mongodb-lb-config --from-literal=MONGO_EXT_ADDR="$LB_ADDR" --dry-run=client -o yaml | kubectl apply -f -
     values:
       - "genie-be.values.yaml"
+      - env:
+          HF_TOKEN: {{ env "HF_TOKEN" | quote }}
 
 
   - name: genie-llm-be
