@@ -31,6 +31,10 @@ releases:
     wait: true
     values:
       - "genie-be.values.yaml"
+      - env:
+         HF_TOKEN: {{ env "HF_TOKEN" | quote }}
+
+
     needs:
       - genie-mongodb
       - genie-rabbitmq
