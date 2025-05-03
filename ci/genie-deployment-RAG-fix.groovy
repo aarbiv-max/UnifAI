@@ -403,10 +403,7 @@ pipeline {
                     script {
                       module = "helmfile"
                       cleanWorkspace(module) 
-                      withCredentials([
-                          string(credentialsId: 'RHOI-service-token', variable: 'token'),
-                          string(credentialsId: 'HF_TOKEN', variable: 'HF_TOKEN')
-                      ]){
+                      withCredentials([string(credentialsId: 'RHOI-service-token', variable: 'token')]){
 
                         echo("Creating helm deployment pod")
                         sh("oc login --token=${token} --server=${ClusterAddress}")
