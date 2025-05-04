@@ -478,7 +478,7 @@ const ChatComponent: React.FC = () => {
         additionalContext = metadataRetrievalResponse.data.result
         promptMessages = [...promptMessages, {"role": "context", "content": `${additionalContext}`}]   
       }
-      
+
       const inferencePayload = {
         messages: promptMessages,
         temperature: temperature.toString(),
@@ -740,7 +740,6 @@ const ChatComponent: React.FC = () => {
     const regularText = (line: string, type: RegExp, style: string) => {
       return line.replace(type, (_, text) => `<${style}>${text}</${style}>`) + '\n';
     };
-  
     // Function to create validation button HTML
     const createValidationButton = (codeContent: string) => {
       const escapedCode = codeContent
@@ -871,7 +870,7 @@ const ChatComponent: React.FC = () => {
   
   // const modelType = getModelType();
   const modelType : 'llama' | 'qwen' | null = selectedModel?.modelType || null;
-
+  const framework = selectedModel?.supportedFrameworks || null;
   return (
     <>
       {loadingModel || unloadingModel ? (
@@ -1008,6 +1007,7 @@ const ChatComponent: React.FC = () => {
             modelType={modelType}
             reformatText={ReformatText}
             regenerateResponse={regenerateResponse}
+            framework={framework}
           />
         </div>
        ) : (

@@ -57,6 +57,7 @@ export interface ModelData {
     };
     isRagEnabled?: boolean;
     isPackageSelectionRagEnabled?: boolean;
+    supportedFrameworks?: string;
     // numTests: string,
     // dataSize: string,
 }

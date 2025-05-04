@@ -1,15 +1,31 @@
-from .analyzers.go_analyzer import GoCodeAnalyzer
 from typing import Dict
+from .analyzers.ts_analyzer.cypress_analyzer import CypressCodeAnalyzer
+from .analyzers.ts_analyzer.ts_analyzer import TSCodeAnalyzer
+from .analyzers.go_analyzer import GoCodeAnalyzer
+
 
 class EvaluatorAgent:
-    def __init__(self, repo_path: str):
-        self.analyzer = GoCodeAnalyzer()
+    def __init__(self, repo_path: str, framework: str):
+        """Initialize the evaluator agent based on the selected framework."""
+        # Select the appropriate analyzer based on the framework
+        if framework.lower() == 'cypress':
+            self.analyzer = CypressCodeAnalyzer()
+        elif framework.lower() == 'typescript':
+            self.analyzer = TSCodeAnalyzer()
+        elif framework.lower() == 'go':
+            self.analyzer = GoCodeAnalyzer()
+        else:
+            raise ValueError(f"Unsupported framework: {framework}")
+
+        # Analyze the repository based on the chosen framework
         self.analyzer.analyze_repository(repo_path)
-        
+
     def evaluate_generated_code(self, code: str) -> Dict:
         """Evaluate generated code for project-specific symbol existence and compatibility"""
+        if code.strip().startswith("```"):
+            code = "\n".join(line for line in code.splitlines() if not line.strip().startswith("```"))
+
         verification_results = self.analyzer.verify_code_snippet(code)
-        
         # Calculate overall validity
         all_valid = all(
             all(result['exists'] for result in category)
@@ -38,7 +54,9 @@ class EvaluatorAgent:
         issues = []
         
         for category, results in verification_results.items():
-            missing = [r['name'] for r in results if not r['exists']]
+            key = "name" if category != "cyCommands" else "command"
+            
+            missing = [r.get(key, 'unknown') for r in results if not r['exists']]
             if missing:
                 issues.append(f"Missing {category}: {', '.join(missing)}")
                 

@@ -12,13 +12,19 @@ import {
   TableRow,
   Paper,
   Alert,
-  Tooltip
+  Tooltip,
+  Link
 } from '@mui/material';
 import { CheckCircle, Cancel } from '@mui/icons-material';
 
 interface ValidationDetail {
+  args?: any;
+  url?: any;
+  command?: string;
+  matchLevel?: string;
   exists: boolean;
   name: string;
+  
 }
 
 interface ValidationDetails {
@@ -69,32 +75,66 @@ const AccuracyIndicator: React.FC<{ accuracy: number }> = ({ accuracy }) => {
   );
 };
 
-const ValidationTable: React.FC<ValidationTableProps> = ({ data, title }) => (
-  <TableContainer component={Paper} elevation={0}>
-    <Table>
-      <TableHead>
-        <TableRow>
-          <TableCell sx={{ fontWeight: 600 }}>Element Name</TableCell>
-          <TableCell align="center" sx={{ fontWeight: 600 }}>Exists</TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {data.map((item, index) => (
-          <TableRow key={`${title}-${index}`} sx={{ backgroundColor: index % 2 === 0 ? '#f9fafb' : 'white' }}>
-            <TableCell>{item.name}</TableCell>
-            <TableCell align="center">
-              {item.exists ? (
-                <CheckCircle sx={{ color: '#2e7d32' }} />
-              ) : (
-                <Cancel sx={{ color: '#d32f2f' }} />
-              )}
-            </TableCell>
+const ValidationTable: React.FC<ValidationTableProps>  = ({ data, title }) => {
+  const isCyCommands = title.toLowerCase().includes('cycommand');
+
+  return (
+    <TableContainer component={Paper} elevation={0}>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell sx={{ fontWeight: 600 }}>Element</TableCell>
+            <TableCell align="center" sx={{ fontWeight: 600 }}>Exists</TableCell>
+            {isCyCommands && (
+              <>
+                <TableCell align="center" sx={{ fontWeight: 600 }}>Match Level</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600 }}>Args</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600 }}>Link</TableCell>
+              </>
+            )}
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  </TableContainer>
-);
+        </TableHead>
+        <TableBody>
+          {data.map((item, index) => (
+            <TableRow
+              key={`${title}-${index}`}
+              sx={{ backgroundColor: index % 2 === 0 ? '#f9fafb' : 'white' }}
+            >
+              <TableCell>{item.name || item.command}</TableCell>
+              <TableCell align="center">
+                {item.exists ? (
+                  <CheckCircle sx={{ color: '#2e7d32' }} />
+                ) : (
+                  <Cancel sx={{ color: '#d32f2f' }} />
+                )}
+              </TableCell>
+
+              {isCyCommands && (
+                <>
+                  <TableCell align="center">{item.matchLevel}</TableCell>
+                  <TableCell align="center">
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                      {item.args?.join(', ') || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="center">
+                    {item.url ? (
+                      <Link href={item.url} target="_blank" rel="noopener">
+                        View
+                      </Link>
+                    ) : (
+                      '-'
+                    )}
+                  </TableCell>
+                </>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+};
 
 const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => (
   <div

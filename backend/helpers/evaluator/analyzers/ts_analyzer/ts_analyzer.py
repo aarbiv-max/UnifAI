@@ -1,7 +1,7 @@
 import re
 import json
 from typing import Dict, List, Any, Tuple, Optional
-from base_analyzer import BaseAnalyzer
+from .base_analyzer import BaseAnalyzer
 
 # --- Utilities ---
 def normalize_path(p: str) -> str:
@@ -44,9 +44,8 @@ def compare_parameters(snippet_fn: Dict, repo_fn: Dict) -> List[str]:
 
     return issues
 
-
 # --- TS Evaluator ---
-class TSEvaluator:
+class TSCodeAnalyzer:
     def __init__(self):
         self.repo = {}
         self.snippet = {}
@@ -59,6 +58,7 @@ class TSEvaluator:
         self.repo = repo_result
         self.snippet = snippet_result.get("/snippet", {})
         self._infer_declarations(snippet_code)
+
 
     def _infer_declarations(self, snippet_code: str):
         self.declarations = []
@@ -287,56 +287,3 @@ class TSEvaluator:
 
         return result
 
-
-# --- Example Usage ---
-if __name__ == "__main__":
-    repo_path = "/tmp/typescript-primer"
-    snippet = '''
-import { Animal } from "./classes/Animal";
-import { Box } from "./classes/Box";
-import { sum, greet } from "./functions/functions";
-import { Person } from "./interfaces/Person";
-
-const dog = new Animal("Buddy", 5);
-const box = new Box<number>(42);
-
-console.log(sum(10, 20));          // ✅ correct
-console.log(sum(10));              // ❌ wrong: missing parameter
-console.log(greet("Alice", 30));    // ✅ correct
-console.log(greet(100, 50));        // ❌ wrong: type mismatch (string expected)
-
-const user: Person = { name: "John", age: 25, isStudent: true };
-console.log(user.name);             // ✅ correct
-console.log(user.age);              // ✅ correct
-console.log(user.email);            // ❌ wrong: 'email' not declared
-
-console.log(dog.describe());        // ✅ correct
-console.log(box.getContent());      // ✅ correct
-
-class LocalClass {
-  speak(message: string) {
-    return `Message: ${message}`;
-  }
-}
-const localInstance = new LocalClass();
-console.log(localInstance.speak("Hello")); // ✅ correct
-console.log(localInstance.speak());        // ❌ wrong: missing argument
-console.log(localInstance.walk());         // ❌ wrong: walk() not declared
-
-console.log(cat.meow());                   // ❌ cat undeclared
-console.log(Math.random());                 // ✅ correct (ignored: built-in)
-console.log(JSON.stringify({ key: "value" })); // ✅ correct (ignored)
-
-function localFunction(x: number): number {
-  return x * x;
-}
-console.log(localFunction(5));            // ✅ correct
-console.log(localFunction("bad"));         // ❌ wrong: type mismatch
-
-    '''
-
-    evaluator = TSEvaluator()
-    evaluator.load(repo_path, snippet)
-    report = evaluator.evaluate()
-
-    print(json.dumps(report, indent=2))
