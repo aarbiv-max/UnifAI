@@ -28,5 +28,6 @@
   "templates_type": "${TEMPLATE_TYPE}",
   "templates_project_context": "${TEMPLATE_PROJECT_CONTEXT}",
   "project_id": "${PROJECT_ID}",
-  "project_repo": "${PROJECT_REPO}"
+  "project_repo": "${PROJECT_REPO}",
+  "process_id": "${PROCESS_ID}"
 }

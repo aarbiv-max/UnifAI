@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.ConfigMapTrainerArgs.metadata.name }}
+  namespace: {{ .Values.ConfigMapTrainerArgs.metadata.namespace }}
+data: 
+{{- range $key, $value := .Values.ConfigMapTrainerArgs.data }}
+  {{ $key }}: |
+{{ $value | indent 4 }}
+{{- end }}
+immutable: false

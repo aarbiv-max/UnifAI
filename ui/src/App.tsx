@@ -12,6 +12,8 @@ import SavedPrompt from './components/inference/SavedPrompt';
 import DataSetTable from './components/dataset/DataSetTable';
 import TrainingForm from './components/training/TrainingForm';
 import ChatComponent from './components/inference/ChatContainer';
+import DatasetPreparationTable from './components/dataset/DatasetPreparationTable';
+import HelmForm from './components/dataset/HelmForm';
 
 const App: React.FC = () => {
   const [role, setRole] = useState<string>(USER_ROLE);
@@ -25,6 +27,8 @@ const App: React.FC = () => {
             <Route path="/" element={<WelcomeContent />} />
             <Route path="/ai-content" element={<AIContent />} />
             <Route path="/create-dataset" element={<ProjectForm />} />
+            <Route path="/prepare-dataset" element={<HelmForm />} />
+            <Route path="/deployed-datasets" element={<DatasetPreparationTable />} />
             <Route path="/dataset-table" element={<DataSetTable />} />
             <Route path="/train-form" element={<TrainingForm />} />
             <Route path="/form-table" element={<FormTable />} />

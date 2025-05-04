@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Values.Deployment.metadata.namespace }}
+  name: {{ .Values.Deployment.metadata.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.Deployment.spec.selector.matchLabels.app }}
+  replicas: {{ .Values.Deployment.spec.replicas }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.Deployment.spec.template.metadata.labels.app }}
+    spec:
+      # securityContext:
+      #   runAsNonRoot: true
+      #   seccompProfile:
+      #     type: RuntimeDefault
+      containers:
+      {{- range .Values.Deployment.spec.template.spec.containers }}
+        - name: {{ .name }}
+          image: {{ .image | default "default-image" }}
+          imagePullPolicy: {{ .imagePullPolicy }}
+          stdin: {{ .stdin }}
+          tty: {{ .tty }}
+          command: ["/bin/sh", "-c"]
+          args: 
+           - "gunicorn --daemon -w 4 -b 0.0.0.0:8080 api-server:app --chdir /app && python /app/entrypoint.py"
+          #- "gunicorn -w 4 -b 0.0.0.0:8080 api-server:app --chdir /app && python /app/entrypoint.py" 
+          # - "gunicorn -w 4 -b 0.0.0.0:8080 api-server:app --chdir /app"
+          #- "python /app/entrypoint.py"
+          resources:
+            requests:
+              memory: {{ .resources.requests.memory }} 
+              cpu: {{ .resources.requests.cpu }}
+              nvidia.com/gpu: {{ .resources.requests.gpu }}
+            limits:
+              memory: {{ .resources.limits.memory }}
+              cpu: {{ .resources.limits.cpu }}
+              nvidia.com/gpu: {{ .resources.limits.gpu }}
+          {{- if .volumeMounts }}          
+          volumeMounts:
+          {{- range .volumeMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+              readOnly: {{ .readOnly | default false }}
+              {{- if .subPath }}
+              subPath: {{ .subPath }}
+              {{- end }}
+          {{- end }}
+          {{- end }}
+
+          envFrom:
+          {{- range .envFrom }}
+            {{- range $key, $value := . }}
+            - {{ $key }}:
+                {{- range $subKey, $subValue := $value }}
+                  {{ $subKey }}: {{ $subValue }}
+                {{- end }}
+              {{- end }}
+          {{- end }}
+      {{- end }}
+
+      {{- if .Values.Deployment.spec.template.spec.volumes }}
+      volumes:
+      {{- range .Values.Deployment.spec.template.spec.volumes}}
+        - name: {{ .name }}
+          {{- if .persistentVolumeClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .persistentVolumeClaim.claimName }}
+            readOnly: {{ .persistentVolumeClaim.readOnly }}          
+          {{- else if .configMap }}
+          configMap:
+            name: {{ .configMap.name }}
+          {{- end }} 
+      {{- end }}
+      {{- end }}
+
+      {{- if and ( eq .Values.Global.cluster "production") ( .Values.Deployment.spec.template.spec.tolerations ) }}
+      tolerations:
+        {{- range .Values.Deployment.spec.template.spec.tolerations }}
+        - key: {{ .key }}
+        {{- if .value }}
+          value: {{ .value }}
+        {{- end }}
+          operator: {{ .operator }}
+          effect: {{ .effect }}
+        {{- end }}
+      {{- end }}

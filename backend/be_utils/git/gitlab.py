@@ -26,9 +26,9 @@ class GitlabAPI(AbstractAPI):
         """Convert `repo_url` to `api/v4/projects/{ID}`."""
         project_name = self.base_url.split("/")[-1].replace(GIT_EXTENSION, "")
         search_url = f"{GITLAB_API_URL}?search={project_name}"
-        headers = self._get_headers() 
-        projects, _ = self._get(search_url, headers=headers) 
-        if "error" in projects or not projects:
+        headers = self._get_headers()
+        projects, _ = self._get(search_url, headers=headers)
+        if "error" in projects:
             raise ValueError(f"❌ GitLab project not found: {projects.get('error', 'Unknown error')}")
         
         for project in projects:

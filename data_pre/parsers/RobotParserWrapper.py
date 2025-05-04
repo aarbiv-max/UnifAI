@@ -1,14 +1,15 @@
 import json
 import os
+from backend.be_utils.git.utils import generate_git_file_url
 from data_pre.parsers.BaseParser import BaseParser
 from data_pre.parsers.components.robot_parser import RobotParser
 
 class RobotParserWrapper(BaseParser):
-    def __init__(self, repo_local_path, file_paths, project_name, organization_name):
+    def __init__(self, repo_local_path, file_paths, project_name, organization_name, repo_url, git_branch_name):
         """
         Parser for Robot Framework.
         """
-        super().__init__(repo_local_path, file_paths, project_name, organization_name)
+        super().__init__(repo_local_path, file_paths, project_name, organization_name, repo_url, git_branch_name)
         self.robot_file_keywords_mapping = {}
         self.robot_file_libraries_mapping = {}
         self.robot_file_names_mapping = {}
@@ -50,6 +51,7 @@ class RobotParserWrapper(BaseParser):
                 continue
 
             print(f"🤖 Parsing Robot Framework File: {full_path}")
+            file_git_path = generate_git_file_url(local_file_path = full_path ,repo_local_path = self.repo_local_path, repo_url = self.repo_url, branch = self.git_branch_name )
             parser = RobotParser(file_path=full_path, realtive_path=full_path, project_name=self.full_project_name)
 
             # Extract keywords & their details

@@ -44,7 +44,6 @@ coverage.xml
 .pytest_cache/
 cover/
 node_modules/
-
 # Jupyter Notebook
 .ipynb_checkpoints
 *.iml

@@ -1,3 +1,4 @@
+{{- if not .Values.global.connection }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -58,3 +59,4 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+{{- end }}

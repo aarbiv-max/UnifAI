@@ -4,6 +4,7 @@ from endpoints.git import git_bp
 from endpoints.forms import forms_bp
 from endpoints.prompts import prompts_bp
 from endpoints.inference import inference_bp
+from endpoints.dpr import dpr_bp
 from endpoints.extensions import extensions_bp
 from endpoints.parser import parser_bp
 
@@ -16,6 +17,7 @@ def register_all_endpoints(app):
         {"bp": forms_bp, "parent": 'forms', "route": ''},
         {"bp": prompts_bp, "parent": 'prompts', "route": ''},
         {"bp": inference_bp, "parent": 'inference', "route": ''},
+        {"bp": dpr_bp, "parent": 'dpr', "route": ''},
         {"bp": extensions_bp, "parent": 'extensions', "route": ''},
         {"bp": parser_bp, "parent": 'parser', "route": ''},
     ]

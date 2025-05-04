@@ -212,6 +212,7 @@ body, html, #root {
 
 .end-button,
 .form-container .end-button,
+.forms-table .end-button,
 .form-section .end-button,
 .form-bottom-button .end-button,
 .toolbar-buttons .end-button {
@@ -221,6 +222,7 @@ body, html, #root {
 .end-button:hover,
 .chat-top-buttons .end-button:hover,
 .form-container .end-button:hover,
+.forms-table .end-button:hover,
 .form-section .end-button:hover,
 .form-bottom-button .end-button:hover,
 .toolbar-buttons .end-button:hover {
@@ -230,6 +232,7 @@ body, html, #root {
 .end-button:disabled,
 .chat-top-buttons .end-button:disabled,
 .form-container .end-button:disabled,
+.forms-table .end-button:disabled,
 .form-section .end-button:disabled,
 .form-bottom-button .end-button:disabled,
 .toolbar-buttons .end-button:disabled {
@@ -375,7 +378,12 @@ body, html, #root {
 }
 
 .forms-table {
+  table-layout: fixed;
   margin-top: 0;
+}
+
+.forms-table .progress-table .MuiTableCell-root {
+  width: 10px;
 }
 
 .table-chat-container {
@@ -685,3 +693,54 @@ background-color: #e0e0e0d5;
   background-color: white;
 }
 
+
+.mode-selection {
+  display: flex;
+  margin-top: 15px;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  color: red;
+}
+
+.mode-selection .MuiButton-root {
+  color: red; 
+  border-color: red;
+}
+
+.mode-selection .MuiButton-root:hover {
+  background-color: #bb0000;
+}
+
+.mode-selection .MuiButton-contained {
+  background-color: red; 
+  color: white;
+}
+
+.linear-progress-container {
+  width: 100%;
+}
+
+.linear-progress-red {
+  background-color: rgba(154, 147, 147, 0.2) !important; 
+  border-radius: 10px;
+  height: 16px !important ;
+}
+
+
+.linear-progress-red .MuiLinearProgress-bar {
+  background-color: #ff0d00;
+  background: rgb(220, 32, 32) !important;
+  border-radius: 10px;
+}
+
+.custom-tooltip {
+  font-size: 13px !important;
+  max-width: none !important; /* Prevents automatic wrapping */
+  background-color: rgba(0, 0, 0, 0.8) !important; /* Adjust background */
+  color: white !important; /* Adjust text color */
+}
+
+.custom-tooltip-text {
+  margin: 0; /* Ensures no extra spacing */
+}

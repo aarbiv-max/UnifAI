@@ -76,6 +76,7 @@ Before starting, ensure the following:
        "base_model": "<base_model_name>",
        "context_length": 8192,
        "model_type": "finetuned",
+       "quantized": <true|false>,
        "finetune_steps": [
            {
                "base_model": "<base_model_name>",

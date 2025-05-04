@@ -1,0 +1,251 @@
+Global:
+  app: TAG-001
+  namespace: tag-ai--pipeline  #tag-ai--runtime-int 
+  dataset_model: Qwen/Qwen2.5-Coder-14B-Instruct 
+  #Qwen/Qwen2.5-Coder-14B-Instruct
+  #Qwen/Qwen2.5-Coder-32B-Instruct
+  dataset_repo: oodeh/oadp-deepcode-training
+  dataset_file_name: output.json
+  cluster: production  #staging/production
+  
+Deployment:
+  metadata:
+    namespace: tag-ai--pipeline  #tag-ai--runtime-int 
+    name: genie-training
+  spec:
+    selector:
+      matchLabels:
+        app: TAG-001
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: TAG-001
+      spec:
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+          - name: genie-trainer
+            #image: images.paas.redhat.com/genie/training:test
+            image: images.paas.redhat.com/genie/training:jenkins
+            imagePullPolicy: Always
+            stdin: true
+            tty: true
+            resources:
+              requests:
+                memory: '6Gi' 
+                cpu: '4'
+                gpu: '2' #nvidia.com/gpu in the deployment.yaml
+              limits:
+                memory: '32Gi'
+                cpu: '8'
+                gpu: '2' #nvidia.com/gpu in the deployment.yaml
+            volumeMounts:
+              - name: dshm
+                mountPath: /dev/shm
+              - name: trainer-storage
+                mountPath: /app/LLaMA-Factory/saves
+                subPath: saves
+                readOnly: false
+              - name: distribution-script
+                mountPath: /app/LLaMA-Factory/dataset-token-size-distribution.py
+                subPath: dataset-token-size-distribution.py
+                readOnly: false
+            envFrom:
+              - configMapRef:
+                  name: trainer-configmap-global
+                  optional: false
+              - configMapRef:
+                  name: trainer-configmap-trainer-args
+                  optional: false
+              - configMapRef:
+                  name: trainer-configmap--dataset-token-size-distribution
+                  optional: false
+              - secretRef:
+                  name: huggingface-token-secret
+                  optional: false
+        volumes:
+          - name: dshm
+            emptyDir:
+              medium: Memory
+              sizeLimit: "16Gi"
+          - name: trainer-storage
+            persistentVolumeClaim:
+              claimName: trainer-storage
+              readOnly: false
+          # - name: trainer-configmap-cmd
+          #   configMap:
+          #     name: trainer-configmap-cmd
+          - name: distribution-script
+            configMap:
+              name: trainer-configmap--dataset-token-size-distribution
+              defaultMode: 0777
+        tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+        - key: tenant
+          operator: Equal
+          value: llmaas-a100
+          effect: NoSchedule        
+
+PersistentVolumeClaim:
+  metadata:
+    name: trainer-storage
+    namespace: tag-ai--pipeline  #tag-ai--runtime-int 
+    labels:
+      paas.redhat.com/appcode: TAG-001
+    annotations:
+      kubernetes.io/reclaimPolicy: Delete
+  spec:
+    accessModes:
+      - ReadWriteMany
+    volumeMode: Filesystem
+    storageClassName: aws-efs-tier-c1
+    resources:
+      requests:
+        storage: 250Gi 
+
+
+ConfigMap:
+  metadata:
+    name: trainer-configmap-global
+    namespace: tag-ai--pipeline  #tag-ai--runtime-int 
+  data: 
+    APP: "Genie"
+    MODE: "training" #debug | training
+    GPU_NUM: "2"
+    PROJECT: "mpc_training"
+    MPLCONFIGDIR: "/tmp/matplotlib"
+    DATASET_REPO: "oodeh/mpc_training"
+    DATASET_NAME: "mpc_training"
+    HF_HUB_ENABLE_HF_TRANSFER: "1"
+    TRITON_CACHE_DIR: /tmp/.triton
+    CUDA_VISIBLE_DEVICES: '0,1'
+    VLLM_ENGINE_USE_TCP: '1'
+    NCCL_P2P_DISABLE: '1'
+    XDG_CACHE_HOME: /tmp/
+    #TRANSFORMERS_CACHE: /tmp/.cache
+    HF_HOME: /tmp/.cache
+    VLLM_CONFIG_ROOT: /tmp/.cache
+    VLLM_CACHE_ROOT: /tmp/.cache
+
+  immutable: false  
+
+ConfigMapTrainerArgs:
+  metadata:
+    name: trainer-configmap-trainer-args
+    namespace: tag-ai--pipeline  #tag-ai--runtime-int 
+  data: 
+    MODEL_NAME_OR_PATH: "Qwen/Qwen2.5-Coder-14B-Instruct"
+    LORA_RANK: "16"
+    LORA_ALPHA: "16"
+    LORA_DROPOUT: "0.1"
+    DATASET: "mpc_training"
+    TEMPLATE: "qwen"
+    MAX_SAMPLES: "500000"
+    NUM_TRAIN_EPOCHS: "1"
+    GRADIENT_ACCUMULATION_STEPS: "16"
+    PER_DEVICE_TRAIN_BATCH_SIZE: "1"
+    LEARNING_RATE: "!!float 5e-5"
+    QUANTIZATION: "True"
+
+Secret:
+  metadata:
+    name: huggingface-token-secret
+    namespace: tag-ai--pipeline  #tag-ai--runtime-int 
+  data:
+    #here we need a base64 encoded value of the token
+    #token: aGZfcENGWGhhUnBhandSeUZFREp2dEZvY3pEV1N4eXNpZENpeQ==   --Odai's token encoded
+    token: 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  #tag-user token (we encode it in the template level)
+  type: Opaque
+
+
+NetworkPolicy:
+  metadata:
+    name: genie-training-np
+    namespace: tag-ai--pipeline
+  spec:
+    podSelector: {}
+    ingress:
+      - {}
+    egress:
+      - {}
+    policyTypes:
+      - Ingress
+      - Egress
+
+
+Pod:
+  metadata:
+    namespace: tag-ai--pipeline  #tag-ai--runtime-int 
+    name: genie-training
+    labels:
+      app: TAG-001
+  spec:
+    containers:
+      - name: genie-trainer
+        #image: images.paas.redhat.com/genie/training:test
+        image: images.paas.redhat.com/genie/training:jenkins
+        imagePullPolicy: Always
+        stdin: true
+        tty: true
+        resources:
+          requests:
+            memory: '6Gi' 
+            cpu: '4'
+            gpu: '2' #nvidia.com/gpu in the deployment.yaml
+          limits:
+            memory: '32Gi'
+            cpu: '8'
+            gpu: '2' #nvidia.com/gpu in the deployment.yaml
+        volumeMounts:
+          - name: dshm
+            mountPath: /dev/shm
+          - name: trainer-storage
+            mountPath: /app/LLaMA-Factory/saves
+            subPath: saves
+            readOnly: false
+          - name: distribution-script
+            mountPath: /app/LLaMA-Factory/dataset-token-size-distribution.py
+            subPath: dataset-token-size-distribution.py
+            readOnly: false
+        envFrom:
+          - configMapRef:
+              name: trainer-configmap-global
+              optional: false
+          - configMapRef:
+              name: trainer-configmap-trainer-args
+              optional: false
+          - configMapRef:
+              name: trainer-configmap--dataset-token-size-distribution
+              optional: false
+          - secretRef:
+              name: huggingface-token-secret
+              optional: false
+    volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: "16Gi"
+      - name: trainer-storage
+        persistentVolumeClaim:
+          claimName: trainer-storage
+          readOnly: false
+      # - name: trainer-configmap-cmd
+      #   configMap:
+      #     name: trainer-configmap-cmd
+      - name: distribution-script
+        configMap:
+          name: trainer-configmap--dataset-token-size-distribution
+          defaultMode: 0777
+    tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+    - key: tenant
+      operator: Equal
+      value: llmaas-a100
+      effect: NoSchedule 

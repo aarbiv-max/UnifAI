@@ -1,10 +1,11 @@
 {
-    "frameworks": ["TypeScript", "Robot", "Go", "JMeter"],
+    "frameworks": ["TypeScript", "Robot", "Go", "JMeter", "Python"],
     "extensions": {
       "TypeScript": [".ts", ".tsx"],
       "Robot": [".robot", ".resource"],
       "Go": [".go"],
-      "JMeter": [".jmeter", ".jmx"]
+      "JMeter": [".jmeter", ".jmx"],
+      "Python": [".py"]
     }
 }
   
