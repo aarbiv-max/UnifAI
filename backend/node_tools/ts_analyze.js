@@ -1,93 +1,175 @@
-const { Project } = require("ts-morph");
+const { Project, SyntaxKind } = require("ts-morph");
+const path = require("path");
+const fs = require("fs");
 
-function isLocalSymbol(symbol, currentFilePath) {
-  const decl = symbol?.getDeclarations()?.[0];
-  const symbolPath = decl?.getSourceFile()?.getFilePath();
-  return symbolPath && symbolPath === currentFilePath;
+function normalizePath(p) {
+  return p.replace(/\\/g, "/").replace(/^\.?\/*src\//, "").replace(/\.ts$/, "");
 }
 
-function analyzeTSCode(code, fileName = "virtual.ts") {
+async function analyze(files) {
   const project = new Project({
-    useInMemoryFileSystem: process.env.TS_IN_MEMORY !== "false"
-  });
-  const sourceFile = project.createSourceFile(fileName, code);
-  const currentFilePath = sourceFile.getFilePath();
-
-  const result = {
-    functions: [],
-    methods: [],
-    classes: [],
-    interfaces: [],
-    imports: []
-  };
-
-  sourceFile.getFunctions().forEach(fn => {
-    const name = fn.getName();
-    const symbol = fn.getSymbol();
-    const params = fn.getParameters().map(p => ({
-      name: p.getName(),
-      type: p.getType().getText()
-    }));
-    const returnType = fn.getReturnType().getText();
-    const body = fn.getBodyText()?.replace(/\s+/g, ' ').trim();
-
-    if (name) {
-      result.functions.push({ name, params, returnType, body });
-    }
+    useInMemoryFileSystem: true,
+    compilerOptions: {
+      target: 99, // ESNext
+      module: 99,
+      allowJs: true,
+      skipLibCheck: true,
+      strict: false
+    },
+    skipAddingFilesFromTsConfig: true
   });
 
-  sourceFile.getClasses().forEach(cls => {
-    const clsName = cls.getName();
-    const classSymbol = cls.getSymbol();
-    if (clsName && isLocalSymbol(classSymbol, currentFilePath)) {
-      result.classes.push(clsName);
-      cls.getMethods().forEach(method => {
-        const methodName = method.getName();
-        const methodSymbol = method.getSymbol();
-        const params = method.getParameters().map(p => ({
-          name: p.getName(),
-          type: p.getType().getText()
-        }));
-        const returnType = method.getReturnType().getText();
-        const body = method.getBodyText()?.replace(/\s+/g, ' ').trim();
+  for (const [filename, content] of Object.entries(files)) {
+    project.createSourceFile(filename, content, { overwrite: true });
+  }
 
-        if (methodName) {
-          result.methods.push({ name: methodName, class: clsName, params, returnType, body });
-        }
+  const result = {};
+
+  for (const sourceFile of project.getSourceFiles()) {
+    const filePath = normalizePath(sourceFile.getFilePath());
+    result[filePath] = {
+      functions: [],
+      methods: [],
+      classes: {},
+      interfaces: {},
+      imports: [],
+      memberAccesses: [],
+      calls: []
+    };
+
+    // --- collect functions ---
+    for (const fn of sourceFile.getFunctions()) {
+      const name = fn.getName();
+      if (!name) continue;
+      let params = [], returnType = "any";
+      try { params = fn.getParameters().map(p => p.getType().getText()); } catch {}
+      try { returnType = fn.getReturnType().getText(); } catch {}
+
+      result[filePath].functions.push({
+        name, params, returnType,
+        body: fn.getBodyText()?.replace(/\s+/g, " ").trim() || ""
       });
     }
-  });
 
-  sourceFile.getInterfaces().forEach(intf => {
-    const name = intf.getName();
-    const symbol = intf.getSymbol();
-    if (name) {
-      result.interfaces.push(name);
-    }
-  });
+    // --- collect classes and methods ---
+    for (const cls of sourceFile.getClasses()) {
+      const clsName = cls.getName();
+      if (!clsName) continue;
+      result[filePath].classes[clsName] = [];
 
-  sourceFile.getImportDeclarations().forEach(imp => {
-    const path = imp.getModuleSpecifierValue();
-    if (path.startsWith("./") || path.startsWith("../")) {
-      result.imports.push({ path, type: "local" });
-    } else {
-      result.imports.push({ path, type: "external" });
+      for (const method of cls.getMethods()) {
+        const methodName = method.getName();
+        let params = [], returnType = "any";
+        try { params = method.getParameters().map(p => p.getType().getText()); } catch {}
+        try { returnType = method.getReturnType().getText(); } catch {}
+
+        result[filePath].methods.push({
+          name: methodName, class: clsName, params, returnType,
+          body: method.getBodyText()?.replace(/\s+/g, " ").trim() || ""
+        });
+        result[filePath].classes[clsName].push(methodName);
+      }
     }
-  });
+
+    // --- collect interfaces ---
+    for (const intf of sourceFile.getInterfaces()) {
+      const intfName = intf.getName();
+      const props = {};
+      for (const prop of intf.getProperties()) {
+        try { props[prop.getName()] = prop.getType().getText(); } catch {}
+      }
+      result[filePath].interfaces[intfName] = props;
+    }
+
+    // --- collect imports ---
+    for (const imp of sourceFile.getImportDeclarations()) {
+      const modulePath = imp.getModuleSpecifierValue();
+      for (const named of imp.getNamedImports()) {
+        result[filePath].imports.push({
+          name: named.getName(),
+          path: modulePath
+        });
+      }
+    }
+
+    // --- collect member accesses ---
+    for (const access of sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
+      const expr = access.getExpression();
+      const name = access.getName();
+      let prop = null;
+      let isBuiltIn = false;
+    
+      try {
+        const exprType = expr.getType();
+        prop = exprType?.getProperty(name);
+    
+        // Check if the type is from lib.dom.d.ts or standard built-in libs
+        const symbol = exprType?.getSymbol();
+        if (symbol) {
+          const declarations = symbol.getDeclarations();
+          if (declarations.length > 0) {
+            const declSourceFile = declarations[0].getSourceFile();
+            const declPath = declSourceFile.getFilePath();
+            if (declPath.includes("/node_modules/typescript/lib/") || declPath.includes("/lib.")) {
+              isBuiltIn = true;
+            }
+          }
+        }
+      } catch {}
+    
+      if (!isBuiltIn) {
+        result[filePath].memberAccesses.push({
+          object: expr.getText(),
+          member: name
+        });
+      }
+    }
+
+    for (const call of sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+      const expr = call.getExpression();
+
+      // Function call: sum(...)
+      if (expr.getKind() === SyntaxKind.Identifier) {
+        result[filePath].calls.push({
+          type: "function",
+          name: expr.getText(),
+          args: call.getArguments().map(arg => arg.getText())
+        });
+      }
+
+      // Method call: obj.method(...)
+      if (expr.getKind() === SyntaxKind.PropertyAccessExpression) {
+        const objExpr = expr.getExpression();
+        const methodName = expr.getName();
+
+        // Attempt to get the object type (for validation like class matching)
+        let objectType = null;
+        try {
+          objectType = objExpr.getType().getSymbol()?.getName() || null;
+        } catch {}
+
+        result[filePath].calls.push({
+          type: "method",
+          object: objExpr.getText(),
+          name: methodName,
+          args: call.getArguments().map(arg => arg.getText()),
+          objectType: objectType
+        });
+      }
+    }
+    
+  }
 
   return result;
 }
 
-const stdin = process.stdin;
-let code = "";
-stdin.setEncoding("utf8");
+async function main() {
+  const input = JSON.parse(fs.readFileSync(0, "utf-8"));
+  const result = await analyze(input.files);
+  console.log(JSON.stringify(result, null, 2));
+}
 
-stdin.on("data", chunk => {
-  code += chunk;
-});
-
-stdin.on("end", () => {
-  const fileName = process.env.TS_FILE_NAME || "snippet.ts";
-  const analysis = analyzeTSCode(code, fileName);
-  console.log(JSON.stringify(analysis, null, 2));
+main().catch(e => {
+  console.error("TS Morph Error:", e);
+  process.exit(1);
 });
