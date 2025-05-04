@@ -3,6 +3,7 @@ global:
   process_id:
   namespace: 
   promptlab_env:
+  hf_token:
 
 replicaCount: 1 
 landing:

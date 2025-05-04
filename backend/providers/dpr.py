@@ -14,10 +14,12 @@ def helm_install(user_data):
     if list(get_running_deployments()):
         return helm_response(False, "Another installation is currently running, please wait before starting a new one.")  
     
+    
     result = Collections.by_name('dpr').insert_one({})  
     process_id = str(result.inserted_id)
     user_data["global"]["process_id"] = process_id  
     user_data["global"]["connection"] = config.get("dpr", "mongo_ext_addr")
+    user_data["global"]["hf_token"] = config.get("hf", "HF_TOKEN")
 
     file_path, yaml_data = json_to_yaml(user_data)
 
@@ -192,7 +194,7 @@ def helm_status(id):
 
 @mongo
 def get_promptlab_stats(id):
-    result = promptlab_db["statistics"].find_one({"_id": ObjectId(id)})
+    result = promptlab_db["statistics"].find_one({"_id": ObjectId(id)}, {"_id": 0})
     return result
 
 @mongo
@@ -221,6 +223,7 @@ def create_json_format(user_data):
         return {k: data.get(k, "") for k in data if k not in exclude_keys}
 
     global_config = extract_config(user_data["global"], exclude_keys=["api_url"])
+    file_env = extract_config(user_data["file"], exclude_keys=["combinedDataset"])
     promptlab_env = extract_config(user_data["promptLab"], exclude_keys=["vllm_orbiter_args", "OUTPUT_DATASET_FILE_NAME"])
     reviewer_env = extract_config(user_data["reviewer"]) if global_config.get("enable_reviewer") else {}
 
@@ -235,7 +238,7 @@ def create_json_format(user_data):
             **global_config,
             "api_url": config.get("dpr", "preprod_cluster" if api_option == "Preproduction Cluster" else "prod_cluster"),
             "orbiter_model_hf_id": user_data["promptLab"].get("PROMPT_LAB_MODEL_HF_ID", ""),
-            "promptlab_env": {**promptlab_env, **user_data["file"]},
+            "promptlab_env": {**promptlab_env, **file_env},
         }
     }
     
@@ -301,3 +304,20 @@ def celery_check_dpr_progress():
             no_remaining_prompts = mongodb_stats['prompts_failed'] + mongodb_stats['prompts_pass'] == mongodb_stats['number_of_prompts']
             if no_remaining_prompts and mongodb_stats.get('exported', False):
                 helm_uninstall(id, "DONE")
+
+@mongo
+def get_dataset_list():
+    """
+    :return: list of dicts with repo and file for all deployments marked as done
+    """
+    deployments = Collections.by_name('forms').find(
+        {"status": 'done'}
+    )
+
+    dataset_list = []
+    for deployment in deployments:
+        repo = deployment.get('hf_repo')
+        file = deployment.get('hf_file')
+        if repo and file:
+            dataset_list.append({ "repo": repo, "file": file })
+    return dataset_list

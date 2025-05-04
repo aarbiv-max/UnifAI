@@ -4,7 +4,7 @@ import re
 from config.configParams import config
 
 class DPRCommands(Enum):
-    # INSTALL         = "helm install -f {values}  {deployment_name} /home/cloud-user/AI-TC-s-Generator/pipelines/pre_training_helm --output json --namespace {namespace}"
+    # INSTALL         = "helm install -f {values}  {deployment_name} /home/cloud-user/genie-ai/pipelines/pre_training_helm --output json --namespace {namespace}"
     INSTALL         = "helm install -f {values} {deployment_name} /opt/app-root/src/pipelines/pre_training_helm --output json --namespace {namespace}"
     UNINSTALL       = "helm uninstall {deployment_name} --namespace {namespace}"
     STATUS          = "helm status {deployment_name} --namespace {namespace}"

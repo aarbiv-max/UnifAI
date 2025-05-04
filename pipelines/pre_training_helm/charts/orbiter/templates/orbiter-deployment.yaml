@@ -63,10 +63,11 @@ spec:
         - name: HF_HOME
           value: "/tmp/.cache"  
         - name: HF_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: "{{.Values.global.hf_token}}"
-              key: token
+          value: "{{.Values.global.hf_token}}"
+          # valueFrom:
+          #   secretKeyRef:
+          #     name: "{{.Values.global.hf_token}}"
+          #     key: token
         {{- range $key, $value := .Values.global.promptlab_env }}
         - name: "{{ $key }}"
           value: "{{ $value }}"

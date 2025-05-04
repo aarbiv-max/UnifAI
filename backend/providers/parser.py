@@ -47,10 +47,9 @@ async def trigger_parser(form_id):
 
     update_form_status(form_id, FormStatus.UPLOADHF)
     
-    upload_json_to_hf(parsing_result, project_name)  # Upload parsing results to HF storage
+    if upload_json_to_hf(parsing_result, project_name) is not None: # Upload parsing results to HF storage
     
-    update_form_status(form_id, FormStatus.DONE)
-    
-    FileCleaner.delete_path(repo_local_path)  # Clean up the cloned repository from local path
-
-   
+        update_form_status(form_id, FormStatus.DONE)
+        FileCleaner.delete_path(repo_local_path)  # Clean up the cloned repository from local path
+    else:
+        update_form_status(form_id, FormStatus.FAILED)
