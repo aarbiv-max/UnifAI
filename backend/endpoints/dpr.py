@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, make_response,request
 from webargs import fields
-from providers.dpr import create_json_format, delete_deployment, get_not_deleted_deployments, get_json_file_config, get_promptlab_stats, helm_status, helm_uninstall, helm_install, helm_upgrade#, helm_route #helm_metrics
+from providers.dpr import create_json_format, delete_deployment, get_not_deleted_deployments, get_json_file_config, get_promptlab_stats, helm_status, \
+    helm_uninstall, helm_install, helm_upgrade , get_dataset_list#, helm_route #helm_metrics
 from helpers.apiargs import from_query, from_body
 
 dpr_bp = Blueprint("dpr", __name__)
@@ -141,6 +142,15 @@ def get_displayed_instances():
 def get_config(id):
     try:
         result = get_json_file_config(id)
+        return result
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@dpr_bp.route("/getDatasetList", methods=["GET"])
+def get_dataset():
+    try:
+        result = get_dataset_list()
         return result
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

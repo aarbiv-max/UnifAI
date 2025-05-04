@@ -2,6 +2,7 @@ import json
 import os
 from typing import Iterator, Dict, Any
 from prompt_lab.storage import HFExporter
+from huggingface_hub import HfApi
 import configparser
 
 config = configparser.ConfigParser()
@@ -36,19 +37,24 @@ def upload_json_to_hf(json_path: str, project_name: str):
     Returns:
         str: URL of the uploaded dataset.
     """
-    user_name = config.get("hf", "HF_USER_NAME", fallback=None)
-    data_set = config.get("hf", "HF_DATA_SET", fallback=None)
-    token = config.get("hf", "HF_TOKEN", fallback=None)
+    hf_space = config.get("hf", "HF_SPACE", fallback=None)
+    #data_set = config.get("hf", "HF_DATA_SET", fallback=None)
+    hf_token = config.get("hf", "HF_TOKEN", fallback=None)
     batch_size = config.getint("hf", "HF_BATCH_SIZE", fallback=1000)
     export_format = config.get("hf", "HF_EXPORT_FORMAT", fallback="json").lower()
 
-    repo_id = f"{user_name}/{data_set}"
-    if not repo_id or not token:
+    repo_id = f"{hf_space}/{project_name}"
+    if not repo_id or not hf_token:
         raise ValueError("Missing required Hugging Face credentials. Set HF_REPO_ID and HF_TOKEN.")
 
-    record_generator = json_record_provider(json_path)
-    exporter = HFExporter(repo_id=repo_id, file_name=project_name, token=token, batch_size=batch_size, export_format=export_format)
-    upload_url = exporter.export(record_generator)
-    
-    print(f"✅ File successfully uploaded! Access it here: {upload_url}")
-    return upload_url
+    api = HfApi(token=hf_token)
+    try:
+        api.create_repo(repo_id=repo_id, repo_type="dataset", private=True)
+        record_generator = json_record_provider(json_path)
+        exporter = HFExporter(repo_id=repo_id, file_name=project_name, token=hf_token, batch_size=batch_size, export_format=export_format)
+        upload_url = exporter.export(record_generator)
+        
+        return upload_url
+
+    except Exception as e:
+        raise ValueError(f"{e}")

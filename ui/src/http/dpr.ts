@@ -70,3 +70,13 @@ export const displayedDeployments = async (): Promise<any> => {
     return [];
   }
 };
+
+export const getDatasetList = async (): Promise<any> => {
+  try {
+    const response = await apiClient.get<{ response: any }>("/api/dpr/getDatasetList");
+    return response.data || [];
+  } catch (error) {
+    console.error("Error fetching Dataset list:", error);
+    return [];
+  }
+};

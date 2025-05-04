@@ -5,6 +5,7 @@ global:
   reviewer_replica:
   reviewer_env:
   enable_reviewer:
+  hf_token:
 
 args:
 - reviewer

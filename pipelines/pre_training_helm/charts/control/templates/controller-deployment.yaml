@@ -65,10 +65,11 @@ spec:
         - name: HF_HOME
           value: "/tmp/.cache"  
         - name: HF_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: "{{.Values.global.hf_token}}"
-              key: token
+          value: "{{.Values.global.hf_token}}"
+          # valueFrom:
+          #   secretKeyRef:
+          #     name: "{{.Values.global.hf_token}}"
+          #     key: token
 
         - name: RABBITMQ_IP
           value: $({{ .Release.Name | upper }}_RABBITMQ_SVC_SERVICE_HOST)
@@ -126,10 +127,11 @@ spec:
         - name: HF_HOME
           value: "/tmp/.cache"     
         - name: HF_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: "{{.Values.global.hf_token}}"
-              key: token
+          value: "{{.Values.global.hf_token}}"
+          # valueFrom:
+          #   secretKeyRef:
+          #     name: "{{.Values.global.hf_token}}"
+          #     key: token
 
         {{- range $key, $value := .Values.global.promptlab_env }}
         - name: "{{ $key }}"
