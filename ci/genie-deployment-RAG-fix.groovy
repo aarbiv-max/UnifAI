@@ -411,23 +411,23 @@ pipeline {
                         sh("oc login --token=${token} --server=${ClusterAddress}")
                         sh("oc project ${params.namespace}")
                         echo("Deploy Helm container")
-                        sh("podman run -dt --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
+                        sh("podman run -dt -e HF_TOKEN=$HF_TOKEN --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
 
                         if(params.deployment_type == 'FRESH_INSTALL') {
                             echo("Removing previous helms")
-                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.yaml --deleteWait'")
-                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile1.yaml --deleteWait'")
+                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.gotmpl --deleteWait'")
+                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile1.gotmpl --deleteWait'")
                             echo("Wait for the key resourc is deleted")
                             sh("until ! oc get deployment,statefulset,svc | grep 'genie\\|mongo\\|rabbitmq'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
                             sh("sleep 10")
 
                             echo("Deploy/update Helmfile1 for mongodb and rabbitmq")
-                            sh("podman exec -t helmfile helmfile -f helmfile1.yaml apply")
+                            sh("podman exec -t helmfile helmfile -f helmfile1.gotmpl apply")
                             sh("sleep 10")
                         }
                         //else fall into application_upgrade path
                         echo("Deploy/update Helmfile2 for everything else")
-                        sh("podman exec -t helmfile helmfile -f helmfile2.yaml apply")
+                        sh("podman exec -t helmfile helmfile -f helmfile2.gotmpl apply")
                         
                         script{
                             GUI_EP = sh(
