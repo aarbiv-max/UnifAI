@@ -10,6 +10,7 @@ interface CodeValidationModalProps {
   onClose: () => void;
   code: string;
   framework: string | null;
+  gitRepoLink: string | '';
   setCode: (code: string) => void;
   llmResponse: string;
   repositoryLocation: string;
@@ -39,7 +40,8 @@ const CodeValidationModal: React.FC<CodeValidationModalProps> = ({
   modelType,
   reformatText,
   regenerateResponse,
-  framework
+  framework,
+  gitRepoLink
 }) => {
   const [validationResponse, setValidationResponse] = useState<ValidationResponse | null>(null);
   const [isValidating, setIsValidating] = useState<boolean>(false);
@@ -57,7 +59,8 @@ const CodeValidationModal: React.FC<CodeValidationModalProps> = ({
       const response = await axiosBE.post('/api/chat/evaluate', {
         code,
         repositoryLocation,
-        framework
+        framework,
+        gitRepoLink
       });
       
       // Ensure we're working with parsed JSON

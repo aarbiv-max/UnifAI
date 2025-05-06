@@ -1,3 +1,4 @@
+// --- Refactored TypeScript Analyzer for Typed Declarations and Imports ---
 const { Project, SyntaxKind } = require("ts-morph");
 const path = require("path");
 const fs = require("fs");
@@ -34,6 +35,7 @@ async function analyze(files) {
       interfaces: {},
       imports: [],
       memberAccesses: [],
+      enums: {}, 
       calls: []
     };
 
@@ -42,8 +44,15 @@ async function analyze(files) {
       const name = fn.getName();
       if (!name) continue;
       let params = [], returnType = "any";
-      try { params = fn.getParameters().map(p => p.getType().getText()); } catch {}
-      try { returnType = fn.getReturnType().getText(); } catch {}
+      try {
+        params = fn.getParameters().map(p => ({
+          type: p.getType().getText(),
+          optional: p.isOptional()
+        }));
+      } catch {}
+      try {
+        returnType = fn.getReturnType().getText();
+      } catch {}
 
       result[filePath].functions.push({
         name, params, returnType,
@@ -71,12 +80,23 @@ async function analyze(files) {
       }
     }
 
+    // --- collect enums ---
+    result[filePath].enums = {};
+    for (const enm of sourceFile.getEnums()) {
+      const enumName = enm.getName();
+      const members = enm.getMembers().map(m => m.getName());
+      result[filePath].enums[enumName] = members;
+    }
+
+
     // --- collect interfaces ---
     for (const intf of sourceFile.getInterfaces()) {
       const intfName = intf.getName();
       const props = {};
       for (const prop of intf.getProperties()) {
-        try { props[prop.getName()] = prop.getType().getText(); } catch {}
+        try {
+          props[prop.getName()] = prop.getType().getText();
+        } catch {}
       }
       result[filePath].interfaces[intfName] = props;
     }
@@ -84,68 +104,90 @@ async function analyze(files) {
     // --- collect imports ---
     for (const imp of sourceFile.getImportDeclarations()) {
       const modulePath = imp.getModuleSpecifierValue();
-      for (const named of imp.getNamedImports()) {
-        result[filePath].imports.push({
-          name: named.getName(),
-          path: modulePath
-        });
+      const namedImports = imp.getNamedImports();
+      if (namedImports.length === 0) {
+        const defaultImport = imp.getDefaultImport();
+        if (defaultImport) {
+          result[filePath].imports.push({ name: defaultImport.getText(), path: modulePath });
+        }
+      } else {
+        for (const named of namedImports) {
+          const alias = named.getAliasNode()?.getText();
+          const name = named.getName();
+          result[filePath].imports.push({
+            name: alias || name,
+            originalName: name,
+            path: modulePath
+          });
+        }
       }
     }
 
     // --- collect member accesses ---
-    for (const access of sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
-      const expr = access.getExpression();
-      const name = access.getName();
-      let prop = null;
-      let isBuiltIn = false;
-    
-      try {
-        const exprType = expr.getType();
-        prop = exprType?.getProperty(name);
-    
-        // Check if the type is from lib.dom.d.ts or standard built-in libs
-        const symbol = exprType?.getSymbol();
-        if (symbol) {
-          const declarations = symbol.getDeclarations();
-          if (declarations.length > 0) {
-            const declSourceFile = declarations[0].getSourceFile();
-            const declPath = declSourceFile.getFilePath();
-            if (declPath.includes("/node_modules/typescript/lib/") || declPath.includes("/lib.")) {
-              isBuiltIn = true;
-            }
-          }
+// --- collect member accesses ---
+for (const access of sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
+  const expr = access.getExpression();
+  const name = access.getName();
+  let prop = null;
+  let isBuiltIn = false;
+  let sourcePath = null;
+  let isLocal = false;
+  let unresolved = true;
+
+  try {
+    const exprType = expr.getType();
+    prop = exprType?.getProperty(name);
+
+    const symbol = exprType?.getSymbol();
+    if (symbol) {
+      const declarations = symbol.getDeclarations();
+      if (declarations.length > 0) {
+        const declSourceFile = declarations[0].getSourceFile();
+        const declPath = declSourceFile.getFilePath();
+        sourcePath = normalizePath(declPath);
+        unresolved = false;
+        if (declPath === sourceFile.getFilePath()) {
+          isLocal = true;
         }
-      } catch {}
-    
-      if (!isBuiltIn) {
-        result[filePath].memberAccesses.push({
-          object: expr.getText(),
-          member: name
-        });
+        if (declPath.includes("/node_modules/typescript/lib/") || declPath.includes("/lib.")) {
+          isBuiltIn = true;
+        }
       }
     }
+  } catch {}
 
+  const objectText = expr.getText();
+  if (!isBuiltIn && !objectText.startsWith("cy")) {
+    result[filePath].memberAccesses.push({
+      object: objectText,
+      member: name,
+      path: unresolved ? null : isLocal ? "local" : sourcePath
+    });
+  }
+}
+
+
+    // --- collect function/method calls ---
     for (const call of sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)) {
       const expr = call.getExpression();
 
-      // Function call: sum(...)
       if (expr.getKind() === SyntaxKind.Identifier) {
         result[filePath].calls.push({
           type: "function",
           name: expr.getText(),
-          args: call.getArguments().map(arg => arg.getText())
+          args: call.getArguments().map(arg => ({
+            text: arg.getText(),
+            inferredType: arg.getType().getText()
+          }))
         });
       }
 
-      // Method call: obj.method(...)
       if (expr.getKind() === SyntaxKind.PropertyAccessExpression) {
         const objExpr = expr.getExpression();
         const methodName = expr.getName();
-
-        // Attempt to get the object type (for validation like class matching)
-        let objectType = null;
+        let objectType = "";
         try {
-          objectType = objExpr.getType().getSymbol()?.getName() || null;
+          objectType = objExpr.getType().getSymbol()?.getName() || "";
         } catch {}
 
         result[filePath].calls.push({
@@ -157,7 +199,6 @@ async function analyze(files) {
         });
       }
     }
-    
   }
 
   return result;

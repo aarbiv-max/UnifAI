@@ -58,6 +58,7 @@ export interface ModelData {
     isRagEnabled?: boolean;
     isPackageSelectionRagEnabled?: boolean;
     supportedFrameworks?: string;
+    gitRepoLink?: string;
     // numTests: string,
     // dataSize: string,
 }

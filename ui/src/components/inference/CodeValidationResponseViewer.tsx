@@ -16,14 +16,16 @@ import {
   Link
 } from '@mui/material';
 import { CheckCircle, Cancel } from '@mui/icons-material';
-
 interface ValidationDetail {
   args?: any;
   url?: any;
+  path?: any;
   command?: string;
   matchLevel?: string;
   exists: boolean;
   name: string;
+  issues?: any;
+  usages?: any;
   
 }
 
@@ -77,58 +79,110 @@ const AccuracyIndicator: React.FC<{ accuracy: number }> = ({ accuracy }) => {
 
 const ValidationTable: React.FC<ValidationTableProps>  = ({ data, title }) => {
   const isCyCommands = title.toLowerCase().includes('cycommand');
+  // Dynamically gather all unique top-level keys across all items
+  const columns = Array.from(
+    new Set(
+      data.flatMap(item => Object.keys(item))
+        .filter(key => key !== 'usages') // usages rendered separately
+    )
+  );
+
+  const isPrimitive = (val: any) =>
+    val == null || typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean';
+  
+  const renderValue = (value: any) => {
+    if (Array.isArray(value)) return value.join(', ');
+    if (isPrimitive(value)) return String(value);
+    return '-';
+  };
 
   return (
     <TableContainer component={Paper} elevation={0}>
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell sx={{ fontWeight: 600 }}>Element</TableCell>
-            <TableCell align="center" sx={{ fontWeight: 600 }}>Exists</TableCell>
-            {isCyCommands && (
-              <>
-                <TableCell align="center" sx={{ fontWeight: 600 }}>Match Level</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 600 }}>Args</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 600 }}>Link</TableCell>
-              </>
-            )}
+            {columns.map((col, i) => (
+              <TableCell key={i} sx={{ fontWeight: 600 }}>
+                {col.charAt(0).toUpperCase() + col.slice(1)}
+              </TableCell>
+            ))}
           </TableRow>
         </TableHead>
         <TableBody>
           {data.map((item, index) => (
-            <TableRow
-              key={`${title}-${index}`}
-              sx={{ backgroundColor: index % 2 === 0 ? '#f9fafb' : 'white' }}
-            >
-              <TableCell>{item.name || item.command}</TableCell>
-              <TableCell align="center">
-                {item.exists ? (
-                  <CheckCircle sx={{ color: '#2e7d32' }} />
-                ) : (
-                  <Cancel sx={{ color: '#d32f2f' }} />
-                )}
-              </TableCell>
+            <React.Fragment key={`${title}-${index}`}>
+              <TableRow
+                sx={{ backgroundColor: index % 2 === 0 ? '#f9fafb' : 'white' }}
+              >
+              {columns.map((col, i) => {
+                const value = (item as Record<string, any>)[col];
+                const isLocal = item.path === 'local';
+                const hasDirectIssues = Array.isArray(item.issues) && item.issues.length > 0;
+                const hasUsageIssues =
+                  Array.isArray(item.usages) &&
+                  item.usages.some((u: any) => Array.isArray(u.issues) && u.issues.length > 0);
+                const hasIssues = hasDirectIssues || hasUsageIssues;
+                
 
-              {isCyCommands && (
-                <>
-                  <TableCell align="center">{item.matchLevel}</TableCell>
-                  <TableCell align="center">
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                      {item.args?.join(', ') || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="center">
-                    {item.url ? (
+                return (
+                  <TableCell key={i} align="left">
+                    {col === 'exists' ?  (
+                      item.exists ? (
+                        isLocal ? (
+                          <CheckCircle sx={{ color: '#33d1ff' }} /> // Local
+                        ) : hasIssues ? (
+                          <CheckCircle sx={{ color: '#f7dc6f' }} /> // Exists with issues
+                        ) : (
+                          <CheckCircle sx={{ color: '#2e7d32' }} /> // Clean
+                        )
+                      ) : (
+                        <Cancel sx={{ color: '#d32f2f' }} /> // Missing
+                      )
+                    ): col === 'url' && item.url ? (
                       <Link href={item.url} target="_blank" rel="noopener">
                         View
                       </Link>
+                    ) : col === 'issues' && Array.isArray(value) && value.length ? (
+                      value.map((issue: string, j: number) => (
+                        <Typography
+                          key={j}
+                          variant="body2"
+                          sx={{ fontFamily: 'monospace', color: '#d32f2f' }}
+                        >
+                          {issue}
+                        </Typography>
+                      ))
                     ) : (
-                      '-'
+                      renderValue(value)
                     )}
                   </TableCell>
-                </>
-              )}
-            </TableRow>
+                );
+              })}
+              </TableRow>
+
+              {/* Render usages as sub-rows */}
+              {Array.isArray(item.usages) &&
+                item.usages.map((usage: any, uIdx: number) => (
+                  <TableRow key={`usage-${index}-${uIdx}`} sx={{ backgroundColor: '#f0f0f0' }}>
+                    <TableCell colSpan={columns.length}>
+                      <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                        <strong>Args:</strong>{' '}
+                        {Array.isArray(usage.args) ? usage.args.join(', ') : '—'}
+                      </Typography>
+                      {usage.issues?.length > 0 && (
+                        <Typography variant="body2" sx={{ mt: 0.5 }}>
+                          <strong>Issues:</strong>{' '}
+                          {usage.issues.map((issue: string, i: number) => (
+                            <span key={i} style={{ color: '#d32f2f', marginRight: 8 }}>
+                              {issue}
+                            </span>
+                          ))}
+                        </Typography>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </React.Fragment>
           ))}
         </TableBody>
       </Table>
@@ -182,7 +236,24 @@ const ValidationResponseViewer: React.FC<{ data: ValidationResponse, accuracy: n
           Validation Response
           <AccuracyIndicator accuracy={accuracy} />
         </Typography>
-        
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <CheckCircle sx={{ color: '#2e7d32', fontSize: 18 }} />
+            <Typography variant="body2">Exists and valid</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <CheckCircle sx={{ color: '#f7dc6f', fontSize: 18 }} />
+            <Typography variant="body2">Exists but has issues</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <CheckCircle sx={{ color: '#33d1ff', fontSize: 18 }} />
+            <Typography variant="body2">Locally defined</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Cancel sx={{ color: '#d32f2f', fontSize: 18 }} />
+            <Typography variant="body2">Missing</Typography>
+          </Box>
+        </Box>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs 
             value={selectedTab} 
@@ -222,13 +293,14 @@ const ValidationResponseViewer: React.FC<{ data: ValidationResponse, accuracy: n
         </TabPanel>
   
         {verification_details && Object.entries(verification_details).map(([key, details], index) => (
-          <TabPanel value={selectedTab} index={index + 1} key={key}>
-            <ValidationTable 
-              data={details} 
-              title={key}
-            />
-          </TabPanel>
-        ))}
+  <TabPanel value={selectedTab} index={index + 1} key={key}>
+    <ValidationTable 
+      data={details} 
+      title={key}
+    />
+  </TabPanel>
+))}
+
       </Box>
     );
   };

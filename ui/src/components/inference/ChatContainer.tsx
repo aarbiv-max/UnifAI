@@ -858,7 +858,8 @@ const ChatComponent: React.FC = () => {
   
   // const modelType = getModelType();
   const modelType : 'llama' | 'qwen' | null = selectedModel?.modelType || null;
-  const framework = selectedModel?.supportedFrameworks || null; 
+  const framework = selectedModel?.supportedFrameworks || ''; 
+  const gitRepoLink = selectedModel?.gitRepoLink || '';
   const loadingOverlayText = `Please be patient while we ${loadingModel ? "load" : "unload"} the requested model. This process may take up to 2 minutes.`
 
   return (
@@ -998,6 +999,7 @@ const ChatComponent: React.FC = () => {
             reformatText={ReformatText}
             regenerateResponse={regenerateResponse}
             framework={framework}
+            gitRepoLink={gitRepoLink}
           />
         </div>
        ) : (
