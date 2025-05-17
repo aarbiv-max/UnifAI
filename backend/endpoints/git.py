@@ -7,10 +7,10 @@ from webargs import fields
 git_bp = Blueprint("git", __name__)
 
 @git_bp.route("/files", methods=["GET"])
-@from_query({"repo_url": fields.Str(missing='', data_key="gitUrl"),
-             "repo_auth_key": fields.Str(missing='', data_key="gitCredentialKey"),
-             "repo_folder_path": fields.Str(missing='', data_key="gitFolderPath"),
-             "branch": fields.Str(missing='dev', data_key="gitBranchName")})
+@from_query({"repo_url": fields.Str(load_default='', data_key="gitUrl"),
+             "repo_auth_key": fields.Str(load_default='', data_key="gitCredentialKey"),
+             "repo_folder_path": fields.Str(load_default='', data_key="gitFolderPath"),
+             "branch": fields.Str(load_default='dev', data_key="gitBranchName")})
 def get_test_list_from_git(repo_url, repo_auth_key, repo_folder_path, branch):
     """
     :param str repo_url: representing the git repo url
@@ -33,7 +33,7 @@ def get_test_list_from_git(repo_url, repo_auth_key, repo_folder_path, branch):
 @from_query({"repo_url":         fields.Str(required=True, data_key="gitUrl"),
              "repo_auth_key":    fields.Str(required=True, data_key="gitCredentialKey"),
              "repo_folder_path": fields.Str(required=True, data_key="gitFolderPath"),
-             "branch":           fields.Str(missing='dev', data_key="gitBranchName"),
+             "branch":           fields.Str(load_default='dev', data_key="gitBranchName"),
              "test_path":        fields.Str(required=True, data_key="testPath")})
 def get_test_details(repo_url, repo_auth_key, repo_folder_path, branch, test_path):
     """Fetch details for a specific test file from GitLab.
