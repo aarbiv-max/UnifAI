@@ -116,6 +116,6 @@ class Fields:
     StringOrNone = partial(fields.Str,
                            required=False,
                            allow_none=True,
-                           missing=None)
+                           load_default=None)
 
-    HMNotificationItem = partial(fields.Dict, missing={'is_healthy': None, 'display': None})
+    HMNotificationItem = partial(fields.Dict, load_default={'is_healthy': None, 'display': None})
