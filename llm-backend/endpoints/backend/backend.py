@@ -50,7 +50,7 @@ def inference_post(adapter_uid, messages, temperature, session_id, max_gen_len):
 
 @backend_bp.route("/stopInference", methods=["GET"])
 @from_query({
-    "session_id": fields.Str(data_key="sessionId", required=False, default="N/A"),
+    "session_id": fields.Str(data_key="sessionId", required=False, load_default="N/A"),
 })
 def stop_inference(session_id):
     return jsonify(llm_provider.stop_inference(session_id))
@@ -90,7 +90,7 @@ def unload_model():
 
 @backend_bp.route("/clearChatHistory", methods=["GET"])
 @from_query({
-    "session_id": fields.Str(data_key="sessionId", required=False, default="N/A"),
+    "session_id": fields.Str(data_key="sessionId", required=False, load_default="N/A"),
 })
 def clear_chat_history(session_id):
     return jsonify(llm_provider.clear_chat_history(session_id))
