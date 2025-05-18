@@ -7,7 +7,7 @@ from data_pre.parsers.components.tree_sitter_parser import TreeSitterParser
 class TreeSitterParserWrapper(BaseParser):
     def __init__(self, repo_local_path, file_paths, project_name, organization_name):
         """
-        Parser for Go and TypeScript using TreeSitter.
+        Parser for Go, python and TypeScript using TreeSitter.
         """
         super().__init__(repo_local_path, file_paths, project_name, organization_name)
 

@@ -25,6 +25,7 @@ import 'prismjs/themes/prism-okaidia.css';
 import { ChatSidebar } from './ChatSidebar';
 import CodeValidationModal from './CodeValidation';
 import { LoadingOverlay } from '../shared/LoadingOverlay';
+import MessageInputWithMentions from './MessageInputWithMentions ';
 
 interface FormData {
   project: string;
@@ -569,7 +570,6 @@ const ChatComponent: React.FC = () => {
       updateCurrentChat(updatedMessages, sessionId, selectedModel.modelId); // Update the chat in the DB
       return updatedMessages;
     });
-
     setIsStreaming(true);
     sendQuestion(text, false);
   };
@@ -860,6 +860,7 @@ const ChatComponent: React.FC = () => {
   
   // const modelType = getModelType();
   const modelType : 'llama' | 'qwen' | null = selectedModel?.modelType || null;
+  const gitReposLink = selectedModel?.gitReposLink || [] 
   const loadingOverlayText = `Please be patient while we ${loadingModel ? "load" : "unload"} the requested model. This process may take up to 2 minutes.`
 
   return (
@@ -885,9 +886,18 @@ const ChatComponent: React.FC = () => {
             setHistoryChats={setHistoryChats}
             setSelectedPackages={setSelectedPackages}
           />
-          <MainContainer style={{marginLeft: drawerOpen ? '16%' : '0%', flexGrow: 1}}>
-            <ChatContainer>
-              <MessageList style={{padding: '10px'}}>
+          <MainContainer
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              flexGrow: 1,
+              marginLeft: drawerOpen ? '16%' : '0%',
+            }}
+          >
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <ChatContainer style={{ flex: 1, overflow: 'auto' }}>
+      <MessageList style={{ padding: '10px', flex: 1, overflowY: 'auto' }}>
                 {messages.map((message, idx) => (
                   <div key={message.id} style={{ position: 'relative', paddingBottom: '40px' }}>
                     <Message
@@ -956,16 +966,23 @@ const ChatComponent: React.FC = () => {
                   </div>
                 ))}
               </MessageList>
-              <MessageInput placeholder="Type your message here..." onSend={handleSend} disabled={loadingModel || isStreaming}
-                attachButton={false}
-                onPaste={(event) => {
-                  event.preventDefault();
-                  // Get plain text from clipboard
-                  const text = event.clipboardData.getData('text/plain');
-                  document.execCommand('insertText', false, text);
-                }}
-              />
             </ChatContainer>
+            </div>
+          <div style={{ padding: '10px' ,     backgroundColor: '#e5e5e5',}}>
+            <MessageInputWithMentions
+              placeholder="Type your message here..."
+              onSend={handleSend}
+              disabled={loadingModel || isStreaming}
+              attachButton={false}
+              gitReposLink={gitReposLink}
+              onPaste={(event) => {
+                event.preventDefault();
+                if (!event.clipboardData) return;
+                const text = event.clipboardData.getData('text/plain');
+                document.execCommand('insertText', false, text);
+              }}
+            />
+            </div>
           </MainContainer>
           <RatingModal
             open={isRatingModalOpen}
