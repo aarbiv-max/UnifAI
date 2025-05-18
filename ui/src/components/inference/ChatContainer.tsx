@@ -895,93 +895,93 @@ const ChatComponent: React.FC = () => {
               marginLeft: drawerOpen ? '16%' : '0%',
             }}
           >
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-    <ChatContainer style={{ flex: 1, overflow: 'auto' }}>
-      <MessageList style={{ padding: '10px', flex: 1, overflowY: 'auto' }}>
-                {messages.map((message, idx) => (
-                  <div key={message.id} style={{ position: 'relative', paddingBottom: '40px' }}>
-                    <Message
-                      model={{
-                        message: modelType ? ReformatText(message.text, modelType, true) : message.text, 
-                        sentTime: 'just now',
-                        sender: message.sender === 'user' ? 'You' : 'Bot',
-                        direction: message.sender === 'user' ? 'outgoing' : 'incoming',
-                        position: getPosition(idx, message.sender),
-                      }}
-                    />
-                      {message.sender === 'bot' && (
-                        <div style={{ position: 'absolute', bottom: '5px', left: '5px', display: 'flex', gap: '5px' }}>
-                          <Tooltip title="Copy">
-                            <IconButton onClick={() => copyToClipboard(message.text)} size="small" disabled>
-                              <ContentCopyIcon />
-                            </IconButton>
-                          </Tooltip>
-                          {isStreaming && (
-                            <Tooltip title="Stop">
-                              <IconButton onClick={handleStop} size="small">
-                                <StopIcon />
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <ChatContainer style={{ flex: 1, overflow: 'auto' }}>
+                <MessageList style={{ padding: '10px', flex: 1, overflowY: 'auto' }}>
+                  {messages.map((message, idx) => (
+                    <div key={message.id} style={{ position: 'relative', paddingBottom: '40px' }}>
+                      <Message
+                        model={{
+                          message: modelType ? ReformatText(message.text, modelType, true) : message.text, 
+                          sentTime: 'just now',
+                          sender: message.sender === 'user' ? 'You' : 'Bot',
+                          direction: message.sender === 'user' ? 'outgoing' : 'incoming',
+                          position: getPosition(idx, message.sender),
+                        }}
+                      />
+                        {message.sender === 'bot' && (
+                          <div style={{ position: 'absolute', bottom: '5px', left: '5px', display: 'flex', gap: '5px' }}>
+                            <Tooltip title="Copy">
+                              <IconButton onClick={() => copyToClipboard(message.text)} size="small" disabled>
+                                <ContentCopyIcon />
                               </IconButton>
                             </Tooltip>
-                          )}
-                          {!isStreaming && (
-                            <>
-                              <Tooltip title="Regenerate">
-                                <IconButton
-                                  onClick={() => regenerateResponse(false)}
-                                  size="small"
-                                >
-                                  <AutorenewIcon />
+                            {isStreaming && (
+                              <Tooltip title="Stop">
+                                <IconButton onClick={handleStop} size="small">
+                                  <StopIcon />
                                 </IconButton>
                               </Tooltip>
+                            )}
+                            {!isStreaming && (
+                              <>
+                                <Tooltip title="Regenerate">
+                                  <IconButton
+                                    onClick={() => regenerateResponse(false)}
+                                    size="small"
+                                  >
+                                    <AutorenewIcon />
+                                  </IconButton>
+                                </Tooltip>
 
-                              <Tooltip title="Rate">
-                                <IconButton
-                                  onClick={() => handleRatingClick(idx)}
-                                  size="small"
-                                  style={{ color: messageIsRated[idx] ? 'yellow' : '' }}
-                                >
-                                  <StarIcon />
-                                </IconButton>
-                              </Tooltip>
+                                <Tooltip title="Rate">
+                                  <IconButton
+                                    onClick={() => handleRatingClick(idx)}
+                                    size="small"
+                                    style={{ color: messageIsRated[idx] ? 'yellow' : '' }}
+                                  >
+                                    <StarIcon />
+                                  </IconButton>
+                                </Tooltip>
 
-                              {/* <Tooltip title="Code Validation">
-                                <IconButton
-                                  disabled={!selectedModel?.repoInternalLocation}
-                                  onClick={() => handleCodeValidationClick(message.text)}
-                                  size="small"
-                                >
-                                  <FactCheckIcon />
-                                </IconButton>
-                              </Tooltip> */}
-                            </>
-                          )}
-                          <Tooltip title="Save">
-                            <IconButton onClick={() => handleSaveClick(messages[idx - 1].text, message.text)} size="small">
-                              <SaveIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </div>
-                      )
-                    }
-                  </div>
-                ))}
-              </MessageList>
-            </ChatContainer>
+                                {/* <Tooltip title="Code Validation">
+                                  <IconButton
+                                    disabled={!selectedModel?.repoInternalLocation}
+                                    onClick={() => handleCodeValidationClick(message.text)}
+                                    size="small"
+                                  >
+                                    <FactCheckIcon />
+                                  </IconButton>
+                                </Tooltip> */}
+                              </>
+                            )}
+                            <Tooltip title="Save">
+                              <IconButton onClick={() => handleSaveClick(messages[idx - 1].text, message.text)} size="small">
+                                <SaveIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </div>
+                        )
+                      }
+                    </div>
+                  ))}
+                </MessageList>
+              </ChatContainer>
             </div>
-          <div style={{ padding: '10px' ,     backgroundColor: '#e5e5e5',}}>
-            <MessageInputWithMentions
-              placeholder="Type your message here..."
-              onSend={handleSend}
-              disabled={loadingModel || isStreaming}
-              attachButton={false}
-              gitReposLink={gitReposLink}
-              onPaste={(event) => {
-                event.preventDefault();
-                if (!event.clipboardData) return;
-                const text = event.clipboardData.getData('text/plain');
-                document.execCommand('insertText', false, text);
-              }}
-            />
+            <div style={{ padding: '10px' ,     backgroundColor: '#e5e5e5',}}>
+              <MessageInputWithMentions
+                placeholder="Type your message here..."
+                onSend={handleSend}
+                disabled={loadingModel || isStreaming}
+                attachButton={false}
+                gitReposLink={gitReposLink}
+                onPaste={(event) => {
+                  event.preventDefault();
+                  if (!event.clipboardData) return;
+                  const text = event.clipboardData.getData('text/plain');
+                  document.execCommand('insertText', false, text);
+                }}
+              />
             </div>
           </MainContainer>
           <RatingModal

@@ -38,13 +38,13 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
   gitReposLink
 }) => {
   const mentionActiveRef = useRef(false);
-  const [mentionableUsers, setMentionableUsers] = useState<MentionItem[]>([]);
+  const [mentionableElements, setMentionableElements] = useState<MentionItem[]>([]);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [selectedMentions, setSelectedMentions] = useState<MentionItem[]>([]);
   const [isMentionLoaded, setIsMentionLoaded] = useState(false);
 
   useEffect(() => {
-    const fetchMentionableUsers = async () => {
+    const fetchMentionableElements = async () => {
       try {
         const response = await axiosBE.get('/api/parser/parsedElements', {
           params: { gitReposLink: gitReposLink },
@@ -59,14 +59,14 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
           file_location: el.file_location || '',
           element_type: el.element_type === 'file' ? 'file' : 'function',
         }));
-        setMentionableUsers(formatted);
+        setMentionableElements(formatted);
       } catch (error) {
         console.error('Failed to fetch mentionable users:', error);
       } finally {
         setIsMentionLoaded(true);
       }
     };
-    fetchMentionableUsers();
+    fetchMentionableElements();
   }, []);
 
   useEffect(() => {
@@ -170,13 +170,13 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
 
   const groupedMentions = useMemo(() => {
     const groups: Record<string, MentionItem[]> = {};
-    mentionableUsers.forEach(item => {
+    mentionableElements.forEach(item => {
       const repo = item.git_repo_link || 'Other';
       if (!groups[repo]) groups[repo] = [];
       groups[repo].push(item);
     });
     return groups;
-  }, [mentionableUsers]);
+  }, [mentionableElements]);
 
   useEffect(() => {
     if (editor || !isMentionLoaded) return;
@@ -195,9 +195,9 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
             char: '@',
 
             items: ({ query }) => {
-              if (mentionableUsers.length === 0) return [];
+              if (mentionableElements.length === 0) return [];
 
-              return mentionableUsers.filter(item =>
+              return mentionableElements.filter(item =>
                 item.name.toLowerCase().includes(query.toLowerCase()) ||
                 item.code.toLowerCase().includes(query.toLowerCase()) ||
                 item.file_location.toLowerCase().includes(query.toLowerCase())
@@ -405,7 +405,7 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
         const mentions: MentionItem[] = [];
         editor.state.doc.descendants((node: any) => {
           if (node.type.name === 'mention') {
-            const match = mentionableUsers.find(m => m.id === node.attrs.id);
+            const match = mentionableElements.find(m => m.id === node.attrs.id);
             if (match && !mentions.some(m => m.id === match.id)) {
               mentions.push(match);
             }
@@ -416,7 +416,7 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
     });
 
     setEditor(newEditor);
-  }, [mentionableUsers, disabled, editor, isMentionLoaded]);
+  }, [mentionableElements, disabled, editor, isMentionLoaded]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (mentionActiveRef.current) return;
