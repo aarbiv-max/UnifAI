@@ -47,6 +47,7 @@ export interface ModelData {
     trainingName: string;
     modelMaxSeqLen: number;
     modelType: 'llama' | 'qwen' | null;
+    gitReposLink?: string[];
     project: string;
     checkpoint?: string,
     finetuneSteps?: any[], 
