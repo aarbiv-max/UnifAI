@@ -37,7 +37,7 @@ export interface Adapters {
     local_adapter_path: string;
     adapter_uid: string;
     repo_internal_location?: string; 
-    git_repos_link?: string[];
+    gitReposLink?: string[];
 }
 
 export interface ModelData {
