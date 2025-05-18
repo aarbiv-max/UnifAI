@@ -1,8 +1,10 @@
 import asyncio
+
+from flask import request
 from flask import jsonify
 from flask import Blueprint
-from backend.providers.parser import trigger_parser
-from helpers.apiargs import from_body
+from backend.providers.parser import get_parsed_elements_by_git_repos, trigger_parser
+from helpers.apiargs import from_body, from_query
 from webargs import fields
 import concurrent.futures
 
@@ -15,3 +17,13 @@ def start_parser(form_id):
     """API endpoint to start parsing Git repo."""
     executor.submit(asyncio.run, trigger_parser(form_id))
     return {"status": "success"}, 200
+
+@parser_bp.route('/parsedElements', methods=['GET'])
+@from_query({"git_repos_link": fields.List(fields.Str(), missing='', data_key="gitReposLink")})
+def parsed_elements(git_repos_link):
+    """API endpoint to retrieve parsed elements from db."""
+    try:
+        documents = get_parsed_elements_by_git_repos(git_repos_link)
+        return jsonify({"status": "success", "data": documents})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
