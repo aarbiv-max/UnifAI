@@ -252,6 +252,7 @@ const ChatComponent: React.FC = () => {
           repoInternalLocation: adapter?.repo_internal_location,
           modelType: modelsResponse.data[0].model_type,
           project: adapter.project,
+          gitReposLink: adapter.gitReposLink,
         }));
         setModels(transformedData);
   
