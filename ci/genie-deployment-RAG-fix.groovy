@@ -441,6 +441,13 @@ pipeline {
                             sh("podman exec -t helmfile bash -lc 'set -a; . ./genie-cred-data/.env; set +a; helmfile -f helmfile1.gotmpl apply'")
                             sh("sleep 10")
                         }
+                        else {
+                            echo("Removing previous app helms")
+                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.yaml --deleteWait'")
+                            echo("Wait for the key genie resourc is deleted")
+                            sh("until ! oc get deployment,statefulset,svc | grep 'genie'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
+                            sh("sleep 10")
+                        }
                         //else fall into application_upgrade path
                         echo("Deploy/update Helmfile2 for everything else")
                         sh("podman exec -t helmfile bash -lc 'set -a; . ./genie-cred-data/.env; set +a; helmfile -f helmfile2.gotmpl apply'")
