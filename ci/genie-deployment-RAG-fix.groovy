@@ -30,7 +30,7 @@ Map buildParams = [
 
     CredMainRepoProject: "gzhou/genie-cred-data", //"Nirsisr/Genie-AI",
     CredMainRepoBranch : "main",
-    CredCredentialsId  : "tag-gitlab-creds", //"tag-github-creds",
+    CredCredentialsId  : "tag-gitlab-creds-private", 
     NodeToRun          : "tag-slave",
     DevRoot            : "/root/workspace/${env.JOB_NAME}", //${env.JOB_NAME}/${env.BUILD_ID}",
     ImageRegistry      : "images.paas.redhat.com",
@@ -412,7 +412,7 @@ pipeline {
                         extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
                         submoduleCfg: [],
                         userRemoteConfigs: [[
-                            //credentialsId: "${buildParams.CredentialsId}",
+                            credentialsId: "${buildParams.CredCredentialsId}",
                             url: "https://${buildParams.MainRepoURL}/${buildParams.CredMainRepoProject}.git"
                         ]]
                     ])
