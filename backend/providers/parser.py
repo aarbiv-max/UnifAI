@@ -10,8 +10,16 @@ from be_utils.db.db import mongo, Collections
 from shared.enums import FormStatus
 from typing import List
 
-EXCLUDED_TYPES = ["test case", "test"]  # Types to be excluded from metadata expansion
 BUILT_IN_KEYS = [ "element_type", "tags",  "package", "global_vars", "code", "file_location", "interfaces", "structs", "imports", "name", "uuid", "project_name"]
+
+def get_excluded_types_by_language(language: str) -> List[str]:
+    match language.lower():
+        case "go":
+            return ["test case"]
+        case "python":
+            return ["method"]
+        case _:
+            return []
 
 def get_parser(repo_local_path, file_paths, framework, project_name, organization_name):
     """
@@ -52,7 +60,8 @@ async def trigger_parser(form_id):
     parser = get_parser(repo_local_path, file_paths, framework, project_name, organization_name)
     parsing_result = parser.parse_files()  # Parse the files and retrieve JSON
 
-    parsed_elements_metadata_expansion(parsing_result, project_name, repo_url, {} , BUILT_IN_KEYS, EXCLUDED_TYPES, project_programming_languages)  # Expand metadata for parsed elements
+    excluded_types = list({t for lang in project_programming_languages for t in get_excluded_types_by_language(lang)})
+    parsed_elements_metadata_expansion(parsing_result, project_name, repo_url, {} , BUILT_IN_KEYS, excluded_types, project_programming_languages)  # Expand metadata for parsed elements
     
     update_form_status(form_id, FormStatus.UPLOADHF)
     

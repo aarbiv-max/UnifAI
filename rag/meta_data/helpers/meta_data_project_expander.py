@@ -5,7 +5,7 @@ from .metadata_extractor.meta_data_extractor import MetaDataExtractorBase
 from .metadata_extractor.kubevirt_meta_data_extractor import KubevirtMetaDataExtractor
 from .metadata_extractor.eco_go_meta_data_extractor import EcogoMetaDataExtractor
 from .metadata_extractor.oadp_meta_data_extractor import OadpMetaDataExtractor
-# here
+
 class MetaDataProjectExpander:
     def __init__(self, parsed_elements, project_name, project_repo_path, naming_mapping = {}, built_in_keys = [], exclude_types = [], project_programming_languages = []):
         self.parsed_elements = parsed_elements

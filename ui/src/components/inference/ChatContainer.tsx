@@ -25,7 +25,7 @@ import 'prismjs/themes/prism-okaidia.css';
 import { ChatSidebar } from './ChatSidebar';
 import CodeValidationModal from './CodeValidation';
 import { LoadingOverlay } from '../shared/LoadingOverlay';
-import MessageInputWithMentions from './MessageInputWithMentions ';
+import MessageInputWithMentions, { MessageInputWithMentionsRef } from './MessageInputWithMentions ';
 
 interface FormData {
   project: string;
@@ -189,6 +189,8 @@ const ChatComponent: React.FC = () => {
   const [currentValidationMessage, setCurrentValidationMessage] = useState<string>('');
   const [codeSnippet, setCodeSnippet] = useState<string>('');
 
+  const messageInputRef = useRef<MessageInputWithMentionsRef>(null);
+
   const getChatHistory = async (modelId: string) => {
     const loadedModelChatsResponse = await axiosBE.get('/api/chat/', { params: {modelId: modelId} });
     setHistoryChats(loadedModelChatsResponse.data.response)
@@ -325,6 +327,7 @@ const ChatComponent: React.FC = () => {
     setSelectedModel(null);
     setHistoryChats([])
     setMessages([]);
+    messageInputRef.current?.clearInput();
   };
 
   const clearChat = async () => {
@@ -337,6 +340,7 @@ const ChatComponent: React.FC = () => {
       setSessionId(newSessionId);
 
       setMessages([]);
+      messageInputRef.current?.clearInput();
     } catch (error) {
       console.error('Error cleaning the chat:', error);
       toast.error('An error occurred while trying to clean the chat.');
@@ -357,6 +361,7 @@ const ChatComponent: React.FC = () => {
       
       // Load selected chat messages
       setMessages(chatMessages);
+      messageInputRef.current?.clearInput();
     } catch (error) {
       console.error('Error loading chat history:', error);
       toast.error('An error occurred while loading the chat history.');
@@ -971,17 +976,12 @@ const ChatComponent: React.FC = () => {
             </div>
             <div style={{ padding: '10px' ,     backgroundColor: '#e5e5e5',}}>
               <MessageInputWithMentions
+                ref={messageInputRef}
                 placeholder="Type your message here..."
                 onSend={handleSend}
                 disabled={loadingModel || isStreaming}
                 attachButton={false}
                 gitReposLink={gitReposLink}
-                onPaste={(event) => {
-                  event.preventDefault();
-                  if (!event.clipboardData) return;
-                  const text = event.clipboardData.getData('text/plain');
-                  document.execCommand('insertText', false, text);
-                }}
               />
             </div>
           </MainContainer>

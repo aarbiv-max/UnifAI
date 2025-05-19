@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { EditorContent } from '@tiptap/react';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
@@ -16,7 +16,7 @@ interface MentionItem {
   name: string;
   file_location: string;
   git_repo_link: string;
-  element_type: 'file' | 'function';
+  element_type: string;
   code: string;
 }
 
@@ -25,23 +25,59 @@ interface MessageInputWithMentionsProps {
   onSend: (msg: string) => void;
   disabled?: boolean;
   attachButton?: boolean;
-  onPaste?: (event: ClipboardEvent) => void;
   gitReposLink: string[];
 }
 
-const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
-  placeholder = 'Type your message here...',
-  onSend,
-  disabled = false,
-  attachButton = true,
-  onPaste,
-  gitReposLink
-}) => {
+const insertMentionCode = (
+  item: MentionItem,
+  command: (item: any) => void,
+  props: SuggestionProps,
+  view: Editor['view']
+) => {
+  if (item.id === '__none__') return;
+
+  if (view && props.range) {
+    const { state, dispatch } = view;
+    dispatch(state.tr.delete(props.range.from, props.range.to));
+  }
+
+  command({
+    id: item.id,
+    name: item.code,
+    label: item.code,
+    element_type: item.element_type,
+  });
+};
+
+const getIconForType = (type: string): string => {
+  switch (type.toLowerCase()) {
+    case 'function':
+      return 'ƒ';
+    case 'file':
+      return '📄';
+    case 'class':
+      return '🏛️';
+    case 'test':
+      return '🧪';
+    case 'test case':
+      return '📝';
+    default:
+      return '📌';
+  }
+};
+
+export interface MessageInputWithMentionsRef {
+  clearInput: () => void;
+}
+const MessageInputWithMentions = forwardRef<MessageInputWithMentionsRef, MessageInputWithMentionsProps>(
+  ({ placeholder = 'Type your message here...', onSend, disabled = false, attachButton = true, gitReposLink }, ref) => {
+    
   const mentionActiveRef = useRef(false);
   const [mentionableElements, setMentionableElements] = useState<MentionItem[]>([]);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [selectedMentions, setSelectedMentions] = useState<MentionItem[]>([]);
   const [isMentionLoaded, setIsMentionLoaded] = useState(false);
+
 
   useEffect(() => {
     const fetchMentionableElements = async () => {
@@ -57,7 +93,7 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
           code: el.code,
           git_repo_link: el.git_repo_link || 'Other',
           file_location: el.file_location || '',
-          element_type: el.element_type === 'file' ? 'file' : 'function',
+          element_type: el.element_type || '',
         }));
         setMentionableElements(formatted);
       } catch (error) {
@@ -78,7 +114,8 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
             border-radius: 0.75rem;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
             padding: 0;
-            min-width: 530px;
+            min-width: 720px;       
+            max-width: 95vw;         
           }
 
           .tippy-box[data-theme~='light'] .tippy-arrow {
@@ -99,10 +136,10 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
             flex-direction: column;
             padding: 0.4rem;
             max-height: 320px;
-            /* Increased from 200px */
             overflow-y: auto;
-            width: 500px;
-
+            width: 100%;            
+            min-width: 720px;          
+            max-width: 95vw;
           }
 
           .mention-group-header {
@@ -126,6 +163,7 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
             /* Slightly larger text */
             box-sizing: border-box;
             gap: 8px;
+             max-width: 100%; 
           }
 
           .mention-button:hover {
@@ -167,16 +205,6 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
       document.head.removeChild(style);
     };
   }, []);
-
-  const groupedMentions = useMemo(() => {
-    const groups: Record<string, MentionItem[]> = {};
-    mentionableElements.forEach(item => {
-      const repo = item.git_repo_link || 'Other';
-      if (!groups[repo]) groups[repo] = [];
-      groups[repo].push(item);
-    });
-    return groups;
-  }, [mentionableElements]);
 
   useEffect(() => {
     if (editor || !isMentionLoaded) return;
@@ -262,7 +290,7 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
                 typeSpan.textContent = item.element_type;
 
                 const iconSpan = document.createElement('span');
-                iconSpan.textContent = item.element_type === 'file' ? '📄' : 'ƒ';
+                iconSpan.textContent = getIconForType(item.element_type);
 
                 const typeWithIcon = document.createElement('div');
                 typeWithIcon.style.display = 'flex';
@@ -282,20 +310,7 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
                 button.appendChild(rowWrapper);
                 button.addEventListener('click', () => {
                   if (item.id === '__none__') return;
-
-                  const view = newEditor.view;
-                  if (view && props.range) {
-                    const { state, dispatch } = view;
-                    dispatch(state.tr.delete(props.range.from, props.range.to));
-                  }
-
-                  command({
-                    id: item.id,
-                    name: item.code,
-                    label: item.code,
-                    element_type: item.element_type,
-                  });
-                  
+                  insertMentionCode(item, command, props, newEditor.view);
                 });
                 return button;
               };
@@ -378,14 +393,9 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
                   }
                   if (event.key === 'Enter') {
                     const selected = currentItems[selectedIndex];
-                    if (selected && selected.id !== '__none__') {
-                      currentCommand({
-                        id: selected.id,
-                        name: selected.name,
-                        label: selected.name,
-                        element_type: selected.element_type,
-                      });
-                    }
+                     if (selected && selected.id !== '__none__') {
+                        insertMentionCode(selected, currentCommand, currentProps, newEditor.view);
+                      }
                     return true;
                   }
                   return false;
@@ -416,7 +426,15 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
     });
 
     setEditor(newEditor);
+   
   }, [mentionableElements, disabled, editor, isMentionLoaded]);
+
+  useImperativeHandle(ref, () => ({
+    clearInput: () => {
+      editor?.commands.clearContent();
+      setSelectedMentions([]);
+    }
+  }), [editor]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (mentionActiveRef.current) return;
@@ -430,16 +448,6 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
     }
   }, [editor, onSend]);
 
-  useEffect(() => {
-    const el = editor?.view.dom;
-    if (!el) return;
-    el.addEventListener('keydown', handleKeyDown);
-    if (onPaste) el.addEventListener('paste', onPaste);
-    return () => {
-      el.removeEventListener('keydown', handleKeyDown);
-      if (onPaste) el.removeEventListener('paste', onPaste);
-    };
-  }, [editor, handleKeyDown, onPaste]);
 
   return (
     <div
@@ -494,6 +502,6 @@ const MessageInputWithMentions: React.FC<MessageInputWithMentionsProps> = ({
       </IconButton>
     </div>
   );
-};
+});
 
 export default MessageInputWithMentions;
