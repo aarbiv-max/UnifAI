@@ -413,7 +413,7 @@ pipeline {
                         submoduleCfg: [],
                         userRemoteConfigs: [[
                             //credentialsId: "${buildParams.CredentialsId}",
-                            url: "https://${buildParams.CredMainRepoURL}/${buildParams.CredMainRepoProject}.git"
+                            url: "https://${buildParams.MainRepoURL}/${buildParams.CredMainRepoProject}.git"
                         ]]
                     ])
                     script {
