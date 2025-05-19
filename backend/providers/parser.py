@@ -49,8 +49,8 @@ async def trigger_parser(form_id):
     framework = repo_info.get("testsCodeFramework", "Unknown")  
     auth_token = repo_info.get("gitCredentialKey", None)  
     project_name = repo_info.get("projectName", None) 
-    project_programming_languages = repo_info.get("projectProgrammingLanguages", [])
-    
+    project_programming_languages = repo_info.get("testsCodeFramework", '')
+   
     git_api = get_git_api(repo_url, auth_token)  
     repo_local_path = git_api._clone_repo()  # Clone the repository locally
     organization_name = git_api.org_name
@@ -60,8 +60,8 @@ async def trigger_parser(form_id):
     parser = get_parser(repo_local_path, file_paths, framework, project_name, organization_name)
     parsing_result = parser.parse_files()  # Parse the files and retrieve JSON
 
-    excluded_types = list({t for lang in project_programming_languages for t in get_excluded_types_by_language(lang)})
-    parsed_elements_metadata_expansion(parsing_result, project_name, repo_url, {} , BUILT_IN_KEYS, excluded_types, project_programming_languages)  # Expand metadata for parsed elements
+    excluded_types = get_excluded_types_by_language(project_programming_languages)  # Get excluded types based on the programming language
+    parsed_elements_metadata_expansion(parsing_result, project_name, repo_url, {} , BUILT_IN_KEYS, excluded_types, list(project_programming_languages))  # Expand metadata for parsed elements
     
     update_form_status(form_id, FormStatus.UPLOADHF)
     

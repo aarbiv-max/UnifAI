@@ -11,7 +11,7 @@ rag_bp = Blueprint("rag", __name__)
 def sanity_check():
     return 'There is access to API RAG Backend\n'
 
-@rag_bp.route("/registerNewProject", methods=["GET"])
+@rag_bp.route("/registerNewProject", methods=["POST"])
 @from_body({"parsed_elements_location":      fields.Str(missing='', data_key="parsedElementsLocation"),
              "project_name":                  fields.Str(missing='', data_key="projectName"),
              "project_repo_path":             fields.Str(missing='', data_key="projectRepoPath"),
