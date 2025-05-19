@@ -221,3 +221,73 @@ class PythonParser(TreeSitterParser):
         root_node, content = self.get_root_node()
         file_type = "test" if self.is_test_file(content) else "file"
         return extract_entire_code(root_node, content, file_type)
+    
+    def internal_elements_parsing(self):
+        root_node, content = self.get_root_node()
+        elements = []
+
+        def extract_element_data(node, element_type):
+            name_node = node.child_by_field_name("name")
+            if name_node is None:
+                return None
+            name = name_node.text.decode("utf-8")
+            code = node.text.decode("utf-8")
+
+            return {
+                "element_type": element_type,
+                "project_name": self.project_name,
+                "uuid": str(uuid.uuid4()),
+                "name": name,
+                "code": code,
+                "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                "tags": ""
+            }
+
+        for child in root_node.children:
+            # Top-level function
+            if child.type == "function_definition":
+                function = extract_element_data(child, element_type="function")
+                if function:
+                    elements.append(function)
+
+            # Class definition
+            elif child.type == "class_definition":
+                # First add the class itself
+                class_info = extract_element_data(child, element_type="class")
+                if class_info:
+                    elements.append(class_info)
+
+                # Now extract methods from inside the class body
+                class_body = child.child_by_field_name("body")
+                if class_body:
+                    for class_body_child in class_body.children:
+                        if class_body_child.type == "function_definition":
+                            method = extract_element_data(class_body_child, element_type="method")
+                            if method:
+                                elements.append(method)
+
+        return elements
+    
+    def methods_parsing(self):
+        root_node, content = self.get_root_node()
+        functions = []
+
+        # Find all function declarations
+        for child in root_node.children:
+            if child.type == "method_declaration":
+                method_name = child.child_by_field_name("name").text.decode("utf-8")
+                method_code = child.text.decode("utf-8")
+
+                function = {
+                    "element_type": "method",
+                    "project_name": self.project_name,
+                    "uuid": str(uuid.uuid4()),
+                    "code": method_code,
+                    "name": method_name,
+                    "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                    "code": content,
+                    "tags": ""
+                }
+                functions.append(function)
+        
+        return functions   

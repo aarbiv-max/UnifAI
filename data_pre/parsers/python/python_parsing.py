@@ -7,9 +7,9 @@ from components.tree_sitter_parser import TreeSitterParser
 
 # AGENT_NAME = '(DEEP_CODE)'
 AGENT_NAME = '(TAG)'
-PYTHON_FOLDER = '/home/cloud-user/Projects/tag-integration-with-assisted-installer/kni-assisted-installer-auto'
-PYTHON_PROJECT_NAME = 'ocp-edge-qe/kni-assisted-installer-auto'
-PYTHON_FILE_NAME = 'kni-assisted-installer-auto'
+PYTHON_FOLDER = '/tmp/galaxy_ng'
+PYTHON_PROJECT_NAME = 'ansible/galaxy_ng'
+PYTHON_FILE_NAME = 'galaxy_ng'
 PYTHON_SUFFIXES = [".py"]
 
 def write_to_file(my_list, filename="TC's_mapping_list.txt"):
@@ -118,6 +118,8 @@ for path in python_files:
     realtive_file_path = path.replace(f"{PYTHON_FOLDER}/", "", 1)
     tree_sitter_parser = TreeSitterParser.create_parser(file_path=path, realtive_path=realtive_file_path, project_name=PYTHON_PROJECT_NAME)
     project_entire_file_mapping = [tree_sitter_parser.entire_file_parsing(project_file_names_mapping)]
+    project_file_functions_mapping = tree_sitter_parser.internal_elements_parsing()
+    project_entire_file_mapping.extend(project_file_functions_mapping)
     counter+= 1
     try:
         project_files_mapping.extend(project_entire_file_mapping)
