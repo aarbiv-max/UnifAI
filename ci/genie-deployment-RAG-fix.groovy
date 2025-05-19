@@ -27,6 +27,10 @@ Map buildParams = [
     MainRepoProject    : "nrashti/genie-ai", //"Nirsisr/Genie-AI",
     MainRepoBranch     : "main",
     CredentialsId      : "tag-gitlab-creds", //"tag-github-creds",
+
+    CredMainRepoProject: "gzhou/genie-cred0data", //"Nirsisr/Genie-AI",
+    CredMainRepoBranch : "main",
+    CredCredentialsId  : "tag-gitlab-creds", //"tag-github-creds",
     NodeToRun          : "tag-slave",
     DevRoot            : "/root/workspace/${env.JOB_NAME}", //${env.JOB_NAME}/${env.BUILD_ID}",
     ImageRegistry      : "images.paas.redhat.com",
@@ -400,6 +404,18 @@ pipeline {
             }
             steps {
                 dir("${buildParams.DevRoot}/${params.BRANCH}/helm/") {
+                    echo("CheckOut the credential data ${buildParams.CredMainRepoProject}/${params.BRANCH}")
+                    checkout([$class: 'GitSCM',
+                        branches: [[name: "${params.BRANCH}"]],
+                        doGenerateSubmoduleConfigurations: false,
+                        //extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
+                        extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
+                        submoduleCfg: [],
+                        userRemoteConfigs: [[
+                            //credentialsId: "${buildParams.CredentialsId}",
+                            url: "https://${buildParams.CredMainRepoURL}/${buildParams.CredMainRepoProject}.git"
+                        ]]
+                    ])
                     script {
                       module = "helmfile"
                       cleanWorkspace(module) 
@@ -422,12 +438,12 @@ pipeline {
                             sh("sleep 10")
 
                             echo("Deploy/update Helmfile1 for mongodb and rabbitmq")
-                            sh("podman exec -t helmfile helmfile -f helmfile1.gotmpl apply")
+                            sh("podman exec -t helmfile bash -lc 'set -a; . ./genie-cred-data/.env; set +a; helmfile -f helmfile1.gotmpl apply'")
                             sh("sleep 10")
                         }
                         //else fall into application_upgrade path
                         echo("Deploy/update Helmfile2 for everything else")
-                        sh("podman exec -t helmfile helmfile -f helmfile2.gotmpl apply")
+                        sh("podman exec -t helmfile bash -lc 'set -a; . ./genie-cred-data/.env; set +a; helmfile -f helmfile2.gotmpl apply'")
                         
                         script{
                             GUI_EP = sh(
