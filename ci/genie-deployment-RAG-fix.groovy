@@ -409,7 +409,7 @@ pipeline {
                         branches: [[name: "${params.BRANCH}"]],
                         doGenerateSubmoduleConfigurations: false,
                         //extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
-                        extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
+                        //extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
                         submoduleCfg: [],
                         userRemoteConfigs: [[
                             credentialsId: "${buildParams.CredCredentialsId}",
