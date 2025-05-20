@@ -35,6 +35,13 @@ releases:
       - "genie-be.values.yaml"
       - env:
           HF_TOKEN: {{ env "HF_TOKEN" | quote }}
+          rmq_username: {{ env "rmq_username" | quote }}
+          rmq_password: {{ env "rmq_password" | quote }}
+          preprod_cluster: {{ env "preprod_cluster" | quote }}
+          preprod_access_token: {{ env "preprod_access_token" | quote }}
+          prod_cluster: {{ env "prod_cluster" | quote }}
+          prod_access_token: {{ env "prod_access_token" | quote }}
+
 
 
   - name: genie-llm-be
