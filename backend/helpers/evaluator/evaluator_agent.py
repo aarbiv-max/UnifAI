@@ -38,7 +38,7 @@ class EvaluatorAgent:
         issues = []
         
         for category, results in verification_results.items():
-            load_default= [r['name'] for r in results if not r['exists']]
+            missing = [r['name'] for r in results if not r['exists']]
             if missing:
                 issues.append(f"Missing {category}: {', '.join(missing)}")
                 
