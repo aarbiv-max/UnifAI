@@ -404,9 +404,9 @@ pipeline {
             }
             steps {
                 dir("${buildParams.DevRoot}/${params.BRANCH}/helm/") {
-                    echo("CheckOut the credential data ${buildParams.CredMainRepoProject}/${params.BRANCH}")
+                    echo("CheckOut the credential data https://${buildParams.MainRepoURL}/${buildParams.CredMainRepoProject}")
                     checkout([$class: 'GitSCM',
-                        branches: [[name: "${params.BRANCH}"]],
+                        branches: [[name: "${buildParams.CredMainRepoBranch}"]],
                         doGenerateSubmoduleConfigurations: false,
                         //extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
                         extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}/helm/genie-cred-data/"]],
