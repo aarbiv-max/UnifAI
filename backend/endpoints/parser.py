@@ -19,7 +19,7 @@ def start_parser(form_id):
     return {"status": "success"}, 200
 
 @parser_bp.route('/parsedElements', methods=['GET'])
-@from_query({"git_repos_link": fields.List(fields.Str(), missing='', data_key="gitReposLink")})
+@from_query({"git_repos_link": fields.List(fields.Str(), load_default='', data_key="gitReposLink")})
 def parsed_elements(git_repos_link):
     """API endpoint to retrieve parsed elements from db."""
     try:
