@@ -443,7 +443,7 @@ pipeline {
                         }
                         else {
                             echo("Removing previous app helms")
-                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.yaml --deleteWait'")
+                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.gotmpl --deleteWait'")
                             echo("Wait for the key genie resourc is deleted")
                             sh("until ! oc get deployment,statefulset,svc | grep 'genie'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
                             sh("sleep 10")
