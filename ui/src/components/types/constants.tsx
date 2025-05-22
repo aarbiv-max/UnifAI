@@ -47,6 +47,7 @@ export interface ModelData {
     trainingName: string;
     modelMaxSeqLen: number;
     modelType: 'llama' | 'qwen' | null;
+    gitReposLink?: string[];
     project: string;
     checkpoint?: string,
     finetuneSteps?: any[], 
@@ -58,7 +59,6 @@ export interface ModelData {
     isRagEnabled?: boolean;
     isPackageSelectionRagEnabled?: boolean;
     supportedFrameworks?: string;
-    gitRepoLink?: string;
     // numTests: string,
     // dataSize: string,
 }

@@ -858,8 +858,8 @@ const ChatComponent: React.FC = () => {
   
   // const modelType = getModelType();
   const modelType : 'llama' | 'qwen' | null = selectedModel?.modelType || null;
-  const framework = selectedModel?.supportedFrameworks || ''; 
-  const gitRepoLink = selectedModel?.gitRepoLink || '';
+  const supportedFrameworks = selectedModel?.supportedFrameworks || '';
+  const gitReposLink = selectedModel?.gitReposLink || [];
   const loadingOverlayText = `Please be patient while we ${loadingModel ? "load" : "unload"} the requested model. This process may take up to 2 minutes.`
 
   return (
@@ -998,9 +998,10 @@ const ChatComponent: React.FC = () => {
             modelType={modelType}
             reformatText={ReformatText}
             regenerateResponse={regenerateResponse}
-            framework={framework}
-            gitRepoLink={gitRepoLink}
+            framework={supportedFrameworks}
+            gitReposLink={gitReposLink}
           />
+          
         </div>
        ) : (
         <div className="model-selection-wrapper">
