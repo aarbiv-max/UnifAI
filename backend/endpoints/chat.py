@@ -80,5 +80,5 @@ def evaluate_code(code, repository_location, framework, gitRepoLink):
         return {"status": "success", "result": evaluation_result}
     
     except Exception as e:
-        print(f"Error evaluate the code for the repository: {repository_location}")
+        logging.error(f"Error evaluate the code for the repository: {repository_location}")
         return jsonify({"status": "error", "message": str(e)}), 500
