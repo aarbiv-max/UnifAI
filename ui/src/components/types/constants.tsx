@@ -28,6 +28,9 @@ export interface ModelDataResponse {
     model_type: 'llama' | 'qwen' | null;
 }
 
+export interface SupportedFrameworks {
+    [key: string]: string; 
+}
 export interface Adapters {
     name: string;
     project: string;
@@ -37,6 +40,7 @@ export interface Adapters {
     local_adapter_path: string;
     adapter_uid: string;
     repo_internal_location?: string; 
+    supported_frameworks?: SupportedFrameworks;
 }
 
 export interface ModelData {
@@ -58,7 +62,7 @@ export interface ModelData {
     };
     isRagEnabled?: boolean;
     isPackageSelectionRagEnabled?: boolean;
-    supportedFrameworks?: string;
+    supported_frameworks?: SupportedFrameworks;
     // numTests: string,
     // dataSize: string,
 }

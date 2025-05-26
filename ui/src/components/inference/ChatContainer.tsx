@@ -251,6 +251,7 @@ const ChatComponent: React.FC = () => {
           repoInternalLocation: adapter?.repo_internal_location,
           modelType: modelsResponse.data[0].model_type,
           project: adapter.project,
+          supportedFrameworks: adapter.supported_frameworks,
         }));
         setModels(transformedData);
   
@@ -858,7 +859,7 @@ const ChatComponent: React.FC = () => {
   
   // const modelType = getModelType();
   const modelType : 'llama' | 'qwen' | null = selectedModel?.modelType || null;
-  const supportedFrameworks = selectedModel?.supportedFrameworks || '';
+  const supportedFrameworks = selectedModel?.supported_frameworks || {};
   const gitReposLink = selectedModel?.gitReposLink || [];
   const loadingOverlayText = `Please be patient while we ${loadingModel ? "load" : "unload"} the requested model. This process may take up to 2 minutes.`
 

@@ -8,12 +8,13 @@ import axiosBE from '../../http/axiosConfig';
 import ValidationResponseViewer from './CodeValidationResponseViewer';
 
 import '../../styles.css';
+import { SupportedFrameworks } from '../types/constants';
 
 interface CodeValidationModalProps {
   open: boolean;
   onClose: () => void;
   code: string;
-  framework: string;
+  framework: SupportedFrameworks;
   gitReposLink: string[];
   setCode: (code: string) => void;
   llmResponse: string;
@@ -66,7 +67,7 @@ const CodeValidationModal: React.FC<CodeValidationModalProps> = ({
       const response = await axiosBE.post('/api/chat/evaluate', {
         code,
         repositoryLocation,
-        framework: framework,
+        framework: framework[repoLink] || '',
         gitRepoLink: repoLink
       });
 
