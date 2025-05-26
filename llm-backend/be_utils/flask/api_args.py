@@ -104,4 +104,4 @@ class Fields:
     StringOrNone = partial(fields.Str,
                            required=False,
                            allow_none=True,
-                           missing=None)
+                           load_default=None)

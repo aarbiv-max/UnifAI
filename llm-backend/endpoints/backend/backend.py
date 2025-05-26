@@ -33,11 +33,11 @@ def load_model(adapter_id):
 
 @backend_bp.route("/inference", methods=["POST"])
 @from_body({
-    "adapter_uid": fields.Str(data_key="adapterUid", required=False, missing=None),
-    "messages": fields.List(fields.Dict(), missing=[], required=False, data_key="messages"),
-    "temperature": fields.Str(data_key="temperature", required=False, missing=None),
-    "session_id": fields.Str(data_key="sessionId", required=False, missing="N/A"),
-    "max_gen_len": fields.Str(data_key="maxGenLen", required=False, missing="12000"),
+    "adapter_uid": fields.Str(data_key="adapterUid", required=False, load_default=None),
+    "messages": fields.List(fields.Dict(), load_default=[], required=False, data_key="messages"),
+    "temperature": fields.Str(data_key="temperature", required=False, load_default=None),
+    "session_id": fields.Str(data_key="sessionId", required=False, load_default="N/A"),
+    "max_gen_len": fields.Str(data_key="maxGenLen", required=False, load_default="12000"),
 })
 def inference_post(adapter_uid, messages, temperature, session_id, max_gen_len):
     return Response(llm_provider.inference(adapter_uid,
@@ -50,7 +50,7 @@ def inference_post(adapter_uid, messages, temperature, session_id, max_gen_len):
 
 @backend_bp.route("/stopInference", methods=["GET"])
 @from_query({
-    "session_id": fields.Str(data_key="sessionId", required=False, default="N/A"),
+    "session_id": fields.Str(data_key="sessionId", required=False, load_default="N/A"),
 })
 def stop_inference(session_id):
     return jsonify(llm_provider.stop_inference(session_id))
@@ -90,7 +90,7 @@ def unload_model():
 
 @backend_bp.route("/clearChatHistory", methods=["GET"])
 @from_query({
-    "session_id": fields.Str(data_key="sessionId", required=False, default="N/A"),
+    "session_id": fields.Str(data_key="sessionId", required=False, load_default="N/A"),
 })
 def clear_chat_history(session_id):
     return jsonify(llm_provider.clear_chat_history(session_id))
@@ -98,7 +98,7 @@ def clear_chat_history(session_id):
 
 @backend_bp.route("/loadChatContext", methods=["POST"])
 @from_body({
-    "chat": fields.List(fields.Dict(), missing=[], required=False, data_key="chat"),
+    "chat": fields.List(fields.Dict(), load_default=[], required=False, data_key="chat"),
     "session_id": fields.String(data_key="sessionId", required=True),
 })
 def load_chat_context(chat, session_id):
