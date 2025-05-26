@@ -37,6 +37,7 @@ export interface Adapters {
     local_adapter_path: string;
     adapter_uid: string;
     repo_internal_location?: string; 
+    gitReposLink?: string[];
 }
 
 export interface ModelData {
@@ -47,6 +48,7 @@ export interface ModelData {
     trainingName: string;
     modelMaxSeqLen: number;
     modelType: 'llama' | 'qwen' | null;
+    gitReposLink?: string[];
     project: string;
     checkpoint?: string,
     finetuneSteps?: any[], 

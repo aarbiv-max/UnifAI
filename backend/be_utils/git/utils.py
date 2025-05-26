@@ -12,7 +12,7 @@ def detect_git_provider(repo_url):
     :param repo_url: The repository URL entered by the user.
     :return: "gitlab" or "github", or raises an error if unknown.
     """
-    if re.search(r'gitlab\.', repo_url, re.IGNORECASE):
+    if re.search(r'gitlab\.', repo_url, re.IGNORECASE) or re.search(r'scm\.cci\.nokia', repo_url, re.IGNORECASE):
         return GIT_LAB
     elif re.search(r'github\.', repo_url, re.IGNORECASE):
         return GIT_HUB

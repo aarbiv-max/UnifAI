@@ -27,7 +27,7 @@ interface ChatHistoryProps {
 
 export interface HistoryChat {
   sessionId: string;
-  latestTimestamp: { "$date": string };
+  latestTimestamp: string ;
   messages: ChatMessage[];
   firstMessage: string;
   title?: string;
@@ -152,7 +152,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ modelId, isStreaming, onChatS
                       </React.Fragment>)}
                   secondary={
                     <Typography component="span" variant="caption" color="text.secondary">
-                      {new Date(chat.latestTimestamp["$date"]).toLocaleString("en-GB")}
+                      {new Date(chat.latestTimestamp).toLocaleString("en-GB")}
                     </Typography>}
                 />
               </ListItemButton>

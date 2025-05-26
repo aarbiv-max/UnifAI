@@ -25,6 +25,7 @@ import 'prismjs/themes/prism-okaidia.css';
 import { ChatSidebar } from './ChatSidebar';
 import CodeValidationModal from './CodeValidation';
 import { LoadingOverlay } from '../shared/LoadingOverlay';
+import MessageInputWithMentions, { MessageInputWithMentionsRef } from './MessageInputWithMentions ';
 
 interface FormData {
   project: string;
@@ -188,6 +189,8 @@ const ChatComponent: React.FC = () => {
   const [currentValidationMessage, setCurrentValidationMessage] = useState<string>('');
   const [codeSnippet, setCodeSnippet] = useState<string>('');
 
+  const messageInputRef = useRef<MessageInputWithMentionsRef>(null);
+
   const getChatHistory = async (modelId: string) => {
     const loadedModelChatsResponse = await axiosBE.get('/api/chat/', { params: {modelId: modelId} });
     setHistoryChats(loadedModelChatsResponse.data.response)
@@ -251,6 +254,7 @@ const ChatComponent: React.FC = () => {
           repoInternalLocation: adapter?.repo_internal_location,
           modelType: modelsResponse.data[0].model_type,
           project: adapter.project,
+          gitReposLink: adapter.gitReposLink,
         }));
         setModels(transformedData);
   
@@ -323,6 +327,7 @@ const ChatComponent: React.FC = () => {
     setSelectedModel(null);
     setHistoryChats([])
     setMessages([]);
+    messageInputRef.current?.clearInput();
   };
 
   const clearChat = async () => {
@@ -335,6 +340,7 @@ const ChatComponent: React.FC = () => {
       setSessionId(newSessionId);
 
       setMessages([]);
+      messageInputRef.current?.clearInput();
     } catch (error) {
       console.error('Error cleaning the chat:', error);
       toast.error('An error occurred while trying to clean the chat.');
@@ -355,6 +361,7 @@ const ChatComponent: React.FC = () => {
       
       // Load selected chat messages
       setMessages(chatMessages);
+      messageInputRef.current?.clearInput();
     } catch (error) {
       console.error('Error loading chat history:', error);
       toast.error('An error occurred while loading the chat history.');
@@ -569,7 +576,6 @@ const ChatComponent: React.FC = () => {
       updateCurrentChat(updatedMessages, sessionId, selectedModel.modelId); // Update the chat in the DB
       return updatedMessages;
     });
-
     setIsStreaming(true);
     sendQuestion(text, false);
   };
@@ -860,6 +866,7 @@ const ChatComponent: React.FC = () => {
   
   // const modelType = getModelType();
   const modelType : 'llama' | 'qwen' | null = selectedModel?.modelType || null;
+  const gitReposLink = selectedModel?.gitReposLink || [] 
   const loadingOverlayText = `Please be patient while we ${loadingModel ? "load" : "unload"} the requested model. This process may take up to 2 minutes.`
 
   return (
@@ -885,87 +892,98 @@ const ChatComponent: React.FC = () => {
             setHistoryChats={setHistoryChats}
             setSelectedPackages={setSelectedPackages}
           />
-          <MainContainer style={{marginLeft: drawerOpen ? '16%' : '0%', flexGrow: 1}}>
-            <ChatContainer>
-              <MessageList style={{padding: '10px'}}>
-                {messages.map((message, idx) => (
-                  <div key={message.id} style={{ position: 'relative', paddingBottom: '40px' }}>
-                    <Message
-                      model={{
-                        message: modelType ? ReformatText(message.text, modelType, true) : message.text, 
-                        sentTime: 'just now',
-                        sender: message.sender === 'user' ? 'You' : 'Bot',
-                        direction: message.sender === 'user' ? 'outgoing' : 'incoming',
-                        position: getPosition(idx, message.sender),
-                      }}
-                    />
-                      {message.sender === 'bot' && (
-                        <div style={{ position: 'absolute', bottom: '5px', left: '5px', display: 'flex', gap: '5px' }}>
-                          <Tooltip title="Copy">
-                            <IconButton onClick={() => copyToClipboard(message.text)} size="small" disabled>
-                              <ContentCopyIcon />
-                            </IconButton>
-                          </Tooltip>
-                          {isStreaming && (
-                            <Tooltip title="Stop">
-                              <IconButton onClick={handleStop} size="small">
-                                <StopIcon />
+          <MainContainer
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
+              flexGrow: 1,
+              marginLeft: drawerOpen ? '16%' : '0%',
+            }}
+          >
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <ChatContainer style={{ flex: 1, overflow: 'auto' }}>
+                <MessageList style={{ padding: '10px', flex: 1, overflowY: 'auto' }}>
+                  {messages.map((message, idx) => (
+                    <div key={message.id} style={{ position: 'relative', paddingBottom: '40px' }}>
+                      <Message
+                        model={{
+                          message: modelType ? ReformatText(message.text, modelType, true) : message.text, 
+                          sentTime: 'just now',
+                          sender: message.sender === 'user' ? 'You' : 'Bot',
+                          direction: message.sender === 'user' ? 'outgoing' : 'incoming',
+                          position: getPosition(idx, message.sender),
+                        }}
+                      />
+                        {message.sender === 'bot' && (
+                          <div style={{ position: 'absolute', bottom: '5px', left: '5px', display: 'flex', gap: '5px' }}>
+                            <Tooltip title="Copy">
+                              <IconButton onClick={() => copyToClipboard(message.text)} size="small" disabled>
+                                <ContentCopyIcon />
                               </IconButton>
                             </Tooltip>
-                          )}
-                          {!isStreaming && (
-                            <>
-                              <Tooltip title="Regenerate">
-                                <IconButton
-                                  onClick={() => regenerateResponse(false)}
-                                  size="small"
-                                >
-                                  <AutorenewIcon />
+                            {isStreaming && (
+                              <Tooltip title="Stop">
+                                <IconButton onClick={handleStop} size="small">
+                                  <StopIcon />
                                 </IconButton>
                               </Tooltip>
+                            )}
+                            {!isStreaming && (
+                              <>
+                                <Tooltip title="Regenerate">
+                                  <IconButton
+                                    onClick={() => regenerateResponse(false)}
+                                    size="small"
+                                  >
+                                    <AutorenewIcon />
+                                  </IconButton>
+                                </Tooltip>
 
-                              <Tooltip title="Rate">
-                                <IconButton
-                                  onClick={() => handleRatingClick(idx)}
-                                  size="small"
-                                  style={{ color: messageIsRated[idx] ? 'yellow' : '' }}
-                                >
-                                  <StarIcon />
-                                </IconButton>
-                              </Tooltip>
+                                <Tooltip title="Rate">
+                                  <IconButton
+                                    onClick={() => handleRatingClick(idx)}
+                                    size="small"
+                                    style={{ color: messageIsRated[idx] ? 'yellow' : '' }}
+                                  >
+                                    <StarIcon />
+                                  </IconButton>
+                                </Tooltip>
 
-                              {/* <Tooltip title="Code Validation">
-                                <IconButton
-                                  disabled={!selectedModel?.repoInternalLocation}
-                                  onClick={() => handleCodeValidationClick(message.text)}
-                                  size="small"
-                                >
-                                  <FactCheckIcon />
-                                </IconButton>
-                              </Tooltip> */}
-                            </>
-                          )}
-                          <Tooltip title="Save">
-                            <IconButton onClick={() => handleSaveClick(messages[idx - 1].text, message.text)} size="small">
-                              <SaveIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </div>
-                      )
-                    }
-                  </div>
-                ))}
-              </MessageList>
-              <MessageInput placeholder="Type your message here..." onSend={handleSend} disabled={loadingModel || isStreaming}
+                                {/* <Tooltip title="Code Validation">
+                                  <IconButton
+                                    disabled={!selectedModel?.repoInternalLocation}
+                                    onClick={() => handleCodeValidationClick(message.text)}
+                                    size="small"
+                                  >
+                                    <FactCheckIcon />
+                                  </IconButton>
+                                </Tooltip> */}
+                              </>
+                            )}
+                            <Tooltip title="Save">
+                              <IconButton onClick={() => handleSaveClick(messages[idx - 1].text, message.text)} size="small">
+                                <SaveIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </div>
+                        )
+                      }
+                    </div>
+                  ))}
+                </MessageList>
+              </ChatContainer>
+            </div>
+            <div style={{ padding: '10px' ,     backgroundColor: '#e5e5e5',}}>
+              <MessageInputWithMentions
+                ref={messageInputRef}
+                placeholder="Type your message here..."
+                onSend={handleSend}
+                disabled={loadingModel || isStreaming}
                 attachButton={false}
-                onPaste={(event) => {
-                  event.preventDefault();
-                  // Get plain text from clipboard
-                  const text = event.clipboardData.getData('text/plain');
-                  document.execCommand('insertText', false, text);
-                }}
+                gitReposLink={gitReposLink}
               />
-            </ChatContainer>
+            </div>
           </MainContainer>
           <RatingModal
             open={isRatingModalOpen}
