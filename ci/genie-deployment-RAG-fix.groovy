@@ -427,7 +427,7 @@ pipeline {
                         sh("oc login --token=${token} --server=${ClusterAddress}")
                         sh("oc project ${params.namespace}")
                         echo("Deploy Helm container")
-                        sh("podman run -dt -e HF_TOKEN=$HF_TOKEN --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
+                        sh("podman run -dt --env-file=./genie-cred-data/.env --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
 
                         if(params.deployment_type == 'FRESH_INSTALL') {
                             echo("Removing previous helms")
@@ -438,7 +438,7 @@ pipeline {
                             sh("sleep 10")
 
                             echo("Deploy/update Helmfile1 for mongodb and rabbitmq")
-                            sh("podman exec -t helmfile bash -lc 'set -a; . ./genie-cred-data/.env; set +a; helmfile -f helmfile1.gotmpl apply'")
+                            sh("podman exec -t helmfile bash -lc 'helmfile -f helmfile1.gotmpl apply'")
                             sh("sleep 10")
                         }
                         else {
@@ -450,7 +450,7 @@ pipeline {
                         }
                         //else fall into application_upgrade path
                         echo("Deploy/update Helmfile2 for everything else")
-                        sh("podman exec -t helmfile bash -lc 'set -a; . ./genie-cred-data/.env; set +a; helmfile -f helmfile2.gotmpl apply'")
+                        sh("podman exec -t helmfile bash -lc 'helmfile -f helmfile2.gotmpl apply'")
                         
                         script{
                             GUI_EP = sh(
