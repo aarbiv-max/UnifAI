@@ -15,7 +15,7 @@ services:
     container_name: model-man-finetune
     environment:
       - HUGGING_FACE_HUB_USER=zhoueric
-      - HUGGING_FACE_HUB_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
       - GENIE_MODEL_NAME=oodeh/openshift-qe-r64-a16-epoch20
     networks:
       - genie-network
@@ -30,7 +30,7 @@ services:
     container_name: model-man-general
     environment:
       - HUGGING_FACE_HUB_USER=zhoueric
-      - HUGGING_FACE_HUB_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
       - GENIE_MODEL_NAME=unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit
     networks:
       - genie-network
@@ -48,7 +48,7 @@ services:
       model-man-finetune:
         condition: service_completed_successfully
     environment:
-      - HUGGING_FACE_HUB_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
     command:  '--model /data/models/openshift-qe-r64-a16-epoch20 --max-model-len  6560 --quantization bitsandbytes --load-format bitsandbytes --gpu-memory-utilization 0.9'
 
     deploy:
@@ -75,7 +75,7 @@ services:
     command:  '--model /data/models/Meta-Llama-3.1-8B-Instruct-bnb-4bit --max-model-len  106288 --quantization bitsandbytes --load-format bitsandbytes --gpu-memory-utilization 0.9'
     #command: "meta-llama/Llama-3.1-8B-Instruct unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"
     environment:
-      - HUGGING_FACE_HUB_TOKEN=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
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
 
     deploy:
       resources:

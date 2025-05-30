@@ -9,8 +9,8 @@
 # )
 # # FastLanguageModel.for_inference(model)  # Enable native 2x faster inferenc
 #
-# model.push_to_hub("oodeh/openshift-qe-r16-a16", token = "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") # Online saving
-# tokenizer.push_to_hub("oodeh/openshift-qe-r16-a16", token = "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") # Online saving
+# model.push_to_hub("oodeh/openshift-qe-r16-a16", token = "hf_xxxx") # Online saving
+# tokenizer.push_to_hub("oodeh/openshift-qe-r16-a16", token = "hf_xxxx") # Online saving
 
 from huggingface_hub import HfApi, HfFolder, Repository
 import os

@@ -3,9 +3,9 @@ image:
    repository: images.paas.redhat.com/genie/reviewer
    tag: 2025.01.02
    pullPolicy: Always
-hf_token: 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
+hf_token: hf_xxxx
 command: reviewer
-HF_TOKEN: "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"
+HF_TOKEN: "hf_xxxx"
 
 RABBITMQ_IP: "rabbitmq"
 RABBITMQ_PORT: 5672

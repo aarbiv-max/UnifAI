@@ -3,8 +3,19 @@
 helmDefaults:
     createNamespace: false
     wait: false
-
+  
 releases:
+  - name: genie-mongodb
+    chart: ./mongodb
+    wait: true
+    values:
+      - "./mongodb.values.yaml"
+
+  - name: genie-rabbitmq
+    chart: ./rabbitmq
+    wait: true
+    values:
+      - "./rabbitmq.values.yaml"
 
   - name: genie-ui
     chart: ./genie-ui
@@ -18,9 +29,15 @@ releases:
   - name: genie-be
     chart: ./genie-be
     wait: true
-      #set:
-      #- name: env.MONGO_EXT_ADDR
-      #  value: '{{ exec "sh" (list "-c" "kubectl get svc mongodb -o jsonpath={.status.loadBalancer.ingress[0].hostname} || echo mongodb") }}'
+    values:
+      - "genie-be.values.yaml"
+      - env:
+         HF_TOKEN: {{ env "HF_TOKEN" | quote }}
+
+
+    needs:
+      - genie-mongodb
+      - genie-rabbitmq
     hooks:
       - events: ["presync"]
         showlogs: true
@@ -29,14 +46,19 @@ releases:
           - "-c"
           - |
               LB_ADDR=$(kubectl get svc mongodb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-              kubectl delete configmap mongodb-lb-config
+              kubectl delete configmap mongodb-lb-config 
               kubectl create configmap mongodb-lb-config --from-literal=MONGO_EXT_ADDR="$LB_ADDR" --dry-run=client -o yaml | kubectl apply -f -
-    values:
-      - "genie-be.values.yaml"
-
-
+              
   - name: genie-llm-be
     chart: ./genie-llm-be
     wait: true
     values:
       - "genie-llm-be.values.yaml"
+      - env:
+          HF_TOKEN: {{ env "HF_TOKEN" | quote }}
+          HF_HOME: {{ env "HF_HOME" | default "/tmp" | quote }}
+          VLLM_CONFIG_ROOT: {{ env "VLLM_CONFIG_ROOT" | default "/tmp/usage" | quote }}
+          BACKEND_ENV: "production"
+
+    needs:
+      - genie-mongodb

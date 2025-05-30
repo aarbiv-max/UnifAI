@@ -1,7 +1,7 @@
 # Default values for genie-reviewer.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-HF_TOKEN: "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"
+HF_TOKEN: "hf_xxxx"
 
 RABBITMQ_IP: "rabbitmq"
 RABBITMQ_PORT: 5672
