@@ -24,11 +24,11 @@ properties([
 Map buildParams = [
     LogLevel           : "ALL",
     MainRepoURL        : "gitlab.cee.redhat.com", //"github.com",
-    MainRepoProject    : "ai-tools/genie-ai", //"Nirsisr/Genie-AI",
+    MainRepoProject    : "ai_tools/genie-ai", //"Nirsisr/Genie-AI",
     MainRepoBranch     : "main",
     CredentialsId      : "gitlab-genie", //"tag-github-creds",
 
-    CredMainRepoProject: "gzhou/genie-cred-data", //"Nirsisr/Genie-AI",
+    CredMainRepoProject: "gzhou/genie-cred-data", //TODO change this to group repo too
     CredMainRepoBranch : "main",
     CredCredentialsId  : "tag-gitlab-creds-private", 
     NodeToRun          : "tag-slave",
