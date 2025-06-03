@@ -24,9 +24,9 @@ properties([
 Map buildParams = [
     LogLevel           : "ALL",
     MainRepoURL        : "gitlab.cee.redhat.com", //"github.com",
-    MainRepoProject    : "nrashti/genie-ai", //"Nirsisr/Genie-AI",
+    MainRepoProject    : "ai-tools/genie-ai", //"Nirsisr/Genie-AI",
     MainRepoBranch     : "main",
-    CredentialsId      : "tag-gitlab-creds", //"tag-github-creds",
+    CredentialsId      : "gitlab-genie", //"tag-github-creds",
 
     CredMainRepoProject: "gzhou/genie-cred-data", //"Nirsisr/Genie-AI",
     CredMainRepoBranch : "main",
