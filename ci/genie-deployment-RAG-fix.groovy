@@ -194,7 +194,7 @@ pipeline {
                     extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
                     submoduleCfg: [],
                     userRemoteConfigs: [[
-                        //credentialsId: "${buildParams.CredentialsId}",
+                        credentialsId: "${buildParams.CredentialsId}",
                         url: "https://${buildParams.MainRepoURL}/${buildParams.MainRepoProject}.git"
                     ]]
                 ])
