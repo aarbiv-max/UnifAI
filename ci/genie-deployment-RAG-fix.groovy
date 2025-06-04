@@ -28,7 +28,7 @@ Map buildParams = [
     MainRepoBranch     : "main",
     CredentialsId      : "gitlab-genie", //"tag-github-creds",
 
-    CredMainRepoProject: "gzhou/genie-cred-data", //TODO change this to group repo too
+    CredMainRepoProject: "ai_tools/genie-cred-data", //the private data repo (site data/credentials)
     CredMainRepoBranch : "main",
     CredCredentialsId  : "tag-gitlab-creds-private", 
     NodeToRun          : "tag-slave",
