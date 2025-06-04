@@ -32,11 +32,13 @@ class TreeSitterParserWrapper(BaseParser):
                 project_name=self.full_project_name,
                 file_git_path=file_git_path
             )
-
-            entire_file_mapping = [parser.enitre_file_parsing()]
-            entire_file_mapping.extend(parser.functions_parsing())
-            entire_file_mapping.extend(parser.test_parsing())
-
+            entire_file_mapping = [parser.entire_file_parsing()]
+           
+            if not full_path.endswith('.py'):
+                entire_file_mapping.extend(parser.functions_parsing())
+                entire_file_mapping.extend(parser.test_parsing())
+            elif full_path.endswith('.py'):
+                entire_file_mapping.extend(parser.internal_elements_parsing())
             try:
                 project_files_mapping.extend(entire_file_mapping)
                 self.counter += 1

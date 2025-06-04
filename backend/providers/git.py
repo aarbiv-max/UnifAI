@@ -15,7 +15,7 @@ def get_directory_list(file_list_git, file_list_db):
     list_of_files = [
         {'file': git_file["path"], 'in_db': git_file["path"] in database_set}
         for git_file in file_list_git
-        if (git_file.get("name") or git_file.get("path", "")).endswith(("resource","jmx", "robot", "ts", "go", "tsx", "js")) and "__init__" not in str(git_file)
+        if (git_file.get("name") or git_file.get("path", "")).endswith(("resource","jmx", "robot", "ts", "go", "tsx", "js", "py")) and "__init__" not in str(git_file)
     ]
     return list_of_files
 

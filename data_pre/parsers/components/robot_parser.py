@@ -1079,7 +1079,7 @@ class RobotParser(TreeSitterParser):
 
         # return []
 
-    def enitre_file_parsing(self, robot_file_names_mapping):
+    def entire_file_parsing(self, robot_file_names_mapping):
         def map_imports_file_locations():
                 """Helper function to map imported files located in settings section to 'imports_file_locations' using 'settings_mapping'."""
                 imports_file_locations = {}
