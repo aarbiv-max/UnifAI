@@ -24,11 +24,11 @@ properties([
 Map buildParams = [
     LogLevel           : "ALL",
     MainRepoURL        : "gitlab.cee.redhat.com", //"github.com",
-    MainRepoProject    : "nrashti/genie-ai", //"Nirsisr/Genie-AI",
+    MainRepoProject    : "ai_tools/genie-ai", //"Nirsisr/Genie-AI",
     MainRepoBranch     : "main",
-    CredentialsId      : "tag-gitlab-creds", //"tag-github-creds",
+    CredentialsId      : "gitlab-genie", //"tag-github-creds",
 
-    CredMainRepoProject: "gzhou/genie-cred-data", //"Nirsisr/Genie-AI",
+    CredMainRepoProject: "ai_tools/genie-cred-data", //the private data repo (site data/credentials)
     CredMainRepoBranch : "main",
     CredCredentialsId  : "tag-gitlab-creds-private", 
     NodeToRun          : "tag-slave",
@@ -194,7 +194,7 @@ pipeline {
                     extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
                     submoduleCfg: [],
                     userRemoteConfigs: [[
-                        //credentialsId: "${buildParams.CredentialsId}",
+                        credentialsId: "${buildParams.CredentialsId}",
                         url: "https://${buildParams.MainRepoURL}/${buildParams.MainRepoProject}.git"
                     ]]
                 ])
