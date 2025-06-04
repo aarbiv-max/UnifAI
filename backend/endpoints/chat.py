@@ -70,10 +70,12 @@ def rename_chat_session(session_id, title):
 @from_body({
     "code":                 fields.Str(required=True, data_key="code"),
     "repository_location":  fields.Str(required=True, data_key="repositoryLocation"),
+    "framework":            fields.Str(required=True, data_key="framework"),
+    "gitRepoLink":          fields.Str(required=True, data_key="gitRepoLink"),
 })
-def evaluate_code(code, repository_location):
+def evaluate_code(code, repository_location, framework, gitRepoLink):
     try: 
-        evaluator = EvaluatorAgent(repository_location)
+        evaluator = EvaluatorAgent(repository_location, framework, gitRepoLink)
         evaluation_result = evaluator.evaluate_generated_code(code)
         return {"status": "success", "result": evaluation_result}
     

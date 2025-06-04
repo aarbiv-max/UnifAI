@@ -1,20 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Dialog, DialogTitle, DialogContent, DialogActions, Button, CircularProgress, Typography } from '@mui/material';
+import {
+  Box, Dialog, DialogContent, DialogActions, Button, CircularProgress, Typography, Tabs, Tab,
+  Tooltip
+} from '@mui/material';
 import { ExpandMore, ExpandLess } from '@mui/icons-material';
 import axiosBE from '../../http/axiosConfig';
 import ValidationResponseViewer from './CodeValidationResponseViewer';
+
 import '../../styles.css';
+import { SupportedFrameworks } from '../types/constants';
 
 interface CodeValidationModalProps {
   open: boolean;
   onClose: () => void;
   code: string;
+  framework: SupportedFrameworks;
+  gitReposLink: string[];
   setCode: (code: string) => void;
   llmResponse: string;
   repositoryLocation: string;
   modelType: 'llama' | 'qwen' | null;
   reformatText: (text: string, modelType: 'llama' | 'qwen', enableCodeValidation: boolean) => string;
-  regenerateResponse: (contextEnrichment: boolean) => void
+  regenerateResponse: (contextEnrichment: boolean) => void;
 }
 
 interface ValidationResponse {
@@ -23,7 +30,6 @@ interface ValidationResponse {
   summary?: string;
   verification_details?: any;
   status?: string;
-
   error?: boolean;
   message?: string;
 }
@@ -37,143 +43,139 @@ const CodeValidationModal: React.FC<CodeValidationModalProps> = ({
   repositoryLocation,
   modelType,
   reformatText,
-  regenerateResponse
+  regenerateResponse,
+  framework,
+  gitReposLink
 }) => {
-  const [validationResponse, setValidationResponse] = useState<ValidationResponse | null>(null);
+  const [validationResponses, setValidationResponses] = useState<Record<string, ValidationResponse>>({});
   const [isValidating, setIsValidating] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<number>(0);
   const [isLLMResponseVisible, setIsLLMResponseVisible] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (code) {
-      handleValidate();
-    }
-  }, [code]);
+  const activeRepo = gitReposLink[activeTab];
 
-  const handleValidate = async () => {
+  useEffect(() => {
+    if (open && code && activeRepo) {
+      validateRepo(activeRepo);
+    }
+  }, [code, activeRepo, open]);
+
+  const validateRepo = async (repoLink: string) => {
+    if (validationResponses[repoLink]) return;
     setIsValidating(true);
     try {
       const response = await axiosBE.post('/api/chat/evaluate', {
         code,
-        repositoryLocation
+        repositoryLocation,
+        framework: framework[repoLink] || '',
+        gitRepoLink: repoLink
       });
-      
-      // Ensure we're working with parsed JSON
-      const jsonResponse = typeof response.data.result === 'string' 
-        ? JSON.parse(response.data.result) 
+
+      const json = typeof response.data.result === 'string'
+        ? JSON.parse(response.data.result)
         : response.data.result;
-        
-      setValidationResponse(jsonResponse);
-    } catch (error) {
-      console.error('Error validating code:', error);
-      setValidationResponse({
-        error: true,
-        message: 'An error occurred during validation.'
-      });
+
+      setValidationResponses(prev => ({ ...prev, [repoLink]: json }));
+    } catch (err) {
+      console.error('Validation error:', err);
+      setValidationResponses(prev => ({
+        ...prev,
+        [repoLink]: { error: true, message: `Validation failed for ${repoLink}` }
+      }));
     } finally {
       setIsValidating(false);
     }
   };
 
-  const handleCodeChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setCode(event.target.value);
-  };
-
-  const handleRegenerate = () => {
-    handleClose();
-    // Trigger API for regeneration
-    regenerateResponse(true)
+  const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
   };
 
   const handleClose = () => {
     setCode('');
-    setValidationResponse(null);
+    setValidationResponses({});
     onClose();
   };
 
-  const toggleLLMResponse = () => {
-    setIsLLMResponseVisible((prev) => !prev);
+  const handleRegenerate = () => {
+    handleClose();
+    regenerateResponse(true);
   };
 
-  const accuracy = validationResponse?.percentages_accuracy ?? 0;
-  const isAccurate = accuracy >= 75.00;
+  const toggleLLMResponse = () => {
+    setIsLLMResponseVisible(prev => !prev);
+  };
+
+  const currentResponse = validationResponses[activeRepo];
+  const accuracy = currentResponse?.percentages_accuracy ?? 0;
+  const isAccurate = accuracy >= 75;
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={handleClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        style: { 
-          minHeight: '80vh',
-          padding: '20px'
-        }
-      }}
-    >
-      {/* <DialogTitle>Code Validation</DialogTitle> */}
+    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth PaperProps={{ style: { minHeight: '80vh' } }}>
       <DialogContent>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 2 }}>
-          {validationResponse && !isValidating && (
-              <Box sx={{ mt: 3 }}>
-                <ValidationResponseViewer data={validationResponse} accuracy={accuracy} />
-              </Box>
-            )}
-
-            <Box>
-              <Typography 
-                variant="h6" 
-                style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                onClick={toggleLLMResponse}
-              >
-                LLM Response
-                {isLLMResponseVisible ? <ExpandLess sx={{ marginLeft: '8px' }} /> : <ExpandMore sx={{ marginLeft: '8px' }} />}
-              </Typography>
-              
-              {isLLMResponseVisible && (
-                <div 
-                  style={{ 
-                    backgroundColor: '#f9fafb',
-                    padding: '1rem',
-                    borderRadius: '0.375rem'
-                  }}
-                  dangerouslySetInnerHTML={{ 
-                    __html: modelType ? reformatText(llmResponse, modelType, false) : llmResponse 
-                  }} 
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Tabs value={activeTab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto">
+            {gitReposLink.map((link, idx) => (
+              <Tooltip key={link} title={link}>
+                <Tab
+                  label={
+                    <span style={{
+                      maxWidth: 160,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-block',
+                    }}>
+                      {link}
+                    </span>
+                  }
+                  value={idx}
                 />
-              )}
-            </Box>
-          
-          {/* <TextField
-            label="Paste the generated code for validation"
-            multiline
-            rows={8}
-            value={code}
-            onChange={handleCodeChange}
-            variant="outlined"
-            fullWidth
-          /> */}
+              </Tooltip>
+            ))}
+          </Tabs>
+
+        </Box>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {isValidating ? (
+            <CircularProgress />
+          ) : (
+            currentResponse && (
+              <ValidationResponseViewer
+                data={currentResponse}
+                accuracy={accuracy}
+              />
+            )
+          )}
+
+          <Box>
+            <Typography
+              variant="h6"
+              onClick={toggleLLMResponse}
+              style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+            >
+              LLM Response
+              {isLLMResponseVisible ? <ExpandLess sx={{ ml: 1 }} /> : <ExpandMore sx={{ ml: 1 }} />}
+            </Typography>
+
+            {isLLMResponseVisible && (
+              <div
+                style={{ background: '#f9fafb', padding: '1rem', borderRadius: 6 }}
+                dangerouslySetInnerHTML={{
+                  __html: modelType ? reformatText(llmResponse, modelType, false) : llmResponse
+                }}
+              />
+            )}
+          </Box>
         </Box>
       </DialogContent>
-      <DialogActions>
-        <div className="form-bottom-button">
-          <Button 
-            onClick={handleClose}
-            variant="contained"
-            className="end-button"
-            style={{ marginRight: '10px' }}
-          >
-            Cancel
-          </Button>
 
-          <Button 
-            onClick={handleRegenerate}
-            disabled={isValidating || isAccurate}
-            variant="contained"
-            className="end-button"
-          >
-            {isValidating ? <CircularProgress size={24} /> : 'Re-Generate Response'}
-          </Button>
-        </div>
+      <DialogActions>
+        <Button onClick={handleClose} variant="contained" sx={{ mr: 2 }}>Cancel</Button>
+        <Button onClick={handleRegenerate} variant="contained" disabled={isValidating || isAccurate}>
+          {isValidating ? <CircularProgress size={24} /> : 'Re-Generate Response'}
+        </Button>
       </DialogActions>
     </Dialog>
   );

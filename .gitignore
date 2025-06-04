@@ -88,5 +88,10 @@ Thumbs.db
 # Anaconda
 .env
 .conda
+# Yarn install state file
+**/install-state.gz
+
+# Local configuration files (if not meant for version control)
+*.cfg
 
 node_modules/
