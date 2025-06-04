@@ -6,17 +6,13 @@ from .base_analyzer import BaseAnalyzer
 
 def normalize_path(p: str) -> str:
     # Replace backslashes (Windows) with forward slashes
-
     p = p.replace("\\", "/").strip()
     # Remove file extension if present
-
     if p.endswith(".ts") or p.endswith(".js"):
         p = p.rsplit(".", 1)[0]
     # Normalize the path (collapse ../ and ./)
-
     norm = os.path.normpath(p).replace("\\", "/")
     # Remove all leading ../ or ./ segments
-
     parts = norm.split("/")
     while parts and (parts[0] == ".." or parts[0] == "."):
         parts.pop(0)
@@ -46,7 +42,7 @@ def compare_parameters(snippet_fn: Dict, repo_fn: Dict) -> List[str]:
     issues = []
 
     snippet_args = snippet_fn.get("params", [])
-    repo_params = repo_fn.get("params", [])
+    repo_params = repo_fn.get("params", []) if repo_fn else []
 
     def param_info(p):
         if isinstance(p, str):
@@ -56,11 +52,9 @@ def compare_parameters(snippet_fn: Dict, repo_fn: Dict) -> List[str]:
     repo_param_objs = [param_info(p) for p in repo_params]
 
     # ✅ Only count *non-optional* params as required
-
     required_count = len([p for p in repo_param_objs if not p.get("optional", False)])
 
     # --- Check argument count ---
-
     if len(snippet_args) < required_count:
         issues.append(
             f"Missing required parameter(s). Expected at least {required_count}, got {len(snippet_args)}."
@@ -69,8 +63,8 @@ def compare_parameters(snippet_fn: Dict, repo_fn: Dict) -> List[str]:
         issues.append(
             f"Too many parameters. Expected at most {len(repo_param_objs)}, got {len(snippet_args)}."
         )
-    # --- Type checks for provided arguments ---
 
+    # --- Type checks for provided arguments ---
     for i, arg in enumerate(snippet_args):
         if i >= len(repo_param_objs):
             break  # skip overflow
@@ -88,23 +82,20 @@ def compare_parameters(snippet_fn: Dict, repo_fn: Dict) -> List[str]:
 
 def is_type_assignable(snippet_type: str, expected_type: str) -> bool:
     # Allow "any" to match anything
-
     if expected_type == "any" or snippet_type == "any":
         return True
-    # Optional handling: remove `?` for comparison
 
+    # Optional handling: remove `?` for comparison
     base_snippet_type = snippet_type.replace("?", "").strip()
     base_expected_type = expected_type.replace("?", "").strip()
 
     # Simple match or literal match
-
     if base_snippet_type == base_expected_type:
         return True
+
     # Structural type match for objects
-
     if base_expected_type.startswith("{") and base_snippet_type.startswith("{"):
-        # extract prop keys
-
+        # Extract prop keys
         def extract_keys(type_str):
             return set(re.findall(r"\b\w+\b(?=:)", type_str))
 
@@ -112,7 +103,6 @@ def is_type_assignable(snippet_type: str, expected_type: str) -> bool:
         expected_keys = extract_keys(base_expected_type)
 
         # Subset is allowed
-
         return snippet_keys.issubset(expected_keys)
     return False
 
@@ -147,7 +137,6 @@ class TSCodeAnalyzer:
         self.declarations = []
 
         # 1. Add declared vars with types
-
         for decl in self.snippet.get("declarations", []):
             name = decl.get("name")
             raw_type = decl.get("type", "any")
@@ -162,12 +151,10 @@ class TSCodeAnalyzer:
                     "path":     path if path else "local",
                 }
             )
-        # 2. Add 'assignedTo' variables from 'new ClassName(...)' calls
 
+        # 2. Add 'assignedTo' variables from 'new ClassName(...)' calls
         for call in self.snippet.get("calls", []):
-            if call.get("type") == "function" and call.get("name", "").startswith(
-                "new "
-            ):
+            if call.get("type") == "function" and call.get("name", "").startswith("new "):
                 class_name = call["name"].replace("new ", "").strip()
                 assigned_to = call.get("assignedTo")
                 if assigned_to:
@@ -180,8 +167,8 @@ class TSCodeAnalyzer:
                             "path": path if path else "local",
                         }
                     )
-        # 3. Infer enum-like objects from member access
 
+        # 3. Infer enum-like objects from member access
         for call in self.snippet.get("calls", []):
             if call.get("type") == "method":
                 obj = call.get("object")
@@ -193,8 +180,8 @@ class TSCodeAnalyzer:
                     self.declarations.append(
                         {"name": obj, "type": obj, "kind": "enum", "path": "local"}
                     )
-        # 4. Include local functions/classes/interfaces
 
+        # 4. Include local functions/classes/interfaces
         for fn in self.snippet.get("functions", []):
             self.declarations.append(
                 {"name": fn["name"], "kind": "function", "path": "local"}
@@ -207,6 +194,22 @@ class TSCodeAnalyzer:
             self.declarations.append(
                 {"name": intf_name, "kind": "interface", "path": "local"}
             )
+
+        # 5. **NEW**: Infer callback parameters in `.then(...)` and `.catch(...)`
+        #    This will register any single‐parameter arrow‐functions like `.then((fetchCred) => { ... })`
+        #    so that `fetchCred` (or `error`, etc.) is treated as a local variable.
+        for match in re.finditer(r"\.then\(\s*\(\s*([A-Za-z_$][\w$]*)\s*\)", snippet_code):
+            param = match.group(1)
+            if not any(d["name"] == param for d in self.declarations):
+                self.declarations.append(
+                    {"name": param, "type": "any", "kind": "variable", "path": "local"}
+                )
+        for match in re.finditer(r"\.catch\(\s*\(\s*([A-Za-z_$][\w$]*)\s*\)", snippet_code):
+            param = match.group(1)
+            if not any(d["name"] == param for d in self.declarations):
+                self.declarations.append(
+                    {"name": param, "type": "any", "kind": "variable", "path": "local"}
+                )
 
     def _resolve_type(self, type_name: str) -> Tuple[str, Optional[str]]:
         for path, file in self.repo.items():
@@ -221,11 +224,9 @@ class TSCodeAnalyzer:
         if not path:
             return None
         # Try direct match first
-
         if path in self.repo:
             return self.repo[path]
         # Fallback: suffix match
-
         for repo_path, data in self.repo.items():
             if (
                 repo_path.endswith(path)
@@ -249,9 +250,7 @@ class TSCodeAnalyzer:
         }
 
         # --- Functions ---
-
         for fn in self.snippet.get("functions", []):
-
             exists = False
             path = None
             issues = []
@@ -262,6 +261,7 @@ class TSCodeAnalyzer:
                     exists = True
                     path = decl["path"]
                     break
+
             repo_fn = None
             if exists and path != "local":
                 repo_file = self.get_repo_file_by_path(path)
@@ -276,16 +276,15 @@ class TSCodeAnalyzer:
                     )
                     if repo_fn:
                         issues.extend(compare_parameters(fn, repo_fn))
-            # Record usages
 
+            # Record usages
             for call in self.snippet.get("calls", []):
                 if call.get("type") == "function" and call.get("name") == fn["name"]:
                     usage_issues = compare_parameters(
                         {"params": call.get("args", [])}, repo_fn or fn
                     )
-                    usages.append(
-                        {"args": call.get("args", []), "issues": usage_issues}
-                    )
+                    usages.append({"args": call.get("args", []), "issues": usage_issues})
+
             result["functions"].append(
                 {
                     "name":   fn["name"],
@@ -295,8 +294,8 @@ class TSCodeAnalyzer:
                     "usages": usages,
                 }
             )
-        # --- Methods ---
 
+        # --- Methods ---
         for m in self.snippet.get("methods", []):
             exists = False
             issues = []
@@ -326,8 +325,8 @@ class TSCodeAnalyzer:
                         exists = True
                         path = "local"
                     break
-            # Record usages
 
+            # Record usages
             for call in self.snippet.get("calls", []):
                 if (
                     call.get("type") == "method"
@@ -337,9 +336,8 @@ class TSCodeAnalyzer:
                     usage_issues = compare_parameters(
                         {"params": call.get("args", [])}, repo_method or m
                     )
-                    usages.append(
-                        {"args": call.get("args", []), "issues": usage_issues}
-                    )
+                    usages.append({"args": call.get("args", []), "issues": usage_issues})
+
             result["methods"].append(
                 {
                     "name":   m["name"],
@@ -350,8 +348,8 @@ class TSCodeAnalyzer:
                     "usages": usages,
                 }
             )
-        # --- Classes ---
 
+        # --- Classes ---
         for cls_name in self.snippet.get("classes", {}):
             found_decl = next(
                 (
@@ -369,8 +367,8 @@ class TSCodeAnalyzer:
                     "path":   found_decl["path"] if exists else None,
                 }
             )
-        # --- Interfaces ---
 
+        # --- Interfaces ---
         for intf_name in self.snippet.get("interfaces", {}):
             found_decl = next(
                 (
@@ -388,8 +386,8 @@ class TSCodeAnalyzer:
                     "path":   found_decl["path"] if exists else None,
                 }
             )
-        # --- Imports ---
 
+        # --- Imports ---
         for imp in self.snippet.get("imports", []):
             imported_file_path = normalize_path(imp["path"])
             file_data = self.get_repo_file_by_path(imported_file_path)
@@ -415,7 +413,6 @@ class TSCodeAnalyzer:
 
             if file_data:
                 # ✅ If this is an imported enum
-
                 if imp["name"] in file_data.get("enums", {}):
                     self.declarations.append(
                         {
@@ -425,8 +422,8 @@ class TSCodeAnalyzer:
                             "path": imported_file_path,
                         }
                     )
-                # ✅ If this is an imported function
 
+                # ✅ If this is an imported function
                 for func in file_data.get("functions", []):
                     if func["name"] == imp["name"]:
                         usages = []
@@ -450,8 +447,8 @@ class TSCodeAnalyzer:
                                 "usages": usages,
                             }
                         )
-                # ✅ If this is an imported class — include its methods
 
+                # ✅ If this is an imported class — include its methods
                 used_methods = {
                     (call["objectType"], call["name"])
                     for call in self.snippet.get("calls", [])
@@ -483,8 +480,8 @@ class TSCodeAnalyzer:
                                 "usages": usages,
                             }
                         )
-        # --- Member Accesses ---
 
+        # --- Member Accesses ---
         for access in self.snippet.get("memberAccesses", []):
             obj = access["object"]
             member = access["member"]
@@ -529,6 +526,7 @@ class TSCodeAnalyzer:
                     path = "local"
             else:
                 issues.append(f"Variable '{obj}' is not declared or imported.")
+
             result["memberAccesses"].append(
                 {
                     "object": obj,
@@ -538,4 +536,5 @@ class TSCodeAnalyzer:
                     "issues": issues,
                 }
             )
+
         return result

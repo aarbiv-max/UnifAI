@@ -1,7 +1,13 @@
-// --- Refactored TypeScript Analyzer for Typed Declarations and Imports ---
+// <top of ts‐morph file>
 const { Project, SyntaxKind } = require("ts-morph");
 const path = require("path");
 const fs = require("fs");
+
+// 1) ignore‐list
+const IGNORE_MEMBERS = new Set([
+  "then", "catch", "finally",
+  "expect", "to", "be", "equal", "have", "not", "deep", "property", "length", "include"
+]);
 
 function normalizePath(p) {
   return p.replace(/\\/g, "/").replace(/^\.?\/*src\//, "").replace(/\.ts$/, "");
@@ -35,11 +41,11 @@ async function analyze(files) {
       interfaces: {},
       imports: [],
       memberAccesses: [],
-      enums: {}, 
+      enums: {},
       calls: []
     };
 
-    // --- collect functions ---
+    // --- collect functions---
     for (const fn of sourceFile.getFunctions()) {
       const name = fn.getName();
       if (!name) continue;
@@ -60,12 +66,11 @@ async function analyze(files) {
       });
     }
 
-    // --- collect classes and methods ---
+    // --- collect classes & methods  ---
     for (const cls of sourceFile.getClasses()) {
       const clsName = cls.getName();
       if (!clsName) continue;
       result[filePath].classes[clsName] = [];
-
       for (const method of cls.getMethods()) {
         const methodName = method.getName();
         let params = [], returnType = "any";
@@ -80,7 +85,7 @@ async function analyze(files) {
       }
     }
 
-    // --- collect enums ---
+    // --- collect enums & interfaces & imports---
     result[filePath].enums = {};
     for (const enm of sourceFile.getEnums()) {
       const enumName = enm.getName();
@@ -88,8 +93,6 @@ async function analyze(files) {
       result[filePath].enums[enumName] = members;
     }
 
-
-    // --- collect interfaces ---
     for (const intf of sourceFile.getInterfaces()) {
       const intfName = intf.getName();
       const props = {};
@@ -101,7 +104,6 @@ async function analyze(files) {
       result[filePath].interfaces[intfName] = props;
     }
 
-    // --- collect imports ---
     for (const imp of sourceFile.getImportDeclarations()) {
       const modulePath = imp.getModuleSpecifierValue();
       const namedImports = imp.getNamedImports();
@@ -124,57 +126,72 @@ async function analyze(files) {
     }
 
     // --- collect member accesses ---
-// --- collect member accesses ---
-for (const access of sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
-  const expr = access.getExpression();
-  const name = access.getName();
-  let prop = null;
-  let isBuiltIn = false;
-  let sourcePath = null;
-  let isLocal = false;
-  let unresolved = true;
+    for (const access of sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression)) {
+      const expr = access.getExpression();
+      const name = access.getName();
 
-  try {
-    const exprType = expr.getType();
-    prop = exprType?.getProperty(name);
-
-    const symbol = exprType?.getSymbol();
-    if (symbol) {
-      const declarations = symbol.getDeclarations();
-      if (declarations.length > 0) {
-        const declSourceFile = declarations[0].getSourceFile();
-        const declPath = declSourceFile.getFilePath();
-        sourcePath = normalizePath(declPath);
-        unresolved = false;
-        if (declPath === sourceFile.getFilePath()) {
-          isLocal = true;
-        }
-        if (declPath.includes("/node_modules/typescript/lib/") || declPath.includes("/lib.")) {
-          isBuiltIn = true;
-        }
+      // 1) skip built-in if in IGNORE_MEMBERS
+      if (IGNORE_MEMBERS.has(name)) {
+        continue;
       }
+
+      let prop = null;
+      let isBuiltIn = false;
+      let sourcePath = null;
+      let isLocal = false;
+      let unresolved = true;
+
+      try {
+        const exprType = expr.getType();
+        prop = exprType?.getProperty(name);
+        const symbol = exprType?.getSymbol();
+        if (symbol) {
+          const declarations = symbol.getDeclarations();
+          if (declarations.length > 0) {
+            const declSourceFile = declarations[0].getSourceFile();
+            const declPath = declSourceFile.getFilePath();
+            sourcePath = normalizePath(declPath);
+            unresolved = false;
+
+            // 2) Anything from node_modules is "built-in" for our purposes
+            if (declPath.includes("/node_modules/")) {
+              isBuiltIn = true;
+            }
+            // 3) If same file => local
+            if (declPath === sourceFile.getFilePath()) {
+              isLocal = true;
+            }
+          }
+        }
+      } catch {}
+
+      const objectText = expr.getText();
+      // 4) skip if truly built-in or a Cypress "cy.*"
+      if (isBuiltIn || objectText.startsWith("cy")) {
+        continue;
+      }
+
+      // 5) If we reached here, this is a user‐defined member‐access
+      result[filePath].memberAccesses.push({
+        object: objectText,
+        member: name,
+        path: unresolved ? null : (isLocal ? "local" : sourcePath)
+      });
     }
-  } catch {}
 
-  const objectText = expr.getText();
-  if (!isBuiltIn && !objectText.startsWith("cy")) {
-    result[filePath].memberAccesses.push({
-      object: objectText,
-      member: name,
-      path: unresolved ? null : isLocal ? "local" : sourcePath
-    });
-  }
-}
-
-
-    // --- collect function/method calls ---
+    // --- collect calls --
     for (const call of sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression)) {
       const expr = call.getExpression();
 
+      // A) plain function call
       if (expr.getKind() === SyntaxKind.Identifier) {
+        const fnName = expr.getText();
+        if (IGNORE_MEMBERS.has(fnName)) {
+          continue;
+        }
         result[filePath].calls.push({
           type: "function",
-          name: expr.getText(),
+          name: fnName,
           args: call.getArguments().map(arg => ({
             text: arg.getText(),
             inferredType: arg.getType().getText()
@@ -182,14 +199,18 @@ for (const access of sourceFile.getDescendantsOfKind(SyntaxKind.PropertyAccessEx
         });
       }
 
+      // B) property‐access call (obj.method(...))
       if (expr.getKind() === SyntaxKind.PropertyAccessExpression) {
         const objExpr = expr.getExpression();
         const methodName = expr.getName();
+        if (IGNORE_MEMBERS.has(methodName)) {
+          continue;
+        }
+
         let objectType = "";
         try {
           objectType = objExpr.getType().getSymbol()?.getName() || "";
         } catch {}
-
         result[filePath].calls.push({
           type: "method",
           object: objExpr.getText(),
