@@ -19,8 +19,7 @@ RUN curl -sSL https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz -o helm.tar.gz
     rm -rf linux-amd64 helm.tar.gz && \
     dnf clean all
 
-RUN curl -fsSL https://rpm.nodesource.com/setup_18.x | bash - && \
-dnf install -y nodejs && \
+RUN dnf install -y nodejs && \
 npm install -g yarn
 
 
