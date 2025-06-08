@@ -31,7 +31,7 @@ const dropdownAllItems: DropdownItems[] = [
   {title: 'Model Training', items: [], subItems: [
       {title: 'Parser', items: [{ label: 'Repository Parser', path: '/create-dataset' }, { label: 'Available Parsed Repositories', path: '/parsed-repos', disabled: true }]},
       {title: 'Dataset Generation', items: [{label: 'Preparing Dataset', path: '/prepare-dataset' }, {label: 'Dataset Progress', path: '/deployed-datasets' }, {label: 'Available Datasets', path: '/ready-datasets', disabled: true }]},
-      {title: 'Fine-tuning', items: [{label: 'Train New Model', path: '/train-form' }, {label: 'Available Trained Models', path: '/form-table' }]}
+      {title: 'Fine-tuning', items: [{label: 'Train New Model', path: '/train-form' }, {label: 'Training Progress', path: '/deployed-training' }, {label: 'Trained Models', path: '/available-trained'}, {label: 'Registered Models', path: '/available-registered' }]}
   ]},
   { title: 'Inference', items: [{ label: 'Generate Automatic Test', path: '/chatbot' }, { label: 'Saved Prompts', path: '/saved-prompts' }] },
   { title: 'Statistics', items: [{ label: 'Graphs', path: '/statistics' }] },

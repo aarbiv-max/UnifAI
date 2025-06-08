@@ -2,9 +2,9 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: {{ .Values.Pod.metadata.name }}
-  namespace: {{ .Values.Pod.metadata.namespace }}
+  namespace: {{ .Values.Global.namespace }}
   labels:
-    app: {{ .Values.Pod.metadata.labels.app }}
+    app: {{ .Values.Global.app }}
 spec:
   restartPolicy: Never
   containers:
@@ -14,12 +14,15 @@ spec:
       imagePullPolicy: {{ .imagePullPolicy }}
       stdin: {{ .stdin }}
       tty: {{ .tty }}
-      command: ["/bin/sh", "-c"]
+      {{- if .command }}
+      command: {{ .command }}
+      {{- end }}
+      {{- if .args }}
       args: 
-        - "gunicorn --daemon -w 4 -b 0.0.0.0:8080 api-server:app --chdir /app && python /app/entrypoint.py"
-      #- "gunicorn -w 4 -b 0.0.0.0:8080 api-server:app --chdir /app && python /app/entrypoint.py" 
-      # - "gunicorn -w 4 -b 0.0.0.0:8080 api-server:app --chdir /app"
-      #- "python /app/entrypoint.py"
+      {{- range .args }}
+        - {{ . }}
+      {{- end }}
+      {{- end }}
       resources:
         requests:
           memory: {{ .resources.requests.memory }} 

@@ -64,6 +64,8 @@ def hf_upload():
     print("uploading fine-tuned model to hugging face")
     #removing the need for progress bars as they mess up the upload part
     os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+    os.environ["COLUMNS"] = "80"  # Set a default terminal width
+    os.environ["LINES"] = "24"    # Set a default terminal height
     api = huggingface_hub.HfApi()
     try:
       api.upload_large_folder(repo_id=model_name, repo_type="model",folder_path=model_output_folder)
@@ -222,4 +224,5 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
+    #main()

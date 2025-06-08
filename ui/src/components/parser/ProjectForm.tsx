@@ -1,25 +1,37 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import axios from '../../http/axiosConfig';
 import { FormData } from '../types/constants'
-import { FormField, FormDropdown, FormCheckbox, FormFileUpload } from '../shared/FormFields'
+import { FormField, FormDropdown } from '../shared/FormFields'
 import { Alert, Box, Button, CircularProgress, Step, StepContent, Stepper } from '@mui/material'; 
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import python from 'react-syntax-highlighter/dist/esm/languages/hljs/python';
 import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import GitForm from '../git/GitTree';
-import SuccessMessage from '../shared/SuccessMessage'
 import '../../styles.css';
 import { CustomStepIcon, CustomStepLabel } from '../shared/StepperIcons';
 import { fetchExtensions } from '../../http/extensions';
 import { startParser } from '../../http/parser';
-import { AxiosError } from 'axios';
-import axiosInstance from '../../http/axiosConfig';
-import StatusTimeline from './datasetStatus';
+import { CloudDownload, Code, UploadFile, CheckCircle } from '@mui/icons-material';
+import StatusTimeline from '../shared/StatusStepper';
 
 SyntaxHighlighter.registerLanguage('python', python);
+
+const STATUS_VALUES = {
+  CLONING: 'cloning',
+  PARSING: 'parsing',
+  UPLOADING: 'uploading to Hugging Face',
+  DONE: 'done',
+};
+
+const statuses = [
+  { label: 'CLONING GIT FILES', value: STATUS_VALUES.CLONING, icon: <CloudDownload /> },
+  { label: 'PARSING SELECTED FILES', value: STATUS_VALUES.PARSING, icon: <Code /> },
+  { label: 'EXPORT TO HUGGING FACE', value: STATUS_VALUES.UPLOADING, icon: <UploadFile /> },
+  { label: 'DONE', value: STATUS_VALUES.DONE, icon: <CheckCircle /> },
+];
 
 const gitUrlPattern = /^https:\/\/([\w.-]+)\/([\w.-]+)\/([\w.-]+)(\.git)?$/;
 
@@ -310,7 +322,7 @@ const ProjectForm: React.FC = () => {
                 )}
                 {formId &&
                   <div style={{padding: "50px 0px 50px 0px"}}>
-                      <StatusTimeline formId={formId}/>
+                      <StatusTimeline id={formId} apiFetch={'/api/forms/status'} statuses={statuses} statusValues={STATUS_VALUES}/>
                   </div>
                 }
             </StepContent>

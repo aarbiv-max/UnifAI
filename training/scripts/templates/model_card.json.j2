@@ -6,7 +6,7 @@
     "quantized": "{{ env["QUANTIZATION"] | default(true) |trim}}",
     "finetune_steps": [
         {
-            "model_repo": "{{ env["TRAINED_MODEL_REPO"] | default('') |trim}}"
+            "model_repo": "{{ env["TRAINED_MODEL_REPO"] | default('') |trim}}",
             "base_model": "{{ env["MODEL_NAME_OR_PATH"] | default('') |trim}}",
             "step": 2,
             "data": "{{ env["DATASET_REPO"] | default('') |trim}}",

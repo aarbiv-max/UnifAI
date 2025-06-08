@@ -1,18 +1,19 @@
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
+  name: genie-training-route
+  namespace: {{ .Values.Global.namespace }}
   annotations:
     openshift.io/host.generated: "true"
   labels:
-    app: {{ .Values.Deployment.spec.template.metadata.labels.app }}
-  name: genie-training-api
+    app: {{ .Values.Global.app }}
 spec:
   host: 
   port:
     targetPort: http
   to:
     kind: Service
-    name: genie-training-api
+    name: genie-training-svc
     weight: 100
   wildcardPolicy: None
 

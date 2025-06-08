@@ -29,9 +29,9 @@ properties([
 Map buildParams = [
     LogLevel           : "ALL",
     MainRepoURL        : "gitlab.cee.redhat.com", //"github.com",
-    MainRepoProject    : "nrashti/genie-ai", //"Nirsisr/Genie-AI",
+    MainRepoProject    : "ai_tools/genie-ai", //"Nirsisr/Genie-AI",
     MainRepoBranch     : "main",
-    CredentialsId      : "tag-gitlab-creds", //"tag-github-creds",
+    CredentialsId      : "gitlab-genie", //"tag-gitlab-creds", //"tag-github-creds",
     NodeToRun          : "tag-slave",
     DevRoot            : "/root/workspace/${env.JOB_NAME}", //${env.JOB_NAME}/${env.BUILD_ID}",
     ImageRegistry      : "images.paas.redhat.com",
@@ -138,18 +138,11 @@ def tagAndPushImageToRegistry(module, buildParams) {
                     ]) {
 
         echo("Tagging and pushing image for ${module}.")
-
-        //removed the pushing of lates as to not overwrite the existing one
         sh """
             podman login -u ${REGISTRY_USER} -p ${REGISTRY_PASS} ${buildParams.ImageRegistry}
             podman push ${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${module}:${VERSION}
             podman push --quiet ${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${module}:latest
         """
-        // sh """
-        //     podman login -u ${REGISTRY_USER} -p ${REGISTRY_PASS} ${buildParams.ImageRegistry}
-        //     podman push ${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${module}:${VERSION}
-        //     podman push --quiet ${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${module}:latest
-        // """
         echo("Image for ${module} has been tagged and pushed to ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${module}:${VERSION}")
 
     }
@@ -174,6 +167,7 @@ def createValueFile(params, buildParams) {
         PROJECT                     : params.PROJECT,
         MODEL_NAME_OR_PATH          : params.MODEL_NAME_OR_PATH,
         TEMPLATE                    : params.TEMPLATE,
+        DATASET                     : params.DATASET,
         DATASET_REPO                : params.DATASET_REPO,
         DATASET_NAME                : params.DATASET_REPO.split("/")[-1],
         DATASET_FILE_NAME           : params.DATASET_FILE_NAME,
@@ -191,7 +185,7 @@ def createValueFile(params, buildParams) {
     def text='''
 Global:
   namespace: "${NAMESPACE}" 
-  dataset_repo: "${DATASET_REPO}"
+  dataset_repo: ${DATASET_REPO}"
   dataset_file_name: "${DATASET_FILE_NAME}"
 
 ConfigMap: 
