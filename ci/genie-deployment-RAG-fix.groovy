@@ -30,7 +30,7 @@ Map buildParams = [
 
     CredMainRepoProject: "ai_tools/genie-cred-data", //the private data repo (site data/credentials)
     CredMainRepoBranch : "main",
-    CredCredentialsId  : "tag-gitlab-creds-private", 
+    CredCredentialsId  : "gitlab-genie", //"git-creds-data3", //"tag-gitlab-creds-private", 
     NodeToRun          : "tag-slave",
     DevRoot            : "/root/workspace/${env.JOB_NAME}", //${env.JOB_NAME}/${env.BUILD_ID}",
     ImageRegistry      : "images.paas.redhat.com",

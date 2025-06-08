@@ -130,12 +130,12 @@ const schema = yup.object().shape({
     }),
 });
 
-type CreateHelmJsonProps = {
+type CreateDatasetJsonProps = {
     onSubmit: SubmitHandler<any>;
     isLoading: boolean;
 };
 
-const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) => {
+const CreateDatasetJson: React.FC<CreateDatasetJsonProps> = ({ onSubmit, isLoading }) => {
     const [activeStep, setActiveStep] = useState(0);
     const [isFormTabValid, setIsFormTabValid] = useState(false);
     const [isGlobalTabValid, setIsGlobalTabValid] = useState(false);
@@ -417,4 +417,4 @@ const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) 
     );
 };
 
-export default CreateHelmJson;
+export default CreateDatasetJson;

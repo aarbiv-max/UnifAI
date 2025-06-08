@@ -128,7 +128,7 @@ const ModelsTable: React.FC<{ columnsType: typeof ALL_COLUMNS | typeof MANDATORY
 };
 
 
-const FormsTable: React.FC = () => {
+const AvailableRegisteredModels: React.FC = () => {
   const [data, setData] = useState<TableFormData[]>([]);
 
   const getStatusAndProgress = (modelType: string, checkpoint?: string) => {
@@ -218,4 +218,4 @@ const FormsTable: React.FC = () => {
   );
 };
 
-export default FormsTable;
+export default AvailableRegisteredModels;
