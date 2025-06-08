@@ -8,6 +8,29 @@ import configparser
 config = configparser.ConfigParser()
 config.read("config/backend.cfg")
 
+class HuggingFaceUtils():
+    def  __init__(self):
+    #   config_path = "../config/backend.cfg"
+    #   config = configparser.ConfigParser()
+    #   config.read(config_path)
+      token = config.get("hf", "HF_TOKEN", fallback=None)
+      self.hf_token = os.path.expandvars(token) if token else None
+      self.api = HfApi(token=self.hf_token)
+
+    def list_repo_files(self, repo_id: str):
+      try:
+        files_list = self.api.list_repo_files(repo_id=repo_id)
+        return files_list
+      except Exception as e:
+        print(f"File listing failed: {e}")
+      
+
+    def download_file(self, repo_id: str , file_name: str, download_path: str=None):
+        if not download_path:
+           download_path = "/tmp"
+        self.api.hf_hub_download(repo_id=repo_id, filename=file_name, local_dir=download_path,force_download=True)  
+
+
 def json_record_provider(json_path: str) -> Iterator[Dict[str, Any]]:
     """
     Generator function to yield records from a JSON file.

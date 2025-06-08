@@ -67,3 +67,16 @@ export interface ModelData {
     // numTests: string,
     // dataSize: string,
 }
+
+export type ModelEntry = {
+    id: string;
+    name: string;
+    huggingfaceUrl: string;
+    repoPath: string;
+    finetuneSteps: any;
+    modelFileList: string[];
+    config: object;
+    registered?: boolean;
+  };
+
+  export type DatasetColumnKey = 'Dataset Name' | 'Start Time' | 'Progress' | 'Statistics' | 'Config' | 'Cancel' | 'Remove';
