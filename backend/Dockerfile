@@ -28,6 +28,10 @@ ADD  --chown=default:root --chmod=777 ./pipelines $HOME/pipelines
 ADD  --chown=default:root --chmod=777 ./prompt_lab $HOME/prompt_lab
 ADD  --chown=default:root --chmod=777 ./data_pre   $HOME/data_pre
 
+RUN curl -fsSL https://rpm.nodesource.com/setup_18.x | bash - && \
+dnf install -y nodejs && \
+npm install -g yarn
+
 WORKDIR $HOME/backend/node_tools
 RUN yarn install --immutable
 
