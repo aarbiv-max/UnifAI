@@ -43,7 +43,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
-
+node_modules/
 # Jupyter Notebook
 .ipynb_checkpoints
 *.iml
@@ -88,3 +88,10 @@ Thumbs.db
 # Anaconda
 .env
 .conda
+# Yarn install state file
+**/install-state.gz
+
+# Local configuration files (if not meant for version control)
+*.cfg
+
+node_modules/

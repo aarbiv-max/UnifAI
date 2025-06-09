@@ -13,8 +13,8 @@ go_lib = ctypes.CDLL(TYPE_SCRIPT_LANGUAGE_PATH)
 TYPE_SCRIPT_FILE_PATH =  '/home/cloud-user/Projects/tag-integration-with-mta/tackle-ui-tests/cypress/e2e/tests/administration/jira-connection/crud.test.ts'
 
 class TypeScriptParser(TreeSitterParser):
-    def __init__(self, language_path=TYPE_SCRIPT_LANGUAGE_PATH, language_name='typescript', file_path=TYPE_SCRIPT_FILE_PATH, realtive_path=TYPE_SCRIPT_FILE_PATH, project_name=""):
-        super().__init__(language_path, language_name, file_path, realtive_path, project_name)
+    def __init__(self, language_path=TYPE_SCRIPT_LANGUAGE_PATH, language_name='typescript', file_path=TYPE_SCRIPT_FILE_PATH, realtive_path=TYPE_SCRIPT_FILE_PATH, project_name="", file_git_path=""):
+        super().__init__(language_path, language_name, file_path, realtive_path, project_name, file_git_path)
 
     def get_declaration_node(self, root_node, declaration_name):
         try:
@@ -74,7 +74,7 @@ class TypeScriptParser(TreeSitterParser):
                 relevant_imports.append({"import_name": matching_imports, "import_path": import_info['import_path']})
         return relevant_imports
         
-    def enitre_file_parsing(self):
+    def entire_file_parsing(self):
         def extract_entire_code(node, content, file_type):
             """Helper function to extract entire typescript file code."""
             used_imports = self.get_all_imports(node)
@@ -84,7 +84,7 @@ class TypeScriptParser(TreeSitterParser):
                 "uuid": str(uuid.uuid4()),
                 "name": f"{os.path.basename(self.realtive_path)}",
                 "imports": f"{used_imports}" if len(used_imports) > 0 else "",
-                "file_location": f"https://github.com/{self.project_name}/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "code": content,
             }
 
@@ -170,7 +170,7 @@ class TypeScriptParser(TreeSitterParser):
                 "uuid": str(uuid.uuid4()),
                 "name": f"{func_name}",
                 "imports": f"{used_imports}" if len(used_imports) > 0 else "",
-                "file_location": f"https://github.com/{self.project_name}/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "code": f"{func_code}",
                 "parent": f"{parent_info}" or ""
             }
@@ -282,7 +282,7 @@ class TypeScriptParser(TreeSitterParser):
                 "uuid": str(uuid.uuid4()),
                 "name": f"{test_name}",
                 "imports": f"{used_imports}" if len(used_imports) > 0 else "",
-                "file_location": f"https://github.com/{self.project_name}/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "code": f"{test_code}",
             }
             
@@ -310,7 +310,7 @@ class TypeScriptParser(TreeSitterParser):
                 "uuid": str(uuid.uuid4()),
                 "name": f"{test_case_name}",
                 "imports": f"{used_imports}" if len(used_imports) > 0 else "",
-                "file_location": f"https://github.com/{self.project_name}/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "code": f"{test_case_code}",
             } 
             test_cases.append(test_case)

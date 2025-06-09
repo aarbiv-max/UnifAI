@@ -255,6 +255,7 @@ const ChatComponent: React.FC = () => {
           modelType: modelsResponse.data[0].model_type,
           project: adapter.project,
           gitReposLink: adapter.gitReposLink,
+          supportedFrameworks: adapter.supported_frameworks,
         }));
         setModels(transformedData);
   
@@ -473,7 +474,7 @@ const ChatComponent: React.FC = () => {
         additionalContext = metadataRetrievalResponse.data.result
         promptMessages = [...promptMessages, {"role": "context", "content": `${additionalContext}`}]   
       }
-      
+
       const inferencePayload = {
         messages: promptMessages,
         temperature: temperature.toString(),
@@ -734,7 +735,6 @@ const ChatComponent: React.FC = () => {
     const regularText = (line: string, type: RegExp, style: string) => {
       return line.replace(type, (_, text) => `<${style}>${text}</${style}>`) + '\n';
     };
-  
     // Function to create validation button HTML
     const createValidationButton = (codeContent: string) => {
       const escapedCode = codeContent
@@ -866,7 +866,8 @@ const ChatComponent: React.FC = () => {
   
   // const modelType = getModelType();
   const modelType : 'llama' | 'qwen' | null = selectedModel?.modelType || null;
-  const gitReposLink = selectedModel?.gitReposLink || [] 
+  const supportedFrameworks = selectedModel?.supported_frameworks || {};
+  const gitReposLink = selectedModel?.gitReposLink || [];
   const loadingOverlayText = `Please be patient while we ${loadingModel ? "load" : "unload"} the requested model. This process may take up to 2 minutes.`
 
   return (
@@ -1016,7 +1017,10 @@ const ChatComponent: React.FC = () => {
             modelType={modelType}
             reformatText={ReformatText}
             regenerateResponse={regenerateResponse}
+            framework={supportedFrameworks}
+            gitReposLink={gitReposLink}
           />
+          
         </div>
        ) : (
         <div className="model-selection-wrapper">

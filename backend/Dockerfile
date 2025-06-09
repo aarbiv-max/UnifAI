@@ -19,6 +19,10 @@ RUN curl -sSL https://get.helm.sh/helm-v3.14.0-linux-amd64.tar.gz -o helm.tar.gz
     rm -rf linux-amd64 helm.tar.gz && \
     dnf clean all
 
+RUN dnf install -y nodejs && \
+npm install -g yarn
+
+
 USER default
 # Add your application files (including supervisord.conf placed in ./backend)
 ADD  --chown=default:root --chmod=777 ./backend $HOME/backend
@@ -26,6 +30,11 @@ ADD  --chown=default:root --chmod=777 ./rag     $HOME/rag
 ADD  --chown=default:root --chmod=777 ./pipelines $HOME/pipelines
 ADD  --chown=default:root --chmod=777 ./prompt_lab $HOME/prompt_lab
 ADD  --chown=default:root --chmod=777 ./data_pre   $HOME/data_pre
+
+
+
+WORKDIR $HOME/backend/node_tools
+RUN yarn install --immutable
 
 WORKDIR $HOME/backend
 RUN mkdir -p -m 777 $HOME/backend/venv $HOME/backend/logs

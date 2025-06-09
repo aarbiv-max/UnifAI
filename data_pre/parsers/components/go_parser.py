@@ -15,8 +15,8 @@ go_lib = ctypes.CDLL(GO_LANGUAGE_PATH)
 GO_FILE_PATH =  '/home/cloud-user/Projects/openshift-tests-private/test/extended/clusterinfrastructure/metrics.go'
 
 class GoParser(TreeSitterParser):
-    def __init__(self, language_path=GO_LANGUAGE_PATH, language_name='go', file_path=GO_FILE_PATH, realtive_path=GO_FILE_PATH, project_name=""):
-        super().__init__(language_path, language_name, file_path, realtive_path, project_name)
+    def __init__(self, language_path=GO_LANGUAGE_PATH, language_name='go', file_path=GO_FILE_PATH, realtive_path=GO_FILE_PATH, project_name="", file_git_path = ""):
+        super().__init__(language_path, language_name, file_path, realtive_path, project_name, file_git_path)
 
     def get_declaration_node(self, root_node, declaration_name):
         try:
@@ -72,7 +72,7 @@ class GoParser(TreeSitterParser):
                 used_types.append(type_name)
         return used_types
         
-    def enitre_file_parsing(self):
+    def entire_file_parsing(self):
         def get_file_package(root_node):
             """Helper function to get the code of all the imports in a go file."""
             imports_file_locations = {}
@@ -100,7 +100,7 @@ class GoParser(TreeSitterParser):
                 "imports": f"{used_imports}" if len(used_imports) > 0 else "",  # Mapped resource imports
                 "structs": "",
                 "interfaces": "",
-                "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "code": content,
                 "global_vars": "",
                 "package": f"{package_name}" if package_name else "",
@@ -181,7 +181,7 @@ class GoParser(TreeSitterParser):
                     "imports": f"{used_imports}" if len(used_imports) > 0 else "",
                     "structs": f"{used_structs}" if len(used_structs) > 0 else "",
                     "interfaces": f"{used_interfaces}" if len(used_interfaces) > 0 else "",
-                    "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                    "file_location": self.file_git_path,
                     "code": func_code,
                     # "file_code": content,
                     "global_vars": f"{global_vars}" if len(global_vars) > 0 else "",
@@ -317,7 +317,7 @@ class GoParser(TreeSitterParser):
                 "imports": f"{used_imports}" if len(used_imports) > 0 else "",
                 "structs": f"{used_structs}" if len(used_structs) > 0 else "",
                 "interfaces": f"{used_interfaces}" if len(used_interfaces) > 0 else "",
-                "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "code": test_code,
                 # "file_code": content,
                 "global_vars": f"{global_vars}" if len(global_vars) > 0 else "",
@@ -349,7 +349,7 @@ class GoParser(TreeSitterParser):
                 "imports": f"{used_imports}" if len(used_imports) > 0 else "" ,
                 "structs": "",
                 "interfaces": "",
-                "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "code": test_case_code,
                 # "file_code": content,
                 "global_vars": "",

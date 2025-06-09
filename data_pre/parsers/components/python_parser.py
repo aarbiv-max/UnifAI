@@ -1,10 +1,17 @@
+import ctypes
 import re
 import os
 import uuid
 from .tree_sitter_parser import TreeSitterParser
 
-PYTHON_LANGUAGE_PATH = '/home/cloud-user/Projects/playGround/tree-sitter-playground/tree-sitter-python/libtree-sitter-python.so'
+# PYTHON_LANGUAGE_PATH = '/home/cloud-user/Projects/playGround/tree-sitter-playground/tree-sitter-python/libtree-sitter-python.so'
 PYTHON_FILE_PATH = '/home/cloud-user/Projects/example/test/test_sample.py'
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+data_pre_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+so_files_dir = os.path.join(data_pre_dir, "so_files")
+PYTHON_LANGUAGE_PATH = os.path.join(so_files_dir, "python.so")
+python_lib = ctypes.CDLL(PYTHON_LANGUAGE_PATH)
 
 class PythonParser(TreeSitterParser):
     """
@@ -16,7 +23,7 @@ class PythonParser(TreeSitterParser):
     """
 
     def __init__(self, language_path=PYTHON_LANGUAGE_PATH, language_name='python', 
-                 file_path=PYTHON_FILE_PATH, realtive_path=PYTHON_FILE_PATH, project_name=""):
+                 file_path=PYTHON_FILE_PATH, realtive_path=PYTHON_FILE_PATH, project_name="", file_git_path=""):
         """
         Initialize the Python parser with the given parameters.
         
@@ -27,7 +34,7 @@ class PythonParser(TreeSitterParser):
             realtive_path (str): Relative path from the project root
             project_name (str): Name of the project
         """
-        super().__init__(language_path, language_name, file_path, realtive_path, project_name)
+        super().__init__(language_path, language_name, file_path, realtive_path, project_name, file_git_path)
 
     def get_module_node(self, root_node):
         """
@@ -212,7 +219,7 @@ class PythonParser(TreeSitterParser):
                 "imports": used_imports if used_imports else "",  # Mapped resource imports
                 "classes": ", ".join(all_classes) if all_classes else "",
                 "functions": ", ".join(all_functions) if all_functions else "",
-                "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "code": content,
                 "global_vars": global_vars if global_vars else "",
                 "tags": ""

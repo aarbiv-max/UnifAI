@@ -3,8 +3,8 @@ from typing import Iterator, Dict, Any
 from huggingface_hub import HfApi, HfFolder
 import pandas as pd
 from datasets import Dataset
-from prompt_lab.prompt import Prompt
 import tempfile
+import json
 from prompt_lab.utils import logger
 
 
@@ -69,7 +69,16 @@ class HFExporter:
         if self.export_format == "parquet":
             dataset.to_parquet(temp_file.name)
         elif self.export_format == "json":
-            dataset.to_json(temp_file.name)
+            with open(temp_file.name, "w", encoding="utf-8") as f:
+                f.write("[\n")
+                first = True
+                for record in dataset:
+                    clean_record = {k: v for k, v in record.items() if v is not None}
+                    if not first:
+                        f.write(",\n")
+                    f.write(json.dumps(clean_record, indent=4, ensure_ascii=False))
+                    first = False
+                f.write("\n]")
 
         logger.debug(f"Dataset saved locally to {temp_file.name}.")
         return temp_file.name
