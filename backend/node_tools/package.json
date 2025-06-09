@@ -1,6 +1,5 @@
 {
   "name": "node_tools",
-  "packageManager": "yarn@4.4.1",
   "dependencies": {
     "ts-morph": "^25.0.1"
   }
