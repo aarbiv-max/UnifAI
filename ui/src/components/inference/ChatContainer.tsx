@@ -255,7 +255,7 @@ const ChatComponent: React.FC = () => {
           modelType: modelsResponse.data[0].model_type,
           project: adapter.project,
           gitReposLink: adapter.gitReposLink,
-          supportedFrameworks: adapter.supported_frameworks,
+          supported_frameworks: adapter.supported_frameworks,
         }));
         setModels(transformedData);
   
