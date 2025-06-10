@@ -10,11 +10,22 @@ import { FaJira, FaSlack, FaBars } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
+import { useAuth, User } from '@/contexts/AuthContext';
 
 export default function Sidebar() {
   const [location] = useLocation();
   const { currentProject } = useProject();
   const [mobileOpen, setMobileOpen] = useState(false);
+  
+  const { user, logout } = useAuth();
+
+  const getInitials = (name: string): string => {
+    return name
+      .split(' ')                         // Split by spaces
+      .filter(Boolean)                    // Remove empty parts
+      .map(part => part[0].toUpperCase()) // Take first letter of each part and capitalize
+      .join('');                          // Join into a string
+  }
   
   return (
     <div 
@@ -143,10 +154,10 @@ export default function Sidebar() {
       <div className="px-4 py-3 border-t border-gray-800 mt-auto">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-r from-accent to-primary flex items-center justify-center">
-            <span className="text-sm font-medium text-white">AK</span>
+            <span className="text-sm font-medium text-white"> {getInitials(user?.name || '')}</span>
           </div>
           <div className="flex-grow">
-            <h4 className="text-sm font-medium">Alex Kim</h4>
+            <h4 className="text-sm font-medium">{user?.name}</h4>
             <p className="text-xs text-gray-400">Administrator</p>
           </div>
           <SimpleTooltip content={<p>Sign out</p>}>
