@@ -62,7 +62,8 @@ def upload_json_to_hf(json_path: str, project_name: str):
     """
     hf_space = config.get("hf", "HF_SPACE", fallback=None)
     #data_set = config.get("hf", "HF_DATA_SET", fallback=None)
-    hf_token = config.get("hf", "HF_TOKEN", fallback=None)
+    token = config.get("hf", "HF_TOKEN", fallback=None)
+    hf_token = os.path.expandvars(token) if token else None
     batch_size = config.getint("hf", "HF_BATCH_SIZE", fallback=1000)
     export_format = config.get("hf", "HF_EXPORT_FORMAT", fallback="json").lower()
 
@@ -72,7 +73,7 @@ def upload_json_to_hf(json_path: str, project_name: str):
 
     api = HfApi(token=hf_token)
     try:
-        api.create_repo(repo_id=repo_id, repo_type="dataset", private=True)
+        api.create_repo(repo_id=repo_id, repo_type="dataset", private=True, exist_ok=True)
         record_generator = json_record_provider(json_path)
         exporter = HFExporter(repo_id=repo_id, file_name=project_name, token=hf_token, batch_size=batch_size, export_format=export_format)
         upload_url = exporter.export(record_generator)
