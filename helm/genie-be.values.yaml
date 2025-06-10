@@ -2,7 +2,7 @@ env:
   MONGODB_HOST: mongodb
   RABBITMQ_HOST: rabbitmq
   BACKEND_ENV: "production"
-debug: false
+debug: true
 
 replicaCount: 1
 image:
