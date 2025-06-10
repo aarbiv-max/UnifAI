@@ -3,8 +3,19 @@
 helmDefaults:
     createNamespace: false
     wait: false
-
+  
 releases:
+  - name: genie-mongodb
+    chart: ./mongodb
+    wait: true
+    values:
+      - "./mongodb.values.yaml"
+
+  - name: genie-rabbitmq
+    chart: ./rabbitmq
+    wait: true
+    values:
+      - "./rabbitmq.values.yaml"
 
   - name: genie-ui
     chart: ./genie-ui
@@ -18,6 +29,15 @@ releases:
   - name: genie-be
     chart: ./genie-be
     wait: true
+    values:
+      - "genie-be.values.yaml"
+      - env:
+         HF_TOKEN: {{ env "HF_TOKEN" | quote }}
+
+
+    needs:
+      - genie-mongodb
+      - genie-rabbitmq
     hooks:
       - events: ["presync"]
         showlogs: true
@@ -26,21 +46,9 @@ releases:
           - "-c"
           - |
               LB_ADDR=$(kubectl get svc mongodb -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-              kubectl delete configmap mongodb-lb-config
+              kubectl delete configmap mongodb-lb-config 
               kubectl create configmap mongodb-lb-config --from-literal=MONGO_EXT_ADDR="$LB_ADDR" --dry-run=client -o yaml | kubectl apply -f -
-    values:
-      - "genie-be.values.yaml"
-      - env:
-          HF_TOKEN: {{ env "HF_TOKEN" | quote }}
-          rmq_username: {{ env "rmq_username" | quote }}
-          rmq_password: {{ env "rmq_password" | quote }}
-          preprod_cluster: {{ env "preprod_cluster" | quote }}
-          preprod_access_token: {{ env "preprod_access_token" | quote }}
-          prod_cluster: {{ env "prod_cluster" | quote }}
-          prod_access_token: {{ env "prod_access_token" | quote }}
-
-
-
+              
   - name: genie-llm-be
     chart: ./genie-llm-be
     wait: true
@@ -51,3 +59,6 @@ releases:
           HF_HOME: {{ env "HF_HOME" | default "/tmp" | quote }}
           VLLM_CONFIG_ROOT: {{ env "VLLM_CONFIG_ROOT" | default "/tmp/usage" | quote }}
           BACKEND_ENV: "production"
+
+    needs:
+      - genie-mongodb
