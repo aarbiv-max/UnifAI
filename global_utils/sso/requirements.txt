@@ -1,0 +1,7 @@
+authlib
+datetime
+dotenv
+flask
+functools
+jwt
+requests
