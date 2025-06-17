@@ -1,0 +1,18 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: redis-route
+  namespace: {{ .Values.global.namespace}}
+  labels:
+    app: {{ .Values.global.app }}
+    #paas.redhat.com/appcode: TAG-001
+spec:
+  to:
+    kind: Service
+    name: redis-service
+  tls: null
+  host: redis-route-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com
+  path: /
+  port:
+    targetPort: {{ .Values.redis.port }}
+  alternateBackends: []
