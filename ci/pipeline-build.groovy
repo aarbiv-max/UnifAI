@@ -57,7 +57,7 @@ def tagAndPushImageToRegistry(module, buildParams,component) {
     )]) {
         sh """
             podman login -u ${REGISTRY_USER} -p ${REGISTRY_PASS} ${buildParams.ImageRegistry}
-            podman push ${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${module}:${VERSION}
+            podman push ${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${component}/${module}:${VERSION}
         """
         if (params.set_image_canidate) {
             sh """
@@ -104,6 +104,15 @@ pipeline {
                 }
             }
         }
+        stage('Debug Parameters') {
+            steps {
+                script {
+                    echo "build_gui: ${params.build_gui}"
+                    echo "build_dataflow_backend: ${params.build_dataflow_backend}"
+                    echo "build_multiagent_backend: ${params.build_multiagent_backend}"
+                }
+            }
+        }
 
         stage('Build and Push Images') {
             parallel {
@@ -113,11 +122,12 @@ pipeline {
                         script {
                             def component = "DataPipelineHub"
                             def module = "ui"
+                            def componentLower = component.toLowerCase()
                             dir("${buildParams.DevRoot}/${params.BRANCH}/${component}/${module}/") {
-                                cleanWorkspace(module)
-                                if (buildDockerImage(module,component)) {
-                                    tagAndPushImageToRegistry(module, buildParams,component)
-                                    cleanWorkspace(module,component)
+                                //cleanWorkspace(module)
+                                if (buildDockerImage(module, componentLower)) {
+                                    tagAndPushImageToRegistry(module, buildParams, componentLower)
+                                    cleanWorkspace(module, componentLower)
                                 } else {
                                     error("Terminating process for ${module}: Build failed")
                                 }
@@ -131,10 +141,10 @@ pipeline {
                     steps {
                         script {
                             def component = "DataPipelineHub"
-                            def module = "DataPipelineHub/backend"
+                            def module = "backend"
                             dir("${buildParams.DevRoot}/${params.BRANCH}/${component}/${module}") {
                                 cleanWorkspace(module)
-                                if (buildDockerImage(module,component)) {
+                                if (buildDockerImage(module, component)) {
                                     tagAndPushImageToRegistry(module, buildParams)
                                     cleanWorkspace(module)
                                 } else {
@@ -145,6 +155,7 @@ pipeline {
                     }
                 }
 
+                // Uncomment if needed
                 // stage('build_multiagent_image') {
                 //     when { expression { params.build_multiagent_backend } }
                 //     steps {
@@ -162,7 +173,6 @@ pipeline {
                 //         }
                 //     }
                 // }
-
             }
         }
 
@@ -184,20 +194,12 @@ pipeline {
                 }
             }
         }
+    }
 
     post {
         always {
             script {
                 echo "Running cleanup..."
-
-                def modules = []
-                if (params.build_gui) modules.add("ui")
-                if (params['build_dataflow_backend']) modules.add("DataPipelineHub/backend")
-                if (params['build_multiagent_backend']) modules.add("multiagent-backend")
-
-                for (m in modules) {
-                    cleanWorkspace(m)
-                }
                 cleanPodmanSystem()
             }
         }
