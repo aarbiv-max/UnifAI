@@ -4,7 +4,7 @@
 providers:
   - name: mcp
     type: mcp_server
-    sse_endpoint: http://localhost:8004
+    sse_endpoint:  http://127.0.0.1:8006/servers/mcp-atlassian/sse
 
 # ----------------------------
 # LLM Definitions
@@ -21,22 +21,35 @@ llms:
 # Tool Stubs
 # ----------------------------
 tools:
-  - name: addition_tool
+  - name: jira_get_issue_tool
     type: mcp_proxy
-    tool_name: addition
+    tool_name: jira_get_issue
     provider: mcp
 
-  - name: division_tool
+  - name: jira_search_tool
     type: mcp_proxy
-    tool_name: division
+    tool_name: jira_search
     provider: mcp
 
-  - name: substitute_tool
+  - name: jira_get_project_issues_tool
     type: mcp_proxy
-    tool_name: substitute
+    tool_name: jira_get_project_issues
     provider: mcp
 
+  - name: jira_create_issue_tool
+    type: mcp_proxy
+    tool_name: jira_create_issue
+    provider: mcp
 
+  - name: jira_link_to_epic_tool
+    type: mcp_proxy
+    tool_name: jira_link_to_epic
+    provider: mcp
+
+  - name: jira_update_issue_tool
+    type: mcp_proxy
+    tool_name: jira_update_issue
+    provider: mcp
 # ----------------------------
 # Plan Steps
 # ----------------------------
@@ -51,9 +64,12 @@ plan:
       type: custom_agent_node
       llm: openai_llm
       tools:
-        - addition_tool
-        - division_tool
-        - substitute_tool
+        - jira_get_issue_tool
+        - jira_search_tool
+        - jira_get_project_issues_tool
+        - jira_create_issue_tool
+        - jira_link_to_epic_tool
+        - jira_update_issue_tool
       system_message: |
         You are a smart assistant with access to tools. When a user's request requires multiple steps, and one tool’s output is needed as input to another, do not guess intermediate values.
         Instead, call the first tool, wait for its result, then use the actual result in the next step.

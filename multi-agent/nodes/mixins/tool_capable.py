@@ -1,5 +1,3 @@
-# nodes/mixins/tool_capable.py
-
 import asyncio
 from typing import (
     Any, Dict, List, Optional,
@@ -8,7 +6,7 @@ from typing import (
 from core.contracts import SupportsStreaming
 from llms.chat.message import ChatMessage, ToolCall, Role
 from tools.base_tool import BaseTool
-from global_utils.utils.util import run_async
+from global_utils.utils.util import run_async, validate_arguments
 
 T = TypeVar("T", bound=SupportsStreaming)
 
@@ -72,7 +70,7 @@ class ToolCapableMixin(Generic[T]):
         args = tc.args
 
         if getattr(tool, "args_schema", None):
-            args = tool.get_args_schema_model()(**args).dict()
+            validate_arguments(schema=tool.get_args_schema_json(), args=args)
 
         # Invoke—prefer async interface if available
         if asyncio.iscoroutinefunction(tool.arun):

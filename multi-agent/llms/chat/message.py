@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from enum import Enum
 from typing import Optional, List, Dict
 
@@ -18,6 +18,9 @@ class ToolCall:
     name: str
     args: Dict
     tool_call_id: str
+
+    def to_dict(self) -> Dict:
+        return asdict(self)
 
 
 @dataclass(frozen=True)

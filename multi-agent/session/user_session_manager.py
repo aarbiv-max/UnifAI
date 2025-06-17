@@ -1,8 +1,12 @@
-from typing import List
+from typing import List, Mapping, Any
 from session.repository.repository import SessionRepository
 from session.workflow_session_factory import WorkflowSessionFactory
 from session.workflow_session import WorkflowSession
+from core.run_context import RunContext
+from graph.state.graph_state import GraphState
+from session.status import SessionStatus
 from schemas.blueprint.blueprint import BlueprintSpec
+from session.models import SessionMeta
 
 
 class UserSessionManager:
@@ -23,11 +27,13 @@ class UserSessionManager:
             self,
             user_id: str,
             blueprint_spec: BlueprintSpec,
-            metadata: dict = None
+            blueprint_id: str,
+            metadata: SessionMeta = None
     ) -> WorkflowSession:
         """Instantiate a fresh session and persist it. Returns run_id."""
         session = self._factory.create(
             blueprint_spec=blueprint_spec,
+            blueprint_id=blueprint_id,
             user_id=user_id,
             metadata=metadata
         )
@@ -35,10 +41,40 @@ class UserSessionManager:
         self._repo.save(session)
         return session
 
+    def get_doc(self, run_id: str) -> Mapping[str, Any]:
+        return self._repo.fetch(run_id)
+
     def get_session(self, run_id: str) -> WorkflowSession:
         """Retrieve a previously created session."""
-        return self._repo.load(run_id)
+        doc = self.get_doc(run_id)
 
-    def list_sessions(self, user_id: str) -> List[str]:
+        # Rehydrate RunContext
+        ctx = RunContext.from_dict(doc["run_context"])
+
+        # Re-create fresh session via factory
+        session = self._factory.create(
+            user_id=ctx.user_id,
+            blueprint_spec=BlueprintSpec.model_validate(doc["blueprint_spec"]),
+            blueprint_id=doc.get("blueprint_id"),
+            metadata=SessionMeta.from_dict(doc.get("metadata", {}))
+        )
+
+        # Override run_context (so we keep the same run_id, timestamps)
+        session.run_context = ctx
+
+        # Override session status
+        status_str = doc.get("status", SessionStatus.PENDING.name)
+        session.status = SessionStatus[status_str]
+
+        # Restore GraphState in one shot
+        session.graph_state = GraphState(**doc["graph_state"])
+
+        return session
+
+    def list_sessions_ids(self, user_id: str) -> List[str]:
         """All run_ids belonging to this user."""
         return self._repo.list_runs(user_id)
+
+    def list_docs(self, user_id: str) -> List[Mapping[str, Any]]:
+        session_ids = self.list_sessions_ids(user_id)
+        return [self.get_doc(session_id) for session_id in session_ids]

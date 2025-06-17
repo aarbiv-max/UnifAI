@@ -1,6 +1,7 @@
 from typing import List
 from llms.chat.message import ChatMessage, Role, ToolCall
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+from .utils import ensure_tool_call_id
 
 
 class LangChainConverter:
@@ -26,7 +27,7 @@ class LangChainConverter:
                         "id": tc.tool_call_id,
                         "type": "tool_call"
                     } for tc in m.tool_calls]
-                    out.append(AIMessage(content=m.content, tool_calls=tool_calls))
+                    out.append(AIMessage(content=m.content if m.content else "[TOOL CALL]", tool_calls=tool_calls))
                 else:
                     out.append(AIMessage(content=m.content))
 
@@ -46,16 +47,27 @@ class LangChainConverter:
             return ChatMessage(role=Role.USER, content=m.content)
 
         elif isinstance(m, AIMessage):
+            # -------- tool-call reconstruction ------------------------
             tool_calls = None
-            if getattr(m, "tool_calls", None):
-                tool_calls = [
-                    ToolCall(name=tc["name"], args=tc["args"], tool_call_id=tc["id"])
-                    for tc in m.tool_calls
-                ]
-            return ChatMessage(role=Role.ASSISTANT, content=m.content, tool_calls=tool_calls)
+
+            #  build them from tool_call_chunks
+            if getattr(m, "tool_call_chunks", None) and m.type == "tool_call_chunk":
+                tool_calls = [ensure_tool_call_id(tc) for tc in m.tool_call_chunks]
+
+            # Otherwise, provider already supplied complete tool_calls
+            elif getattr(m, "tool_calls", None):
+                tool_calls = [ensure_tool_call_id(tc) for tc in m.tool_calls]
+
+            return ChatMessage(
+                role=Role.ASSISTANT,
+                content=m.content or " " if tool_calls else m.content,
+                tool_calls=[ToolCall(**tc.to_dict()) for tc in tool_calls] if tool_calls else None,
+            )
 
         elif isinstance(m, ToolMessage):
-            return ChatMessage(role=Role.TOOL, content=m.content, tool_call_id=m.tool_call_id)
+            return ChatMessage(role=Role.TOOL,
+                               content=m.content,
+                               tool_call_id=m.tool_call_id)
 
         else:
             raise ValueError(f"Unknown message type: {type(m)}")

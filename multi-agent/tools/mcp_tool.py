@@ -1,6 +1,6 @@
 from typing import Optional, Type, Any, Dict
 from pydantic import BaseModel
-from global_utils.utils.util import json_schema_model, run_async
+from global_utils.utils.util import run_async, validate_arguments
 from providers.mcp.mcp_server_client import McpServerClient
 from .base_tool import BaseTool
 
@@ -107,19 +107,13 @@ class McpProxyTool(BaseTool):
 
     def _prepare_arguments(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Validate & prune arguments against the Pydantic model generated from JSON schema.
-        If schema is missing or validation fails, fall back to raw kwargs.
+        Validate args against JSON schema.
         """
         if not kwargs or not self.args_schema:
             return kwargs or {}
 
-        try:
-            model_cls = self.get_args_schema_model()
-            validated = model_cls(**kwargs)
-            return {k: v for k, v in validated.model_dump().items() if v is not None}
-        except Exception:
-            # If validation fails for any reason, just pass through
-            return kwargs
+        validate_arguments(schema=self.get_args_schema_json(), args=kwargs)
+        return kwargs
 
     def _extract_result_content(self, result) -> Any:
         """

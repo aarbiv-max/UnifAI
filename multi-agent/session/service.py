@@ -1,8 +1,10 @@
 from typing import Any, Dict, Iterator, List
-from session.user_session_manager import UserSessionManager
-from session.session_executor import SessionExecutor
+from .user_session_manager import UserSessionManager
+from .session_executor import SessionExecutor
 from schemas.blueprint.blueprint import BlueprintSpec
-from session.workflow_session import WorkflowSession
+from .workflow_session import WorkflowSession
+from .dto import ChatHistoryItem
+from .models import SessionMeta
 
 
 class SessionService:
@@ -14,37 +16,43 @@ class SessionService:
         self._manager = manager
         self._executor = executor
 
-    def create(self, user_id: str, blueprint_spec: BlueprintSpec, metadata: Dict[str, Any] = None) -> Any:
+    def create(self, user_id: str, blueprint_spec: BlueprintSpec, blueprint_id: str,
+               metadata: SessionMeta = None) -> Any:
         """
         Create a new session and return its object (with run_id).
         """
+        # TODO, should metadata get from UI? maybe just tags
         return self._manager.create_session(
             user_id=user_id,
             blueprint_spec=blueprint_spec,
-            metadata=metadata or {}
+            blueprint_id=blueprint_id,
+            metadata=metadata or SessionMeta()
         )
 
-    def run(self, session_or_id: Any, inputs: Dict[str, Any]) -> Any:
+    def run(self, session_or_id: Any, inputs: Dict[str, Any], scope: str = "public") -> Any:
         """
         Execute the session to completion, returning the final result.
         """
         return self._executor.run(
             session_or_id=session_or_id,
-            inputs=inputs or {}
+            inputs=inputs or {},
+            scope=scope
         )
 
-    def stream(self, session_or_id: Any, inputs: Dict[str, Any], stream_mode: list = None) -> Iterator[Any]:
+    def stream(self, session_or_id: Any, inputs: Dict[str, Any], stream_mode: list = None, scope: str = "public") -> \
+            Iterator[Any]:
         """
         Execute the session in streaming mode, yielding chunks.
         """
         return self._executor.stream(
             session_or_id=session_or_id,
             inputs=inputs or {},
-            stream_mode=stream_mode
+            stream_mode=stream_mode,
+            scope=scope
         )
 
     def execute(self, session_or_id: Any, inputs: Dict[str, Any], stream: bool = False,
-                stream_mode: list = None) -> Any:
+                stream_mode: list = None, scope: str = "public") -> Any:
         """
         Execute an existing session by run_id or session object.
 
@@ -55,16 +63,16 @@ class SessionService:
         :return: Final result or iterator of chunks.
         """
         if stream:
-            return self.stream(session_or_id=session_or_id, inputs=inputs, stream_mode=stream_mode)
-        return self.run(session_or_id=session_or_id, inputs=inputs)
+            return self.stream(session_or_id=session_or_id, inputs=inputs, stream_mode=stream_mode, scope=scope)
+        return self.run(session_or_id=session_or_id, inputs=inputs, scope=scope)
 
     def list_for_user(self, user_id: str) -> list:
         """
         List all sessions created by a user.
         """
-        return self._manager.list_sessions(user_id)
+        return self._manager.list_sessions_ids(user_id)
 
-    def get(self, run_id: str) -> Any:
+    def get(self, run_id: str) -> WorkflowSession:
         """
         Fetch a session object by its run_id.
         """
@@ -74,15 +82,26 @@ class SessionService:
         """
         Get the status of a session by its run_id.
         """
-        session = self.get(run_id)
-        return session.get_status() if session else None
+        session_doc = self._manager.get_doc(run_id)
+        return session_doc.get("status", None)
+
+    def get_state(self, run_id: str) -> Dict[str, Any]:
+        """
+        Get the status of a session by its run_id.
+        """
+        session_doc = self._manager.get_doc(run_id)
+        return session_doc.get("graph_state", None)
 
     def get_user_sessions_chat_history(self, user_id: str) -> list:
         """
         Get chat history for all sessions created by a user.
         """
-        sessions_ids = self._manager.list_sessions(user_id)
-        sessions: List[WorkflowSession] = [self.get(session_id) for session_id in sessions_ids]
-        return [{"state": session.graph_state.model_dump(mode="json"),
-                 "metadata": session.metadata,
-                 "startedTimeStamp": session.run_context.started_at} for session in sessions]
+        docs = self._manager.list_docs(user_id)
+        return [ChatHistoryItem.from_doc(d) for d in docs]
+
+    def get_user_blueprints(self, user_id) -> List[str]:
+        """
+        Get all blueprints created by a user.
+        """
+        docs = self._manager.list_docs(user_id)
+        return list({d.get("blueprint_id") for d in docs})

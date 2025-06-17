@@ -1,13 +1,9 @@
 import pymongo
 from pymongo.collection import Collection
-from typing import List
-from session.status import SessionStatus
+from typing import List, Mapping, Any
 from session.repository.repository import SessionRepository
 from session.workflow_session import WorkflowSession
-from core.run_context import RunContext
-from graph.state.graph_state import GraphState
 from session.workflow_session_factory import WorkflowSessionFactory
-from schemas.blueprint.blueprint import BlueprintSpec
 
 
 class MongoSessionRepository(SessionRepository):
@@ -49,8 +45,9 @@ class MongoSessionRepository(SessionRepository):
             "user_id": ctx.user_id,
             "run_id": ctx.run_id,
             "run_context": ctx.to_dict(),
-            "metadata": session.metadata,
+            "metadata": session.metadata.to_dict(),
             "blueprint_spec": session.blueprint.model_dump(mode="json"),
+            "blueprint_id": session.blueprint_id,
             "graph_state": session.graph_state.model_dump(mode="json"),
             "status": session.get_status(),
         }
@@ -61,32 +58,11 @@ class MongoSessionRepository(SessionRepository):
             upsert=True
         )
 
-    def load(self, run_id: str) -> WorkflowSession:
-        doc = self._col.find_one({"run_id": run_id})
+    def fetch(self, run_id: str) -> Mapping[str, Any]:
+        doc = self._col.find_one({"run_id": run_id}, {"_id": 0})
         if not doc:
             raise KeyError(f"No session for {run_id}")
-
-        # Rehydrate RunContext
-        ctx = RunContext.from_dict(doc["run_context"])
-
-        # Re-create fresh session via factory
-        session = self._factory.create(
-            user_id=ctx.user_id,
-            blueprint_spec=BlueprintSpec.model_validate(doc["blueprint_spec"]),
-            metadata=doc.get("metadata", {}),
-        )
-
-        # Override run_context (so we keep the same run_id, timestamps)
-        session.run_context = ctx
-
-        # Override session status
-        status_str = doc.get("status", SessionStatus.PENDING.name)
-        session.status = SessionStatus[status_str]
-
-        # Restore GraphState in one shot
-        session.graph_state = GraphState(**doc["graph_state"])
-
-        return session
+        return doc
 
     def list_runs(self, user_id: str) -> List[str]:
         cursor = self._col.find({"user_id": user_id}, {"run_id": 1})
