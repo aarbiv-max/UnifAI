@@ -142,11 +142,12 @@ pipeline {
                         script {
                             def component = "DataPipelineHub"
                             def module = "backend"
+                            def componentLower = component.toLowerCase()
                             dir("${buildParams.DevRoot}/${params.BRANCH}/${component}/${module}") {
-                                cleanWorkspace(module)
-                                if (buildDockerImage(module, component)) {
-                                    tagAndPushImageToRegistry(module, buildParams)
-                                    cleanWorkspace(module)
+                                //cleanWorkspace(module)
+                                if (buildDockerImage(module, componentLower)) {
+                                    tagAndPushImageToRegistry(module, buildParams,componentLower)
+                                    cleanWorkspace(module,componentLower)
                                 } else {
                                     error("Terminating process for ${module}: Build failed")
                                 }
@@ -184,24 +185,25 @@ pipeline {
                 script {
                     echo "Triggering deployment pipeline..."
                     build job: 'pipeline-deploy',
-                        parameters: [
-                            string(name: 'BRANCH', value: params.BRANCH),
-                            string(name: 'VERSION', value: params.VERSION),
-                            choice(name: 'deploy_type', value: params.deployment_type),
-                            choice(name: 'deploy_location', value: params.deployment_location),
-                            string(name: 'namespace', value: params.namespace)
-                        ]
+                    parameters: [
+                        string(name: 'BRANCH', value: params.BRANCH),
+                        string(name: 'VERSION', value: params.VERSION),
+                        string(name: 'deploy_type', value: params.deploy_type),
+                        string(name: 'deploy_location', value: params.deploy_location),
+                        string(name: 'namespace', value: params.deploy_namespace)
+                    ]
                 }
             }
         }
     }
 
-    post {
-        always {
-            script {
-                echo "Running cleanup..."
-                cleanPodmanSystem()
-            }
-        }
-    }
+    // post {
+    //     always {
+    //         script {
+    //             echo "Running cleanup..."
+    //             cleanPodmanSystem()
+    //         }
+    //     }
+    // }
 }
+
