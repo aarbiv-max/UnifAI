@@ -5,13 +5,14 @@
 global:
   namespace: tag-ai--pipeline
   app: unifai
-  role: app
+  role: celery
   mode: debug
 
-be:
+celery:
   image: 'images.paas.redhat.com/sfiresht/multia:latest'
   port: 8080
   command: '/bin/bash -c entrypoint.sh'
+
 
 
 # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
