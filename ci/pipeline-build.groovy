@@ -72,8 +72,7 @@ def cleanWorkspace(module,component) {
     sh """
         podman rm -f  ${component}/${module} || true
         podman rmi -f ${component}/${module}:${VERSION} || true
-        podman rmi -f ${component}/${module}:latest || true
-        sleep 10        
+        podman rmi -f ${component}/${module}:latest || true  
     """
 }
 
@@ -104,15 +103,6 @@ pipeline {
                 }
             }
         }
-        stage('Debug Parameters') {
-            steps {
-                script {
-                    echo "build_gui: ${params.build_gui}"
-                    echo "build_dataflow_backend: ${params.build_dataflow_backend}"
-                    echo "build_multiagent_backend: ${params.build_multiagent_backend}"
-                }
-            }
-        }
 
         stage('Build and Push Images') {
             parallel {
@@ -124,7 +114,7 @@ pipeline {
                             def module = "ui"
                             def componentLower = component.toLowerCase()
                             dir("${buildParams.DevRoot}/${params.BRANCH}/${component}/${module}/") {
-                                //cleanWorkspace(module)
+                                cleanWorkspace(module, componentLower)
                                 if (buildDockerImage(module, componentLower)) {
                                     tagAndPushImageToRegistry(module, buildParams, componentLower)
                                     cleanWorkspace(module, componentLower)
@@ -144,7 +134,7 @@ pipeline {
                             def module = "backend"
                             def componentLower = component.toLowerCase()
                             dir("${buildParams.DevRoot}/${params.BRANCH}/${component}/${module}") {
-                                //cleanWorkspace(module)
+                                cleanWorkspace(module, componentLower)
                                 if (buildDockerImage(module, componentLower)) {
                                     tagAndPushImageToRegistry(module, buildParams,componentLower)
                                     cleanWorkspace(module,componentLower)
@@ -184,7 +174,7 @@ pipeline {
             steps {
                 script {
                     echo "Triggering deployment pipeline..."
-                    build job: 'pipeline-deploy',
+                    build job: 'app-deployer',
                     parameters: [
                         string(name: 'BRANCH', value: params.BRANCH),
                         string(name: 'VERSION', value: params.VERSION),
