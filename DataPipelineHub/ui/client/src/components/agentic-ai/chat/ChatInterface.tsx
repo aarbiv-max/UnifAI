@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Send, Trash2, Settings } from "lucide-react";
 import axios from '../../../http/axiosAgentConfig';
 import { SessionPayload } from '../ExecutionTab';
-import { useStreamingData, NodeEntry } from "../StreamingDataContext";
+import { useStreamingData } from "../StreamingDataContext";
 import { Message, StreamLogEntry } from './types';
 import { StreamLogDisplay } from './StreamLogDisplay';
 
@@ -33,7 +33,7 @@ export default function ChatInterface({
   const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const { nodeListRef, clearStream } = useStreamingData();
+  const { nodeListRef, clearStream } = useStreamingData();
 
   // Transform backend messages to frontend format
   const transformBackendMessagesToFrontend = useCallback((backendMessages: BackendMessage[]): Message[] => {
@@ -131,6 +131,7 @@ export default function ChatInterface({
                     nodeId: entry.node_name,
                     nodeName: entry.node_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
                     message: newMessage,
+                    tools: entry?.tools || [],
                     status: newStatus,
                     isExpanded: existingLog?.isExpanded || false,
                   });
@@ -413,14 +414,14 @@ export default function ChatInterface({
                       
                       {/* Final answer */}
                       {message.finalAnswer && (
-                          <div className="text-sm text-gray-300">
+                          <div className="text-sm text-gray-300 whitespace-pre-line">
                             {message.finalAnswer}
                           </div>
                         
                       )}
                     </div>
                   ) : (
-                    <div className="text-sm">{message.content}</div>
+                    <div className="text-sm whitespace-pre-line">{message.content}</div>
                   )}
                   
                 </div>

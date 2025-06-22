@@ -66,16 +66,51 @@ class LlmCapableMixin(Generic[TSupportStream]):
         self.system_message = system_message
         self.retries = max(1, retries)
 
-    def _llm_stream(self: TSupportStream,
-                    messages: list[ChatMessage],
-                    *,
-                    event_type: str = "llm_token") -> ChatMessage:
-        """ Stream LLM response for a list of ChatMessage."""
-        out = ""
+    def _llm_stream(
+            self: TSupportStream,
+            messages: list[ChatMessage],
+            *,
+            event_type: str = "llm_token",
+    ) -> ChatMessage:
+        """
+        Consume `BaseLLM.stream()` which yields either:
+            • str  – incremental token
+            • ChatMessage – ONE final assistant message (may include tool_calls)
+
+        Behaviour
+        ---------
+        • Forward each token via `self._stream(...)` when streaming is enabled.
+        • Upon receiving ChatMessage:
+            ↳ emit an optional “msg_complete” event then *return* it.
+        • If no ChatMessage occurs, return a ChatMessage built from tokens.
+        """
+        accumulated_text = ""
+        assistant_msg: ChatMessage | None = None
+
         for chunk in self.llm.stream(messages):
-            out += chunk
-            self._stream({"type": event_type, "chunk": chunk})
-        return ChatMessage(role=Role.ASSISTANT, content=out)
+            # ---------- Token path ----------------------------------------
+            if isinstance(chunk, str):
+                accumulated_text += chunk
+                if self.is_streaming():
+                    self._stream({"type": event_type, "chunk": chunk})
+                continue
+
+            # ---------- Aggregated assistant (tool call) ------------------
+            if isinstance(chunk, ChatMessage):
+                assistant_msg = chunk
+                break
+            else:
+                # Unexpected object -> surface immediately
+                raise TypeError(
+                    f"BaseLLM.stream returned unsupported chunk type: {type(chunk)}"
+                )
+
+        # ---------- Return value to caller -------------------------------
+        if assistant_msg:
+            return assistant_msg  # tool_call reply
+
+        # Plain-text reply case
+        return ChatMessage(role=Role.ASSISTANT, content=accumulated_text)
 
     def _llm_sync_chat(self, messages: list[ChatMessage]) -> ChatMessage:
         """ Synchronous chat with the LLM for a list of ChatMessage."""
@@ -96,7 +131,7 @@ class LlmCapableMixin(Generic[TSupportStream]):
         """
         if self.is_streaming():
             return self._llm_stream(messages)
-        return self._llm_sync_chat
+        return self._llm_sync_chat(messages)
 
     def _bind_tools(self, tools: List[BaseTool]) -> None:
         self.llm.bind_tools(tools)

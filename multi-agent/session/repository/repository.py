@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Mapping, Any
 from session.workflow_session import WorkflowSession
 
 
@@ -14,8 +14,8 @@ class SessionRepository(ABC):
         ...
 
     @abstractmethod
-    def load(self, run_id: str) -> WorkflowSession:
-        """Reconstruct a previously saved session."""
+    def fetch(self, run_id: str) -> Mapping[str, Any]:
+        """Fetch session raw doc"""
         ...
 
     @abstractmethod

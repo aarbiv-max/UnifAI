@@ -12,7 +12,6 @@ sessions_bp = Blueprint("sessions", __name__)
     "blueprint_id": fields.Str(data_key="blueprintId", required=True),
     "user_id": fields.Str(data_key="userId", required=True),
     "metadata": fields.Dict(data_key="metadata", required=False, load_default=lambda: {}, dump_default=lambda: {})
-    ,
 })
 def create_user_session(blueprint_id, user_id, metadata):
     try:
@@ -21,6 +20,7 @@ def create_user_session(blueprint_id, user_id, metadata):
         blueprint_spec = blueprint_svc.get_blueprint_spec(blueprint_id)
         session = session_svc.create(user_id=user_id,
                                      blueprint_spec=blueprint_spec,
+                                     blueprint_id=blueprint_id,
                                      metadata=metadata)
         return jsonify(session.get_run_id()), 200
     except Exception as e:
@@ -32,9 +32,10 @@ def create_user_session(blueprint_id, user_id, metadata):
     "session_id": fields.Str(data_key="sessionId", required=True),
     "inputs": fields.Dict(data_key="inputs", required=True),
     "stream_mode": fields.List(fields.Str(), data_key="streamMode", load_default=lambda: ["custom"]),
-    "stream": fields.Bool(data_key="stream", load_default=False)
+    "stream": fields.Bool(data_key="stream", load_default=False),
+    "scope": fields.Str(data_key="scope", load_default="public"),
 })
-def execute_user_session(session_id, inputs, stream_mode, stream):
+def execute_user_session(session_id, inputs, stream_mode, stream, scope):
     """
     Execute (or stream) an existing session.
     - If `stream` is False (default), returns the full result as JSON.
@@ -47,7 +48,8 @@ def execute_user_session(session_id, inputs, stream_mode, stream):
         result = svc.execute(
             session_or_id=session_id,
             inputs=inputs,
-            stream=False
+            stream=False,
+            scope=scope
         )
         return jsonify(result), 200
 
@@ -57,7 +59,8 @@ def execute_user_session(session_id, inputs, stream_mode, stream):
                 session_or_id=session_id,
                 inputs=inputs,
                 stream=True,
-                stream_mode=stream_mode
+                stream_mode=stream_mode,
+                scope=scope
         ):
             # each chunk may include Pydantic models; use pydantic_encoder
             yield json.dumps(chunk, default=pydantic_encoder)
@@ -75,8 +78,8 @@ def execute_user_session(session_id, inputs, stream_mode, stream):
 def get_session_state(session_id):
     try:
         svc = current_app.container.session_service
-        session = svc.get(run_id=session_id)
-        return jsonify(session.get_state().model_dump(mode="json")), 200
+        state = svc.get_state(run_id=session_id)
+        return jsonify(state), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -102,5 +105,17 @@ def get_session_user_chat(user_id):
     try:
         svc = current_app.container.session_service
         return jsonify(svc.get_user_sessions_chat_history(user_id)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@sessions_bp.route("/session.user.blueprints.get", methods=["GET"])
+@from_query({
+    "user_id": fields.Str(data_key="userId", required=True),
+})
+def get_user_blueprints(user_id):
+    try:
+        svc = current_app.container.session_service
+        return jsonify(svc.get_user_blueprints(user_id)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500

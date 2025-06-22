@@ -2,6 +2,7 @@ import requests
 from typing import Any
 from retrievers.base_retriever import BaseRetriever
 from pydantic import HttpUrl
+from core.context import get_current_context
 
 
 class DocsRetriever(BaseRetriever):
@@ -21,7 +22,8 @@ class DocsRetriever(BaseRetriever):
     def retrieve(self, query: str) -> Any:
         params = {
             "query": query,
-            "top_k_results": self.top_k
+            "top_k_results": self.top_k,
+            "scope": get_current_context().scope
         }
 
         resp = requests.get(self.api_url, params=params)

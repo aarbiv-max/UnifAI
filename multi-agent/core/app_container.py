@@ -30,7 +30,8 @@ class AppContainer:
 
         # blueprint catalog
         self.blueprint_repo = MongoBlueprintRepository(
-            uri=cfg.mongo_uri,
+            mongodb_port=cfg.mongodb_port,
+            mongodb_ip=cfg.mongodb_ip,
             db_name=cfg.mongo_db,
             coll_name=cfg.blueprint_coll
         )
@@ -42,7 +43,8 @@ class AppContainer:
             engine_name=cfg.engine_name
         )
         self.session_repo = MongoSessionRepository(
-            mongo_uri=cfg.mongo_uri,
+            mongodb_port=cfg.mongodb_port,
+            mongodb_ip=cfg.mongodb_ip,
             db_name=cfg.mongo_db,
             collection_name=cfg.session_coll,
             session_factory=self.session_factory

@@ -1,4 +1,5 @@
 import pymongo
+from flask import session
 from data_sources.slack.slack_config_manager import SlackConfigManager
 from data_sources.slack.slack_connector import SlackConnector
 from data_sources.slack.slack_data_processor import SlackProcessor
@@ -25,7 +26,7 @@ def get_available_slack_channels(channel_types: str):
     else:
         raise RuntimeError("Slack authentication failed")
 
-def embed_slack_channels_flow(channel_list):
+def embed_slack_channels_flow(channel_list, upload_by):
     connector = _get_configured_connector()
     if not connector.authenticate():
         raise RuntimeError("Slack authentication failed")
@@ -76,7 +77,7 @@ def embed_slack_channels_flow(channel_list):
             ]
 
             for processed_data in [processed_messages_data, processed_thread_data]:
-                chunks = chunker.chunk_content(processed_data)
+                chunks = chunker.chunk_content(processed_data, upload_by)
                 enriched = embedding_generator.generate_embeddings(chunks)
                 vector_storage.store_embeddings(enriched)
 
@@ -110,7 +111,7 @@ def count_channel_chunks(channel_name: str) -> int:
 
     return vector_storage.count(filters={"metadata.channel_name": channel_name})
 
-def get_best_match_results(query: str, top_k_results: int = 5):
+def get_best_match_results(query: str, top_k_results: int = 5, scope: str = "public"):
     embedding_config = {
         "type": "sentence_transformer",
         "model_name": "all-MiniLM-L6-v2",
@@ -134,6 +135,7 @@ def get_best_match_results(query: str, top_k_results: int = 5):
     search_results = vector_storage.search(
         query_embedding=query_embedding,
         top_k=top_k_results,
+        filters={"upload_by": session.get('user').get('name', 'default')} if scope == "private" else {}
     )
 
     return search_results

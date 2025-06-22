@@ -79,7 +79,7 @@ class CustomAgentNode(
             # Execute the tool cycle and get the final assistant message
             assistant = self._execute_tool_cycle(
                 initial_history=history,
-                chat_function=self._llm_sync_chat,
+                chat_function=self._chat,
                 max_rounds=self.max_rounds
             )
 

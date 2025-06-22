@@ -1,5 +1,6 @@
 import pymongo
 import uuid
+from flask import session
 from data_sources.docs.doc_connector import DocumentConnector
 from data_sources.docs.doc_config_manager import DocConfigManager
 from data_sources.docs.document_processor import DocumentProcessor
@@ -18,7 +19,7 @@ def get_available_doc_list():
         "doc_path": ""
     }
 
-def embed_docs_flow(doc_list):
+def embed_docs_flow(doc_list, upload_by):
     config = DocConfigManager()
     config.set_config_value("chunk_size", 800)
     config.set_config_value("chunk_overlap", 100)
@@ -72,7 +73,7 @@ def embed_docs_flow(doc_list):
             # Start log monitoring - this will uses the event-driven handler system
             doc_pipeline.monitor.start_log_monitoring(target_logger=logger, pipeline_id=f"doc_{doc_id}")
 
-            result = doc_connector.process_document(doc_path)
+            result = doc_connector.process_document(doc_path, upload_by)
             
             # Process with various options
             processed_documents = doc_processor.process(
@@ -106,7 +107,7 @@ def embed_docs_flow(doc_list):
 
     return response
 
-def get_best_match_results(query: str, top_k_results: int = 5):
+def get_best_match_results(query: str, top_k_results: int = 5, scope: str = "public"):
     # Create embedding generator
     embedding_config = {
         "type": "sentence_transformer",
@@ -131,6 +132,7 @@ def get_best_match_results(query: str, top_k_results: int = 5):
     search_results = vector_storage.search(
         query_embedding=query_embedding,
         top_k=top_k_results,
+        filters={"upload_by": session.get('user').get('name', 'default')} if scope == "private" else {}
     )
 
     return search_results

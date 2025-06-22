@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Iterator
+from typing import Any, Dict, List, Optional, Iterator, Union
 from langchain_openai import ChatOpenAI
 from llms.base_llm import BaseLLM
 from core.contracts import SupportsStreaming
@@ -69,14 +69,38 @@ class OpenAILLM(BaseLLM, SupportsStreaming):
     def stream(
             self,
             messages: List[ChatMessage],
-            **call_params
-    ) -> Iterator[str]:
+            **call_params: Any,
+    ) -> Iterator[Union[str, ChatMessage]]:
         """
-        Pass stream=True through to LangChain and unwrap content token by token.
+        Provider-level streaming:
+
+        • Yields `str` tokens for regular answers.
+        • Aggregates *all* `tool_call_chunks` via the LangChain “+” operator
+          and, at the very end, yields **one** `ChatMessage` representing
+          the full assistant reply with `tool_calls=[…]`.
         """
-        lc_messages = LangChainConverter.to_lc(messages)
-        for chunk in self.client.stream(lc_messages, stream=True, **call_params):
-            yield chunk.content
+        # Translate our domain history → LangChain
+        lc_history = LangChainConverter.to_lc(messages)
+
+        aggregated: Any | None = None  # will hold the growing AIMessage
+
+        for chunk in self.client.stream(lc_history, stream=True, **call_params):
+            # Tool-call partials -------------------------------------------------
+            if getattr(chunk, "tool_call_chunks", None):
+                aggregated = chunk if aggregated is None else aggregated + chunk
+                # we do NOT yield yet — wait until provider is done
+                continue
+
+            # Plain token path --------------------------------------------------
+            token = chunk.content or ""
+            if token:
+                yield token
+
+        # Provider finished ------------------------------------------------------
+        if aggregated:
+            # LangChain "+" produced a final AIMessage with complete tool_calls,
+            # Convert once to our ChatMessage model and yield it.
+            yield LangChainConverter.from_lc_message(aggregated)
 
     def bind_tools(self, tools: List[BaseTool]) -> None:
         self.client = self.client.bind_tools(LangChainToolsConverter.to_lc(tools))

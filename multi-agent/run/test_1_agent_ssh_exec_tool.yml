@@ -4,8 +4,9 @@
 llms:
   - name: openai_llm
     type: openai
-    model_name: Qwen/Qwen3-8B
-    base_url: http://localhost:8000/v1
+    model_name: gemini-2.0-flash
+    api_key: AIzaSyBwuQtKPtwKILBulq_YW16RKjMAVx4gbKQ
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
 
 
 # ----------------------------

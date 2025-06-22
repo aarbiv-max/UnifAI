@@ -1,13 +1,6 @@
 // StreamingDataContext.tsx
 import React, { createContext, useContext, useRef } from 'react';
-
-type NodeStreamState = 'PROGRESS' | 'DONE';
-
-export type NodeEntry = {
-  node_name: string;
-  stream: NodeStreamState;
-  text: string;
-};
+import { NodeEntry } from './chat/types'
 
 type StreamingContextType = {
   nodeListRef: React.MutableRefObject<Map<string, NodeEntry>>;

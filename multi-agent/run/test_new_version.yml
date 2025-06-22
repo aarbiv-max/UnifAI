@@ -1,0 +1,68 @@
+global_config:
+  scope: "private"
+
+# ─────────────────────────────────────────────────────────────────────────
+# Resources -- one catalogue per kind
+# ─────────────────────────────────────────────────────────────────────────
+providers:
+  - alias: prov_mcp
+    config:
+      name: My MCP back-end
+      $ref: "provider:1aa3…"
+
+llms:
+  - alias: llm_live
+    config:
+      $ref: "llm:bd85b7…"
+
+  - alias: llm_frozen
+    config:
+      name: Flash (frozen)
+      type: openai
+      model_name: gemini-2.0-flash
+      temperature: 0.3
+      max_tokens: 1024
+      api_key: "key:AIzaSyBwuQtKPtwKILBulq_YW16RKjMAVx4gbKQ"
+      base_url: https://…
+
+tools:
+  - alias: add_tool
+    config:
+      name: Addition
+      type: mcp_proxy
+      tool_name: addition
+      provider: prov_mcp
+
+nodes:
+  - alias: user_question
+    config:
+      name: User Input
+      type: user_question_node
+
+  - alias: agent
+    config:
+      name: My Agent
+      type: custom_agent_node
+      llm: llm_live
+      tools:
+        - add_tool
+      system_message: >
+        You are a smart assistant …
+
+  - alias: final_answer
+    name: Final Answer
+    config:
+      type: final_answer_node
+
+# ─────────────────────────────────────────────────────────────────────────
+# Graph plan – references node UIDs
+# ─────────────────────────────────────────────────────────────────────────
+plan:
+  - uid: user_question
+
+  - uid: agent_node
+    after: user_question
+    node: agent # alias of the node
+
+  - uid: final_answer
+    after: agent

@@ -58,7 +58,7 @@ def chunk_pdf_document():
     # Generate embeddings
     enriched_chunks = embedding_generator.generate_embeddings(chunks)
 
-        # Create vector storage
+    # Create vector storage
     storage_config = {
         "type": "qdrant",
         "collection_name": "pdf_doc_data",
