@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from webargs import fields
 from shared.logger import logger
 from global_utils.helpers.apiargs import from_query, from_body
@@ -34,7 +34,8 @@ def embed_channels(channels):
         send_task(
             task_name="data_sources.slack.slack_tasks.embed_slack_channels_task",
             celery_queue="slack_queue",
-            channel_list=channels
+            channel_list=channels,
+            upload_by=session.get('user', {}).get('name', 'default')
         )
         return jsonify({"status": "task submitted"}), 202
     except Exception as e:
@@ -71,11 +72,12 @@ def slack_channel_chunks(channel_name):
 @slack_bp.route("/query.match", methods=["GET"])
 @from_query({
     "query": fields.Str(required=True),
-    "top_k_results": fields.Int(required=False)
+    "top_k_results": fields.Int(required=False),
+    "scope": fields.Str(required=False, load_default="public")
 })
-def best_match_results(query, top_k_results):
+def best_match_results(query, top_k_results, scope):
     try:
-        search_results = get_best_match_results(query, top_k_results)
+        search_results = get_best_match_results(query, top_k_results, scope)
         return jsonify({"search_results": search_results}), 200
     except Exception as e:
         logger.error(f"Failed to find best match for user query: {str(e)}")

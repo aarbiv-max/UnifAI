@@ -2,11 +2,12 @@ import React from "react";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { FaSearch, FaBell, FaQuestionCircle, FaPlus, FaBars, FaMoon, FaSun } from "react-icons/fa";
+import { FaSearch, FaBell, FaQuestionCircle, FaPlus, FaBars, FaMoon, FaSun, FaSignOutAlt } from "react-icons/fa";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth } from '@/contexts/AuthContext';
 
 interface HeaderProps {
   title: string;
@@ -16,6 +17,16 @@ interface HeaderProps {
 export default function Header({ title, onToggleSidebar }: HeaderProps) {
   const [hasNotifications] = useState(true);
   const { theme, toggleTheme } = useTheme();
+
+  const { user, logout } = useAuth();
+
+  const getInitials = (name: string): string => {
+    return name
+      .split(' ')                         // Split by spaces
+      .filter(Boolean)                    // Remove empty parts
+      .map(part => part[0].toUpperCase()) // Take first letter of each part and capitalize
+      .join('');                          // Join into a string
+  }
 
   return (
     <header className="h-16 bg-background-surface border-b border-gray-800 flex items-center justify-between px-6 py-2">
@@ -69,6 +80,37 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
             {theme === 'dark' ? <FaSun /> : <FaMoon />}
           </button>
         </SimpleTooltip>
+
+        {/* User Profile */}
+        <div className="px-4 py-3 border-l border-gray-800">
+          <div className={`flex items-center space-x-3`}>
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-accent to-primary flex items-center justify-center flex-shrink-0">
+              <span className="text-sm font-medium text-white">{getInitials(user?.name || '')}</span>
+            </div>
+            
+              <motion.div 
+                initial={false}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+                className="flex-grow"
+              >
+                <h4 className="text-sm font-medium">{user?.name}</h4>
+              </motion.div>
+            
+              <motion.div
+                initial={false}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+              >
+                <SimpleTooltip content={<p>Sign out</p>}>
+                  <button className="mt-2 text-gray-400 hover:text-white">
+                    <FaSignOutAlt />
+                  </button>
+                </SimpleTooltip>
+              </motion.div>
+            
+          </div>
+        </div>
         
         {/* <Button size="sm" className="ml-2 bg-primary hover:bg-opacity-80">
           <FaPlus className="mr-2 h-3 w-3" />

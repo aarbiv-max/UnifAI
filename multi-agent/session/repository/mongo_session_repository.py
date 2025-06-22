@@ -22,11 +22,13 @@ class MongoSessionRepository(SessionRepository):
     def __init__(
             self,
             session_factory: WorkflowSessionFactory,
+            mongodb_port: str = "27017",
+            mongodb_ip: str = "localhost",
             db_name: str = "UnifAI",
-            mongo_uri: str = "mongodb://localhost:27017/",
             collection_name: str = "workflow_sessions",
     ):
         # connect
+        mongo_uri = f"mongodb://{mongodb_ip}:{mongodb_port}/"
         client = pymongo.MongoClient(mongo_uri)
         db = client[db_name]
         self._col: Collection = db[collection_name]

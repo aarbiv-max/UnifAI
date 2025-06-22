@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, session
 from webargs import fields
 from shared.logger import logger
 from global_utils.helpers.apiargs import from_query, from_body
@@ -26,7 +26,8 @@ def embed_docs(docs):
         send_task(
             task_name="data_sources.docs.docs_tasks.embed_docs_task",
             celery_queue="docs_queue",
-            doc_list=docs
+            doc_list=docs,
+            upload_by=session.get('user', {}).get('name', 'default')
         )
         return jsonify({"status": "task submitted"}), 202
     except Exception as e:
@@ -36,11 +37,12 @@ def embed_docs(docs):
 @docs_bp.route("/query.match", methods=["GET"])
 @from_query({
     "query": fields.Str(required=True),
-    "top_k_results": fields.Int(required=False)
+    "top_k_results": fields.Int(required=False),
+    "scope": fields.Str(required=False, load_default="public")
 })
-def best_match_results(query, top_k_results):
+def best_match_results(query, top_k_results, scope):
     try:
-        search_results = get_best_match_results(query, top_k_results)
+        search_results = get_best_match_results(query, top_k_results, scope)
         return jsonify({"search_results": search_results}), 200
     except Exception as e:
         logger.error(f"Failed to find best match for user query: {str(e)}")

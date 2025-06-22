@@ -39,17 +39,20 @@
   .light-mode input, 
   .light-mode textarea,
   .light-mode select,
-  .dark-mode input, 
-  .dark-mode textarea,
   .dark-mode select {
     color: var(--text-primary) !important;
     border-color: var(--border) !important;
   }
   
   /* Form control components need stronger text contrast */
-  .light-mode .bg-background-dark,
-  .dark-mode .bg-background-dark {
+  .light-mode .bg-background-dark {
     color: var(--text-primary) !important;
+  }
+
+  .dark-mode input,
+  .dark-mode textarea {
+    color: #111827 !important;
+    border-color: var(--border) !important;
   }
   
   /* Ensure placeholder text has proper contrast */

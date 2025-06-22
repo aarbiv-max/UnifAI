@@ -1,4 +1,4 @@
-from global_utils.config import ConfigManager
+from global_utils.config.config import SharedConfig
 from typing import Any, Type
 from pydantic import BaseModel
 import json
@@ -17,16 +17,17 @@ import importlib.util
 import sys
 import re
 
+config = SharedConfig()
 
 def get_mongo_url():
-    ip = ConfigManager().get("mongodb_ip", "0.0.0.0") or "0.0.0.0"
-    port = ConfigManager().get("mongodb_port", "27017") or "27017"
+    ip = config.mongodb_ip
+    port = config.mongodb_port
     return f"mongodb://{ip}:{port}/"
 
 
 def get_rabbitmq_url(user=None, password=None):
-    ip = ConfigManager().get("rabbitmq_ip", "0.0.0.0") or "0.0.0.0"
-    port = ConfigManager().get("rabbitmq_port", "5672") or "5672"
+    ip = config.rabbitmq_ip
+    port = config.rabbitmq_port
 
     if user and password:
         return f'amqp://{user}:{password}@{ip}:{port}'

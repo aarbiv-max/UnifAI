@@ -33,7 +33,7 @@ export default function ChatInterface({
   const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const { nodeListRef, clearStream } = useStreamingData();
+  const { nodeListRef, clearStream } = useStreamingData();
 
   // Transform backend messages to frontend format
   const transformBackendMessagesToFrontend = useCallback((backendMessages: BackendMessage[]): Message[] => {
@@ -414,14 +414,14 @@ export default function ChatInterface({
                       
                       {/* Final answer */}
                       {message.finalAnswer && (
-                          <div className="text-sm text-gray-300">
+                          <div className="text-sm text-gray-300 whitespace-pre-line">
                             {message.finalAnswer}
                           </div>
                         
                       )}
                     </div>
                   ) : (
-                    <div className="text-sm">{message.content}</div>
+                    <div className="text-sm whitespace-pre-line">{message.content}</div>
                   )}
                   
                 </div>
