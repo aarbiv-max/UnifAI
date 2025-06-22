@@ -1,9 +1,13 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: be-configmap
+  name: multiagent-be-configmap
   namespace: {{ .Values.global.namespace }}
 data: 
   role: {{ .Values.global.role }}
   mode: {{ .Values.global.mode }}
+  APP_PORT: {{ .Values.service.port | quote}} 
+{{- range $key, $value:= .Values.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
 immutable: false

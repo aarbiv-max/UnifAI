@@ -40,16 +40,25 @@ spec:
           {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          stdin: true
+          tty: true
+          # {{- if .Values.command }}
+          # command: {{ .Values.command }}
+          # {{- end }}
           env:
           {{- range $key, $value := .Values.env }}
           - name: "{{ $key }}"
             value: "{{ $value }}"
           {{- end }}
-          
+          envFrom:
+            - configMapRef:
+                name: multiagent-be-configmap     
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+
+          {{- if ne .Values.env.MODE "debug"}}
           {{- with .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
@@ -58,6 +67,8 @@ spec:
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- end }}
+
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

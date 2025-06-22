@@ -1,10 +1,12 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.ConfigMap.metadata.name }}
-  namespace: {{ .Values.Global.namespace }}
-data: 
-{{- range $key, $value:= .Values.ConfigMap.data }}
-   {{ $key }}: {{ $value | quote }}
+  name: celery-configmap
+  namespace: {{ .Values.global.namespace }}
+data:
+  role: {{ .Values.global.role }}
+  mode: {{ .Values.global.mode }} 
+{{- range $key, $value:= .Values.env }}
+  {{ $key }}: {{ $value | quote }}
 {{- end }}
 immutable: false
