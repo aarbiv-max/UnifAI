@@ -4,7 +4,7 @@ FROM registry.access.redhat.com/ubi9/python-311
 ARG comp="multi-agent"
 
 USER root
-RUN dnf update -y && dnf install -y vim less iputils telnet && dnf clean all
+RUN dnf update --nobest -y && dnf install -y vim less iputils telnet && dnf clean all
 
 COPY ./multi-agent/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

@@ -58,7 +58,7 @@ spec:
               containerPort: {{ .Values.service.port }}
               protocol: TCP
 
-          {{- if ne .Values.env.MODE "debug"}}
+          {{- if ne .Values.env.ROLE "debug"}}
           {{- with .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
