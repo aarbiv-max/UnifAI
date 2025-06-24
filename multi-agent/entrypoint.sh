@@ -17,7 +17,7 @@ case "$ROLE" in
   celery)
     echo "🔧 Starting Slack Celery worker with tasks concurrently : $CELERY_WORKER"
     . ~/multi-agent/venv/bin/activate
-    exec celery -A celery_app.init worker -c $CELERY_WORKER --pool=solo --loglevel=info -Q $CELERY_QUEUES -n data_sources
+    exec celery -A celery_app.init worker -c $CELERY_WORKER --pool=solo --loglevel=info -Q $CELERY_QUEUES -n multiagent
     ;;
 
   debug)

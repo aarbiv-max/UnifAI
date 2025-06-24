@@ -13,6 +13,7 @@ replicaCount: 1
 
 env:
   MONGODB_IP: mongodb
+  MONGO_URI: mongodb  # currently using that var but  we need to change to fit the dataflow vars to try to merge files.
   MONGODB_PORT: "27017"
   RABBITMQ_IP: rabbitmq
   RABBITMQ_PORT: "5672"
@@ -107,15 +108,21 @@ livenessProbe:
   # exec:
   #   command: ["date"]
   httpGet:
-    path: /api/blueprints/available.blueprints.get
+    #path: /api/blueprints/available.blueprints.get
+    path: /api/health/
     port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 3
 
 readinessProbe:
   # exec:
   #   command: ["date"]
   httpGet:
-    path: /api/blueprints/available.blueprints.get
+    #path: /api/blueprints/available.blueprints.get
+    path: /api/health/
     port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 3
 
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
