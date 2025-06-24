@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "unifai-multiagent-celery.name" -}}
+{{- define "multiagent-celery.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "unifai-multiagent-celery.fullname" -}}
+{{- define "multiagent-celery.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "unifai-multiagent-celery.chart" -}}
+{{- define "multiagent-celery.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "unifai-multiagent-celery.labels" -}}
-helm.sh/chart: {{ include "unifai-multiagent-celery.chart" . }}
-{{ include "unifai-multiagent-celery.selectorLabels" . }}
+{{- define "multiagent-celery.labels" -}}
+helm.sh/chart: {{ include "multiagent-celery.chart" . }}
+{{ include "multiagent-celery.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -45,17 +45,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "unifai-multiagent-celery.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "unifai-multiagent-celery.name" . }}
+{{- define "multiagent-celery.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "multiagent-celery.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "unifai-multiagent-celery.serviceAccountName" -}}
+{{- define "multiagent-celery.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "unifai-multiagent-celery.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "multiagent-celery.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
