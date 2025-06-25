@@ -3,9 +3,38 @@ from .analyzers.ts_analyzer.cypress_analyzer import CypressCodeAnalyzer
 from .analyzers.ts_analyzer.ts_analyzer import TSCodeAnalyzer
 from .analyzers.go_analyzer import GoCodeAnalyzer
 from .analyzers.ts_analyzer.integrated_ts_analyzer import IntegratedTSAnalyzer
+from pathlib import Path
+from urllib.parse import urlparse
 
 TYPE_SCRIPT = 'typescript'
 GO = 'go'
+
+def path_for_repo(base_dir: str, repo_url: str) -> str:
+    """
+    Return the full local path for a single Git repo.
+
+    Parameters
+    ----------
+    base_dir : str
+        Root directory where all repositories are stored (e.g. "/srv/git/mpc").
+    repo_url : str
+        Full Git URL, e.g. one of:
+            - https://github.com/konflux-ci/e2e-tests.git
+            - git@github.com:konflux-ci/multi-platform-controller.git
+
+    Returns
+    -------
+    str
+        Local path such as "/srv/git/mpc/e2e-tests".
+    """
+    # 1) Strip protocol/host, keep only the path part
+    parsed_path = urlparse(repo_url).path or repo_url  # urlparse handles HTTP(S); fallback keeps SSH form
+    # 2) Keep last path segment ("e2e-tests.git"); remove trailing slash if any
+    name_with_suffix = Path(parsed_path.rstrip("/")).name
+    # 3) Drop optional ".git" suffix
+    repo_name = name_with_suffix[:-4] if name_with_suffix.endswith(".git") else name_with_suffix
+    # 4) Join with base directory
+    return str(Path(base_dir) / repo_name)
 
 class EvaluatorAgent:
     def __init__(self, repo_path: str, framework: str, gitRepoLink: str):
@@ -17,9 +46,10 @@ class EvaluatorAgent:
             self.analyzer = GoCodeAnalyzer()
         else:
             raise ValueError(f"Unsupported framework: {framework}")
-
+        
+        repo_internal_path = path_for_repo(repo_path, gitRepoLink)
         # Analyze the repository based on the chosen framework
-        self.analyzer.analyze_repository(repo_path)
+        self.analyzer.analyze_repository(repo_internal_path)
 
     def evaluate_generated_code(self, code: str) -> Dict:
         """Evaluate generated code for project-specific symbol existence and compatibility"""
