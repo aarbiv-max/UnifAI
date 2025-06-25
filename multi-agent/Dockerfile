@@ -4,7 +4,9 @@ FROM registry.access.redhat.com/ubi9/python-311
 ARG comp="multi-agent"
 
 USER root
-RUN dnf update --nobest -y && dnf install -y vim less iputils telnet && dnf clean all
+#add mongo sh repo
+RUN echo -e "[mongodb-org-8.0]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/8.0/\$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" > /etc/yum.repos.d/mongodb-org-8.0.repo
+RUN dnf update --nobest -y && dnf install -y vim less iputils telnet mongodb-mongosh && dnf clean all
 
 COPY ./multi-agent/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
