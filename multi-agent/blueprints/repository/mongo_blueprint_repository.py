@@ -17,8 +17,7 @@ class MongoBlueprintRepository(BlueprintRepository):
                  db_name="UnifAI",
                  coll_name="blueprints"):
 
-        #mongo_uri = f"mongodb://{mongodb_ip}:{mongodb_port}/"
-        mongo_uri=get_mongo_url()
+        mongo_uri=get_mongo_url() or f"mongodb://{mongodb_ip}:{mongodb_port}/"
         client = pymongo.MongoClient(mongo_uri)
         self._col = client[db_name][coll_name]
         # Unique on blueprint_id alone now
