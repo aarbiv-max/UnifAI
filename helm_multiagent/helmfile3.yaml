@@ -12,20 +12,19 @@ releases:
     values:
       - "./shared-resources/mongodb.yaml"
 
-  - name: unifai-multiagent-celery
-    chart: ./multiagent/celery
-    wait: true
-    timeout: 300
-    values:
-      - "./shared-resources/mongodb.yaml"
+  # - name: unifai-multiagent-celery
+  #   chart: ./multiagent/celery
+  #   wait: true
+  #   timeout: 300
+  #   values:
+  #     - "./shared-resources/mongodb.yaml"
 
   - name: unifai-shared-config
     chart: ./shared-resources/shared-config
     wait: true
     needs:
-      - unifai-mongodb
-      - unifai-qdrant
-      - unifai-rabbitmq
+      - unifai-multiagent-be
+#      - unifai-multiagent-celery
     hooks:
       - events: ["postsync"]
         showlogs: true
