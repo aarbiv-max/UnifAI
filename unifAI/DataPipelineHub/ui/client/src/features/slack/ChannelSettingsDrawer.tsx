@@ -12,7 +12,12 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
-import { FaTimes } from "react-icons/fa";
+import { FaHashtag, FaTimes } from "react-icons/fa";
+import { EmbedChannel } from "./SlackIntegration";
+import { StatItem, StatsSection } from "./StatsSection";
+import { HiOutlineLockClosed } from "react-icons/hi";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 
 export interface SettingOption {
   value: string | number;
@@ -47,7 +52,7 @@ export interface SettingsCategory {
 }
 
 export interface ChannelSettingsDrawerProps {
-  channelName: string;
+  channel: EmbedChannel;
   isOpen: boolean;
   onClose: () => void;
   onSave: (values: Record<string, string | boolean>) => void;
@@ -80,13 +85,6 @@ const categories: SettingsCategory[] = [
         defaultValue: true,
       },
       {
-        id: "includeEmoji",
-        type: "switch",
-        label: "Include Reactions",
-        description: "Store emoji reactions as metadata",
-        defaultValue: true,
-      },
-      {
         id: "channelActive",
         type: "switch",
         label: "Channel Active",
@@ -116,8 +114,9 @@ const categories: SettingsCategory[] = [
   },
 ];
 
+
 export function ChannelSettingsDrawer({
-  channelName,
+  channel,
   isOpen,
   onClose,
   onSave,
@@ -143,34 +142,90 @@ export function ChannelSettingsDrawer({
     setValues((prev) => ({ ...prev, [id]: newValue }));
   };
 
-  // When “Save Changes” is clicked
+  // When "Save Changes" is clicked
   const handleSave = () => {
     onSave(values);
     onClose();
   };
+  
+  const channelStats: StatItem[] = [
+    {
+      id: "id",
+      label: "Channel ID",
+      value: channel.channel_id,
+    },
+    {
+      id: "type",
+      label: "Type",
+      value: "Public",
+    },
+    {
+      id: "created",
+      label: "Created",
+      value: channel.created,
+    },
+  ];
 
   return (
     <motion.div
-      className="h-full bg-background-card shadow-lg border-l border-gray-800"
-      initial={{ x: 300, opacity: 0 }}
-      animate={isOpen ? { x: 0, opacity: 1 } : { x: 300, opacity: 0 }}
-      exit={{ x: 300, opacity: 0 }}
-      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      className="bg-background-card shadow-lg border-l border-border rounded-lg"
+     
       style={{ pointerEvents: isOpen ? "auto" : "none" }}
     >
       {isOpen && (
-        <CardContent className="p-6 flex flex-col h-full justify-between">
+        <CardContent className="p-6">
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">
-                Settings for #{channelName}
-              </h3>
+                      <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Channel Settings</h3>
+               
+              </div>
               <Button variant="ghost" size="sm" onClick={onClose}>
-                <FaTimes />
+                <X className="w-4 h-4" />
               </Button>
             </div>
+            <div className="space-y-6">
+   
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
+                <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
+                {channel.is_private ? (
+                <HiOutlineLockClosed className="mr-2 h-4 w-4" />
+              ) : (
+                <span className="mr-2">#</span>
+              )}
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-foreground text-lg">{channel.name}</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {channel.messages?.toLocaleString() || 0} messages processed
+                  </p>
+                </div>
+                <Badge 
+                  variant={channel.status === 'ACTIVE' ? 'default' : 'secondary'} 
+                  className="capitalize"
+                >
+                  {channel.status}
+                </Badge>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div className="text-center p-3 bg-muted/30 rounded-lg">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Progress</p>
+                  {/* <p className="font-semibold text-foreground text-lg">{channel.embeddingProgress || 0}%</p> */}
+                </div>
+                <div className="text-center p-3 bg-muted/30 rounded-lg">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Type</p>
+                  <p className="font-semibold text-foreground text-lg">{channel.is_private ? 'Private' : 'Public'}</p>
+                </div>
+                <div className="text-center p-3 bg-muted/30 rounded-lg">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Messages</p>
+                  <p className="font-semibold text-foreground text-lg">{Math.floor((Number(channel.messages) || 0) / 1000)}K</p>
+                </div>
+              </div>
+            </div>
 
-            <Separator className="bg-gray-800 mb-4" />
+            <Separator />
 
             {/* Iterate over each category */}
             {categories.map((category, catIdx) => (
@@ -254,8 +309,9 @@ export function ChannelSettingsDrawer({
               </div>
             ))}
           </div>
-
-          <div className="flex justify-end space-x-2 pt-2">
+          </div>
+          
+          <div className="flex justify-end space-x-2 pt-6 border-t border-border mt-6">
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>

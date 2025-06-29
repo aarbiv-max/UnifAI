@@ -1,6 +1,8 @@
 import os
 import sys
 
+from utils.storage.mongo.mongo_storage import MongoStorage, SourceService
+
 # Add the parent directory of 'backend' (the root of the project) to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -36,6 +38,14 @@ initial_config = {
 
 config = ConfigManager(initial_config=initial_config)
 
+# mongo_ip   = config.get_param_by_env("mongodb_ip")
+# mongo_port = config.get_param_by_env("mongodb_port")
+mongo_uri  = "mongodb://ae8f0dd8e6cd046539c3f0b7c6a75f13-508991814.us-east-1.elb.amazonaws.com:27017"
+
+# ─── 3) Init your storage and stash it on the app ─────────────────────────
+#    We only pass the URI; the DB name can be chosen per-call later.
+app.mongo_storage = MongoStorage(mongo_uri)
+app.source_service  = SourceService(app.mongo_storage, app.mongo_storage)
 # Init before_request/after_request rules
 RequestRules(app)
 

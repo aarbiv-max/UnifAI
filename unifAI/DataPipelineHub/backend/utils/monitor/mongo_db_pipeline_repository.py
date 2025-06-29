@@ -39,11 +39,16 @@ class MongoDBPipelineRepository:
         Args:
             pipeline_data: Dictionary containing pipeline information
         """
+        pipeline_id = pipeline_data["pipeline_id"]
+        update_fields = dict(pipeline_data)
+        update_fields.pop("pipeline_id")
+
         self.pipelines.update_one(
-            {"pipeline_id": pipeline_data["pipeline_id"]},
-            {"$set": pipeline_data},
+            {"pipeline_id": pipeline_id},
+            {"$set": update_fields},
             upsert=True
         )
+
     
     def save_metrics(self, metrics_data: Dict) -> None:
         """

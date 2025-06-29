@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 from typing import Dict, List, Optional, Any
 import logging
 from collections import deque
@@ -228,7 +229,7 @@ class PipelineMonitor(PipelineMonitorBase):
         logs = self.repository.get_recent_logs(source_type, limit)
         return [log.get("message", "") for log in logs]
     
-    def process_log_line(self, log_line: str, pipeline_id: str = None) -> None:
+    def process_log_line(self, log_line: str, pipeline_id: Optional[str] = None) -> None:
         """
         Process a log line to extract monitoring information.
         
@@ -239,11 +240,12 @@ class PipelineMonitor(PipelineMonitorBase):
             log_line: A string containing a log entry
             pipeline_id: Optional pipeline ID. If None, will attempt to extract from log
         """
+        
         timestamp, module, level, message = LogParser.parse_log_line(log_line)
         
         # Identify source type from the log message
         source_type = SourceType.OTHER
-        if "Slack" in message:
+        if "Slack" in message or (pipeline_id and 'slack' in pipeline_id):
             source_type = SourceType.SLACK
         elif "Jira" in message:
             source_type = SourceType.JIRA
@@ -255,11 +257,13 @@ class PipelineMonitor(PipelineMonitorBase):
             if source_type == SourceType.SLACK:
                 # Extract channel ID to identify the pipeline
                 channel_id = SlackLogParser.extract_slack_channel_id(log_line)
-                pipeline_id = f"slack_{channel_id}" if channel_id else None
+                if channel_id:
+                    pipeline_id = f"slack_{channel_id}"
             elif source_type == SourceType.DOCUMENT:
                 # Extract document ID to identify the pipeline
                 doc_id = DocLogParser.extract_doc_id(log_line)
-                pipeline_id = f"doc_{doc_id}" if doc_id else None
+                if doc_id:
+                    pipeline_id = f"doc_{doc_id}"
         
         # Update recent logs cache
         self.recent_logs_cache[source_type].appendleft(log_line)
@@ -275,15 +279,13 @@ class PipelineMonitor(PipelineMonitorBase):
         }
         self.repository.save_log_entry(log_data)
         
-        # Skip further processing if no pipeline ID
-        if not pipeline_id:
-            return
-        
-        # Check if this pipeline is already registered
-        pipeline = self.repository.get_pipeline(pipeline_id)
-        if not pipeline and ("Starting" in message or "Processing" in message):
-            # Auto-register new pipeline
-            self.register_pipeline(pipeline_id, source_type)
+        # Check if this pipeline is already registered - do this before early return
+        if pipeline_id:
+            pipeline = self.repository.get_pipeline(pipeline_id)
+            if not pipeline and ("Starting" in message or "Processing" in message):
+                # Auto-register new pipeline
+                self.register_pipeline(pipeline_id, source_type)
+            
         
         # Extract and update metrics
         metrics = {}
@@ -309,21 +311,6 @@ class PipelineMonitor(PipelineMonitorBase):
             api_endpoint = DocLogParser.extract_api_endpoint(log_line)
             if api_endpoint:
                 metrics["api_calls"] = 1
-            
-            # # Track chunk counts
-            # chunk_count = DocLogParser.extract_chunk_count(log_line)
-            # if chunk_count:
-            #     metrics["chunks_generated"] = chunk_count
-            
-            # # Track embedding counts
-            # embedding_count = DocLogParser.extract_embedding_count(log_line)
-            # if embedding_count:
-            #     metrics["embeddings_created"] = embedding_count
-            
-            # # Check for document processing status changes
-            # status = DocLogParser.extract_processing_status(log_line)
-            # if status:
-            #     self.update_pipeline_status(pipeline_id, status)
         
         # Track chunk counts
         chunk_count = LogParser.extract_chunk_count(log_line)

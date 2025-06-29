@@ -1,13 +1,16 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
+from providers.slack.stats import SlackStatsProvider
+from utils.storage.mongo.mongo_helpers import get_mongo_storage, get_source_service
 from webargs import fields
 from shared.logger import logger
 from global_utils.helpers.apiargs import from_query, from_body
 from global_utils.celery_app.helpers import send_task
-from providers.slack import (
+from providers.slack.slack import (
     get_available_slack_channels,
     embed_slack_channels_flow,
     count_channel_chunks,
-    get_best_match_results
+    get_best_match_results,
+    delete_slack_channel
 )
 
 slack_bp = Blueprint("slack", __name__)
@@ -79,4 +82,33 @@ def best_match_results(query, top_k_results):
         return jsonify({"search_results": search_results}), 200
     except Exception as e:
         logger.error(f"Failed to find best match for user query: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@slack_bp.route('/embed.channels', methods=['GET'])
+def get_embed_channels():
+    """
+    Returns all stored channels, optionally filtered by source_type.
+    """
+    source_type = "SLACK"
+    svc = get_source_service()
+    channels = svc.list_sources_with_status(source_type)
+    return jsonify(channels), 200
+
+@slack_bp.route("/stats", methods=["GET"])
+def system_stats():
+    provider = SlackStatsProvider()
+    stats    = provider.get_stats()
+    return jsonify(stats), 200
+
+@slack_bp.route("/embed.channels/<channel_id>", methods=["DELETE"])
+def delete_embed_channel(channel_id):
+    """
+    Delete a slack channel from both MongoDB and Qdrant storage.
+    """
+    try:
+        result = delete_slack_channel(channel_id)
+        return jsonify({"status": "success", "message": f"Channel {channel_id} deleted successfully", "result": result}), 200
+    except Exception as e:
+        logger.error(f"Failed to delete Slack channel {channel_id}: {str(e)}")
         return jsonify({"error": str(e)}), 500

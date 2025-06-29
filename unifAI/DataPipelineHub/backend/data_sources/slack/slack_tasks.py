@@ -1,5 +1,5 @@
 from global_utils.celery_app import CeleryApp
-from providers.slack import embed_slack_channels_flow
+from providers.slack.slack import embed_slack_channels_flow
 from shared.logger import logger
 
 @CeleryApp().app.task(bind=True, max_retries=5, default_retry_delay=60)

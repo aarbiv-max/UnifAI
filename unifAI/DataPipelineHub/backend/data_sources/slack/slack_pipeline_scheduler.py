@@ -46,13 +46,13 @@ class SlackDataPipeline:
             
             # Log channel processing start
             self.logger.info(f"Starting to process Slack channel: {channel_name} (ID: {channel_id})")
-            return True
+            return pipeline_id
         except Exception as e:
             # Log error and update pipeline status
             error_message = f"Error processing Slack channel {channel_name}: {str(e)}"
             self.logger.error(error_message)
             self.monitor.record_error(pipeline_id, error_message)
-            return False
+            return None
 
     def get_pipeline_dashboard_data(self):
         """

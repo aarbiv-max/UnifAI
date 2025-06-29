@@ -167,12 +167,12 @@ class SlackConnector(DataConnector):
         if not response.get('ok'):
             logger.error(f"Failed to get channels: {response.get('error')}")
             return []
-        
         channels = []
         for channel in response.get('channels', []):
             channels.append({
                 'channel_id': channel.get('id'),
-                'channel_name': channel.get('name')
+                'channel_name': channel.get('name'),
+                'is_private': channel.get('is_private', False),
             })
         
         logger.info(f"Retrieved {len(channels)} Slack channels")
