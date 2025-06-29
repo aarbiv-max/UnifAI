@@ -216,7 +216,7 @@ body, html, #root {
 .form-section .end-button,
 .form-bottom-button .end-button,
 .toolbar-buttons .end-button {
-  background-color: red;
+  background-color: red !important;
 }
 
 .end-button:hover,
@@ -226,7 +226,7 @@ body, html, #root {
 .form-section .end-button:hover,
 .form-bottom-button .end-button:hover,
 .toolbar-buttons .end-button:hover {
-  background-color: #bb0000;
+  background-color: #bb0000 !important;
 }
 
 .end-button:disabled,
@@ -236,7 +236,7 @@ body, html, #root {
 .form-section .end-button:disabled,
 .form-bottom-button .end-button:disabled,
 .toolbar-buttons .end-button:disabled {
-  background-color: #9a9595;
+  background-color: #9a9595 !important;
 }
 
 .form-section .tree-button {
@@ -630,15 +630,18 @@ body, html, #root {
 }
 
 .main-content .cs-message-input {
-  height: 10%;
+  height: 15%;
 }
 
 .main-content .cs-message--incoming .cs-message__content,
-.main-content .cs-chat-container .cs-message-input,
+.main-content .cs-chat-container .cs-message-input {
+  background-color: white;
+}
+
 .main-content .ps__thumb-y,
 .main-content .ps__rail-y:hover .ps__thumb-y,
 .main-content .ps__rail-y:active .ps__thumb-y {
-  background-color: white;
+  background-color: rgb(103, 103, 103);
 }
 
 .main-content .cs-message-input__content-editor-wrapper,
@@ -743,4 +746,9 @@ background-color: #e0e0e0d5;
 
 .custom-tooltip-text {
   margin: 0; /* Ensures no extra spacing */
+}
+
+.green-disabled-button.Mui-disabled {
+  color: #2e7d32 !important;        /* MUI 'success.main' */
+  border-color: #2e7d32 !important;
 }

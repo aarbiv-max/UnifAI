@@ -8,9 +8,12 @@ import '../../styles.css';
 import { CustomStepIcon, CustomStepLabel } from '../shared/StepperIcons';
 import { LoadingOverlay } from '../shared/LoadingOverlay';
 import { FormButton } from '../shared/FormButton';
+import { getDatasetList } from '../../http/dpr';
+import { clusterOptions } from '../types/clusters';
 
 
-type GlobalProps = {
+
+type globalProps = {
     api_url: string;
     enable_toleration: boolean;
     multiple_gpu_per_pod: boolean;
@@ -19,13 +22,12 @@ type GlobalProps = {
     deployment_name: string;
     vllm_reviewer_replica: number;
     vllm_orbiter_replica: number;
-    hf_token: string;
     orbiter_replica: number;
     reviewer_replica: number;
     namespace: string;
 };
 
-type PromptLabProps = {
+type promptLabProps = {
     vllm_orbiter_args: {maxLength: number, gpuMemoryUtilization: number};
     PROMPT_LAB_BATCH_SIZE: number;
     QUEUE_TARGET_SIZE: number;
@@ -43,7 +45,7 @@ type PromptLabProps = {
     OUTPUT_DATASET_REPO: string;
 };
 
-type ReviewerProps = {
+type reviewerProps = {
     vllm_reviewer_args: {maxLength: number, gpuMemoryUtilization: number};
     REVIEWER_MODEL_HF_ID: string;
     REVIEWER_MAX_GENERATION_LENGTH: number;
@@ -52,13 +54,15 @@ type ReviewerProps = {
     REVIEWER_SCORE_THRESHOLD: number;
 };
 
-type FileProps = {
-    INPUT_DATASET_REPO: string;
-    INPUT_DATASET_FILE_NAME: string;
+type fileProps = {
+    combinedDataset: string;
+    DATASET_REPO: string;
+    DATASET_FILENAME: string;
 };
 
 const schema = yup.object().shape({
     file: yup.object({
+        combinedDataset: yup.string().required('Dataset selection is required'),
         INPUT_DATASET_REPO: yup.string().required('Dataset Repository is required'),
         INPUT_DATASET_FILE_NAME: yup.string().required('Dataset File Name is required')
     }),
@@ -69,7 +73,6 @@ const schema = yup.object().shape({
             enable_reviewer ? schema.required('Reviewer Model HuggingFace ID is required') : schema.notRequired()
         ),
         vllm_orbiter_replica: yup.number().required('VLLM Orbiter Replica is required').positive().integer().typeError('VLLM Orbiter Replica should be a number'),
-        hf_token: yup.string().required('HuggingFace Token is required'),
         orbiter_replica: yup.number().required('Orbiter Replica is required').positive().integer().typeError('Orbiter Replica should be a number'),
         reviewer_replica: yup.number().when('global.enable_reviewer', (enable_reviewer, schema) => 
             enable_reviewer ? schema.required('Reviewer Model HuggingFace ID is required') : schema.notRequired()
@@ -127,21 +130,23 @@ const schema = yup.object().shape({
     }),
 });
 
-type CreateHelmJsonProps = {
+type CreateDatasetJsonProps = {
     onSubmit: SubmitHandler<any>;
     isLoading: boolean;
 };
 
-const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) => {
+const CreateDatasetJson: React.FC<CreateDatasetJsonProps> = ({ onSubmit, isLoading }) => {
     const [activeStep, setActiveStep] = useState(0);
     const [isFormTabValid, setIsFormTabValid] = useState(false);
     const [isGlobalTabValid, setIsGlobalTabValid] = useState(false);
     const [isPromptLabTabValid, setIsPromptLabTabValid] = useState(false);
     const [isReviewerTabValid, setIsReviewerTabValid] = useState(false);
     const [isReviewerEnabled, setIsReviewerEnabled] = useState(true);
+    const [datasetList, setDatasetList] = useState<{ label: string; value: string }[]>([]);
 
     const defaultValues = {
         file: {
+            combinedDataset: "",
             INPUT_DATASET_REPO: '',
             INPUT_DATASET_FILE_NAME: '',
         },
@@ -150,7 +155,6 @@ const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) 
             deployment_name: 'dpr',
             vllm_reviewer_replica: 1,
             vllm_orbiter_replica: 1,
-            hf_token: '',
             orbiter_replica: 1,
             reviewer_replica: 1,
             namespace: '',
@@ -224,23 +228,22 @@ const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) 
     const requiredPromptLabFields = getRequiredFields(schema.fields.promptLab as yup.ObjectSchema<any>);
     const requiredReviewerFields = getRequiredFields(schema.fields.reviewer as yup.ObjectSchema<any>);
 
-    const watchedFileValues = watch('file') || {} as FileProps;  
-    const watchedGlobalValues = watch('global') || {} as GlobalProps;
-    const watchedOrbitalValues = watch('promptLab') || {} as PromptLabProps;
-    const watchedReviewerValues = watch('reviewer') || {} as ReviewerProps;
+    const watchedFileValues = watch('file') || {} as fileProps;  
+    const watchedGlobalValues = watch('global') || {} as globalProps;
+    const watchedOrbitalValues = watch('promptLab') || {} as promptLabProps;
+    const watchedReviewerValues = watch('reviewer') || {} as reviewerProps;
 
     useEffect(() => {
-        setIsFormTabValid(checkTabValidity(watchedFileValues, requiredFileFields));
+        if (watchedFileValues.combinedDataset) {
+            const { repo, file } = JSON.parse(watchedFileValues.combinedDataset);
+            setValue('file.INPUT_DATASET_REPO', repo);
+            setValue('file.INPUT_DATASET_FILE_NAME', file);
 
-        if (watchedFileValues.INPUT_DATASET_REPO) {
             setValue('promptLab.OUTPUT_DATASET_REPO', watchedFileValues.INPUT_DATASET_REPO);
+            const outputFileName = file.endsWith('.json') ? file.replace('.json', '_output') : `${file}_output`;
+            setValue('promptLab.OUTPUT_DATASET_FILE_NAME', "train-" + outputFileName);
         }
-
-        if (watchedFileValues.INPUT_DATASET_FILE_NAME) {
-            const inputFileName = watchedFileValues.INPUT_DATASET_FILE_NAME;
-            const outputFileName = inputFileName.endsWith('.json') ? inputFileName.replace('.json', '_output') : `${inputFileName}_output`;
-            setValue('promptLab.OUTPUT_DATASET_FILE_NAME', outputFileName);
-        }
+        setIsFormTabValid(checkTabValidity(watchedFileValues, requiredFileFields));
     }, [{...watchedFileValues}]);
 
     useEffect(() => {
@@ -267,10 +270,21 @@ const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) 
       }
     };
 
-    // this will be replaced with calling the db for the parser results
-    const mockRepoOptions = ['oodeh/eco-gotest-testing', 'mcarmi/testing_dpr'];
-    const mockFileOptions = ['eco-gotests_TAG_100_test_100_function.json', 'mysmallfile.json'];
-    const ClusterOptions = ['Preproduction Cluster', 'Production Cluster']
+    useEffect(() => {
+        const fetchDatasetList = async () => {
+            try {
+                const datasets = await getDatasetList();
+                setDatasetList(datasets?.map((item: any) => ({
+                    label: `${item.repo}/${item.file}`,
+                    value: JSON.stringify({ repo: item.repo, file: item.file })}
+                )));
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            }
+        };
+
+        fetchDatasetList();
+    }, []);
 
     return (
         <>
@@ -284,8 +298,7 @@ const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) 
                     </CustomStepLabel>
                     <StepContent>
                         <Box className="form-section">
-                            <FormDropdown name="file.INPUT_DATASET_REPO" label="Choose Dataset Repository" control={control} errors={errors} options={mockRepoOptions}/>
-                            <FormDropdown name="file.INPUT_DATASET_FILE_NAME" label="Choose Dataset File Name" control={control} errors={errors} options={mockFileOptions}/>
+                            <FormDropdown name="file.combinedDataset" label="Choose Dataset" control={control} errors={errors} options={datasetList}/>
                             <div className="form-bottom-button">
                                 <Button type="button" variant="contained" className="end-button" onClick={handleNextClick} disabled={!isFormTabValid}>
                                     Next
@@ -301,7 +314,7 @@ const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) 
                 <StepContent>
                     <form className="form-section">
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-                            <FormDropdown name="global.api_url" label="Cluster Selection" control={control} errors={errors} options={ClusterOptions}/>
+                            <FormDropdown name="global.api_url" label="Cluster Selection" control={control} errors={errors} options={clusterOptions}/>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 0.3fr 0.3fr', gap: '16px' }}>
                             <FormField name="global.deployment_name" label="Deployment Name" control={control} errors={errors} /> 
@@ -309,7 +322,6 @@ const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) 
                             <FormField name="global.vllm_orbiter_replica" label="VLLM Orbiter Replica" control={control} errors={errors}/>
                             <FormField name="global.orbiter_replica" label="Orbiter Replica" control={control} errors={errors} />
                         </div>
-                        <FormField name="global.hf_token" label="HuggingFace Token" control={control} errors={errors} />
                         <div style={{ display: 'grid', gridTemplateColumns: '0.2fr 0.2fr 1fr', gap: '16px' }}>
                             <div style={{ alignSelf: 'center' }}>
                                 <FormCheckbox name="global.enable_toleration" label="Enable Toleration" control={control} errors={errors} />
@@ -405,4 +417,4 @@ const CreateHelmJson: React.FC<CreateHelmJsonProps> = ({ onSubmit, isLoading }) 
     );
 };
 
-export default CreateHelmJson;
+export default CreateDatasetJson;

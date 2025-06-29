@@ -1,6 +1,10 @@
 from bson import ObjectId
 from be_utils.db.db import mongo, Collections
 from shared.enums import FormStatus
+import configparser
+
+config = configparser.ConfigParser()
+config.read("config/backend.cfg")
 
 @mongo
 def insert_new_form(project_name, training_name, git_url, git_credential_key, git_folder_path, git_branch_name,
@@ -64,13 +68,28 @@ def get_field_value(doc_id, field_name):
 @mongo
 def update_form_status(form_id, status: FormStatus):
     """ update form status
-        
-    :return: res status      
+        :return: res status
     """
     forms = Collections.by_name('forms')
-    result = forms.update_one({"_id": ObjectId(form_id)}, {"$set": {"status": status.value}})
+    update_data = {"$set": {"status": status.value}}
+    
+    if status.value == 'done':
+        
+        form = forms.find_one({"_id": ObjectId(form_id)})
+        if form and "projectName" in form:
+            project_name = form["projectName"]
+            hf_space = config.get("hf", "HF_SPACE", fallback=None)
+            repo_id = f"{hf_space}/{project_name}"
+
+            update_data["$set"].update({
+                "hf_repo": f"{repo_id}",
+                "hf_file": f"{project_name}.json"
+            })
+
+    result = forms.update_one({"_id": ObjectId(form_id)}, update_data)
+        
     return {
         "success": result.modified_count > 0,
-        "message": "Form status updated successfully." if result.modified_count > 0 
-                   else "No form found with the given id or status unchanged."
+        "message": "Form status updated successfully." if result.modified_count > 0
+                    else "No form found with the given id or status unchanged."
     }

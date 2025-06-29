@@ -11,14 +11,14 @@ rag_bp = Blueprint("rag", __name__)
 def sanity_check():
     return 'There is access to API RAG Backend\n'
 
-@rag_bp.route("/registerNewProject", methods=["GET"])
-@from_body({"parsed_elements_location":      fields.Str(missing='', data_key="parsedElementsLocation"),
-             "project_name":                  fields.Str(missing='', data_key="projectName"),
-             "project_repo_path":             fields.Str(missing='', data_key="projectRepoPath"),
-             "naming_mapping":                fields.Dict(missing={}, data_key="namingMapping"),
-             "built_in_keys":                 fields.List(fields.Str(), missing=[], data_key="builtInKeys"),
-             "exclude_types":                 fields.List(fields.Str(), missing=[], data_key="excludeTypes"),
-             "project_programming_languages": fields.List(fields.Str(), missing=[], data_key="projectProgrammingLanguages"),
+@rag_bp.route("/registerNewProject", methods=["POST"])
+@from_body({"parsed_elements_location":      fields.Str(load_default='', data_key="parsedElementsLocation"),
+             "project_name":                  fields.Str(load_default='', data_key="projectName"),
+             "project_repo_path":             fields.Str(load_default='', data_key="projectRepoPath"),
+             "naming_mapping":                fields.Dict(load_default={}, data_key="namingMapping"),
+             "built_in_keys":                 fields.List(fields.Str(), load_default=[], data_key="builtInKeys"),
+             "exclude_types":                 fields.List(fields.Str(), load_default=[], data_key="excludeTypes"),
+             "project_programming_languages": fields.List(fields.Str(), load_default=[], data_key="projectProgrammingLanguages"),
 })
 def register_new_project(parsed_elements_location, project_name, project_repo_path, naming_mapping, built_in_keys, exclude_types, project_programming_languages):
     """map new project parsed elements with relevant metdata, add all of the expanded elements to new DB collection
@@ -36,10 +36,10 @@ def register_new_project(parsed_elements_location, project_name, project_repo_pa
     return json_response({"result": "metadata added successfully for each of the parsed elements\n"})
 
 @rag_bp.route("/queryRetrieval", methods=["GET"])
-@from_query({"text":                          fields.Str(missing='', data_key="text"),
-            "project_name":                   fields.Str(missing='', data_key="projectName"),
-            "model_name":                     fields.Str(missing='', data_key="modelName"),
-            "model_id":                       fields.Str(missing='', data_key="modelId"),
+@from_query({"text":                          fields.Str(load_default='', data_key="text"),
+            "project_name":                   fields.Str(load_default='', data_key="projectName"),
+            "model_name":                     fields.Str(load_default='', data_key="modelName"),
+            "model_id":                       fields.Str(load_default='', data_key="modelId"),
 })
 def query_retrieval(text, project_name, model_name, model_id):
     """retrieving best matched elements baed on the user query for specific project
@@ -55,9 +55,9 @@ def query_retrieval(text, project_name, model_name, model_id):
     return json_response({"result": best_match})
 
 @rag_bp.route("/buzzWordsAppearanceCounter", methods=["GET"])
-@from_query({"project_name":                   fields.Str(missing='', data_key="projectName"),
-             "model_name":                     fields.Str(missing='', data_key="modelName"),
-             "model_id":                       fields.Str(missing='', data_key="modelId"),
+@from_query({"project_name":                   fields.Str(load_default='', data_key="projectName"),
+             "model_name":                     fields.Str(load_default='', data_key="modelName"),
+             "model_id":                       fields.Str(load_default='', data_key="modelId"),
 })
 def buzz_words_appearance_counter(project_name, model_name, model_id):
     """checking for each of the buzz words in certain project - total number of appearances 
@@ -71,11 +71,11 @@ def buzz_words_appearance_counter(project_name, model_name, model_id):
     return json_response({"result": buzz_words_appearance})
 
 @rag_bp.route("/queryRetrievalByPackagesNames", methods=["POST"])
-@from_body({"packages_list":                 fields.List(fields.Str(), missing=[], data_key="packagesList"),
-            "project_name":                  fields.Str(missing='',   data_key="projectName"),
-            "model_id":                      fields.Str(missing='',   data_key="modelId"),
-            "tokenizer_path":                fields.Str(missing='',   data_key="tokenizerPath"),
-            "context_length":                fields.Int(missing=8192, data_key="contextLength"),
+@from_body({"packages_list":                 fields.List(fields.Str(), load_default=[], data_key="packagesList"),
+            "project_name":                  fields.Str(load_default='',   data_key="projectName"),
+            "model_id":                      fields.Str(load_default='',   data_key="modelId"),
+            "tokenizer_path":                fields.Str(load_default='',   data_key="tokenizerPath"),
+            "context_length":                fields.Int(load_default=8192, data_key="contextLength"),
 })
 def context_enrichment_by_packages_selection(packages_list, project_name, model_id, tokenizer_path, context_length):
     """retrieving best matched elements based on packages list attached to user selection for specific project
@@ -91,8 +91,8 @@ def context_enrichment_by_packages_selection(packages_list, project_name, model_
     return json_response({"result": best_match})
 
 @rag_bp.route("/packagesNamesList", methods=["POST"])
-@from_body({"project_name":                  fields.Str(missing='', data_key="projectName"),
-            "model_id":                      fields.Str(missing='', data_key="modelId"),
+@from_body({"project_name":                  fields.Str(load_default='', data_key="projectName"),
+            "model_id":                      fields.Str(load_default='', data_key="modelId"),
 })
 def get_avaliable_package_names_list(project_name, model_id):
     """get the entire avaliable package list for specific project
@@ -105,10 +105,10 @@ def get_avaliable_package_names_list(project_name, model_id):
     return json_response({"result": best_match})
 
 @rag_bp.route("/registerProjectGraph", methods=["GET"])
-@from_body({"repo_location":      fields.Str(missing='', data_key="repoLocation"),
-            "project_name":       fields.Str(missing='', data_key="projectName"),
-            "project_repo_path":  fields.Str(missing='', data_key="projectRepoPath"),            
-            "repo_languages":     fields.List(fields.Str(), missing=["go", "python"], data_key="repoLanguages"),
+@from_body({"repo_location":      fields.Str(load_default='', data_key="repoLocation"),
+            "project_name":       fields.Str(load_default='', data_key="projectName"),
+            "project_repo_path":  fields.Str(load_default='', data_key="projectRepoPath"),            
+            "repo_languages":     fields.List(fields.Str(), load_default=["go", "python"], data_key="repoLanguages"),
 })
 def register_project_graph(repo_location, project_name, project_repo_path, repo_languages):
     """map new project parsed elements with relevant metdata, add all of the expanded elements to new DB collection
@@ -123,8 +123,8 @@ def register_project_graph(repo_location, project_name, project_repo_path, repo_
     return json_response({"result": "graph represention for each code element in the project added successfully\n"})
 
 @rag_bp.route("/metadataRetrieval", methods=["POST"])
-@from_body({"project_name":       fields.Str(missing='', data_key="projectName"),
-            "relevant_metadata":  fields.List(fields.Tuple((fields.Str(), fields.Str())), missing=[], data_key="relevantMetadata")})
+@from_body({"project_name":       fields.Str(load_default='', data_key="projectName"),
+            "relevant_metadata":  fields.List(fields.Tuple((fields.Str(), fields.Str())), load_default=[], data_key="relevantMetadata")})
 def meta_data_retrieval(project_name, relevant_metadata):
     """retrieving best matched graph elements baed on the provided metadata
 

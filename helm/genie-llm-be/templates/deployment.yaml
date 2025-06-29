@@ -38,10 +38,10 @@ spec:
           args: ["infinity"]
           {{- end }}
           env:
-          {{- range $key, $value := .Values.env }}
-          - name: "{{ $key }}"
-            value: "{{ $value }}"
-          {{- end }}
+            {{- range $key, $value := .Values.env }}
+            - name: "{{ $key }}"
+              value: "{{ $value }}"
+            {{- end }}
 
           ports:
             - name: http

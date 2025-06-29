@@ -18,9 +18,7 @@ releases:
   - name: genie-be
     chart: ./genie-be
     wait: true
-      #set:
-      #- name: env.MONGO_EXT_ADDR
-      #  value: '{{ exec "sh" (list "-c" "kubectl get svc mongodb -o jsonpath={.status.loadBalancer.ingress[0].hostname} || echo mongodb") }}'
+ 
     hooks:
       - events: ["presync"]
         showlogs: true
@@ -33,6 +31,15 @@ releases:
               kubectl create configmap mongodb-lb-config --from-literal=MONGO_EXT_ADDR="$LB_ADDR" --dry-run=client -o yaml | kubectl apply -f -
     values:
       - "genie-be.values.yaml"
+      - env:
+          HF_TOKEN: {{ env "HF_TOKEN" | quote }}
+          rmq_username: {{ env "rmq_username" | quote }}
+          rmq_password: {{ env "rmq_password" | quote }}
+          preprod_cluster: {{ env "preprod_cluster" | quote }}
+          preprod_access_token: {{ env "preprod_access_token" | quote }}
+          prod_cluster: {{ env "prod_cluster" | quote }}
+          prod_access_token: {{ env "prod_access_token" | quote }}
+
 
 
   - name: genie-llm-be
@@ -40,3 +47,8 @@ releases:
     wait: true
     values:
       - "genie-llm-be.values.yaml"
+      - env:
+          HF_TOKEN: {{ env "HF_TOKEN" | quote }}
+          HF_HOME: {{ env "HF_HOME" | default "/tmp" | quote }}
+          VLLM_CONFIG_ROOT: {{ env "VLLM_CONFIG_ROOT" | default "/tmp/usage" | quote }}
+          BACKEND_ENV: "production"

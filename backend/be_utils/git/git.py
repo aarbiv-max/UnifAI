@@ -61,7 +61,7 @@ class AbstractAPI(ABC):
                     "✅ Expected format: 'https://<git-provider>/<owner>/<repository>.git'\n"
                     "🔹 Example: 'https://github.com/user/repo.git'")
             try:
-                response = requests.head(repo_url, allow_redirects=True, timeout=5, verify=False)
+                response = requests.head(repo_url, headers=self._get_headers(), allow_redirects=True, timeout=5, verify=False)
                 if response.status_code not in [200, 301, 302]:
                     raise ValueError(f"Repository URL is not accessible: {repo_url}")
             except requests.RequestException:

@@ -1,10 +1,17 @@
+import ctypes
 import re
 import os
 import uuid
 from .tree_sitter_parser import TreeSitterParser
 
-PYTHON_LANGUAGE_PATH = '/home/cloud-user/Projects/playGround/tree-sitter-playground/tree-sitter-python/libtree-sitter-python.so'
+# PYTHON_LANGUAGE_PATH = '/home/cloud-user/Projects/playGround/tree-sitter-playground/tree-sitter-python/libtree-sitter-python.so'
 PYTHON_FILE_PATH = '/home/cloud-user/Projects/example/test/test_sample.py'
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+data_pre_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+so_files_dir = os.path.join(data_pre_dir, "so_files")
+PYTHON_LANGUAGE_PATH = os.path.join(so_files_dir, "python.so")
+python_lib = ctypes.CDLL(PYTHON_LANGUAGE_PATH)
 
 class PythonParser(TreeSitterParser):
     """
@@ -16,7 +23,7 @@ class PythonParser(TreeSitterParser):
     """
 
     def __init__(self, language_path=PYTHON_LANGUAGE_PATH, language_name='python', 
-                 file_path=PYTHON_FILE_PATH, realtive_path=PYTHON_FILE_PATH, project_name=""):
+                 file_path=PYTHON_FILE_PATH, realtive_path=PYTHON_FILE_PATH, project_name="", file_git_path=""):
         """
         Initialize the Python parser with the given parameters.
         
@@ -27,7 +34,7 @@ class PythonParser(TreeSitterParser):
             realtive_path (str): Relative path from the project root
             project_name (str): Name of the project
         """
-        super().__init__(language_path, language_name, file_path, realtive_path, project_name)
+        super().__init__(language_path, language_name, file_path, realtive_path, project_name, file_git_path)
 
     def get_module_node(self, root_node):
         """
@@ -212,7 +219,7 @@ class PythonParser(TreeSitterParser):
                 "imports": used_imports if used_imports else "",  # Mapped resource imports
                 "classes": ", ".join(all_classes) if all_classes else "",
                 "functions": ", ".join(all_functions) if all_functions else "",
-                "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                "file_location": self.file_git_path,
                 "code": content,
                 "global_vars": global_vars if global_vars else "",
                 "tags": ""
@@ -221,3 +228,73 @@ class PythonParser(TreeSitterParser):
         root_node, content = self.get_root_node()
         file_type = "test" if self.is_test_file(content) else "file"
         return extract_entire_code(root_node, content, file_type)
+    
+    def internal_elements_parsing(self):
+        root_node, content = self.get_root_node()
+        elements = []
+
+        def extract_element_data(node, element_type):
+            name_node = node.child_by_field_name("name")
+            if name_node is None:
+                return None
+            name = name_node.text.decode("utf-8")
+            code = node.text.decode("utf-8")
+
+            return {
+                "element_type": element_type,
+                "project_name": self.project_name,
+                "uuid": str(uuid.uuid4()),
+                "name": name,
+                "code": code,
+                "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                "tags": ""
+            }
+
+        for child in root_node.children:
+            # Top-level function
+            if child.type == "function_definition":
+                function = extract_element_data(child, element_type="function")
+                if function:
+                    elements.append(function)
+
+            # Class definition
+            elif child.type == "class_definition":
+                # First add the class itself
+                class_info = extract_element_data(child, element_type="class")
+                if class_info:
+                    elements.append(class_info)
+
+                # Now extract methods from inside the class body
+                class_body = child.child_by_field_name("body")
+                if class_body:
+                    for class_body_child in class_body.children:
+                        if class_body_child.type == "function_definition":
+                            method = extract_element_data(class_body_child, element_type="method")
+                            if method:
+                                elements.append(method)
+
+        return elements
+    
+    def methods_parsing(self):
+        root_node, content = self.get_root_node()
+        functions = []
+
+        # Find all function declarations
+        for child in root_node.children:
+            if child.type == "method_declaration":
+                method_name = child.child_by_field_name("name").text.decode("utf-8")
+                method_code = child.text.decode("utf-8")
+
+                function = {
+                    "element_type": "method",
+                    "project_name": self.project_name,
+                    "uuid": str(uuid.uuid4()),
+                    "code": method_code,
+                    "name": method_name,
+                    "file_location": f"github.com/{self.project_name}/{self.realtive_path}",
+                    "code": content,
+                    "tags": ""
+                }
+                functions.append(function)
+        
+        return functions   

@@ -28,6 +28,9 @@ export interface ModelDataResponse {
     model_type: 'llama' | 'qwen' | null;
 }
 
+export interface SupportedFrameworks {
+    [key: string]: string; 
+}
 export interface Adapters {
     name: string;
     project: string;
@@ -37,6 +40,8 @@ export interface Adapters {
     local_adapter_path: string;
     adapter_uid: string;
     repo_internal_location?: string; 
+    gitReposLink?: string[];
+    supported_frameworks?: SupportedFrameworks;
 }
 
 export interface ModelData {
@@ -47,6 +52,7 @@ export interface ModelData {
     trainingName: string;
     modelMaxSeqLen: number;
     modelType: 'llama' | 'qwen' | null;
+    gitReposLink?: string[];
     project: string;
     checkpoint?: string,
     finetuneSteps?: any[], 
@@ -57,6 +63,20 @@ export interface ModelData {
     };
     isRagEnabled?: boolean;
     isPackageSelectionRagEnabled?: boolean;
+    supported_frameworks?: SupportedFrameworks;
     // numTests: string,
     // dataSize: string,
 }
+
+export type ModelEntry = {
+    id: string;
+    name: string;
+    huggingfaceUrl: string;
+    repoPath: string;
+    finetuneSteps: any;
+    modelFileList: string[];
+    config: object;
+    registered?: boolean;
+  };
+
+  export type DatasetColumnKey = 'Dataset Name' | 'Start Time' | 'Progress' | 'Statistics' | 'Config' | 'Cancel' | 'Remove';

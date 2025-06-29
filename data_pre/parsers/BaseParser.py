@@ -3,7 +3,7 @@ import json
 import abc
 
 class BaseParser(abc.ABC):
-    def __init__(self, repo_local_path, file_paths, project_name, organization_name):
+    def __init__(self, repo_local_path, file_paths, project_name, organization_name, repo_url, git_branch_name):
         """
         Base class for all parsers.
 
@@ -18,6 +18,8 @@ class BaseParser(abc.ABC):
         self.organization_name = organization_name
         self.parsed_files = []
         self.counter = 0
+        self.repo_url = repo_url
+        self.git_branch_name = git_branch_name
         self.full_project_name = f"{self.organization_name}/{self.project_name}" if self.organization_name else self.project_name
 
 

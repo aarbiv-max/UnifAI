@@ -50,23 +50,23 @@ export const getStats = async (datasetId: string): Promise<any> => {
 //   }
 // };
 
-export const getConfigFile = async (datasetId: string): Promise<any> => {
+
+export const displayedDprDeployments = async (): Promise<any> => {
   try {
-    const response = await apiClient.get<{ response: any }>("/api/dpr/getConfigFile", { params: { id: datasetId } });
-    return response.data || [];
+    const response = await apiClient.get<{ response: any }>("/api/dpr/displayDeployments");
+    return response.data || {};
   } catch (error) {
-    console.error("Error fetching configuration file:", error);
+    console.error("Error fetching displayed deployments:", error);
     return [];
   }
 };
 
-export const displayedDeployments = async (): Promise<any> => {
+export const getDatasetList = async (): Promise<any> => {
   try {
-    const response = await apiClient.get<{ response: any }>("/api/dpr/displayDeployments");
-    console.log(response)
-    return response.data || {};
+    const response = await apiClient.get<{ response: any }>("/api/dpr/getDatasetList");
+    return response.data || [];
   } catch (error) {
-    console.error("Error fetching displayed deployments:", error);
+    console.error("Error fetching Dataset list:", error);
     return [];
   }
 };

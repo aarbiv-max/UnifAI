@@ -58,10 +58,11 @@ spec:
         - name: TRANSFORMERS_CACHE
           value: "/tmp"
         - name: HF_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: "{{.Values.global.hf_token}}"
-              key: token
+          value: "{{.Values.global.hf_token}}"
+          # valueFrom:
+          #   secretKeyRef:
+          #     name: "{{.Values.global.hf_token}}"
+          #     key: token
         {{- range $key, $value := .Values.global.reviewer_env }}
         - name: "{{ $key }}"
           value: "{{ $value }}"

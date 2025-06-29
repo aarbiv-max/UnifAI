@@ -1,18 +1,9 @@
-from flask import Blueprint, jsonify, make_response,request
+from flask import Blueprint, jsonify
 from webargs import fields
-from providers.dpr import create_json_format, delete_deployment, get_not_deleted_deployments, get_json_file_config, get_promptlab_stats, helm_status, helm_uninstall, helm_install, helm_upgrade#, helm_route #helm_metrics
+from providers.dpr import create_json_format, delete_dpr_deployment, get_dataset_list, get_not_deleted_deployments, get_promptlab_stats, dpr_helm_uninstall, dpr_helm_install
 from helpers.apiargs import from_query, from_body
 
 dpr_bp = Blueprint("dpr", __name__)
-
-@dpr_bp.route("/status", methods=["GET"])
-@from_query({
-    "id":        fields.Str(required=True, data_key="id")
-})
-def status(id):
-    status = helm_status(id)
-    return status
-
 
 @dpr_bp.route("/uninstall", methods=["POST"])
 @from_body({
@@ -20,7 +11,7 @@ def status(id):
     "status":    fields.Str(required=True, data_key="status")
 })
 def uninstall(id, status):
-    uninstall = helm_uninstall(id, status)
+    uninstall = dpr_helm_uninstall(id, status)
     return uninstall
 
 
@@ -75,23 +66,23 @@ def deploy(data, mode):
     #         }, 
     #     }
     # }
-    install = helm_install(helm_json) 
+    install = dpr_helm_install(helm_json) 
     return (jsonify(install), 200) if install.get("status") == "success" else install
 
-@dpr_bp.route("/upgrade", methods=["POST"])
-def upgrade():
-    # user_data={
-    #     "_id" : "67a3cb8d76fcd974685cc60e",
-    #     "global": {
-    #         "vllm_reviewer_replica": 2, 
-    #         "orbiter_replica": 2, 
-    #         "reviewer_replica": 2, 
-    #         "vllm_orbiter_replica": 2, 
-    #     }
-    # }
-    user_data = request.get_json()
-    upgrade = helm_upgrade(user_data)
-    return upgrade
+# @dpr_bp.route("/upgrade", methods=["POST"])
+# def upgrade():
+#     # user_data={
+#     #     "_id" : "67a3cb8d76fcd974685cc60e",
+#     #     "global": {
+#     #         "vllm_reviewer_replica": 2, 
+#     #         "orbiter_replica": 2, 
+#     #         "reviewer_replica": 2, 
+#     #         "vllm_orbiter_replica": 2, 
+#     #     }
+#     # }
+#     user_data = request.get_json()
+#     upgrade = helm_upgrade(user_data)
+#     return upgrade
 
 # @dpr_bp.route("/route", methods=["GET"])
 # @from_query({
@@ -106,7 +97,7 @@ def upgrade():
     "id":        fields.Str(required=True, data_key="id")
 })
 def delete(id):
-    result = delete_deployment(id)
+    result = delete_dpr_deployment(id)
     return {"data": result}
 
 @dpr_bp.route("/getStats", methods=["GET"])
@@ -134,13 +125,11 @@ def get_displayed_instances():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@dpr_bp.route("/getConfigFile", methods=["GET"])
-@from_query({
-    "id":        fields.Str(required=True, data_key="id")
-})
-def get_config(id):
+
+@dpr_bp.route("/getDatasetList", methods=["GET"])
+def get_dataset():
     try:
-        result = get_json_file_config(id)
+        result = get_dataset_list()
         return result
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

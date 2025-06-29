@@ -19,6 +19,9 @@ global:
   # support multiple GPUs per Pod.
   multiple_gpu_per_pod: 
 
+  # (str) token for huggingface
+  hf_token:
+
   # Number of GPU per vllm Pod.
   number_of_gpu: 
 

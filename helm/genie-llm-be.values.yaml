@@ -1,6 +1,6 @@
 debug: false
 env:
-  HF_TOKEN: "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"
+  HF_TOKEN: "hf_your_own_token"
   VLLM_CONFIG_ROOT: '/tmp/usage'
   HF_HOME: '/tmp/'
   BACKEND_ENV: "production"

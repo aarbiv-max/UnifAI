@@ -19,12 +19,14 @@ interface FormFieldProps {
   tooltip?: string;
 }
 
+type Option = string | { label: string; value: string };
+
 interface FormDropdownProps {
   name: string;
   label: string;
   control: any;
   errors: any;
-  options: string[];
+  options: Option[];
   onSelect?: (value: string) => void; // Optional onSelect prop
   disabled?: boolean;
 }
@@ -131,11 +133,15 @@ export const FormDropdown: React.FC<FormDropdownProps> = ({ name, label, control
             }
           }}
         >
-          {options?.map((option) => (
-            <MenuItem key={option} value={option}>
-              {option}
-            </MenuItem>
-          ))}
+          {options?.map((option) => {
+            const label = typeof option === "string" ? option : option.label;
+            const value = typeof option === "string" ? option : option.value;
+            return (
+              <MenuItem key={value} value={value}>
+                {label}
+              </MenuItem>
+            );
+          })}
         </TextField>
       )}
     />

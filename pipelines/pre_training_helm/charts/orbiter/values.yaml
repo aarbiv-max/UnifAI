@@ -5,6 +5,7 @@ global:
   orbiter_replica:
   promptlab_env: 
   enable_reviewer:
+  hf_token: 
 
 args:
 - orbiter

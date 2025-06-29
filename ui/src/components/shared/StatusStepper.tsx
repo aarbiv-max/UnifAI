@@ -1,22 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { styled } from '@mui/material/styles';
 import { Stepper, Step, StepLabel, StepConnector, stepConnectorClasses, StepIconProps, Typography, CircularProgress } from '@mui/material';
-import { CloudDownload, Code, UploadFile, CheckCircle } from '@mui/icons-material';
 import axios from '../../http/axiosConfig';
-
-const STATUS_VALUES = {
-  CLONING: 'cloning',
-  PARSING: 'parsing',
-  UPLOADING: 'uploading to Hugging Face',
-  DONE: 'done',
-};
-
-const statuses = [
-  { label: 'CLONING GIT FILES', value: STATUS_VALUES.CLONING, icon: <CloudDownload /> },
-  { label: 'PARSING SELECTED FILES', value: STATUS_VALUES.PARSING, icon: <Code /> },
-  { label: 'EXPORT TO HUGGING FACE', value: STATUS_VALUES.UPLOADING, icon: <UploadFile /> },
-  { label: 'DONE', value: STATUS_VALUES.DONE, icon: <CheckCircle /> },
-];
 
 const CustomConnector = styled(StepConnector, {
   shouldForwardProp: (prop) => prop !== 'isLastStepCompleted',
@@ -75,15 +60,16 @@ const CustomStepIconRoot = styled('div')<{
     : {})
 }));
 
-const CustomStepIcon = (props: StepIconProps) => {
+const getCustomStepIcon = (statuses: any[], statusValues: any) => (props: StepIconProps) => {
   const { active, completed, className } = props;
   const step = statuses[Number(props.icon) - 1];
-  const isLastStep = step?.value === STATUS_VALUES.DONE;
+  const isLastStep = step?.value === statusValues.DONE;
+
   return (
     <CustomStepIconRoot ownerState={{ completed, active, isLastStep }} className={className} style={{ position: 'relative' }}>
-      {active && !completed && step?.value !== STATUS_VALUES.DONE && (
+      {active && !completed && step?.value !== statusValues.DONE && (
         <CircularProgress
-          size={58} 
+          size={58}
           sx={{
             position: 'absolute',
             top: '-4px',
@@ -107,7 +93,7 @@ const StepTextContainer = styled('span')(({ theme }) => ({
   boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)', 
 }));
 
-export default function StatusStepper({ formId }: any) {
+export default function StatusStepper({ id, apiFetch, statuses, statusValues }: any) {
   const [currentStatus, setCurrentStatus] = useState('');
 
   useEffect(() => {
@@ -115,12 +101,12 @@ export default function StatusStepper({ formId }: any) {
   
     const fetchStatus = async () => {
       try {
-        const response = await axios.get('/api/forms/status', { params: { formId } });
+        const response = await axios.get(apiFetch, { params: { formId: id } });
         const formStatus = response.data.status;
         if (formStatus) {
           setCurrentStatus(formStatus);
           // Clear the interval if status is done
-          if (formStatus === STATUS_VALUES.DONE && intervalId) {
+          if (formStatus === statusValues.DONE && intervalId) {
             clearInterval(intervalId);
           }
         }
@@ -135,14 +121,16 @@ export default function StatusStepper({ formId }: any) {
     intervalId = setInterval(fetchStatus, 2000);
     // Clean up the interval on unmount
     return () => clearInterval(intervalId);
-  }, [formId]);
+  }, [id]);
 
-  const currentIndex = statuses.findIndex(status => status.value === currentStatus);
-  const isLastStepCompleted = currentStatus === STATUS_VALUES.DONE;
+  const currentIndex = statuses.findIndex((status: { value: string; }) => status.value === currentStatus);
+  const isLastStepCompleted = currentStatus === statusValues.DONE;
+  const CustomStepIcon = getCustomStepIcon(statuses, statusValues);
+
 
   return (
     <Stepper activeStep={currentIndex} alternativeLabel connector={<CustomConnector isLastStepCompleted={isLastStepCompleted} />}>
-      {statuses.map((status) => (
+      {statuses.map((status: any) => (
         <Step key={status.value}>
           <StepLabel StepIconComponent={CustomStepIcon}>
             <StepTextContainer>{status.label}</StepTextContainer>

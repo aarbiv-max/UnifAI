@@ -3,10 +3,10 @@ image:
    repository: images.paas.redhat.com/genie/prompt_lab
    tag: 2025.01.13
    pullPolicy: Always
-hf_token: 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
+hf_token: hf_xxxxx
 command: prompt_processor
 HF_HOME: "/tmp/"
-HF_TOKEN: "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"
+HF_TOKEN: "hf_xxxxx"
 
 RABBITMQ_IP: "rabbitmq"
 RABBITMQ_PORT: 5672 

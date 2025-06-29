@@ -20,11 +20,10 @@ RUN git clone --depth 1 https://github.com/hiyouga/LLaMA-Factory.git
 RUN mkdir /.cache
 RUN chmod -R 777 /.cache
 WORKDIR /app
-#COPY api-server.py /app
-ADD ./scripts/entrypoint.py .
-ADD ./scripts/api-server.py .
+ADD ./scripts/helpers ./helpers
 ADD ./scripts/templates ./templates
-#RUN chmod 777 ./entrypoint.py
+ADD ./scripts/training.py .
+ADD ./scripts/entrypoint.py .
 RUN chmod -R 777 *
 WORKDIR /app/LLaMA-Factory
 
@@ -37,10 +36,13 @@ RUN pip install --upgrade pip
 RUN pip install torch torchvision torchaudio
 RUN pip install -e ".[torch,metrics]"
 RUN pip install wheel nvitop liger-kernel hf_transfer bitsandbytes huggingface_hub gunicorn Jinja2
-RUN pip install flash-attn --no-build-isolation
+#https://github.com/pypa/pip/issues/6334
+
+RUN dnf install -y ninja-build
+ENV CMAKE_GENERATOR=Ninja
+RUN pip install flash-attn --use-pep517 --no-build-isolation    
 
 EXPOSE 7860
 EXPOSE 8080
 # Set entrypoint
-ENTRYPOINT ["gunicorn --daemon -w 4 -b 0.0.0.0:8080 api-server:app --chdir /app && python /app/entrypoint.py"]
-#ENTRYPOINT ["bash"]
+ENTRYPOINT ["/bin/sh"]

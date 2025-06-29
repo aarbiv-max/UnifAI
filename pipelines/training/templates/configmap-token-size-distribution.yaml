@@ -1,12 +1,13 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: trainer-configmap--dataset-token-size-distribution
+  name: genie-training-dataset-token-size-distribution
   namespace: {{ .Values.Global.namespace }}
 data:
     dataset-token-size-distribution.py: |
         #!/venv/bin/python
         # import matplotlib.pyplot as plt
+        import os
         from collections import defaultdict
         from transformers import AutoTokenizer
         from datasets import load_dataset
@@ -20,6 +21,7 @@ data:
         def analyze_context_lengths(
                 repo_name,
                 file_name,
+                token,
                 dataset_split="train",
                 input_key="question",
                 output_key="answer",
@@ -34,7 +36,7 @@ data:
                 bins = [64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
 
             print(f"Loading dataset '{repo_name}' file {file_name} split '{dataset_split}'...")
-            dataset = load_dataset(repo_name, data_files=file_name, split=dataset_split)
+            dataset = load_dataset(repo_name, data_files=file_name, split=dataset_split, token=token)
 
             total_elements = len(dataset)
             token_counts = []
@@ -116,9 +118,10 @@ data:
             return results
 
         # Example usage:
+        hf_token = os.environ["token"]
         bins = [64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
-        repo_name = {{ .Values.Global.dataset_repo | quote }}
-        file_name = {{ .Values.Global.dataset_file_name | quote }}
+        repo_name = {{ .Values.ConfigMap.data.DATASET_REPO | quote }}
+        file_name = {{ .Values.ConfigMap.data.DATASET_FILE_NAME | quote }}
         tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-Coder-14B-Instruct")
 
         dataset_split = "train"
@@ -129,6 +132,7 @@ data:
         analysis_results = analyze_context_lengths(
             repo_name=repo_name,
             file_name=file_name,
+            token=hf_token,
             dataset_split=dataset_split,
             input_key=input_key,
             output_key=output_key,

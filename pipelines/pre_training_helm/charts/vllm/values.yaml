@@ -1,7 +1,8 @@
 global:
 
   namespace: 
-  enable_toleration: 
+  enable_toleration:
+  hf_token:
   multiple_gpu_per_pod:
   number_of_gpu: 
   enable_reviewer:
@@ -21,11 +22,11 @@ image:
 
 resources:
   requests:
-    memory:  "28Gi"   
+    memory:  "24Gi"   
     cpu: "4"
     gpu:     
   limits:
-    memory: "28Gi"   
+    memory: "24Gi"   
     cpu: "8"
     gpu:   
 

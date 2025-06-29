@@ -16,7 +16,7 @@ properties([
         booleanParam(name: 'rabbitmq', defaultValue: false, description: 'Create image for RabbitMQ'),
         booleanParam(name: 'deploy_genie', defaultValue: false, description: 'True - Deploy Genie, False - Only build images and upload to image-paas'),
         choice(name: 'deployment_location', choices: ['STAGING', 'PRODUCTION'], description: 'Where to deploy Genie?'),
-        choice(name: 'deployment_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Type of deployment: FreshInstallation (delete everything and reinstall)? Or only upgrade the APPLICATION entities?'),
+        choice(name: 'deployment_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Type of deployment: FreshInstallation (use FRESH_INSTALLFRESH_INSTALL todelete everything and reinstall)? Or use APPLICATION_UPGRADE to only upgrade the APPLICATION entities?'),
         string(name: "namespace", defaultValue: "tag-ai--runtime-int", description: "The namespace to use for deployment.")
     ]) 
 ])
@@ -24,9 +24,13 @@ properties([
 Map buildParams = [
     LogLevel           : "ALL",
     MainRepoURL        : "gitlab.cee.redhat.com", //"github.com",
-    MainRepoProject    : "nrashti/genie-ai", //"Nirsisr/Genie-AI",
+    MainRepoProject    : "ai_tools/genie-ai", //"Nirsisr/Genie-AI",
     MainRepoBranch     : "main",
-    CredentialsId      : "tag-gitlab-creds", //"tag-github-creds",
+    CredentialsId      : "gitlab-genie", //"tag-github-creds",
+
+    CredMainRepoProject: "ai_tools/genie-cred-data", //the private data repo (site data/credentials)
+    CredMainRepoBranch : "main",
+    CredCredentialsId  : "gitlab-genie", //"git-creds-data3", //"tag-gitlab-creds-private", 
     NodeToRun          : "tag-slave",
     DevRoot            : "/root/workspace/${env.JOB_NAME}", //${env.JOB_NAME}/${env.BUILD_ID}",
     ImageRegistry      : "images.paas.redhat.com",
@@ -190,7 +194,7 @@ pipeline {
                     extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
                     submoduleCfg: [],
                     userRemoteConfigs: [[
-                        //credentialsId: "${buildParams.CredentialsId}",
+                        credentialsId: "${buildParams.CredentialsId}",
                         url: "https://${buildParams.MainRepoURL}/${buildParams.MainRepoProject}.git"
                     ]]
                 ])
@@ -400,32 +404,53 @@ pipeline {
             }
             steps {
                 dir("${buildParams.DevRoot}/${params.BRANCH}/helm/") {
+                    echo("CheckOut the credential data https://${buildParams.MainRepoURL}/${buildParams.CredMainRepoProject}")
+                    checkout([$class: 'GitSCM',
+                        branches: [[name: "${buildParams.CredMainRepoBranch}"]],
+                        doGenerateSubmoduleConfigurations: false,
+                        //extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
+                        extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}/helm/genie-cred-data/"]],
+                        submoduleCfg: [],
+                        userRemoteConfigs: [[
+                            credentialsId: "${buildParams.CredCredentialsId}",
+                            url: "https://${buildParams.MainRepoURL}/${buildParams.CredMainRepoProject}.git"
+                        ]]
+                    ])
                     script {
                       module = "helmfile"
                       cleanWorkspace(module) 
-                      withCredentials([string(credentialsId: 'RHOI-service-token', variable: 'token')]){
-
+                      withCredentials([
+                        string(credentialsId: 'RHOI-service-token', variable: 'token'),
+                        string(credentialsId: 'HF_TOKEN', variable: 'HF_TOKEN')
+                      ]){
                         echo("Creating helm deployment pod")
                         sh("oc login --token=${token} --server=${ClusterAddress}")
                         sh("oc project ${params.namespace}")
                         echo("Deploy Helm container")
-                        sh("podman run -dt --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
+                        sh("podman run -dt --env-file=./genie-cred-data/.env --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
 
                         if(params.deployment_type == 'FRESH_INSTALL') {
                             echo("Removing previous helms")
-                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.yaml --deleteWait'")
-                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile1.yaml --deleteWait'")
+                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.gotmpl --deleteWait'")
+                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile1.gotmpl --deleteWait'")
                             echo("Wait for the key resourc is deleted")
                             sh("until ! oc get deployment,statefulset,svc | grep 'genie\\|mongo\\|rabbitmq'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
                             sh("sleep 10")
 
                             echo("Deploy/update Helmfile1 for mongodb and rabbitmq")
-                            sh("podman exec -t helmfile helmfile -f helmfile1.yaml apply")
+                            sh("podman exec -t helmfile bash -lc 'helmfile -f helmfile1.gotmpl apply'")
+                            sh("sleep 10")
+                        }
+                        else {
+                            echo("Removing previous app helms")
+                            sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.gotmpl --deleteWait'")
+                            echo("Wait for the key genie resourc is deleted")
+                            sh("until ! oc get deployment,statefulset,svc | grep 'genie'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
                             sh("sleep 10")
                         }
                         //else fall into application_upgrade path
                         echo("Deploy/update Helmfile2 for everything else")
-                        sh("podman exec -t helmfile helmfile -f helmfile2.yaml apply")
+                        sh("podman exec -t helmfile bash -lc 'helmfile -f helmfile2.gotmpl apply'")
                         
                         script{
                             GUI_EP = sh(

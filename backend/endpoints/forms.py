@@ -16,12 +16,12 @@ forms_bp = Blueprint("forms", __name__)
     "training_name":           fields.Str(required=True, data_key="trainingName"),
     "git_url":                 fields.Str(required=True, data_key="gitUrl"),
     "git_credential_key":      fields.Str(required=True, data_key="gitCredentialKey"),
-    "git_folder_path":         fields.Str(missing='', data_key="gitFolderPath"),
+    "git_folder_path":         fields.Str(load_default='', data_key="gitFolderPath"),
     "git_branch_name":         fields.Str(required=True, data_key="gitBranchName"),
     "tests_code_framework":    fields.Str(required=True, data_key="testsCodeFramework"),
-    "number_of_tests":         fields.Int(missing=None, data_key="numberOfTests"),
-    "dataset_grading_upgrade": fields.Bool(missing=False, data_key="datasetGradingUpgrade"),
-    "files_path":              fields.List(fields.Str(), missing=[], data_key="filesPath")
+    "number_of_tests":         fields.Int(load_default=None, data_key="numberOfTests"),
+    "dataset_grading_upgrade": fields.Bool(load_default=False, data_key="datasetGradingUpgrade"),
+    "files_path":              fields.List(fields.Str(), load_default=[], data_key="filesPath")
 })
 def insert_form(project_name, training_name, git_url, git_credential_key, git_folder_path, git_branch_name,
                 tests_code_framework, number_of_tests, dataset_grading_upgrade, files_path):
@@ -54,7 +54,7 @@ def retrieve_forms():
     
 
 @forms_bp.route("status", methods=["GET"])
-@from_query({"form_id": fields.Str(missing='', data_key="formId")})
+@from_query({"form_id": fields.Str(load_default='', data_key="formId")})
 def retrieve_form_status(form_id):
     form_status = get_field_value(form_id, FormFields.STATUS.name)
     

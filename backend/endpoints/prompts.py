@@ -90,7 +90,7 @@ def save_prompt_is_complete(model_id, unique_id, completed):
     "user_prompt":        fields.Str(required=True, data_key="prompt"),
     "response_prompt":    fields.Str(required=True, data_key="response"),
     "rating":             fields.Number(required=True, data_key="rating"),
-    "rating_text":        fields.Str(missing='', data_key="ratingText"),
+    "rating_text":        fields.Str(load_default='', data_key="ratingText"),
 })
 def save_prompt_rating(model_id, user_prompt, response_prompt, rating, rating_text):
     try:
