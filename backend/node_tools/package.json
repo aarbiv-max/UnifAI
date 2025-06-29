@@ -1,6 +1,0 @@
-{
-  "name": "node_tools",
-  "dependencies": {
-    "ts-morph": "^25.0.1"
-  }
-}

@@ -1,5 +1,0 @@
-apiVersion: v2
-name: dpr
-description: A Helm chart for Dataset generator pipeline.
-version: 1.0.0
-appVersion: "5.0"
