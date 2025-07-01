@@ -10,14 +10,14 @@ releases:
     wait: true
     timeout: 300
     values:
-      - "./multiagent/multiagent-be.yaml"
+      - "./multiagent/values/multiagent-be.yaml"
 
   # - name: unifai-multiagent-celery
   #   chart: ./multiagent/celery
   #   wait: true
   #   timeout: 300
   #   values:
-  #     - "./shared-resources/mongodb.yaml"
+  #     - "./multiagent/values/multiagent-celery.yaml"
 
 #   - name: unifai-shared-config
 #     chart: ./shared-resources/shared-config
