@@ -1,6 +1,3 @@
-from dotenv import load_dotenv
-load_dotenv()  # Add this at the top of app.py
-
 import os
 import sys
 
@@ -20,6 +17,9 @@ from config.app_config import AppConfig
 # Init FLASK
 app = Flask(__name__)
 
+config = AppConfig()
+app.secret_key = config.get('secret_key', os.urandom(24))
+
 # Configure CORS to allow credentials
 CORS(app, supports_credentials=True, origins=os.environ.get("FRONTEND_URL", "http://localhost:5000"))
 
@@ -36,7 +36,6 @@ auth_manager = AuthManager(app)
 app.extensions['auth_manager'] = auth_manager
 
 register_all_endpoints(app)
-config = AppConfig()
 
 # Init before_request/after_request rules
 RequestRules(app)

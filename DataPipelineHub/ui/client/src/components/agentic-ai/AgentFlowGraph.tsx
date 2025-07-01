@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { motion } from 'framer-motion';
 import { Activity, Database, FileText, Zap, Filter, GitBranch, MessageSquare, BookOpen } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StreamingDataProvider } from "@/components/agentic-ai/StreamingDataContext";
 import { GraphFlow, FlowObject } from './graphs/interfaces';
 import ReactFlowGraph from '../agentic-ai/graphs/ReactFlowGraph';
 import axios from '../../http/axiosAgentConfig';
+
+// Create a ReactFlow provider wrapper
+import { ReactFlowProvider } from 'reactflow';
 
 // Function to convert graph flow JSON to flow object
 const convertGraphFlowToFlowObject = (graphFlow: GraphFlow, index: number, graphId?: string): FlowObject => {
@@ -41,6 +46,8 @@ export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlo
   const [activeFlowIds, setActiveFlowIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const { user } = useAuth();
+
   // Effect to load graph flows from API
   useEffect(() => {
     const fetchGraphFlows = async () => {
@@ -68,7 +75,7 @@ export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlo
 
     const fetchActiveFlows = async () => {
       try {
-        const response = await axios.get('/api/sessions/session.user.blueprints.get?userId=bob');
+        const response = await axios.get(`/api/sessions/session.user.blueprints.get?userId=${user?.username || "default"}`);
         setActiveFlowIds(response.data || []);
       } catch (error) {
         console.error('Error fetching active flows:', error);
@@ -147,14 +154,18 @@ export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlo
           
           {/* Graph visualization */}
           <div className="flex-grow">
-            <ReactFlowGraph 
-              blueprintId={selectedFlow?.id}
-              height="100%"
-              showControls={true}
-              showMiniMap={true}
-              showBackground={true}
-              interactive={true}
-            />
+            <StreamingDataProvider>
+              <ReactFlowProvider>
+                <ReactFlowGraph 
+                  blueprintId={selectedFlow?.id}
+                  height="100%"
+                  showControls={true}
+                  showMiniMap={true}
+                  showBackground={true}
+                  interactive={true}
+                />
+              </ReactFlowProvider>
+            </StreamingDataProvider>
           </div>
         </div>
       </CardContent>

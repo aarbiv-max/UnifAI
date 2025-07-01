@@ -1,13 +1,32 @@
+description: |
+  This Blueprint defines an intelligent, tool-augmented agent that processes user queries using a combination of an OpenAI LLM, a document retriever, and a remote SSH execution tool via MCP.
+  The agent follows a sequential plan: it collects user input, optionally retrieves relevant documents, and calls tools such as remote SSH only when all necessary information is available.
+
+display_name: |
+  SSH-enabled Smart Assistant
+
+display_description: |
+  A tool-integrated assistant powered by OpenAI's gemini-2.5-flash model, document retrieval, and remote SSH execution via MCP.
+  It processes user queries step-by-step, invoking tools only when inputs are complete and allowing for remote command execution based on contextual understanding.
+
 # ----------------------------
 # LLM Definitions
 # ----------------------------
 llms:
   - name: openai_llm
     type: openai
-    model_name: gemini-2.0-flash
+    model_name: gemini-2.5-flash
     api_key: AIzaSyBwuQtKPtwKILBulq_YW16RKjMAVx4gbKQ
     base_url: https://generativelanguage.googleapis.com/v1beta/openai
 
+# ----------------------------
+# Retriever
+# ----------------------------
+retrievers:
+  - name: my_docs
+    type: docs
+    top_k_results: 5
+    api_url: https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/api/docs/query.match
 
 # ----------------------------
 # Tool Stubs
@@ -15,9 +34,9 @@ llms:
 tools:
   - name: ssh_exec_tool
     type: ssh_exec
-    host: bastion.9jk6c.sandbox1471.opentlc.com
-    username: instruct
-    password: MzM4MzE1
+    host: 10.46.254.131
+    username: cloud-user
+    password: password
 
 # ----------------------------
 # Plan Steps
@@ -31,13 +50,17 @@ plan:
     node:
       type: custom_agent_node
       llm: openai_llm
+      retriever: my_docs
       tools:
         - ssh_exec_tool
       system_message: |
         You are a smart assistant with access to tools. When a user's request requires multiple steps, and one tool’s output is needed as input to another, do not guess intermediate values.
         Instead, call the first tool, wait for its result, then use the actual result in the next step.
         Only issue tool calls that can be executed immediately based on available information. Respond with content or tool calls as appropriate.
-
+    meta:
+      display_name: SSH-enabled Agent
+      description: |
+        Retrieve docs and execute remote commands via SSH.
   - uid: finalize
     after: agent_with_exec_tool
     node:

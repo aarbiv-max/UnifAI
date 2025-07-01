@@ -32,7 +32,7 @@ class CustomAgentNode(
             tools: List[Any] = (),
             system_message: str = "",
             retries: int = 1,
-            max_rounds: Optional[int] = 5,
+            max_rounds: Optional[int] = 20,
             **kwargs: Any
     ):
         super().__init__(

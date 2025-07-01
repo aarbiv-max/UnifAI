@@ -148,32 +148,53 @@ class SlackConnector(DataConnector):
         # This should not be reached under normal circumstances
         raise Exception("Maximum retries exceeded when calling Slack API")
     
-    def get_available_slack_channels(self, types: Optional[str] = None) -> List[Dict[str, str]]:
+    def get_available_slack_channels(self, types: Optional[str] = None, max_api_calls: int = 10) -> List[Dict[str, str]]:
         """
         Get available Slack channels for the authenticated user/bot.
         
         Args:
             types: Optional channel types to filter by (e.g., 'public_channel,private_channel')
+            max_api_calls: Maximum number of API calls to make (default: 10)
             
         Returns:
             List of dictionaries containing channel_id and channel_name
         """
-        params = {}
-        if types:
-            params['types'] = types
-        
-        response = self._make_api_request("conversations.list", params)
-        
-        if not response.get('ok'):
-            logger.error(f"Failed to get channels: {response.get('error')}")
-            return []
-        
         channels = []
-        for channel in response.get('channels', []):
-            channels.append({
-                'channel_id': channel.get('id'),
-                'channel_name': channel.get('name')
-            })
+        cursor = None
+        api_call_count = 0
+        
+        while api_call_count < max_api_calls:
+            params = {}
+            if types:
+                params['types'] = types
+            if cursor:
+                params['cursor'] = cursor
+            
+            response = self._make_api_request("conversations.list", params)
+            api_call_count += 1
+            
+            if not response.get('ok'):
+                logger.error(f"Failed to get channels: {response.get('error')}")
+                break
+            
+            # Process channels from current page
+            for channel in response.get('channels', []):
+                channels.append({
+                    'channel_id': channel.get('id'),
+                    'channel_name': channel.get('name'),
+                    'is_private': channel.get('is_private', False),
+                })
+            
+            # Check if there are more pages
+            response_metadata = response.get('response_metadata', {})
+            cursor = response_metadata.get('next_cursor')
+            
+            # If no next_cursor or it's empty, we've reached the end
+            if not cursor:
+                break
+        
+        logger.info(f"Retrieved {len(channels)} Slack channels from {api_call_count} API calls")
+        return channels
         
         logger.info(f"Retrieved {len(channels)} Slack channels")
         return channels

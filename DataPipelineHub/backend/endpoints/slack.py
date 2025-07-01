@@ -73,11 +73,12 @@ def slack_channel_chunks(channel_name):
 @from_query({
     "query": fields.Str(required=True),
     "top_k_results": fields.Int(required=False),
-    "scope": fields.Str(required=False, load_default="public")
+    "scope": fields.Str(required=False, load_default="public"),
+    "logged_in_user": fields.Str(required=False, load_default="default", data_key="loggedInUser")
 })
-def best_match_results(query, top_k_results, scope):
+def best_match_results(query, top_k_results, scope, logged_in_user):
     try:
-        search_results = get_best_match_results(query, top_k_results, scope)
+        search_results = get_best_match_results(query, top_k_results, scope, logged_in_user)
         return jsonify({"search_results": search_results}), 200
     except Exception as e:
         logger.error(f"Failed to find best match for user query: {str(e)}")

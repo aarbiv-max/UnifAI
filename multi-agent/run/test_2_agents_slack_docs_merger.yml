@@ -1,14 +1,23 @@
 description: |
-  This Blueprint defines a multi-agent system that integrates two agents:
-  - A Document Retrieval Assistant that answers questions based on document excerpts.
-  - A Slack Context Assistant that answers questions based on Slack messages.
-  The responses from both agents are merged into a final answer.
+  This Blueprint defines a modular multi-agent system that integrates specialized assistants to handle user queries by:
+  - Searching internal documents
+  - Parsing relevant Slack messages
+  - Executing Jira operations via tools
+  - Synthesizing multi-source answers into a final response
 
 display_name: |
-  Document & Slack Search
+  Unified Knowledge Search: Docs, Slack & Jira
 
 display_description: |
-  A pipeline that searches through docs and Slack messages to answer user queries
+  A multi-agent pipeline that combines document search, Slack message analysis, and Jira tool usage to generate a unified answer to user questions.
+
+# ----------------------------
+# Providers
+# ----------------------------
+providers:
+  - name: mcp
+    type: mcp_server
+    sse_endpoint: http://127.0.0.1:8006/servers/mcp-atlassian/sse
 
 # ----------------------------
 # LLM Definitions
@@ -30,27 +39,61 @@ retrievers:
 
   - name: my_slack
     type: slack
-
+    top_k_results: 5
 
 # ----------------------------
 # Tool Stubs
 # ----------------------------
-tools: [ ]
+tools:
+  - name: jira_get_issue_tool
+    type: mcp_proxy
+    tool_name: jira_get_issue
+    provider: mcp
+
+  - name: jira_search_tool
+    type: mcp_proxy
+    tool_name: jira_search
+    provider: mcp
+
+  - name: jira_get_project_issues_tool
+    type: mcp_proxy
+    tool_name: jira_get_project_issues
+    provider: mcp
+
+  - name: jira_create_issue_tool
+    type: mcp_proxy
+    tool_name: jira_create_issue
+    provider: mcp
+
+  - name: jira_link_to_epic_tool
+    type: mcp_proxy
+    tool_name: jira_link_to_epic
+    provider: mcp
+
+  - name: jira_update_issue_tool
+    type: mcp_proxy
+    tool_name: jira_update_issue
+    provider: mcp
 
 # ----------------------------
 # Conditions
 # ----------------------------
 conditions: [ ]
 
-
 # ----------------------------
 # Plan Steps
 # ----------------------------
 plan:
+  ## Step 1: Capture the user's question
   - uid: user_input
     node:
       type: user_question_node
+    meta:
+      display_name: User Question
+      description: |
+        Captures the user's question to be answered by the agents.
 
+  ## Step 2: Document Retrieval Agent
   - uid: docs_agent
     after: user_input
     node:
@@ -59,17 +102,20 @@ plan:
       llm: openai_llm
       retriever: my_docs
       system_message: |
-        You are a Document Retrieval Assistant.
-        • Use only the excerpts returned from the docs retriever as your context.
-        • Answer the user’s question strictly from those document passages.
-        • If you quote or paraphrase, include the source document name in brackets.
-        • mention all the documents names you take the info from.
-        • If no document passage is relevant, respond: “I’m sorry, I don’t know.”
-    meta:
-      display_name: Doc Agent
-      description: |
-        Retrieve doc data
+        You are a Document Retrieval Assistant specialized in answering questions using internal documents.
 
+        Guidelines:
+        - Use only the excerpts retrieved from the document retriever.
+        - Do not rely on prior knowledge or assumptions.
+        - When quoting or paraphrasing, cite the document name in brackets (e.g., [ProjectGuide.pdf]).
+        - Mention all source document names explicitly if more than one is used.
+        - If none of the excerpts are relevant, say: “I’m sorry, I don’t know.”
+    meta:
+      display_name: Document Agent
+      description: |
+        Answers questions by extracting and summarizing content from internal documentation.
+
+  ## Step 3: Slack Message Retrieval Agent
   - uid: slack_agent
     after: user_input
     node:

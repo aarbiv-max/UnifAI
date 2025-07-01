@@ -111,7 +111,7 @@ def count_channel_chunks(channel_name: str) -> int:
 
     return vector_storage.count(filters={"metadata.channel_name": channel_name})
 
-def get_best_match_results(query: str, top_k_results: int = 5, scope: str = "public"):
+def get_best_match_results(query: str, top_k_results: int = 5, scope: str = "public", logged_in_user: str = "default"):
     embedding_config = {
         "type": "sentence_transformer",
         "model_name": "all-MiniLM-L6-v2",
@@ -135,7 +135,7 @@ def get_best_match_results(query: str, top_k_results: int = 5, scope: str = "pub
     search_results = vector_storage.search(
         query_embedding=query_embedding,
         top_k=top_k_results,
-        filters={"upload_by": session.get('user').get('name', 'default')} if scope == "private" else {}
+        filters={"upload_by": logged_in_user} if scope == "private" else {}
     )
 
     return search_results

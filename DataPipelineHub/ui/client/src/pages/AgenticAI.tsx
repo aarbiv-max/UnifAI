@@ -2,6 +2,7 @@ import { useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import StatusBar from "@/components/layout/StatusBar";
+import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export default function AgenticAI() {
   const [builtGraphId, setBuiltGraphId] = useState<string | null>(null);
   const [builtGraphName, setBuiltGraphName] = useState<string | null>(null);
   const [selectedGraphId, setSelectedGraphId] = useState<string | null>(null);
+  const { user } = useAuth();
 
   const handleBuildGraph = async () => {
     try {
@@ -43,7 +45,7 @@ export default function AgenticAI() {
 
       const selectedBlueprint = {
         'blueprintId': graphId,
-        'userId': "bob",
+        'userId': user?.username || "default",
       }
 
       const response = await axios.post('/api/sessions/user.session.create', selectedBlueprint);
@@ -119,9 +121,7 @@ export default function AgenticAI() {
                   </CardContent>
                 </Card>
                 
-                <ReactFlowProvider>
-                  <AgentFlowGraph selectedFlow={selectedFlow} setSelectedFlow={setSelectedFlow} />
-                </ReactFlowProvider>
+                <AgentFlowGraph selectedFlow={selectedFlow} setSelectedFlow={setSelectedFlow} />
               </TabsContent>
 
               {/* Execution Tab */}

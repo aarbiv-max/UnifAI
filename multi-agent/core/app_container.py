@@ -7,11 +7,10 @@ from session.user_session_manager import UserSessionManager
 from session.session_executor import SessionExecutor
 from session.service import SessionService
 from config.app_config import AppConfig
-from global_utils.utils.util import singleton
+from global_utils.utils.singleton import SingletonMeta
 
 
-@singleton
-class AppContainer:
+class AppContainer(metaclass=SingletonMeta):
     """
     Central composition root.  All wiring lives here, but no magic strings:
       • reads collection names   from AppConfig

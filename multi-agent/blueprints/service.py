@@ -12,6 +12,11 @@ class BlueprintService:
         """Save a new blueprint, returning its generated ID."""
         return self._repo.save(spec)
 
+    def save(self, blueprint_raw: Dict[str, Any]):
+        """Save a blueprint from a raw dictionary, returning its generated ID."""
+        spec = BlueprintSpec.validate(blueprint_raw)
+        return self.register(spec)
+
     def get_blueprint_spec(self, blueprint_id: str) -> BlueprintSpec:
         return self._repo.load(blueprint_id)
 

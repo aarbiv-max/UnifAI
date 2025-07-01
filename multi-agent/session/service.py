@@ -29,17 +29,19 @@ class SessionService:
             metadata=metadata or SessionMeta()
         )
 
-    def run(self, session_or_id: Any, inputs: Dict[str, Any], scope: str = "public") -> Any:
+    def run(self, session_or_id: Any, inputs: Dict[str, Any], scope: str = "public", logged_in_user="") -> Any:
         """
         Execute the session to completion, returning the final result.
         """
         return self._executor.run(
             session_or_id=session_or_id,
             inputs=inputs or {},
-            scope=scope
+            scope=scope,
+            logged_in_user=logged_in_user
         )
 
-    def stream(self, session_or_id: Any, inputs: Dict[str, Any], stream_mode: list = None, scope: str = "public") -> \
+    def stream(self, session_or_id: Any, inputs: Dict[str, Any], stream_mode: list = None, scope: str = "public",
+               logged_in_user="") -> \
             Iterator[Any]:
         """
         Execute the session in streaming mode, yielding chunks.
@@ -48,11 +50,12 @@ class SessionService:
             session_or_id=session_or_id,
             inputs=inputs or {},
             stream_mode=stream_mode,
-            scope=scope
+            scope=scope,
+            logged_in_user=logged_in_user
         )
 
     def execute(self, session_or_id: Any, inputs: Dict[str, Any], stream: bool = False,
-                stream_mode: list = None, scope: str = "public") -> Any:
+                stream_mode: list = None, scope: str = "public", logged_in_user="") -> Any:
         """
         Execute an existing session by run_id or session object.
 
@@ -63,8 +66,8 @@ class SessionService:
         :return: Final result or iterator of chunks.
         """
         if stream:
-            return self.stream(session_or_id=session_or_id, inputs=inputs, stream_mode=stream_mode, scope=scope)
-        return self.run(session_or_id=session_or_id, inputs=inputs, scope=scope)
+            return self.stream(session_or_id=session_or_id, inputs=inputs, stream_mode=stream_mode, scope=scope, logged_in_user=logged_in_user)
+        return self.run(session_or_id=session_or_id, inputs=inputs, scope=scope, logged_in_user=logged_in_user)
 
     def list_for_user(self, user_id: str) -> list:
         """

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -18,15 +18,51 @@ import 'reactflow/dist/style.css';
 import { motion } from 'framer-motion';
 import { Wrench } from 'lucide-react';
 import { NodeData, GraphFlow, FlowObject } from './interfaces';
+import { useStreamingData } from '../StreamingDataContext';
 import axios from '../../../http/axiosAgentConfig'
 
-// Custom node components
-const AgentNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
+// Node status enum
+type NodeStatus = 'IDLE' | 'PROGRESS' | 'DONE';
+
+// Enhanced NodeData interface
+interface EnhancedNodeData extends NodeData {
+  status: NodeStatus;
+}
+
+// Custom node components with status-aware styling
+const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({ data, selected }) => {
   // Match the hex color code inside bg-[#...]
   const bgmatcher = data.style.match(/bg-\[#([0-9A-Fa-f]{6})\]/);
   const bgcolor = bgmatcher ? bgmatcher[1] : null;
   
   const hasTools = data.tools && data.tools.length > 0;
+  const isInProgress = data.status === 'PROGRESS';
+  const isDone = data.status === 'DONE';
+
+  // Dynamic styling based on status
+  const getStatusStyles = () => {
+    if (isInProgress) {
+      return {
+        containerClass: `${data.style} border-2 border-blue-500 border-opacity-80`,
+        pulseEffect: true,
+        borderGlow: 'shadow-lg shadow-blue-500/20'
+      };
+    } else if (isDone) {
+      return {
+        containerClass: `${data.style} border-2 border-green-500 border-opacity-60`,
+        pulseEffect: false,
+        borderGlow: 'shadow-md shadow-green-500/15'
+      };
+    } else {
+      return {
+        containerClass: data.style,
+        pulseEffect: false,
+        borderGlow: 'shadow-md'
+      };
+    }
+  };
+
+  const statusStyles = getStatusStyles();
 
   return (
     <>
@@ -34,22 +70,59 @@ const AgentNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
       <Handle
         type="target"
         position={Position.Top}
-        style={{ background: `#${bgcolor}`, width: 10, height: 10 }}
+        style={{ 
+          background: `#${bgcolor}`, 
+          width: 10, 
+          height: 10
+        }}
       />
       
       <motion.div 
-        className={`rounded-lg shadow-md ${data.style} transition-all ${hasTools ? 'min-w-[200px]' : 'px-4 py-2'}`}
+        className={`rounded-lg ${statusStyles.containerClass} ${statusStyles.borderGlow} transition-all duration-300 ${hasTools ? 'min-w-[200px]' : 'px-4 py-2'}`}
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1, scale: selected ? 1.05 : 1 }}
-        transition={{ duration: 0.3 }}
+        animate={{ 
+          opacity: 1, 
+          scale: selected ? 1.05 : 1,
+          boxShadow: isInProgress ? [
+            '0 0 0 0 rgba(96, 165, 250, 0.7)',
+            '0 0 0 10px rgba(96, 165, 250, 0)',
+            '0 0 0 0 rgba(96, 165, 250, 0.7)'
+          ] : undefined
+        }}
+        transition={{ 
+          duration: 0.3,
+          boxShadow: {
+            repeat: isInProgress ? Infinity : 0,
+            duration: 2,
+            ease: "easeInOut"
+          }
+        }}
       >
         {/* Main node content - 75% of height when tools exist */}
-        <div className={`${hasTools ? 'px-4 py-2 border-b border-opacity-30' : 'px-4 py-2'} ${hasTools ? 'border-white' : ''} flex items-center`}>
+        <div className={`${hasTools ? 'px-4 py-2 border-b border-opacity-30' : 'px-4 py-2'} ${hasTools ? 'border-white' : ''} flex items-center relative`}>
           <div className="mr-2">
             {data.icon}
           </div>
           <div className="flex-1">
-            <div className="font-medium text-sm">{data.label}</div>
+            <div className="font-medium text-sm flex items-center gap-2">
+              {data.label}
+              {isInProgress && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-500 bg-opacity-20 rounded-full">
+                  <motion.div
+                    className="w-1.5 h-1.5 bg-blue-500 rounded-full"
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                  <span className="text-xs font-medium text-white-600">Processing</span>
+                </div>
+              )}
+              {isDone && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500 bg-opacity-20 rounded-full">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full" />
+                  <span className="text-xs font-medium text-white-600">Complete</span>
+                </div>
+              )}
+            </div>
             {data.description && (
               <div className={`text-xs ${data.style.includes("text-white") ? "text-gray-400" : "text-white"}`}>
                 {data.description}
@@ -65,15 +138,16 @@ const AgentNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
               <Wrench className="w-3 h-3 opacity-75" />
               Tools
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="grid grid-cols-3 gap-1">
               {data.tools.map((tool, index) => (
                 <div
                   key={index}
-                  className={`px-2 py-1 rounded text-xs font-medium ${
+                  className={`px-2 py-1 rounded text-xs font-medium truncate text-center ${
                     data.style.includes("text-white") 
                       ? "bg-white bg-opacity-20 text-white" 
-                      : "bg-gray-800 bg-opacity-20 text-gray-800"
+                      : "bg-gray-800 bg-opacity-20 text-white-200"
                   }`}
+                  title={tool}
                 >
                   {tool}
                 </div>
@@ -87,7 +161,11 @@ const AgentNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
       <Handle
         type="source"
         position={Position.Bottom}
-        style={{ background: `#${bgcolor}`, width: 10, height: 10 }}
+        style={{ 
+          background: `#${bgcolor}`, 
+          width: 10, 
+          height: 10
+        }}
       />
     </>
   );
@@ -124,11 +202,11 @@ const getRandomIcon = (nodeType: string): React.ReactNode => {
 // Get node style based on node type
 const getNodeStyle = (nodeType: string): string => {
   if (nodeType === 'user_question_node') {
-    return 'bg-[#003f5c] text-white';
+    return 'bg-gradient-to-r from-accent to-[#003f5c] text-white';
   } else if (nodeType === 'final_answer_node') {
-    return 'bg-[#ffa600] text-white';
+    return 'bg-gradient-to-r from-accent to-[#003f5c] text-white';
   } else {
-    return 'bg-[#7E4794] text-gray-800';
+    return 'bg-gradient-to-r from-accent to-primary text-gray-300';
   }
 };
 
@@ -137,14 +215,14 @@ const getEdgeStyle = (sourceNodeType: string): { stroke: string; color: string }
   if (sourceNodeType === 'user_question_node') {
     return { stroke: '#003f5c', color: '#003f5c' };
   } else if (sourceNodeType === 'final_answer_node') {
-    return { stroke: '#ffa600', color: '#ffa600' };
+    return { stroke: '#003f5c', color: '#003f5c' };
   } else {
-    return { stroke: '#7E4794', color: '#7E4794' };
+    return { stroke: '#8A2BE2', color: '#8A2BE2' };
   }
 };
 
 // Function to parse the JSON graph flow into ReactFlow nodes and edges
-const parseGraphFlow = (graphFlow: GraphFlow): { nodes: Node<NodeData>[]; edges: Edge[] } => {
+const parseGraphFlow = (graphFlow: GraphFlow): { nodes: Node<EnhancedNodeData>[]; edges: Edge[] } => {
   if (!graphFlow || !graphFlow.plan) {
     return { nodes: [], edges: [] };
   }
@@ -224,7 +302,7 @@ const parseGraphFlow = (graphFlow: GraphFlow): { nodes: Node<NodeData>[]; edges:
   }
   
   // Create nodes with the calculated positions
-  const nodes: Node<NodeData>[] = graphFlow.plan.map(item => {
+  const nodes: Node<EnhancedNodeData>[] = graphFlow.plan.map(item => {
     const nodeId = item.uid;
     const nodeType = item.node?.type || 'custom_agent_node';
     const nodeLabel = item.meta?.display_name || item.node?._meta.display_name || "General Node";
@@ -260,7 +338,8 @@ const parseGraphFlow = (graphFlow: GraphFlow): { nodes: Node<NodeData>[]; edges:
         description: nodeDescription,
         style: style,
         icon: icon,
-        tools: nodeTools
+        tools: nodeTools,
+        status: 'IDLE' as NodeStatus
       },
       position: { x: xOffset, y: yOffset },
       sourcePosition,
@@ -312,6 +391,7 @@ type ReactFlowGraphProps = {
   showMiniMap?: boolean;
   showBackground?: boolean;
   interactive?: boolean;
+  isLiveRequest?: boolean; // Optional parameter for live tracking
 };
 
 export default function ReactFlowGraph({
@@ -320,14 +400,93 @@ export default function ReactFlowGraph({
   showControls = true,
   showMiniMap = true,
   showBackground = true,
-  interactive = true
+  interactive = true,
+  isLiveRequest = false
 }: ReactFlowGraphProps): React.ReactElement {
-  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<EnhancedNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [nodeStatusMap, setNodeStatusMap] = useState<Record<string, NodeStatus>>({});
 
   const { fitView, zoomOut } = useReactFlow();
   const initializedRef = useRef(false);
+  const streamingContext = isLiveRequest ? useStreamingData() : null;
+  const prevNodeListRef = useRef<Map<string, any>>(new Map());
+
+  // Function to update node status based on streaming data
+  const updateNodeStatuses = useCallback(() => {
+    if (!streamingContext) return;
+
+    const currentNodeList = streamingContext.nodeListRef.current;
+    const newStatusMap: Record<string, NodeStatus> = {};
+
+    // Process current streaming data
+    currentNodeList.forEach((nodeEntry, nodeId) => {
+      if (nodeEntry.stream === 'PROGRESS') {
+        newStatusMap[nodeId] = 'PROGRESS';
+      } else if (nodeEntry.stream === 'DONE') {
+        newStatusMap[nodeId] = 'DONE';
+      } else {
+        newStatusMap[nodeId] = 'IDLE';
+      }
+    });
+
+    // Check if there are any changes from previous state
+    const hasChanges = JSON.stringify(newStatusMap) !== JSON.stringify(nodeStatusMap);
+    
+    if (hasChanges) {
+      setNodeStatusMap(newStatusMap);
+      
+      // Update nodes with new status
+      setNodes(currentNodes => 
+        currentNodes.map(node => ({
+          ...node,
+          data: {
+            ...node.data,
+            status: newStatusMap[node.id] || 'IDLE'
+          }
+        }))
+      );
+    }
+
+    // Store current state for next comparison
+    prevNodeListRef.current = new Map(currentNodeList);
+  }, [streamingContext, nodeStatusMap, setNodes]);
+
+  // Effect to monitor streaming data changes when live tracking is enabled
+  useEffect(() => {
+    if (!isLiveRequest || !streamingContext) return;
+
+    // Initial status update
+    updateNodeStatuses();
+
+    // Set up interval to check for changes
+    const intervalId = setInterval(() => {
+      updateNodeStatuses();
+    }, 100); // Check every 100ms for responsiveness
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isLiveRequest, streamingContext, updateNodeStatuses]);
+
+  // Reset node statuses when live tracking is disabled
+  useEffect(() => {
+    if (!isLiveRequest) {
+      setNodes(currentNodes => 
+        currentNodes.map(node => ({
+          ...node,
+          data: {
+            ...node.data,
+            // TODO: Due to time sync issues, some of the nodes might still hold "PROGRESS" status once reaching over here
+            // status: (nodeStatusMap[node.id] == "DONE") ? nodeStatusMap[node.id] : 'IDLE' as NodeStatus
+            status: (nodeStatusMap[node.id] != "IDLE") ? 'DONE' : 'IDLE' as NodeStatus
+          }
+        }))
+      );
+      setNodeStatusMap({});
+    }
+  }, [isLiveRequest, setNodes]);
 
   // Function to convert graph flow JSON to ReactFlow format
   const convertGraphFlowToReactFlow = async (graphId: string) => {
@@ -384,7 +543,7 @@ export default function ReactFlowGraph({
         }, 200);
       }, 100);
     }
-  }, [nodes, edges, isLoading]);
+  }, [nodes, edges, isLoading, fitView, zoomOut]);
 
   if (isLoading) {
     return (
@@ -395,7 +554,62 @@ export default function ReactFlowGraph({
   }
 
   return (
-    <div style={{ height }}>
+    <div className="relative" style={{ height }}>
+      {/* Live Status Indicator */}
+      {isLiveRequest && (
+        <div className="absolute top-2 right-2 z-50 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs flex items-center gap-2">
+          <motion.div
+            className="w-2 h-2 bg-green-400 rounded-full"
+            animate={{ opacity: [1, 0.3, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          />
+          Live Tracking
+        </div>
+      )}
+      
+      {/* Active Nodes Status Bar */}
+      {isLiveRequest && Object.keys(nodeStatusMap).length > 0 && (
+        <div className="absolute bottom-2 left-2 right-2 z-50 bg-black bg-opacity-80 text-white px-3 py-2 rounded-lg">
+          <div className="flex flex-wrap gap-2 text-xs">
+            {Object.entries(nodeStatusMap).map(([nodeId, status]) => {
+              if (status === 'IDLE') return null;
+              
+              const node = nodes.find(n => n.id === nodeId);
+              const nodeName = node?.data?.label || nodeId;
+              
+              return (
+                <div 
+                  key={nodeId} 
+                  className={`flex items-center gap-1 px-2 py-1 rounded ${
+                    status === 'PROGRESS' 
+                      ? 'bg-blue-500 bg-opacity-50' 
+                      : 'bg-green-500 bg-opacity-50'
+                  }`}
+                >
+                  <motion.div
+                    className={`w-2 h-2 rounded-full ${
+                      status === 'PROGRESS' ? 'bg-blue-400' : 'bg-green-400'
+                    }`}
+                    animate={status === 'PROGRESS' ? { 
+                      scale: [1, 1.2, 1],
+                      opacity: [1, 0.7, 1]
+                    } : undefined}
+                    transition={status === 'PROGRESS' ? { 
+                      duration: 1, 
+                      repeat: Infinity 
+                    } : undefined}
+                  />
+                  <span className="truncate max-w-20">{nodeName}</span>
+                  <span className="text-xs opacity-75">
+                    {status === 'PROGRESS' ? 'Running' : 'Done'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -411,12 +625,12 @@ export default function ReactFlowGraph({
         defaultEdgeOptions={{
           type: 'smoothstep',
           animated: true,
-          style: { stroke: '#003f5c', strokeWidth: 3 },
+          style: { stroke: '#8A2BE2', strokeWidth: 3 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 20,
             height: 20,
-            color: '#003f5c'
+            color: '#8A2BE2'
           }
         }}
         attributionPosition="bottom-right"
