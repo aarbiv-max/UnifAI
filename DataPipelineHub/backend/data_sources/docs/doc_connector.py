@@ -49,7 +49,7 @@ class DocumentConnector(DataConnector):
         """
         return True
     
-    def process_document(self, document_path: str) -> Optional[Dict[str, Any]]:
+    def process_document(self, document_path: str, upload_by: str = "default") -> Optional[Dict[str, Any]]:
         """
         Process a document file and extract text and metadata.
         
@@ -101,7 +101,7 @@ class DocumentConnector(DataConnector):
             
             # Add metadata if requested
             if self._config_manager.get_config_value("include_metadata"):
-                document_data["metadata"] = self._extract_metadata(result)
+                document_data["metadata"] = self._extract_metadata(result, upload_by)
                 
             logger.info(f"Document processed successfully: {document_path}")
             return document_data
@@ -170,7 +170,7 @@ class DocumentConnector(DataConnector):
             logger.error(f"Error processing document from URL {document_url}: {str(e)}")
             return None
     
-    def _extract_metadata(self, conversion_result: ConversionResult) -> Dict[str, Any]:
+    def _extract_metadata(self, conversion_result: ConversionResult, upload_by="default") -> Dict[str, Any]:
         """
         Extract metadata from a conversion result.
         
@@ -191,6 +191,9 @@ class DocumentConnector(DataConnector):
 
             # Extract title
             metadata["title"] = doc.title if hasattr(doc, "title") else "Untitled"
+
+            # Extract uploader
+            metadata["upload_by"] = upload_by
                 
             # Extract structural information
             metadata["page_count"] = len(doc.pages) if hasattr(doc, "pages") else 1

@@ -259,6 +259,7 @@ class DocumentProcessor(DataProcessor):
                 "content": doc.get("clean_text", doc.get("text", "")),
                 "metadata": {
                     "title": doc.get("metadata", {}).get("title", "Untitled"),
+                    "upload_by": doc.get("metadata", {}).get("upload_by", "default"),
                     "page_count": doc.get("metadata", {}).get("page_count", 1),
                     "word_count": doc.get("metadata", {}).get("word_count", 0),
                     "source_path": doc.get("path", ""),

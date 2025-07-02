@@ -7,11 +7,10 @@ from session.user_session_manager import UserSessionManager
 from session.session_executor import SessionExecutor
 from session.service import SessionService
 from config.app_config import AppConfig
-from global_utils.utils.util import singleton
+from global_utils.utils.singleton import SingletonMeta
 
 
-@singleton
-class AppContainer:
+class AppContainer(metaclass=SingletonMeta):
     """
     Central composition root.  All wiring lives here, but no magic strings:
       • reads collection names   from AppConfig
@@ -30,7 +29,8 @@ class AppContainer:
 
         # blueprint catalog
         self.blueprint_repo = MongoBlueprintRepository(
-            uri=cfg.mongo_uri,
+            mongodb_port=cfg.mongodb_port,
+            mongodb_ip=cfg.mongodb_ip,
             db_name=cfg.mongo_db,
             coll_name=cfg.blueprint_coll
         )
@@ -42,7 +42,8 @@ class AppContainer:
             engine_name=cfg.engine_name
         )
         self.session_repo = MongoSessionRepository(
-            mongo_uri=cfg.mongo_uri,
+            mongodb_port=cfg.mongodb_port,
+            mongodb_ip=cfg.mongodb_ip,
             db_name=cfg.mongo_db,
             collection_name=cfg.session_coll,
             session_factory=self.session_factory

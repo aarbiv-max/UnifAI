@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
 import { StreamLogEntry, ToolEntry } from './types';
@@ -56,6 +56,51 @@ const ToolsSection = ({ tools }: { tools: ToolEntry[] }) => {
 
 ToolsSection.displayName = 'ToolsSection';
 
+// Separate component for message content with preview/expansion logic
+const MessageContent = ({ 
+  message, 
+  status, 
+  isExpanded, 
+  hasMoreThanTwoLines, 
+  previewText,
+  onToggle 
+}: {
+  message: string;
+  status: string;
+  isExpanded: boolean;
+  hasMoreThanTwoLines: boolean;
+  previewText: string;
+  onToggle: () => void;
+}) => {
+  const textColorClass = status === 'error' ? 'text-[#FF1744]' : 'text-gray-300';
+  
+  return (
+    <div className="w-full">
+      <div className={`text-sm font-mono whitespace-pre-wrap break-words w-full ${textColorClass}`}>
+        {isExpanded || !hasMoreThanTwoLines ? message : previewText}
+      </div>
+      
+      {hasMoreThanTwoLines && (
+        <button
+          onClick={onToggle}
+          className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center space-x-1 group"
+        >
+          <span>
+            {isExpanded ? 'Show less' : 'Show full log'}
+          </span>
+          {isExpanded ? (
+            <ChevronDown className="h-3 w-3 group-hover:scale-110 transition-transform" />
+          ) : (
+            <ChevronRight className="h-3 w-3 group-hover:scale-110 transition-transform" />
+          )}
+        </button>
+      )}
+    </div>
+  );
+};
+
+MessageContent.displayName = 'MessageContent';
+
 export const StreamLogItem = memo(({ log, messageId, onToggleExpansion }: StreamLogItemProps) => {
   const handleToggle = useCallback(() => {
     onToggleExpansion(messageId, log.nodeId);
@@ -69,6 +114,20 @@ export const StreamLogItem = memo(({ log, messageId, onToggleExpansion }: Stream
       default: return 'Unknown';
     }
   }, []);
+
+  // Memoize message analysis to avoid recalculation
+  const messageAnalysis = useMemo(() => {
+    const message = log.message || 'Processing...';
+    const lines = message.split('\n');
+    const hasMoreThanTwoLines = lines.length > 2;
+    const previewText = hasMoreThanTwoLines ? lines.slice(0, 2).join('\n') + '...' : message;
+    
+    return {
+      message,
+      hasMoreThanTwoLines,
+      previewText
+    };
+  }, [log.message]);
 
   const hasTools = log.tools && log.tools.length > 0;
 
@@ -120,15 +179,32 @@ export const StreamLogItem = memo(({ log, messageId, onToggleExpansion }: Stream
             
             {/* Message Section */}
             <div className={`p-3 bg-gray-900 w-full ${hasTools ? '' : 'border-t border-gray-700'}`}>
-              <div className={`text-sm font-mono whitespace-pre-wrap break-words w-full ${
-                log.status === 'error' ? 'text-[#FF1744]' : 'text-gray-300'
-              }`}>
-                {log.message || 'Processing...'}
-              </div>
+              <MessageContent
+                message={messageAnalysis.message}
+                status={log.status}
+                isExpanded={log.isExpanded}
+                hasMoreThanTwoLines={messageAnalysis.hasMoreThanTwoLines}
+                previewText={messageAnalysis.previewText}
+                onToggle={handleToggle}
+              />
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Always visible preview when collapsed */}
+      {!log.isExpanded && (
+        <div className="p-3 bg-gray-900 border-t border-gray-700 w-full">
+          <MessageContent
+            message={messageAnalysis.message}
+            status={log.status}
+            isExpanded={false}
+            hasMoreThanTwoLines={messageAnalysis.hasMoreThanTwoLines}
+            previewText={messageAnalysis.previewText}
+            onToggle={handleToggle}
+          />
+        </div>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {

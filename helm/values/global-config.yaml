@@ -1,0 +1,7 @@
+# env:
+#   MONGODB_IP: mongodb
+#   MONGODB_PORT: 27017
+#   RABBITMQ_IP: rabbitmq
+#   RABBITMQ_PORT: 5672
+env:
+  test: "123"

@@ -34,8 +34,9 @@ def create_user_session(blueprint_id, user_id, metadata):
     "stream_mode": fields.List(fields.Str(), data_key="streamMode", load_default=lambda: ["custom"]),
     "stream": fields.Bool(data_key="stream", load_default=False),
     "scope": fields.Str(data_key="scope", load_default="public"),
+    "logged_in_user": fields.Str(data_key="loggedInUser", required=False, load_default=lambda: "")
 })
-def execute_user_session(session_id, inputs, stream_mode, stream, scope):
+def execute_user_session(session_id, inputs, stream_mode, stream, scope, logged_in_user):
     """
     Execute (or stream) an existing session.
     - If `stream` is False (default), returns the full result as JSON.
@@ -49,7 +50,8 @@ def execute_user_session(session_id, inputs, stream_mode, stream, scope):
             session_or_id=session_id,
             inputs=inputs,
             stream=False,
-            scope=scope
+            scope=scope,
+            logged_in_user=logged_in_user
         )
         return jsonify(result), 200
 
@@ -60,7 +62,8 @@ def execute_user_session(session_id, inputs, stream_mode, stream, scope):
                 inputs=inputs,
                 stream=True,
                 stream_mode=stream_mode,
-                scope=scope
+                scope=scope,
+                logged_in_user=logged_in_user
         ):
             # each chunk may include Pydantic models; use pydantic_encoder
             yield json.dumps(chunk, default=pydantic_encoder)

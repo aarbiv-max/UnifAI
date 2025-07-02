@@ -18,10 +18,15 @@ class RunContext:
     metadata: Dict[str, Any] = field(default_factory=dict)
     tags: Dict[str, Any] = field(default_factory=dict)
     scope: Optional[str] = "public"
+    logged_in_user: Optional[str] = ""
 
     def change_scope(self, new_scope: str) -> RunContext:
         """Return a new context with the scope changed."""
         return replace(self, scope=new_scope)
+
+    def set_logged_in_user(self, logged_in_user: str) -> RunContext:
+        """Return a new context with the user_id changed."""
+        return replace(self, logged_in_user=logged_in_user)
 
     def mark_finished(self) -> RunContext:
         # create a new copy, updating finished_at

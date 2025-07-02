@@ -4,7 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Trash2, Settings } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import axios from '../../../http/axiosAgentConfig';
+import { MarkdownComponents, preprocessText } from './helpers/TextComponents';
 import { SessionPayload } from '../ExecutionTab';
 import { useStreamingData } from "../StreamingDataContext";
 import { Message, StreamLogEntry } from './types';
@@ -33,7 +37,7 @@ export default function ChatInterface({
   const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const { nodeListRef, clearStream } = useStreamingData();
+  const { nodeListRef, clearStream } = useStreamingData();
 
   // Transform backend messages to frontend format
   const transformBackendMessagesToFrontend = useCallback((backendMessages: BackendMessage[]): Message[] => {
@@ -90,7 +94,6 @@ export default function ChatInterface({
 
   // Optimized streaming logic with reduced update frequency
   const startStreamingLogs = (messageId: string) => {
-
     if (streamingIntervalRef.current) {
       clearInterval(streamingIntervalRef.current);
     }
@@ -127,14 +130,16 @@ export default function ChatInterface({
                     existingLog.status !== newStatus || 
                     existingLog.message !== newMessage) {
                   
-                  updatedStreamLogs.push({
-                    nodeId: entry.node_name,
-                    nodeName: entry.node_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                    message: newMessage,
-                    tools: entry?.tools || [],
-                    status: newStatus,
-                    isExpanded: existingLog?.isExpanded || false,
-                  });
+                  if (newMessage) {
+                    updatedStreamLogs.push({
+                      nodeId: entry.node_name,
+                      nodeName: entry.node_name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      message: newMessage,
+                      tools: entry?.tools || [],
+                      status: newStatus,
+                      isExpanded: existingLog?.isExpanded || false,
+                    });
+                  }
                 } else {
                   // Keep existing log unchanged
                   updatedStreamLogs.push(existingLog);
@@ -268,6 +273,8 @@ export default function ChatInterface({
         "sessionId": runId || "",
         "inputs": {"user_prompt": inputMessage},
         "stream": true,
+        "scope": "public",
+        "loggedInUser": "default"
       };
 
       const response = await triggerExecution(sessionPayload);
@@ -364,9 +371,60 @@ export default function ChatInterface({
     </motion.div>
   ), []);
 
+  // Component for rendering message content with markdown support
+  const MessageContent = ({ message }: { message: Message }) => {
+    if (message.sender === 'user') {
+      return <div className="text-sm whitespace-pre-line">{message.content}</div>;
+    }
+
+    if (message.sender === 'ai' && (message.streamLogs || message.finalAnswer)) {
+      return (
+        <div className="space-y-3 w-full">
+          {/* Stream logs display */}
+          <StreamLogDisplay 
+            message={message} 
+            onToggleExpansion={toggleNodeExpansion}
+          />
+          
+          {/* Final answer with markdown rendering */}
+          {message.finalAnswer && (
+            <div 
+              className="mt-3 p-3 rounded-lg" 
+              style={{ 
+                backgroundColor: `hsl(var(--primary) / 0.1)`,
+                border: `1px solid hsl(var(--primary) / 0.3)` 
+              }}
+            >
+              <div className="text-sm text-gray-100">
+                <ReactMarkdown
+                  components={MarkdownComponents}
+                  remarkPlugins={[remarkGfm, remarkBreaks]}
+                >
+                  {preprocessText(message.finalAnswer)}
+                </ReactMarkdown>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Default AI message without streaming
+    return (
+      <div className="text-sm">
+        <ReactMarkdown
+          components={MarkdownComponents}
+          remarkPlugins={[remarkGfm, remarkBreaks]}
+        >
+          {preprocessText(message.content)}
+        </ReactMarkdown>
+      </div>
+    );
+  };
+
   return (
-    <Card className="bg-background-card shadow-card border-gray-800 flex flex-col h-full">
-      <CardHeader className="py-4 px-6 flex flex-row justify-between items-center">
+    <Card className="bg-background-card shadow-card border-gray-800 flex flex-col h-full max-h-[82.5vh]">
+      <CardHeader className="py-4 px-6 flex flex-row justify-between items-center flex-shrink-0">
         <CardTitle className="text-lg font-heading">AI Assistant</CardTitle>
         <div className="flex space-x-2">
           <Button
@@ -386,8 +444,8 @@ export default function ChatInterface({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="flex-grow overflow-hidden p-0 flex flex-col">
-        <div className="flex-grow overflow-y-auto p-4 space-y-4">
+      <CardContent className="flex-1 overflow-hidden p-0 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
           <AnimatePresence>
             {messages.map((message) => (
               <motion.div
@@ -404,26 +462,7 @@ export default function ChatInterface({
                       : 'bg-background-dark border border-gray-800 rounded-tl-none'
                   }`}
                 >
-                  {message.sender === 'ai' && (message.streamLogs || message.finalAnswer) ? (
-                    <div className="space-y-3 w-full">
-                      {/* Stream logs display */}
-                      <StreamLogDisplay 
-                        message={message} 
-                        onToggleExpansion={toggleNodeExpansion}
-                      />
-                      
-                      {/* Final answer */}
-                      {message.finalAnswer && (
-                          <div className="text-sm text-gray-300">
-                            {message.finalAnswer}
-                          </div>
-                        
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-sm">{message.content}</div>
-                  )}
-                  
+                  <MessageContent message={message} />
                 </div>
               </motion.div>
             ))}
@@ -431,7 +470,7 @@ export default function ChatInterface({
           </AnimatePresence>
           <div ref={messagesEndRef} />
         </div>
-        <div className="p-4 border-t border-gray-800">
+        <div className="p-4 border-t border-gray-800 flex-shrink-0">
           <div className="flex space-x-2">
             <Input
               value={inputMessage}
