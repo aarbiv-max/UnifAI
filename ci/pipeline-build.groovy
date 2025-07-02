@@ -1,6 +1,7 @@
 properties([
     parameters([
         // 🌐 Global Parameters
+        string(name: "PIPELINE_BRANCH", defaultValue: "main", description: "Git branch to take the pipeline from, for testing purpose"),
         string(name: "BRANCH", defaultValue: "main", description: "Git branch to build images from."),
         string(name: "VERSION", defaultValue: new Date().format('yyyy.MM.dd'), description: "Image version tag"),
         
