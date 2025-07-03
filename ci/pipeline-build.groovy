@@ -98,7 +98,6 @@ pipeline {
                 dir("${buildParams.DevRoot}/${params.BRANCH}/") {
                     checkout([$class: 'GitSCM',
                     branches: [[name: "${params.BRANCH}"]],
-                    doGenerateSubmoduleConfigurations: false,
                     extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
                     submoduleCfg: [],
                     userRemoteConfigs: [[
@@ -194,6 +193,7 @@ pipeline {
             script {
                 echo "Running cleanup..."
                 cleanPodmanSystem()
+                cleanWs()
             }
         }
     }
