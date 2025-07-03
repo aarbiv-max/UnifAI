@@ -14,8 +14,8 @@ multiagent_server:
     type: ClusterIP
     port: "8080"
   env:
-    MONGODB_IP: a1775181c554d4c7789e7096bc6c4911-929149072.us-east-1.elb.amazonaws.com #mongodb
-    MONGO_URI: a1775181c554d4c7789e7096bc6c4911-929149072.us-east-1.elb.amazonaws.com #mongodb  # currently using that var but  we need to change to fit the dataflow vars to try to merge files.
+    MONGODB_IP: mongodb #a1775181c554d4c7789e7096bc6c4911-929149072.us-east-1.elb.amazonaws.com #mongodb
+    MONGO_URI: mongodb # a1775181c554d4c7789e7096bc6c4911-929149072.us-east-1.elb.amazonaws.com #mongodb  # currently using that var but  we need to change to fit the dataflow vars to try to merge files.
     MONGODB_PORT: "27017"
     RABBITMQ_IP: rabbitmq
     RABBITMQ_PORT: "5672"
