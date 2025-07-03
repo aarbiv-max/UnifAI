@@ -20,7 +20,8 @@ class VectorStorageFactory:
             Initialized vector storage
         """
         storage_type = config.get("type", "qdrant")
-        
+
+
         if storage_type == "qdrant":
             return QdrantStorage(
                 collection_name=config.get("collection_name", "slack_data"),

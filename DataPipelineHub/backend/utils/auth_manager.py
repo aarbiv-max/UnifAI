@@ -73,21 +73,17 @@ class AuthManager:
         def login():
             """Initiate OAuth login flow"""
             # Hardcode or use an env variable to set the externally reachable redirect URI
-            redirect_uri = config.get(
-                'redirect_url',
-                'http://127.0.0.1:13456/api/auth/callback'
-            )
 
             # redirect_uri = config.get(
             #     'redirect_url',
             #     url_for('auth_callback', _external=True, _scheme='https')
             # )
-            # redirect_uri = config.get(
-            #     'redirect_url',
-            #     url_for('auth_callback', _external=True, _scheme='https') 
-            #     if config.get("BACKEND_ENV","development") == "production" 
-            #     else config.get("frontend_url", "http://127.0.0.1:13456/api/auth/callback")
-            # )
+            redirect_uri = config.get(
+                'redirect_url',
+                url_for('auth_callback', _external=True, _scheme='https') 
+                if config.backend_env == "production" 
+                else f"http://{config.hostname_local}:{config.port}/api/auth/callback"
+            )
 
             logger.info(f"[LOGIN] session before redirect: {session.items()}")
             return self.keycloak_client.authorize_redirect(redirect_uri)
@@ -124,12 +120,12 @@ class AuthManager:
                 
                 # Redirect to frontend
                 frontend_url = config.get('frontend_url', 'http://localhost:5000')
-                return redirect(f"{frontend_url}?auth=success")
+                return redirect(f"{config.frontend_url}?auth=success")
                 
             except AuthlibBaseError as e:
                 logger.error(f"Authentication error: {str(e)}")
                 frontend_url = config.get('frontend_url', 'http://localhost:5000')
-                return redirect(f"{frontend_url}?auth=error")
+                return redirect(f"{config.frontend_url}?auth=error")
         
         @self.app.route('/api/auth/logout', methods=['POST'])
         def logout():

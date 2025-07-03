@@ -10,6 +10,7 @@ class AppConfig(SharedConfig):
     mongodb_ip: str = "0.0.0.0"
 
     hostname: str = "0.0.0.0"
+    hostname_local: str = "127.0.0.1"
     port: str = "13456"
 
     qdrant_ip: str = "http://localhost"
@@ -25,7 +26,7 @@ class AppConfig(SharedConfig):
     # secret_key=your-super-secret-key-change-this-in-production
     frontend_url: str = "http://localhost:5000"
     # session_cookie_secure=True
-        
+    backend_env: str = "development"
     @classmethod
     def get(cls, key: str, default=None):
         instance = cls()  # safe because of SingletonMeta

@@ -9,6 +9,8 @@ from data_sources.docs.doc_pipeline_scheduler import DocDataPipeline
 from utils.embedding.embedding_generator_factory import EmbeddingGeneratorFactory
 from utils.storage.vector_storage_factory import VectorStorageFactory
 from shared.logger import logger
+from global_utils.utils.util import get_mongo_url
+
 
 def get_available_doc_list():
     # TODO: NotImplemented
@@ -55,7 +57,7 @@ def embed_docs_flow(doc_list, upload_by):
     vector_storage.initialize()
 
     # Create MongoDB client
-    mongo_client = pymongo.MongoClient("mongodb://localhost:27017/")
+    mongo_client = pymongo.MongoClient(get_mongo_url())
 
     # Create data pipeline with existing logger
     doc_pipeline = DocDataPipeline(mongo_client, logger=logger)
