@@ -15,31 +15,32 @@ properties([
         booleanParam(name: 'deploy_unifai', defaultValue: false, description: 'True - Deploy UnifAI, False - Only build images and upload to image-paas'),
         choice(name: 'deploy_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Deployment type'),
         choice(name: 'deploy_location', choices: ['STAGING', 'PRODUCTION'], description: 'Deployment environment'),
-        string(name: "deploy_namespace", defaultValue: "tag-ai--runtime-int", description: "K8s namespace"),
     ])
 ])
 
 def buildParams = [
+    LogLevel           : "ALL",
     MainRepoURL        : "gitlab.cee.redhat.com",
     MainRepoProject    : "ai_tools/unifai",
     CredentialsId      : "gitlab-genie",
     NodeToRun          : "tag-slave",
     DevRoot            : "/root/workspace/${env.JOB_NAME}",
     ImageRegistry      : "images.paas.redhat.com",
-    ImageRegistryPath  : "genie",
-    ImageRegistryCreds : "images.paas.registry",
+    ImageRegistryPath  : "unifai",
+    ImageRegistryCreds : "images.paas.registry-unifai",
 ]
+
 
 def buildDockerImage(String module, String component) {
     String dockerfile = "Dockerfile"
     String logFile = "/tmp/${module}_build.log"
 
     echo("---====  buildDockerImage ${module}  ====---")
-
-    def status = sh(script: "podman build -t ${module}:${VERSION} -t ${component}/${module}:latest -f ${dockerfile} > ${logFile} 2>&1", returnStatus: true)
+    def componentLower = component.toLowerCase()
+    def status = sh(script: "podman build -t ${componentLower}/${module}:${VERSION} -t ${componentLower}/${module}:latest -f ${component}/${module}/${dockerfile} . > ${logFile} 2>&1", returnStatus: true)
 
     if (status != 0) {
-        echo("Build failed for module: ${component}/${module}. Check ${logFile} for details.")
+        echo("Build failed for module: ${componentLower}/${module}. Check ${logFile} for details.")
         sh "cat ${logFile}"
         return false
     } else {
@@ -50,6 +51,7 @@ def buildDockerImage(String module, String component) {
 
 def tagAndPushImageToRegistry(module, buildParams,component) {
     echo("Tagging and pushing image for ${module}.")
+    def componentLower = component.toLowerCase()
 
     withCredentials([usernamePassword(
         credentialsId: "${buildParams.ImageRegistryCreds}",
@@ -58,14 +60,14 @@ def tagAndPushImageToRegistry(module, buildParams,component) {
     )]) {
         sh """
             podman login -u ${REGISTRY_USER} -p ${REGISTRY_PASS} ${buildParams.ImageRegistry}
-            podman push ${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${component}/${module}:${VERSION}
+            podman push ${componentLower}/${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}/${module}:${VERSION}
         """
         if (params.set_image_canidate) {
             sh """
-                podman push --quiet ${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${component}/${module}:latest
+                podman push --quiet ${componentLower}/${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}/${module}:latest
             """
         }
-        echo("Image for ${module} has been tagged and pushed to ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${component}/${module}:${VERSION}")
+        echo("Image for ${module} has been tagged and pushed to ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}/${module}:${VERSION}")
     }
 }
 
@@ -92,13 +94,16 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
+                echo("CheckOut ${buildParams.MainRepoProject}/${params.BRANCH}")
                 dir("${buildParams.DevRoot}/${params.BRANCH}/") {
                     checkout([$class: 'GitSCM',
-                        branches: [[name: "${params.BRANCH}"]],
-                        extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
-                        userRemoteConfigs: [[
-                            credentialsId: buildParams.CredentialsId,
-                            url: "https://${buildParams.MainRepoURL}/${buildParams.MainRepoProject}.git"
+                    branches: [[name: "${params.BRANCH}"]],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: "${buildParams.DevRoot}/${params.BRANCH}"]],
+                    submoduleCfg: [],
+                    userRemoteConfigs: [[
+                        credentialsId: "${buildParams.CredentialsId}",
+                        url: "https://${buildParams.MainRepoURL}/${buildParams.MainRepoProject}.git"
                         ]]
                     ])
                 }
@@ -107,38 +112,17 @@ pipeline {
 
         stage('Build and Push Images') {
             parallel {
-                stage('build_gui_image') {
-                    when { expression { params.build_gui } }
-                    steps {
-                        script {
-                            def component = "DataPipelineHub"
-                            def module = "ui"
-                            def componentLower = component.toLowerCase()
-                            dir("${buildParams.DevRoot}/${params.BRANCH}/${component}/${module}/") {
-                                cleanWorkspace(module, componentLower)
-                                if (buildDockerImage(module, componentLower)) {
-                                    tagAndPushImageToRegistry(module, buildParams, componentLower)
-                                    cleanWorkspace(module, componentLower)
-                                } else {
-                                    error("Terminating process for ${module}: Build failed")
-                                }
-                            }
-                        }
-                    }
-                }
-
                 stage('build_dataflow_image') {
                     when { expression { params.build_dataflow_backend } }
                     steps {
                         script {
                             def component = "DataPipelineHub"
                             def module = "backend"
-                            def componentLower = component.toLowerCase()
-                            dir("${buildParams.DevRoot}/${params.BRANCH}/${component}/${module}") {
-                                cleanWorkspace(module, componentLower)
-                                if (buildDockerImage(module, componentLower)) {
-                                    tagAndPushImageToRegistry(module, buildParams,componentLower)
-                                    cleanWorkspace(module,componentLower)
+                            dir("${buildParams.DevRoot}/${params.BRANCH}/") {
+                                cleanWorkspace(module, component)
+                                if (buildDockerImage(module, component)) {
+                                    tagAndPushImageToRegistry(module, buildParams,component)
+                                    cleanWorkspace(module,component)
                                 } else {
                                     error("Terminating process for ${module}: Build failed")
                                 }
@@ -146,7 +130,25 @@ pipeline {
                         }
                     }
                 }
-
+                // stage('build_gui_image') {
+                //     when { expression { params.build_gui } }
+                //     steps {
+                //         script {
+                //             def component = "DataPipelineHub"
+                //             def module = "ui"
+                //             def componentLower = component.toLowerCase()
+                //             dir("${buildParams.DevRoot}/${params.BRANCH}/${component}/${module}/") {
+                //                 cleanWorkspace(module, componentLower)
+                //                 if (buildDockerImage(module, componentLower)) {
+                //                     tagAndPushImageToRegistry(module, buildParams, componentLower)
+                //                     cleanWorkspace(module, componentLower)
+                //                 } else {
+                //                     error("Terminating process for ${module}: Build failed")
+                //                 }
+                //             }
+                //         }
+                //     }
+                // }
                 // Uncomment if needed
                 // stage('build_multiagent_image') {
                 //     when { expression { params.build_multiagent_backend } }
@@ -181,20 +183,19 @@ pipeline {
                         string(name: 'VERSION', value: params.VERSION),
                         string(name: 'deploy_type', value: params.deploy_type),
                         string(name: 'deploy_location', value: params.deploy_location),
-                        string(name: 'namespace', value: params.deploy_namespace)
                     ]
                 }
             }
         }
     }
 
-    // post {
-    //     always {
-    //         script {
-    //             echo "Running cleanup..."
-    //             cleanPodmanSystem()
-    //         }
-    //     }
-    // }
+    post {
+        always {
+            script {
+                echo "Running cleanup..."
+                cleanPodmanSystem()
+            }
+        }
+    }
 }
 
