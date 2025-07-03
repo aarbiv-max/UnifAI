@@ -1,16 +1,24 @@
-#podman run -dt   --name helmfile   --user $(id -u):$(id -g)   --workdir /helm/charts   -v "$PWD":/helm/charts:Z   -v "$HOME/.kube":/helm/.kube:Z   ghcr.io/helmfile/helmfile:latest bash
+#podman run -dt   --name helmfile  --workdir /helm/  -v "$PWD":/helm/:Z   -v "$HOME/.kube":/helm/.kube:Z   ghcr.io/helmfile/helmfile:latest bash
+#helmfile -f helmfile1.gotmpl apply
+environments:
+  default:
+    values:
+      - ./values/multiagent-resource-values.yaml
+---
 
 helmDefaults:
-    createNamespace: false
-    wait: false
+  createNamespace: false
+  wait: false
 
 releases:
+
   - name: unifai-multiagent-be
     chart: ./multiagent/be
     wait: true
-    timeout: 300
+    #timeout: 300
     values:
       - "./multiagent/values/multiagent-be.yaml"
+      - {{- toYaml .Values.multiagent_server | nindent 8 }}
 
   # - name: unifai-multiagent-celery
   #   chart: ./multiagent/celery

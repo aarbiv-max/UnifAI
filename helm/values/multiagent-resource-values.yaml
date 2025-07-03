@@ -1,0 +1,34 @@
+multiagent_server:
+  resources: 
+    limits:
+      cpu: '4'
+      memory: '32Gi'
+    requests:
+      cpu: '4'
+      memory: '16Gi'
+  image: 
+    registry: "images.paas.redhat.com/sfiresht/"
+    repository: "images.paas.redhat.com/sfiresht/multia"
+    tag: "latest"
+  service:
+    type: ClusterIP
+    port: "8080"
+  env:
+    MONGODB_IP: a1775181c554d4c7789e7096bc6c4911-929149072.us-east-1.elb.amazonaws.com #mongodb
+    MONGO_URI: a1775181c554d4c7789e7096bc6c4911-929149072.us-east-1.elb.amazonaws.com #mongodb  # currently using that var but  we need to change to fit the dataflow vars to try to merge files.
+    MONGODB_PORT: "27017"
+    RABBITMQ_IP: rabbitmq
+    RABBITMQ_PORT: "5672"
+    qdrant_ip: "http://qdrant"
+    qdrant_port: "6333"
+    BACKEND_ENV: "production"
+    ROLE: "flask" # "debug" "flask"
+
+multiagent_celery:
+  image: 
+    registry: "dummy"
+    repository: "dummy"
+    tag: "latest"
+  service:
+    type: "dummy"
+    port: "dummy"

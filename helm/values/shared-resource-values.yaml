@@ -38,3 +38,12 @@ unifai_dataflow_shared_storage:
       kubernetes.io/reclaimPolicy: Delete
     labels:
       paas.redhat.com/appcode: TAG-001
+
+# redis:
+#   image:
+#     registry: images.paas.redhat.com/genie
+#     repository: rabbitmq
+#     pullPolicy: IfNotPresent
+#     tag: 4.0.5-debian-12-r0
+#   service:
+#     type: LoadBalancer

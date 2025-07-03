@@ -39,6 +39,13 @@ releases:
     values:
       - {{- toYaml .Values.rabbitmq | nindent 8 }}
 
+#place holder for redis
+#  - name: unifai-redis
+#    chart: ./shared-resources/redis
+#    wait: true
+#    values:
+#      - {{- toYaml .Values.redis | nindent 8 }}
+
   - name: unifai-shared-config
     chart: ./shared-resources/shared-config
     wait: true
