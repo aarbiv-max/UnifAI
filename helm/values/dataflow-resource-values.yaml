@@ -6,7 +6,7 @@ env:
 unifai_dataflow_server:
   replicaCount: 1
   image:
-    repository: images.paas.redhat.com/genie/unifai/unifai-dataflow
+    repository: images.paas.redhat.com/unifai/datapipelinehub/backend
     tag: "latest"
     pullPolicy: Always
   service:
@@ -19,7 +19,7 @@ unifai_dataflow_server:
 unifai_dataflow_celery:
   replicaCount: 1
   image:
-    repository: images.paas.redhat.com/genie/unifai/unifai-dataflow
+    repository: images.paas.redhat.com/unifai/datapipelinehub/backend
     tag: "latest"
     pullPolicy: Always
   env:
