@@ -12,9 +12,9 @@ unifai_dataflow_server:
   service:
     type: ClusterIP
     port: 13456
-    env:
-      ROLE: "flask"
-      SHARED_STORAGE: "/app/shared"
+  env:
+    ROLE: "flask"
+    SHARED_STORAGE: "/app/shared"
 
 unifai_dataflow_celery:
   replicaCount: 1
