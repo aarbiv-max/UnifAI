@@ -15,6 +15,8 @@ properties([
         booleanParam(name: 'deploy_unifai', defaultValue: false, description: 'True - Deploy UnifAI, False - Only build images and upload to image-paas'),
         choice(name: 'deploy_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Deployment type'),
         choice(name: 'deploy_location', choices: ['STAGING', 'PRODUCTION'], description: 'Deployment environment'),
+        booleanParam(name: 'deploy_mode', defaultValue: false, description: 'True - create pods with debug mode')
+        
     ])
 ])
 
@@ -182,6 +184,7 @@ pipeline {
                         string(name: 'VERSION', value: params.VERSION),
                         string(name: 'deploy_type', value: params.deploy_type),
                         string(name: 'deploy_location', value: params.deploy_location),
+                        booleanParam(name: 'deploy_mode', value: params.deploy_mode),
                     ]
                 }
             }
