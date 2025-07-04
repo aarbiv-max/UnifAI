@@ -4,6 +4,7 @@ env:
     SHARED_STORAGE: "/app/shared"
 
 unifai_dataflow_server:
+  debug: true
   replicaCount: 1
   image:
     repository: images.paas.redhat.com/unifai/datapipelinehub/backend
@@ -17,6 +18,7 @@ unifai_dataflow_server:
     SHARED_STORAGE: "/app/shared"
 
 unifai_dataflow_celery:
+  debug: true
   replicaCount: 1
   image:
     repository: images.paas.redhat.com/unifai/datapipelinehub/backend
