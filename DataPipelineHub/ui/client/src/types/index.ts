@@ -62,6 +62,7 @@ export interface Document {
   file_size: string;
   upload_by: string;
   last_updated: string;
+  scope: "private" | "public";
   stats: {
     total_tokens?: number;
     avg_chunk_size?: number;

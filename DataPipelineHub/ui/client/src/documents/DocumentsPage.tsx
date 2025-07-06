@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { FaTh, FaList } from "react-icons/fa";
+import { FaTh, FaList, FaLock, FaGlobe } from "react-icons/fa";
 import { useState, useEffect } from "react";
 import { Document } from "@/types";
 import { UploadTab } from "./UploadTab";
@@ -13,8 +13,10 @@ import { DocumentTable } from "./DocumentsTable";
 import { PageLoader } from "@/components/shared/PageLoader";
 import { DocumentGrid } from "./DocumentGrid";
 
-const fetchDocuments = async () => {
-  const response = await axiosInstance.get("/api/docs/available.docs.get");
+const fetchDocuments = async (scope: "private" | "public") => {
+  const response = await axiosInstance.get("/api/docs/available.docs.get", {
+    params: { scope }
+  });
   return response.data.docs;
 };
 
@@ -27,12 +29,13 @@ export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [scope, setScope] = useState<"private" | "public">("private");
 
   const { currentPage, setPage, resetPage, itemsPerPage, } = usePaginationStore();
 
-  const { data: documents = [], isLoading, isError, error } = useQuery<Document[]>({
-    queryKey: ['documents'],
-    queryFn: fetchDocuments,
+  const { data: documents = [], isLoading, isError, error, refetch } = useQuery<Document[]>({
+    queryKey: ['documents', scope],
+    queryFn: () => fetchDocuments(scope),
     refetchInterval: 10000,
   });
 
@@ -41,8 +44,8 @@ export default function Documents() {
   }, []);
 
   useEffect(() => {
-    fetchDocuments();
-  }, [showUploadModal, activeDoc])
+    refetch();
+  }, [showUploadModal, activeDoc, scope]);
 
   const filteredDocuments = documents.filter((doc) => {
     const matchesType = fileTypeFilter === "all" || doc.file_type === fileTypeFilter;
@@ -95,6 +98,29 @@ export default function Documents() {
     />
   );
 
+  const scopeToggle = (
+    <div className="flex items-center space-x-2">
+      <Button
+        variant={scope === "private" ? "default" : "outline"}
+        size="sm"
+        onClick={() => setScope("private")}
+        className="flex items-center space-x-2"
+      >
+        <FaLock className="w-4 h-4" />
+        <span>My Documents</span>
+      </Button>
+      <Button
+        variant={scope === "public" ? "default" : "outline"}
+        size="sm"
+        onClick={() => setScope("public")}
+        className="flex items-center space-x-2"
+      >
+        <FaGlobe className="w-4 h-4" />
+        <span>Public Documents</span>
+      </Button>
+    </div>
+  );
+
   const viewButtons = (
     <div className="flex items-center space-x-4">
       <Button onClick={() => setShowUploadModal(true)}>Upload Document</Button>
@@ -121,7 +147,7 @@ export default function Documents() {
     try {
       setDeleteLoading(true);
       await axiosInstance.post("/api/docs/delete", { pipelineId: id });
-      await fetchDocuments(); 
+      await refetch(); 
     } catch (error) {
       console.error("Error deleting document:", error);
     } finally {
@@ -151,7 +177,7 @@ export default function Documents() {
 
         <div className="flex-1 overflow-auto px-6 pb-6">
           {showUploadModal ? (
-            <UploadTab setShowUploadModal={setShowUploadModal} fetchDocuments={fetchDocuments} />
+            <UploadTab setShowUploadModal={setShowUploadModal} fetchDocuments={refetch} />
           ) : (
             <div className="mt-6">
               {isLoading ? (
@@ -160,9 +186,12 @@ export default function Documents() {
                 <p className="text-sm text-red-500">Error: {(error as Error).message}</p>
               ) : (
                 <>
-                  {/* Top controls: filters only in grid view, view buttons and upload always */}
+                  {/* Top controls: scope toggle, filters (only in grid view), and view buttons */}
                   <div className="flex items-center justify-between mb-4">
-                    {viewMode === "grid" ? (<div className="flex-1">{filters}</div>) : (<div className="flex-1" />)}
+                    <div className="flex items-center space-x-4">
+                      {scopeToggle}
+                      {viewMode === "grid" && filters}
+                    </div>
                     {viewButtons}
                   </div>
 

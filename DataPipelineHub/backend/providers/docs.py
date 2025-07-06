@@ -39,15 +39,29 @@ def upload_docs(files):
         logger.error(f"Failed to upload files: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-def get_available_doc_list(user):
+def get_available_doc_list(user, scope="private"):
     """
     Fetches a list of available documents uploaded by a specific user.
     Enriches each document with additional metadata from the data source.
+    
+    Args:
+        user: The user requesting the documents
+        scope: Either "private" (user's documents only) or "public" (all public documents)
     """
-    docs = pipeline_repo.get_pipeline_by_query({"source_type": "DOCUMENT","upload_by": user, "deleted": {"$ne": True}})
+    if scope == "private":
+        # Get only documents uploaded by the user
+        docs = pipeline_repo.get_pipeline_by_query({"source_type": "DOCUMENT","upload_by": user, "deleted": {"$ne": True}})
+    elif scope == "public":
+        # Get all public documents
+        docs = pipeline_repo.get_pipeline_by_query({"source_type": "DOCUMENT", "deleted": {"$ne": True}})
+    else:
+        # Default to private scope
+        docs = pipeline_repo.get_pipeline_by_query({"source_type": "DOCUMENT","upload_by": user, "deleted": {"$ne": True}})
+    
     if not docs:
         return []
 
+    filtered_docs = []
     for doc in docs:
         doc["file_type"] = doc.get("name", "").rsplit(".", 1)[-1].lower()
         
@@ -56,18 +70,30 @@ def get_available_doc_list(user):
         if not doc_data:
             continue
 
+        # Get privacy information from the data source
+        privacy = doc_data[0].get("privacy", "private")
+        
+        # Filter based on scope and privacy
+        if scope == "public" and privacy != "public":
+            continue
+        elif scope == "private" and doc.get("upload_by") != user:
+            continue
+        
         type_data = doc_data[0].get("type_data", {})
         doc.update({
             "chunks": doc_data[0].get("chunks_generated", []),
             "path": type_data.get("source_path", ""),
             "file_size": type_data.get("file_size", 0),
             "page_count": type_data.get("page_count", 0),
-            "full_text": type_data.get("full_text", "")
+            "full_text": type_data.get("full_text", ""),
+            "privacy": privacy
         })
+        
+        filtered_docs.append(doc)
 
-    return docs
+    return filtered_docs
 
-def embed_docs_flow(doc_list, upload_by):
+def embed_docs_flow(doc_list, upload_by, privacy="private"):
     # Create data pipeline with existing logger
     doc_pipeline = DocDataPipeline(mongo_client, logger=logger)
     
@@ -78,6 +104,7 @@ def embed_docs_flow(doc_list, upload_by):
         doc_id = str(uuid.uuid4())
         doc["doc_id"] = doc_id
         doc["doc_path"] = doc_path
+        doc["privacy"] = privacy
         
         start = time.time()
         doc_pipeline.register_doc(doc_id, doc_name, upload_by)
@@ -161,7 +188,8 @@ def embed_docs_flow(doc_list, upload_by):
                 source_type="DOCUMENT",
                 enriched_chunks=enriched_chunks,
                 summary=common_summary,
-                type_data=doc_type_data
+                type_data=doc_type_data,
+                privacy=doc.get("privacy", "private")
             )
             
             vector_storage.store_embeddings(enriched_chunks)

@@ -92,7 +92,8 @@ class MongoStorage(SourceRepository, PipelineRepository):
         source_type: str,
         summary: Dict[str, Any],
         type_data: Optional[Dict[str, Any]] = None,
-        upload_by: str = "default"
+        upload_by: str = "default",
+        scope: str = "private"
     ) -> None:
         col = self._get_collection(DATA_DB, SOURCES_COL)
         now = datetime.utcnow()
@@ -101,6 +102,7 @@ class MongoStorage(SourceRepository, PipelineRepository):
             "source_name": source_name,
             "source_type": source_type,
             "upload_by": upload_by,
+            "scope": scope,
             "last_sync_at": now,
             **summary
         }

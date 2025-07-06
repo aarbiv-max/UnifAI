@@ -1,4 +1,4 @@
-import { FaEye, FaSync, FaTrash } from "react-icons/fa";
+import { FaEye, FaSync, FaTrash, FaLock, FaGlobe } from "react-icons/fa";
 import { DataCard } from "@/components/shared/DataCard";
 import { fileByColors, getFileIcon, statusByColors, statusByLabel } from "@/documents/helpers";
 import { InlineLoader } from "@/components/shared/InlineLoader";
@@ -35,6 +35,14 @@ const getStatusBadge = (doc: Document) => ({
   label: statusByLabel[doc.status] || "Unknown",
   className: statusByColors[doc.status],
 });
+
+const getPrivacyIcon = (doc: Document) => {
+  return doc.scope === "public" ? (
+    <FaGlobe className="h-3 w-3 text-blue-400" title="Public Document" />
+  ) : (
+    <FaLock className="h-3 w-3 text-gray-400" title="Private Document" />
+  );
+};
 
 // const getExtraTopRight = (
 //   doc: Document,
@@ -94,7 +102,12 @@ export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, delet
                 iconBgClass={fileByColors[doc.file_type]}
                 title={doc.name}
                 subtitle={getSubtitle(doc)}
-                metadata={`Uploaded ${new Date(doc.created_at).toLocaleString("en-GB")} by ${doc.upload_by}`}
+                metadata={
+                  <div className="flex items-center justify-between">
+                    <span>{`Uploaded ${new Date(doc.created_at).toLocaleString("en-GB")} by ${doc.upload_by}`}</span>
+                    {getPrivacyIcon(doc)}
+                  </div>
+                }
                 footer={getFooterText(doc)}
                 selected={doc === activeDoc}
                 onClick={() => setActiveDoc(doc === activeDoc ? null : doc)}

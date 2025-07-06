@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FaFileAlt, FaUpload, FaTimes } from "react-icons/fa";
+import { FaFileAlt, FaUpload, FaTimes, FaLock, FaGlobe } from "react-icons/fa";
 import { Progress } from "@/components/ui/progress";
 import axiosInstance from "@/http/axiosConfig";
 import { ProcessingOptions } from "./ProcessingOptions";
@@ -12,14 +12,16 @@ interface UploadTabProps {
 }
 
 export const UploadTab: React.FC<UploadTabProps> = ({
-    setShowUploadModal, fetchDocuments
+    setShowUploadModal,
+    fetchDocuments,
 }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string>("");
-    
+    const [scope, setScope] = useState<"private" | "public">("private");
+
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(true);
@@ -66,7 +68,8 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                 });
 
                 await axiosInstance.post("/api/docs/upload", {
-                    files: [{ name: file.name, content: base64 }]
+                    files: [{ name: file.name, content: base64 }],
+                    scope: scope
                 });
 
                 uploadedCount += 1;
@@ -84,7 +87,10 @@ export const UploadTab: React.FC<UploadTabProps> = ({
 
     const startPipeline = async (docs: {doc_name: string}[]) => {
         try {
-            await axiosInstance.put("/api/docs/embed.docs", { docs });
+            await axiosInstance.put("/api/docs/embed.docs", { 
+                docs: docs,
+                scope: scope 
+            });
             console.log("API submission successful!");
         } catch (error) {
             console.error(error);
@@ -104,7 +110,6 @@ export const UploadTab: React.FC<UploadTabProps> = ({
         setSelectedFiles([]);
     };
 
-
     return (
         <div className="space-y-6">
             <Card className="bg-background-card shadow-card border-gray-800 w-full">
@@ -119,6 +124,38 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                         <div className="flex justify-between mb-4">
                             <Button onClick={() => setShowUploadModal(false)}>Cancel</Button>
                         </div>
+                    </div>
+
+                    {/* Privacy Selection */}
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium text-gray-300 mb-3">
+                            Document Privacy
+                        </label>
+                        <div className="flex space-x-4">
+                            <Button
+                                variant={scope === "private" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setScope("private")}
+                                className="flex items-center space-x-2"
+                            >
+                                <FaLock className="w-4 h-4" />
+                                <span>Private</span>
+                            </Button>
+                            <Button
+                                variant={scope === "public" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setScope("public")}
+                                className="flex items-center space-x-2"
+                            >
+                                <FaGlobe className="w-4 h-4" />
+                                <span>Public</span>
+                            </Button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            {scope === "private" 
+                                ? "Only you can view and search these documents" 
+                                : "All users can view and search these documents"}
+                        </p>
                     </div>
 
                     <div

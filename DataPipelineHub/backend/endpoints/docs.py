@@ -1,6 +1,6 @@
 import os
 from urllib import request
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify, session, request
 from webargs import fields
 from shared.logger import logger
 from global_utils.helpers.apiargs import from_query, from_body
@@ -11,23 +11,27 @@ docs_bp = Blueprint("docs", __name__)
 
 @docs_bp.route("/upload", methods=["POST"])
 @from_body({
-    "files": fields.List(fields.Dict(), required=True)
+    "files": fields.List(fields.Dict(), required=True),
+    "scope": fields.Str(missing="private", validate=lambda x: x in ["private", "public"])
 })
-def upload_files(files):
+def upload_files(files, scope):
     try:
         upload_docs(files)
-        return jsonify({"message": "Files uploaded successfully"}), 200
+        return jsonify({"message": "Files uploaded successfully", "scope": scope}), 200
     except Exception as e:
         logger.error(f"Failed to upload files: {str(e)}")
         return jsonify({"error": str(e)}), 500
     
     
 @docs_bp.route("/available.docs.get", methods=["GET"])
-def available_doc_list():
+@from_query({
+    "scope": fields.Str(missing="private", validate=lambda x: x in ["private", "public"])
+})
+def available_doc_list(scope):
     try:
         user = session.get('user', {}).get('name', 'default')
-        docs = get_available_doc_list(user)
-        return jsonify({"docs": docs}), 200
+        docs = get_available_doc_list(user, scope)
+        return jsonify({"docs": docs, "scope": scope}), 200
     except Exception as e:
         logger.error(f"Failed to get available docs list: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -35,19 +39,16 @@ def available_doc_list():
 
 @docs_bp.route("/embed.docs", methods=["PUT"])
 @from_body({
-    "docs": fields.List(fields.Dict(), required=True)
+    "docs": fields.List(fields.Dict(), required=True),
+    "scope": fields.Str(missing="private", validate=lambda x: x in ["private", "public"])
 })
-def embed_docs(docs):
+def embed_docs(docs, scope):
     try:
-        send_task(
-            task_name="data_sources.docs.docs_tasks.embed_docs_task",
-            celery_queue="docs_queue",
-            doc_list=docs,
-            upload_by=session.get('user', {}).get('name', 'default')
-        )
-        return jsonify({"status": "task submitted"}), 202
+        upload_by = session.get('user', {}).get('name', 'default')
+        task = send_task("embed_docs_task", args=[docs, upload_by, scope])
+        return jsonify({"task_id": task.id, "scope": scope}), 200
     except Exception as e:
-        logger.error(f"Failed to submit docs embedding task: {str(e)}")
+        logger.error(f"Failed to start embedding task: {str(e)}")
         return jsonify({"error": str(e)}), 500
     
 @docs_bp.route("/query.match", methods=["GET"])

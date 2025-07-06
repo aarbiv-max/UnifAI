@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FaEye, FaSync, FaTrash } from "react-icons/fa";
+import { FaEye, FaSync, FaTrash, FaLock, FaGlobe } from "react-icons/fa";
 import { getFileIcon } from "./helpers";
 import { Document } from "@/types";
 
@@ -19,6 +19,24 @@ export const DocumentData: React.FC<LibraryTabProps> = ({ doc }) => {
     { label: "Pages", value: doc.page_count },
     { label: "Uploaded", value: new Date(doc.created_at).toLocaleDateString() },
     { label: "Processed", value: doc.last_updated ? new Date(doc.last_updated).toLocaleDateString() : "—" },
+    { 
+      label: "Privacy", 
+      value: (
+        <div className="flex items-center space-x-1">
+          {doc.scope === "public" ? (
+            <>
+              <FaGlobe className="h-3 w-3 text-blue-400" />
+              <span className="text-blue-400">Public</span>
+            </>
+          ) : (
+            <>
+              <FaLock className="h-3 w-3 text-gray-400" />
+              <span className="text-gray-400">Private</span>
+            </>
+          )}
+        </div>
+      )
+    },
   ];
 
   const statistics = [
@@ -65,28 +83,29 @@ export const DocumentData: React.FC<LibraryTabProps> = ({ doc }) => {
               </div>
             </div>
 
-
             {/* Right side: metadata and stats */}
-            <div className="flex-1 flex flex-col">
-              <div className="bg-background-dark p-4 rounded-lg border border-gray-800 flex-1">
-                <h4 className="font-medium mb-3">Document Metadata</h4>
-                <div className="space-y-3">
-                  {metadata.map(({ label, value }) => (
-                    <div className="flex justify-between" key={label}>
-                      <span className="text-sm text-gray-400">{label}:</span>
-                      <span className="text-sm">{value}</span>
+            <div className="w-full lg:w-80 flex flex-col space-y-4">
+              {/* Metadata */}
+              <div className="bg-background-surface rounded-lg p-4 border border-gray-800">
+                <h4 className="font-semibold mb-3">Metadata</h4>
+                <div className="space-y-2">
+                  {metadata.map((item, index) => (
+                    <div key={index} className="flex justify-between text-sm">
+                      <span className="text-gray-400">{item.label}:</span>
+                      <span className="font-medium">{item.value}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="mt-4 bg-background-dark p-4 rounded-lg border border-gray-800">
-                <h4 className="font-medium mb-3">Extraction Statistics</h4>
-                <div className="space-y-3">
-                  {statistics.map(({ label, value }) => (
-                    <div className="flex justify-between" key={label}>
-                      <span className="text-sm text-gray-400">{label}:</span>
-                      <span className="text-sm">{value}</span>
+              {/* Statistics */}
+              <div className="bg-background-surface rounded-lg p-4 border border-gray-800">
+                <h4 className="font-semibold mb-3">Processing Statistics</h4>
+                <div className="space-y-2">
+                  {statistics.map((item, index) => (
+                    <div key={index} className="flex justify-between text-sm">
+                      <span className="text-gray-400">{item.label}:</span>
+                      <span className="font-medium">{item.value}</span>
                     </div>
                   ))}
                 </div>

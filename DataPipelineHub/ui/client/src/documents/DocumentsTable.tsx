@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FaEye, FaTrash, FaSync } from "react-icons/fa";
+import { FaEye, FaTrash, FaSync, FaLock, FaGlobe } from "react-icons/fa";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InlineLoader } from "@/components/shared/InlineLoader";
@@ -53,6 +53,33 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       header: "Uploaded By",
       cell: ({ row }) => row.original.upload_by,
       meta: { align: "left" },
+    },
+    {
+      accessorKey: "privacy",
+      header: "Privacy",
+      cell: ({ row }) => {
+        const doc = row.original;
+        return (
+          <div className="flex items-center justify-center">
+            {doc.scope === "public" ? (
+              <div className="flex items-center space-x-1">
+                <FaGlobe className="h-3 w-3 text-blue-400" />
+                <span className="text-xs text-blue-400">Public</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-1">
+                <FaLock className="h-3 w-3 text-gray-400" />
+                <span className="text-xs text-gray-400">Private</span>
+              </div>
+            )}
+          </div>
+        );
+      },
+      meta: { 
+        align: "center", 
+        filterType: "select",
+        filterOptions: ["private", "public"],
+      },
     },
     {
       accessorKey: "page_count",
