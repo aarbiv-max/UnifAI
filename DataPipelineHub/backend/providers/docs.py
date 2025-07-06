@@ -71,7 +71,7 @@ def get_available_doc_list(user, scope="private"):
             continue
 
         # Get privacy information from the data source
-        privacy = doc_data[0].get("privacy", "private")
+        privacy = doc_data[0].get("scope", "private")
         
         # Filter based on scope and privacy
         if scope == "public" and privacy != "public":
@@ -86,14 +86,14 @@ def get_available_doc_list(user, scope="private"):
             "file_size": type_data.get("file_size", 0),
             "page_count": type_data.get("page_count", 0),
             "full_text": type_data.get("full_text", ""),
-            "privacy": privacy
+            "scope": scope
         })
         
         filtered_docs.append(doc)
 
     return filtered_docs
 
-def embed_docs_flow(doc_list, upload_by, privacy="private"):
+def embed_docs_flow(doc_list, upload_by, scope="private"):
     # Create data pipeline with existing logger
     doc_pipeline = DocDataPipeline(mongo_client, logger=logger)
     
@@ -104,7 +104,7 @@ def embed_docs_flow(doc_list, upload_by, privacy="private"):
         doc_id = str(uuid.uuid4())
         doc["doc_id"] = doc_id
         doc["doc_path"] = doc_path
-        doc["privacy"] = privacy
+        doc["scope"] = scope
         
         start = time.time()
         doc_pipeline.register_doc(doc_id, doc_name, upload_by)
@@ -196,7 +196,7 @@ def embed_docs_flow(doc_list, upload_by, privacy="private"):
                 enriched_chunks=enriched_chunks,
                 summary=common_summary,
                 type_data=doc_type_data,
-                privacy=doc.get("privacy", "private")
+                scope=doc.get("scope", "private")
             )
             
             vector_storage.store_embeddings(enriched_chunks)

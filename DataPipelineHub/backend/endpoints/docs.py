@@ -44,9 +44,14 @@ def available_doc_list(scope):
 })
 def embed_docs(docs, scope):
     try:
-        upload_by = session.get('user', {}).get('name', 'default')
-        task = send_task("embed_docs_task", args=[docs, upload_by, scope])
-        return jsonify({"task_id": task.id, "scope": scope}), 200
+        send_task(
+            task_name="data_sources.docs.docs_tasks.embed_docs_task",
+            celery_queue="docs_queue",
+            doc_list=docs,
+            upload_by=session.get('user', {}).get('name', 'default'),
+            scope=scope
+        )
+        return jsonify({"status": "task submitted"}), 202
     except Exception as e:
         logger.error(f"Failed to start embedding task: {str(e)}")
         return jsonify({"error": str(e)}), 500
