@@ -148,6 +148,7 @@ def embed_docs_flow(doc_list, upload_by, privacy="private"):
             doc_id = doc["doc_id"]
             doc_path = doc["doc_path"]
             doc_name = doc["doc_name"]
+            doc_scope = doc.get("scope", "private")
             doc_pipeline.process_doc(doc_id)
  
             # Start log monitoring - this will uses the event-driven handler system
@@ -162,6 +163,12 @@ def embed_docs_flow(doc_list, upload_by, privacy="private"):
                 remove_references=False,  # Don't remove references yet
                 preserve_original=True  # Keep original content
             )
+            
+            # Add scope information to the processed document metadata
+            if processed_documents.get("metadata"):
+                processed_documents["metadata"]["scope"] = doc_scope
+            else:
+                processed_documents["metadata"] = {"scope": doc_scope}
             
             embedding_ready_docs = doc_processor.prepare_for_single_doc_embedding(processed_documents)
             
@@ -232,10 +239,16 @@ def get_best_match_results(query: str, top_k_results: int = 5, scope: str = "pub
     
     query_embedding = embedding_generator.generate_query_embedding(query)
     
+    # Set up filters based on scope
+    # Private scope: only documents uploaded by the user
+    # Public scope: all public documents + user's own documents (regardless of scope)
+    filters = {"upload_by": logged_in_user} if scope == "private" else \
+        {"or": [{"scope": "public"}, {"upload_by": logged_in_user}]}
+    
     search_results = vector_storage.search(
         query_embedding=query_embedding,
         top_k=top_k_results,
-        filters={"upload_by": logged_in_user} if scope == "private" else {}
+        filters=filters
     )
 
     return search_results

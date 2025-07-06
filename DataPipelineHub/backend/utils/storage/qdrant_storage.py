@@ -107,6 +107,8 @@ class QdrantStorage(VectorStorage):
         # Create payload indexes for common metadata fields to speed up filtering
         self._create_payload_index("metadata.source_type", qmodels.PayloadSchemaType.KEYWORD)
         self._create_payload_index("metadata.channel_name", qmodels.PayloadSchemaType.KEYWORD)
+        self._create_payload_index("metadata.scope", qmodels.PayloadSchemaType.KEYWORD)
+        self._create_payload_index("metadata.upload_by", qmodels.PayloadSchemaType.KEYWORD)
         
         logger.info(f"Created collection '{self.collection_name}' with dimension {self.embedding_dim}")
     
@@ -296,6 +298,41 @@ class QdrantStorage(VectorStorage):
         Returns:
             Qdrant filter object
         """
+        # Handle top-level "or" condition
+        if "or" in filters:
+            should_conditions = []
+            for or_condition in filters["or"]:
+                # Convert each condition in the OR to a filter
+                condition_filters = []
+                for field, value in or_condition.items():
+                    if isinstance(value, list):
+                        # Handle list of values (OR condition within field)
+                        field_should_conditions = [
+                            qmodels.FieldCondition(
+                                key=f"metadata.{field}",
+                                match=qmodels.MatchValue(value=v)
+                            )
+                            for v in value
+                        ]
+                        condition_filters.append(qmodels.Filter(should=field_should_conditions))
+                    else:
+                        # Handle single value
+                        condition_filters.append(
+                            qmodels.FieldCondition(
+                                key=f"metadata.{field}",
+                                match=qmodels.MatchValue(value=value)
+                            )
+                        )
+                
+                # Combine all conditions for this OR branch with AND
+                if len(condition_filters) == 1:
+                    should_conditions.append(condition_filters[0])
+                else:
+                    should_conditions.append(qmodels.Filter(must=condition_filters))
+            
+            return qmodels.Filter(should=should_conditions)
+        
+        # Handle regular filters (original logic)
         must_conditions = []
         
         for field, value in filters.items():
@@ -303,7 +340,7 @@ class QdrantStorage(VectorStorage):
                 # Handle list of values (OR condition)
                 should_conditions = [
                     qmodels.FieldCondition(
-                        key=field,
+                        key=f"metadata.{field}",
                         match=qmodels.MatchValue(value=v)
                     )
                     for v in value
@@ -313,7 +350,7 @@ class QdrantStorage(VectorStorage):
                 # Handle single value
                 must_conditions.append(
                     qmodels.FieldCondition(
-                        key=field,
+                        key=f"metadata.{field}",
                         match=qmodels.MatchValue(value=value)
                     )
                 )

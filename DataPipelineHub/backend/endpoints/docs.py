@@ -12,7 +12,7 @@ docs_bp = Blueprint("docs", __name__)
 @docs_bp.route("/upload", methods=["POST"])
 @from_body({
     "files": fields.List(fields.Dict(), required=True),
-    "scope": fields.Str(missing="private", validate=lambda x: x in ["private", "public"])
+    "scope": fields.Str(load_default="private", validate=lambda x: x in ["private", "public"])
 })
 def upload_files(files, scope):
     try:
@@ -25,7 +25,7 @@ def upload_files(files, scope):
     
 @docs_bp.route("/available.docs.get", methods=["GET"])
 @from_query({
-    "scope": fields.Str(missing="private", validate=lambda x: x in ["private", "public"])
+    "scope": fields.Str(load_default="private", validate=lambda x: x in ["private", "public"])
 })
 def available_doc_list(scope):
     try:
@@ -40,7 +40,7 @@ def available_doc_list(scope):
 @docs_bp.route("/embed.docs", methods=["PUT"])
 @from_body({
     "docs": fields.List(fields.Dict(), required=True),
-    "scope": fields.Str(missing="private", validate=lambda x: x in ["private", "public"])
+    "scope": fields.Str(load_default="private", validate=lambda x: x in ["private", "public"])
 })
 def embed_docs(docs, scope):
     try:
