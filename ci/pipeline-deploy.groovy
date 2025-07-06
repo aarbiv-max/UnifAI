@@ -1,10 +1,14 @@
 properties([
     parameters([
-        booleanParam(name: 'deploy_mode', defaultValue: false, description: 'debug the pods'),
         choice(name: 'deploy_location', choices: ['STAGING', 'PRODUCTION'], description: 'Deployment environment'),
         choice(name: 'deploy_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Deployment type'),
         string(name: "BRANCH", defaultValue: "main", description: "Branch to deploy from."),
-        string(name: "VERSION", defaultValue: new Date().format('yyyy.MM.dd'), description: "Image version tag"),
+        string(name: "VERSION", defaultValue: "", description: "DONT SET THIS VALUE!"),
+        string(name: "DF_VERSION", defaultValue: "", description: "Image tag for dataflow"),
+        string(name: "MA_VERSION", defaultValue: "", description: "Image tag for multi-agent"),
+        string(name: "GUI_VERSION", defaultValue: "", description: "Image tag for UI"),
+        string(name: "MODULES_TO_DEPLOY", defaultValue: "", description: "Comma-separated list of modules to update (e.g. dataflow,multiagent,gui)"),
+        booleanParam(name: 'debug_mode', defaultValue: false, description: 'debug the pods'),
     ])
 ])
 
@@ -25,7 +29,7 @@ def buildParams = [
     ImageRegistryCreds : "images.paas.registry-unifai",
 ]
 
-def updateChartVersions(rootPath) {
+def updateChartVersions(rootPath, version) {
     echo "Looking for Chart.yaml files under: ${rootPath}"
 
     def chartFiles = sh(
@@ -36,21 +40,21 @@ def updateChartVersions(rootPath) {
     chartFiles.each { file ->
         echo "Updating: ${file}"
         def chart = readYaml file: file
-        chart.version = params.VERSION
-        chart.appVersion = params.VERSION
+        //chart.version = params.VERSION
+        chart.appVersion = version
         echo "📝 Overwriting YAML file: ${file}"
         writeYaml file: file, data: chart, overwrite: true
     }
 }
 
-def updateValuesYaml(String filePath) {
+def updateValuesYaml(String filePath , String version) {
     echo "🔄 Loading values from: ${filePath}"
 
     def values = readYaml file: filePath
 
     values.each { sectionName, sectionData ->
         if (sectionData instanceof Map) {
-            if (params.deploy_mode) {
+            if (params.debug_mode) {
                 echo "🛠 Setting debug mode in section: ${sectionName}"
                 sectionData.debug = true
                 sectionData.env = sectionData.env ?: [:]
@@ -58,8 +62,8 @@ def updateValuesYaml(String filePath) {
             }
 
             if (sectionData.image?.tag == 'latest') {
-                echo "🏷 Updating image tag in section: ${sectionName} to VERSION: ${params.VERSION}"
-                sectionData.image.tag = params.VERSION
+                echo "🏷 Updating image tag in section: ${sectionName} to VERSION: ${version}"
+                sectionData.image.tag = version
             }
         }
     }
@@ -71,9 +75,7 @@ def updateValuesYaml(String filePath) {
 
 def cleanWorkspace(module) {
     sh """
-        podman rm -f ${module}
-        podman rmi -f ${module}:${VERSION}
-        podman rmi -f ${module}:latest 
+        podman rm -f helmfile
         sleep 10        
     """
 }
@@ -87,12 +89,12 @@ pipeline {
             steps {
                 script {
                     echo "================ Deployment Configuration ================="
-                    echo "Branch           : ${params.BRANCH}"
-                    echo "Version          : ${params.VERSION}"
-                    echo "Deployment Type  : ${params.deploy_type}"
-                    echo "Deployment Target: ${params.deploy_location}"
-                    echo "Deployment mode: ${params.deploy_mode}"
-                    echo "----------------------------------------------"
+                    echo "Branch            : ${params.BRANCH}"
+                    echo "Version           : ${params.VERSION}"
+                    echo "Deployment Type   : ${params.deploy_type}"
+                    echo "Deployment Target : ${params.deploy_location}"
+                    echo "Debug mode        : ${params.debug_mode}"
+                    echo "Modules to deploy : ${params.MODULES_TO_DEPLOY}"
                     echo "Workspace Path:    ${buildParams.DevRoot}/${params.BRANCH}/"
                     echo "==========================================================="
                 }
@@ -149,7 +151,6 @@ pipeline {
                         }
                         
                         def module = "helmfile"
-                        cleanWorkspace(module) 
                         
                         withCredentials([
                             string(credentialsId: "${ClusterAccessToken}", variable: 'token'),
@@ -158,12 +159,37 @@ pipeline {
                             sh("oc login --token=${token} --server=${ClusterAddress}")
                             sh("oc project ${NameSpace}")
                             echo("Deploy Helm container")
-                            sh("podman run -dt --env-file=./genie-cred-data/.env --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
+                            sh("podman run --replace -dt --env-file=./genie-cred-data/.env --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
                             
-                            if(params.deploy_location == 'STAGING') {
-                                updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/dataflow/")
+                            def modules = params.MODULES_TO_DEPLOY.tokenize(',')
+                            for (mod in modules) {
+                                echo "Processing module: ${mod}"
+
+                                switch(mod.trim()) {
+                                    case 'dataflow':
+                                        def dfVersion = params.DF_VERSION?.trim()
+                                        if (!dfVersion && params.VERSION?.trim()) {
+                                            dfVersion = params.VERSION.trim()
+                                        }
+                                        updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/dataflow/", dfVersion)
+                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/dataflow-resource-values.yaml", dfVersion)
+                                        break
+
+                                    // case 'multiagent':
+                                    //     updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/multiagent/")
+                                    //     updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/multiagent-resource-values.yaml")
+                                    //     break
+
+                                    // case 'gui':
+                                    //     updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/gui/")
+                                    //     updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/gui-resource-values.yaml")
+                                    //     break
+
+                                    default:
+                                        echo "Unknown module: ${mod}, skipping."
+                                }
                             }
-                            updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/dataflow-resource-values.yaml")
+
 
                             if(params.deploy_type == 'FRESH_INSTALL') {
                                 echo("Removing previous helms")

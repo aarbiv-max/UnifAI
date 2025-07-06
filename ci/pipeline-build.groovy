@@ -12,10 +12,10 @@ properties([
         booleanParam(name: 'set_image_canidate', defaultValue: false, description: 'Set images with latest tag'),
         
         // 🚀 Deployment Parameters
-        booleanParam(name: 'deploy_unifai', defaultValue: false, description: 'True - Deploy UnifAI, False - Only build images and upload to image-paas'),
         choice(name: 'deploy_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Deployment type'),
         choice(name: 'deploy_location', choices: ['STAGING', 'PRODUCTION'], description: 'Deployment environment'),
-        booleanParam(name: 'deploy_mode', defaultValue: false, description: 'True - create pods with debug mode')
+        booleanParam(name: 'deploy_unifai', defaultValue: false, description: 'True - Deploy UnifAI, False - Only build images and upload to image-paas'),
+        booleanParam(name: 'debug_mode', defaultValue: false, description: 'True - create pods with debug mode')
         
     ])
 ])
@@ -177,28 +177,26 @@ pipeline {
             }
             steps {
                 script {
-                    echo "Triggering deployment pipeline..."
+                    def modules = []
+                    if (params.build_dataflow_backend) modules << 'dataflow'
+                    if (params.build_multiagent_backend) modules << 'multiagent'
+                    if (params.build_gui) modules << 'gui'
+                    def modulesToDeploy = modules.join(',')
+
+                    echo "Triggering deployment pipeline with MODULES_TO_DEPLOY = ${modulesToDeploy}"
                     build job: 'app-deployer',
                     parameters: [
+                        string(name: 'deploy_location', value: params.deploy_location),
+                        string(name: 'deploy_type', value: params.deploy_type),
                         string(name: 'BRANCH', value: params.BRANCH),
                         string(name: 'VERSION', value: params.VERSION),
-                        string(name: 'deploy_type', value: params.deploy_type),
-                        string(name: 'deploy_location', value: params.deploy_location),
-                        booleanParam(name: 'deploy_mode', value: params.deploy_mode),
+                        string(name: 'MODULES_TO_DEPLOY', value: modulesToDeploy),
+                        booleanParam(name: 'debug_mode', value: params.debug_mode),
                     ]
                 }
             }
         }
     }
 
-    post {
-        always {
-            script {
-                echo "Running cleanup..."
-                cleanPodmanSystem()
-                cleanWs()
-            }
-        }
-    }
 }
 
