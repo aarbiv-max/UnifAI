@@ -45,7 +45,7 @@ class PipelineMonitor(PipelineMonitorBase):
         self.logger.addHandler(handler)
         self.logger.setLevel(logging.INFO)
     
-    def register_pipeline(self, pipeline_id: str, source_type: SourceType, source_name: str = "", upload_by: str = "") -> None:
+    def register_pipeline(self, pipeline_id: str, source_type: SourceType, source_name: str = "", upload_by: str = "", scope: str = "private") -> None:
         """
         Register a new pipeline in the monitoring system.
 
@@ -68,6 +68,7 @@ class PipelineMonitor(PipelineMonitorBase):
                 "api_calls": 0,
                 "processing_time": 0,
             },
+            "scope": scope,
             **({ "name": source_name } if source_name else {}),
             **({ "upload_by": upload_by } if upload_by else {})
         }

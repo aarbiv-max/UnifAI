@@ -41,18 +41,18 @@ def upload_docs(files):
 
 def get_available_doc_list(user, scope="private"):
     """
-    Fetches a list of available documents uploaded by a specific user.
+    Fetches a list of available documents based on scope.
     Enriches each document with additional metadata from the data source.
     
     Args:
         user: The user requesting the documents
-        scope: Either "private" (user's documents only) or "public" (all public documents)
+        scope: Either "private" (user's documents regardless of privacy) or "public" (user's documents + public documents from others)
     """
     if scope == "private":
-        # Get only documents uploaded by the user
+        # Get only documents uploaded by the user (regardless of their privacy setting)
         docs = pipeline_repo.get_pipeline_by_query({"source_type": "DOCUMENT","upload_by": user, "deleted": {"$ne": True}})
     elif scope == "public":
-        # Get all public documents
+        # Get all documents for filtering
         docs = pipeline_repo.get_pipeline_by_query({"source_type": "DOCUMENT", "deleted": {"$ne": True}})
     else:
         # Default to private scope
@@ -72,12 +72,17 @@ def get_available_doc_list(user, scope="private"):
 
         # Get privacy information from the data source
         privacy = doc_data[0].get("scope", "private")
+        doc_uploaded_by = doc.get("upload_by")
         
         # Filter based on scope and privacy
-        if scope == "public" and privacy != "public":
-            continue
-        elif scope == "private" and doc.get("upload_by") != user:
-            continue
+        if scope == "private":
+            # Private scope: only show documents uploaded by the user (regardless of their privacy setting)
+            if doc_uploaded_by != user:
+                continue
+        elif scope == "public":
+            # Public scope: show user's documents (regardless of privacy) + public documents from others
+            if doc_uploaded_by != user and privacy != "public":
+                continue
         
         type_data = doc_data[0].get("type_data", {})
         doc.update({
@@ -86,7 +91,7 @@ def get_available_doc_list(user, scope="private"):
             "file_size": type_data.get("file_size", 0),
             "page_count": type_data.get("page_count", 0),
             "full_text": type_data.get("full_text", ""),
-            "scope": scope
+            "scope": privacy  # Use the actual document scope/privacy setting
         })
         
         filtered_docs.append(doc)
@@ -107,7 +112,7 @@ def embed_docs_flow(doc_list, upload_by, scope="private"):
         doc["scope"] = scope
         
         start = time.time()
-        doc_pipeline.register_doc(doc_id, doc_name, upload_by)
+        doc_pipeline.register_doc(doc_id, doc_name, upload_by, scope)
         
     config = DocConfigManager()
     config.set_config_value("chunk_size", 800)
