@@ -7,8 +7,8 @@ multiagent_server:
       cpu: '4'
       memory: '16Gi'
   image: 
-    registry: "images.paas.redhat.com/sfiresht/"
-    repository: "images.paas.redhat.com/sfiresht/multia"
+    registry: images.paas.redhat.com/unifai/multiagent/backend
+    repository: images.paas.redhat.com/unifai/multiagent/backend
     tag: "latest"
   service:
     type: ClusterIP

@@ -45,6 +45,7 @@ spec:
           # {{- if .Values.command }}
           # command: {{ .Values.command }}
           # {{- end }}
+          #command: ["./app/entrypoint.sh"]
           env:
           {{- range $key, $value := .Values.env }}
           - name: "{{ $key }}"
