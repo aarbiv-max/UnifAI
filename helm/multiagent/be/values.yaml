@@ -25,7 +25,7 @@ env:
 
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
-  repository: images.paas.redhat.com/unifai/multiagent/backend  #"images.paas.redhat.com/sfiresht/multia"
+  repository: "images.paas.redhat.com/sfiresht/multia"
   # This sets the pull policy for images.
   pullPolicy: Always #IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
@@ -74,6 +74,9 @@ service:
   # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
   port: "8080"
 
+route:
+  enabled: false
+
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
   enabled: false
@@ -105,20 +108,14 @@ resources:
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe:
-  # exec:
-  #   command: ["date"]
   httpGet:
-    #path: /api/blueprints/available.blueprints.get
     path: /api/health/
     port: 8080
   initialDelaySeconds: 10
   periodSeconds: 3
 
 readinessProbe:
-  # exec:
-  #   command: ["date"]
   httpGet:
-    #path: /api/blueprints/available.blueprints.get
     path: /api/health/
     port: 8080
   initialDelaySeconds: 10

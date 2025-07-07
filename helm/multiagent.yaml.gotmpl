@@ -16,7 +16,8 @@ releases:
     wait: true
     #timeout: 300
     values:
-      - "./multiagent/values/multiagent-be.yaml"
+    #  - "./multiagent/values/multiagent-be.yaml"
+      - ./values/global-config.yaml
       - {{- toYaml .Values.multiagent_server | nindent 8 }}
 
 ### place holder for the celery service
@@ -25,4 +26,5 @@ releases:
   #   wait: true
   #   timeout: 300
   #   values:
-  #     - "./multiagent/values/multiagent-celery.yaml"
+  #     - ./values/global-config.yaml
+  #     - {{- toYaml .Values.multiagent_celery | nindent 8 }}
