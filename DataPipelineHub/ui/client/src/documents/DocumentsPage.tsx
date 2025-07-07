@@ -36,7 +36,7 @@ export default function Documents() {
   const { data: documents = [], isLoading, isError, error, refetch } = useQuery<Document[]>({
     queryKey: ['documents', scope],
     queryFn: () => fetchDocuments(scope),
-    refetchInterval: 10000,
+    refetchInterval: 1000,
   });
 
   useEffect(() => {

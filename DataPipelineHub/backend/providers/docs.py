@@ -1,6 +1,7 @@
 import base64
 import os
 import time
+from providers.helpers import get_scope_filters
 from config.app_config import AppConfig
 from utils.storage.mongo.mongo_storage import MongoStorage
 from global_utils.utils.util import get_mongo_url
@@ -48,20 +49,9 @@ def get_available_doc_list(user, scope="private"):
         user: The user requesting the documents
         scope: Either "private" (user's documents regardless of privacy) or "public" (user's documents + public documents from others)
     """
-    if scope == "private":
-        # Get only documents uploaded by the user (regardless of their privacy setting)
-        docs = pipeline_repo.get_pipeline_by_query({"source_type": "DOCUMENT","upload_by": user, "deleted": {"$ne": True}})
-    elif scope == "public":
-        # Get all documents for filtering
-        docs = pipeline_repo.get_pipeline_by_query({"source_type": "DOCUMENT", "deleted": {"$ne": True}})
-    else:
-        # Default to private scope
-        docs = pipeline_repo.get_pipeline_by_query({"source_type": "DOCUMENT","upload_by": user, "deleted": {"$ne": True}})
-    
-    if not docs:
-        return []
+    filters = get_scope_filters("DOCUMENT", scope, user)
+    docs = pipeline_repo.get_pipeline_by_query(filters)
 
-    filtered_docs = []
     for doc in docs:
         doc["file_type"] = doc.get("name", "").rsplit(".", 1)[-1].lower()
         
@@ -69,20 +59,6 @@ def get_available_doc_list(user, scope="private"):
         doc_data = data_source_repo.get_source_by_query({"last_pipeline_id": pipeline_id})
         if not doc_data:
             continue
-
-        # Get privacy information from the data source
-        privacy = doc_data[0].get("scope", "private")
-        doc_uploaded_by = doc.get("upload_by")
-        
-        # Filter based on scope and privacy
-        if scope == "private":
-            # Private scope: only show documents uploaded by the user (regardless of their privacy setting)
-            if doc_uploaded_by != user:
-                continue
-        elif scope == "public":
-            # Public scope: show user's documents (regardless of privacy) + public documents from others
-            if doc_uploaded_by != user and privacy != "public":
-                continue
         
         type_data = doc_data[0].get("type_data", {})
         doc.update({
@@ -90,13 +66,12 @@ def get_available_doc_list(user, scope="private"):
             "path": type_data.get("source_path", ""),
             "file_size": type_data.get("file_size", 0),
             "page_count": type_data.get("page_count", 0),
-            "full_text": type_data.get("full_text", ""),
-            "scope": privacy  # Use the actual document scope/privacy setting
+            # "full_text": type_data.get("full_text", ""),
+            "scope": scope
         })
         
-        filtered_docs.append(doc)
 
-    return filtered_docs
+    return docs
 
 def embed_docs_flow(doc_list, upload_by, scope="private"):
     # Create data pipeline with existing logger
