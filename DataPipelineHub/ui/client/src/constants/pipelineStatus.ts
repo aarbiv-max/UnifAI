@@ -1,6 +1,6 @@
 export const PIPELINE_STATUS = {
-  PENDING: 'IN QUEUE',
-  ACTIVE: 'IN PROGRESS',
+  PENDING: 'PENDING',
+  ACTIVE: 'ACTIVE',
   DONE: 'DONE',
   FAILED: 'FAILED',
 } as const;
