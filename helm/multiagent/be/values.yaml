@@ -17,8 +17,6 @@ env:
   MONGODB_PORT: "27017"
   RABBITMQ_IP: rabbitmq
   RABBITMQ_PORT: "5672"
-  qdrant_ip: "http://qdrant"
-  qdrant_port: "6333"
   BACKEND_ENV: "production"
   ROLE: "flask"
   #MODE: "debug"

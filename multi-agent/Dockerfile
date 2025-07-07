@@ -4,7 +4,8 @@ FROM registry.access.redhat.com/ubi9/python-311
 #ARG comp="multi-agent"
 
 USER root
-#add mongo sh repo
+#the line below is meant to add mongosh to the image (not the server though), this is for debugging option
+# NOTE: the version we use here is mongo 8 if building this part fails you might need to find the latest available mongo shell repo.
 RUN echo -e "[mongodb-org-8.0]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/8.0/\$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" > /etc/yum.repos.d/mongodb-org-8.0.repo
 RUN dnf update --nobest -y && dnf install -y vim less iputils telnet mongodb-mongosh && dnf clean all
 
