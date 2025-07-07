@@ -42,7 +42,11 @@ loadDefinition:
   enabled: true
   file: "/app/load_definition.json"
   existingSecret: load-definition
-extraConfiguration: ""
+extraConfiguration: |-
+  tcp_listen_options.keepalive = true
+  heartbeat = 3600
+  consumer_timeout = 3600000
+
 global:
   imageRegistry: ""
   ## E.g.
@@ -279,7 +283,7 @@ onlineSchedulers: ""
 memoryHighWatermark:
   ## @param memoryHighWatermark.enabled Enable configuring Memory high watermark on RabbitMQ
   ##
-  enabled: false
+  enabled: true
   ## @param memoryHighWatermark.type Memory high watermark type. Either `absolute` or `relative`
   ##
   type: "relative"
@@ -431,13 +435,13 @@ tcpListenOptions:
   linger:
     ## @param tcpListenOptions.linger.lingerOn Enable Server socket lingering
     ##
-    lingerOn: true
+    lingerOn: false
     ## @param tcpListenOptions.linger.timeout Server Socket lingering timeout
     ##
     timeout: 0
   ## @param tcpListenOptions.keepalive When set to true, enables TCP keepalives
   ##
-  keepalive: false
+  keepalive: true
 configuration: |-
   ## Username and password
   default_user = {{ .Values.auth.username }}
