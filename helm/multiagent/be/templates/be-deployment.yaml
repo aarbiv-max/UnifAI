@@ -42,10 +42,6 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           stdin: true
           tty: true
-          # {{- if .Values.command }}
-          # command: {{ .Values.command }}
-          # {{- end }}
-          #command: ["./app/entrypoint.sh"]
           env:
           {{- range $key, $value := .Values.env }}
           - name: "{{ $key }}"
@@ -60,14 +56,22 @@ spec:
               protocol: TCP
 
           {{- if ne .Values.env.ROLE "debug"}}
-          {{- with .Values.livenessProbe }}
+          #{{- with .Values.livenessProbe }}
           livenessProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          {{- with .Values.readinessProbe }}
+            httpGet:
+              path: /api/health/
+              port: {{ .Values.service.port }} 
+            initialDelaySeconds: 10
+            periodSeconds: 3
+          #{{- end }}
+          #{{- with .Values.readinessProbe }}
           readinessProbe:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            httpGet:
+              path: /api/health/
+              port: {{ .Values.service.port }} 
+            initialDelaySeconds: 10
+            periodSeconds: 3
+          #{{- end }}
           {{- end }}
 
           {{- with .Values.resources }}

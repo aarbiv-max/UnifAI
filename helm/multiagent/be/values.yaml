@@ -2,10 +2,10 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 global:
-  namespace: tag-ai--pipeline  #do we want to add this or ignore is as we login to a speficif namespace?
+  #namespace: tag-ai--pipeline  #do we want to add this or ignore is as we login to a speficif namespace?
   app: unifai
-  role: multiagent-app
-  mode: debug
+  # role: multiagent-app
+  # mode: debug
 
 # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
 replicaCount: 1
@@ -13,17 +13,17 @@ replicaCount: 1
 
 env:
   MONGODB_IP: mongodb
-  MONGO_URI: mongodb  # currently using that var but  we need to change to fit the dataflow vars to try to merge files.
+  #MONGO_URI: mongodb  # currently using that var but  we need to change to fit the dataflow vars to try to merge files.
   MONGODB_PORT: "27017"
   RABBITMQ_IP: rabbitmq
   RABBITMQ_PORT: "5672"
-  BACKEND_ENV: "production"
-  ROLE: "flask"
-  #MODE: "debug"
+  BACKEND_ENV: "production" #options - production development
+  ROLE: "flask" #options - flask celery debug
+
 
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
-  repository: "images.paas.redhat.com/sfiresht/multia"
+  repository: images.paas.redhat.com/unifai/multiagent/backend
   # This sets the pull policy for images.
   pullPolicy: Always #IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
@@ -104,17 +104,22 @@ resources:
     cpu: '4'
     memory: '16Gi'
 
+##### currently the liveness/readyness probes are set manually in the deployment file and taking the port from the service in this file.
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe:
   httpGet:
     path: /api/health/
-    port: 8080
+    # currently these are hardcoded to 8080, though we need to set this to be dependant on the port inserted at the top level values file, 
+    #this means changing the structure for the liveness probe in the deployment file
+    port: 8080  # currently these are hardcoded to 8080, though we need to set this to be dependant on the port inserted at the top level values file, this means changing the structure for the liveness probe in the deployment file
   initialDelaySeconds: 10
   periodSeconds: 3
 
 readinessProbe:
   httpGet:
     path: /api/health/
+    # currently these are hardcoded to 8080, though we need to set this to be dependant on the port inserted at the top level values file, 
+    #this means changing the structure for the liveness probe in the deployment file
     port: 8080
   initialDelaySeconds: 10
   periodSeconds: 3
