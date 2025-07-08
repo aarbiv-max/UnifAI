@@ -10,7 +10,7 @@ metadata:
 spec:
   host: 
   port:
-    targetPort: 13456
+    targetPort: {{ .Values.service.port}}
   to:
     kind: Service
     name: {{ include "multiagent.fullname" . }}
