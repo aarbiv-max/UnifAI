@@ -126,38 +126,6 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                         </div>
                     </div>
 
-                    {/* Privacy Selection */}
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-300 mb-3">
-                            Document Privacy
-                        </label>
-                        <div className="flex space-x-4">
-                            <Button
-                                variant={scope === "private" ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => setScope("private")}
-                                className="flex items-center space-x-2"
-                            >
-                                <FaLock className="w-4 h-4" />
-                                <span>Private</span>
-                            </Button>
-                            <Button
-                                variant={scope === "public" ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => setScope("public")}
-                                className="flex items-center space-x-2"
-                            >
-                                <FaGlobe className="w-4 h-4" />
-                                <span>Public</span>
-                            </Button>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">
-                            {scope === "private" 
-                                ? "Only you can view and search these documents" 
-                                : "All users can view and search these documents"}
-                        </p>
-                    </div>
-
                     <div
                         className={`max-h-[400px] overflow-y-auto border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors ${isDragging ? "border-primary bg-primary bg-opacity-5" : "border-gray-700 hover:border-gray-600"}`}
                         onDragEnter={handleDragEnter}
@@ -203,7 +171,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                                 </div>
                             </div>
                         )}
-
+                        
                         {/* File list after upload */}
                         {selectedFiles.length > 0 && (
                             <ul className="mt-4 space-y-2">
@@ -227,6 +195,35 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                             </ul>
                         )}
                         {error && <p className="text-red-500 mt-4">{error}</p>}
+                    </div>
+
+                    {/* Privacy Selection */}
+                    <div className="mb-6">
+                        <div className="flex space-x-4 mt-6">
+                            <Button
+                                variant={scope === "private" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setScope("private")}
+                                className="flex items-center space-x-2"
+                            >
+                                <FaLock className="w-4 h-4" />
+                                <span>Private</span>
+                            </Button>
+                            <Button
+                                variant={scope === "public" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setScope("public")}
+                                className="flex items-center space-x-2"
+                            >
+                                <FaGlobe className="w-4 h-4" />
+                                <span>Public</span>
+                            </Button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            {scope === "private" 
+                                ? "Only you can view and search these documents" 
+                                : "All users can view and search these documents"}
+                        </p>
                     </div>
                 </CardContent>
                 {selectedFiles.length > 0 && !isUploading && (
