@@ -14,13 +14,4 @@ multiagent_server:
     port: "8080"
   env:
     BACKEND_ENV: "production" #options - production development
-    ROLE: "debug" # options are flask celery debug
-
-multiagent_celery:
-  image: 
-    registry: "dummy"
-    repository: "dummy"
-    tag: "latest"
-  service:
-    type: "dummy"
-    port: "dummy"
+    ROLE: "flask" # options are flask celery debug
