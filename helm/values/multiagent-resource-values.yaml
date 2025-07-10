@@ -1,11 +1,11 @@
 multiagent_server:
   resources: 
     limits:
-      cpu: '4'
-      memory: '32Gi'
-    requests:
-      cpu: '4'
+      cpu: '2'
       memory: '16Gi'
+    requests:
+      cpu: '2'
+      memory: '8Gi'
   image: 
     repository: images.paas.redhat.com/unifai/multiagent/backend
     tag: "latest"

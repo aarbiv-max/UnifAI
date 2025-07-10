@@ -6,6 +6,7 @@ global:
   app: unifai
   # role: multiagent-app
   # mode: debug
+  port: 8080
 
 # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
 replicaCount: 1
@@ -70,7 +71,7 @@ service:
   # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
   type: ClusterIP
   # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-  port: "8080"
+  port: 8080
 
 route:
   enabled: false

@@ -12,13 +12,10 @@ from global_utils.utils.util import get_mongo_url
 
 class MongoBlueprintRepository(BlueprintRepository):
     def __init__(self,
-                #  mongodb_port: str = "27017",
-                #  mongodb_ip: str = "localhost",
                  mongo_uri: str =get_mongo_url()
                  db_name="UnifAI",
                  coll_name="blueprints"):
 
-        #mongo_uri=get_mongo_url() or f"mongodb://{mongodb_ip}:{mongodb_port}/"
         client = pymongo.MongoClient(mongo_uri)
         self._col = client[db_name][coll_name]
         # Unique on blueprint_id alone now

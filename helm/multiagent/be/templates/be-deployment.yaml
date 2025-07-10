@@ -56,22 +56,19 @@ spec:
               protocol: TCP
 
           {{- if ne .Values.env.ROLE "debug"}}
-          #{{- with .Values.livenessProbe }}
           livenessProbe:
             httpGet:
               path: /api/health/
-              port: {{ .Values.service.port }} 
+              port: {{ .Values.service.port }}
             initialDelaySeconds: 10
             periodSeconds: 3
-          #{{- end }}
-          #{{- with .Values.readinessProbe }}
           readinessProbe:
             httpGet:
               path: /api/health/
-              port: {{ .Values.service.port }} 
+              port: {{ .Values.service.port }}
             initialDelaySeconds: 10
             periodSeconds: 3
-          #{{- end }}
+
           {{- end }}
 
           {{- with .Values.resources }}
