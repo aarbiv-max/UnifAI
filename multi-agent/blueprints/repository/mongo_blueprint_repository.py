@@ -12,8 +12,8 @@ from global_utils.utils.util import get_mongo_url
 
 class MongoBlueprintRepository(BlueprintRepository):
     def __init__(self,
-                 mongodb_port: str = "27017",
-                 mongodb_ip: str = "localhost",
+                #  mongodb_port: str = "27017",
+                #  mongodb_ip: str = "localhost",
                  mongo_uri: str =get_mongo_url()
                  db_name="UnifAI",
                  coll_name="blueprints"):
