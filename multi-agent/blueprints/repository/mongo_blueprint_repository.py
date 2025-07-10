@@ -12,7 +12,7 @@ from global_utils.utils.util import get_mongo_url
 
 class MongoBlueprintRepository(BlueprintRepository):
     def __init__(self,
-                 mongo_uri: str =get_mongo_url()
+                 mongo_uri: str = get_mongo_url()
                  db_name="UnifAI",
                  coll_name="blueprints"):
 
