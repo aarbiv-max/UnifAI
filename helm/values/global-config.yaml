@@ -1,7 +1,8 @@
-# env:
-#   MONGODB_IP: mongodb
-#   MONGODB_PORT: 27017
-#   RABBITMQ_IP: rabbitmq
-#   RABBITMQ_PORT: 5672
 env:
-  test: "123"
+  #NOTE: these values are relevant when using all unifai deployments on the same cluster, otherwise we need to update the values here to the updated values of the shared resources.
+  MONGODB_IP: mongodb 
+  MONGODB_PORT: "27017"
+  RABBITMQ_IP: rabbitmq
+  RABBITMQ_PORT: "5672"
+  qdrant_ip: "http://qdrant"
+  qdrant_port: "6333"
