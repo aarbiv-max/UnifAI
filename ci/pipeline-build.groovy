@@ -131,6 +131,24 @@ pipeline {
                         }
                     }
                 }
+                stage('build_multiagent_image') {
+                    when { expression { params.build_multiagent_backend } }
+                    steps {
+                        script {
+                            def component = "multi-agent"
+                            def module = "backend"
+                            dir("${buildParams.DevRoot}/${params.BRANCH}/") {
+                                cleanWorkspace(module, component)
+                                if (buildDockerImage(module, component)) {
+                                    tagAndPushImageToRegistry(module, buildParams, component)
+                                    cleanWorkspace(module,component)
+                                } else {
+                                    error("Terminating process for ${module}: Build failed")
+                                }
+                            }
+                        }
+                    }
+                }
                 // stage('build_gui_image') {
                 //     when { expression { params.build_gui } }
                 //     steps {
@@ -143,24 +161,6 @@ pipeline {
                 //                 if (buildDockerImage(module, componentLower)) {
                 //                     tagAndPushImageToRegistry(module, buildParams, componentLower)
                 //                     cleanWorkspace(module, componentLower)
-                //                 } else {
-                //                     error("Terminating process for ${module}: Build failed")
-                //                 }
-                //             }
-                //         }
-                //     }
-                // }
-                // Uncomment if needed
-                // stage('build_multiagent_image') {
-                //     when { expression { params.build_multiagent_backend } }
-                //     steps {
-                //         script {
-                //             def module = "multi-agent/backend"
-                //             dir("${buildParams.DevRoot}/${params.BRANCH}/${module}") {
-                //                 cleanWorkspace(module)
-                //                 if (buildDockerImage(module)) {
-                //                     tagAndPushImageToRegistry(module, buildParams)
-                //                     cleanWorkspace(module)
                 //                 } else {
                 //                     error("Terminating process for ${module}: Build failed")
                 //                 }

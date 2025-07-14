@@ -73,7 +73,25 @@ def updateValuesYaml(String filePath , String version) {
     echo "✅ Updated ${filePath} successfully"
 }
 
-def cleanWorkspace(module) {
+def deployModules(module){
+    echo "install modules: ${module}"
+    sh("podman exec -t helmfile bash -lc 'helmfile -f ${module}.yaml.gotmpl apply'")
+    echo("${module} successfully deployed")
+    sh("sleep 10")
+}
+
+def deleteRunningApplication(){
+    echo("Removing running UnifAI application")
+    sh("podman exec -t helmfile bash -c 'helmfile destroy -f dataflow.yaml.gotmpl --deleteWait'")
+    sh("podman exec -t helmfile bash -c 'helmfile destroy -f multiagent.yaml.gotmpl --deleteWait'")
+    sh("podman exec -t helmfile bash -c 'helmfile destroy -f shared-resources.yaml.gotmpl --deleteWait'")
+    echo("Wait for all the application is deleted")
+    sh("until ! oc get deployment,statefulset,svc | grep 'unifai\\|qdrant\\|mongo\\|rabbitmq'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
+    echo("Running UnifAi application successfully deleted")
+    sh("sleep 10")
+}
+
+def cleanWorkspace() {
     sh """
         podman rm -f helmfile
         sleep 10        
@@ -102,7 +120,6 @@ pipeline {
                 dir("${buildParams.DevRoot}/${params.BRANCH}/") {
                     checkout([$class: 'GitSCM',
                         branches: [[name: "${params.BRANCH}"]],
-                        // 🛠️ Removed RelativeTargetDirectory to avoid nesting loop
                         submoduleCfg: [],
                         userRemoteConfigs: [[
                             credentialsId: "${buildParams.CredentialsId}",
@@ -162,77 +179,40 @@ pipeline {
                             sh("podman run --replace -dt --env-file=./genie-cred-data/.env --workdir /helm/charts -v .:/helm/charts:Z -v ~/.kube/:/helm/.kube:Z --name helmfile ghcr.io/helmfile/helmfile:latest bash")
                             
                             def modules = params.MODULES_TO_DEPLOY.tokenize(',')
+                            if(params.deploy_type == 'FRESH_INSTALL') {
+                                modules.add(0,'shared-resources')
+                                deleteRunningApplication()
+                            }
+                            
                             for (mod in modules) {
-                                echo "Processing module: ${mod}"
-
                                 switch(mod.trim()) {
-                                    case 'dataflow':
-                                        def dfVersion = params.DF_VERSION?.trim()
-                                        if (!dfVersion && params.VERSION?.trim()) {
-                                            dfVersion = params.VERSION.trim()
-                                        }
-                                        updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/dataflow/", dfVersion)
-                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/dataflow-resource-values.yaml", dfVersion)
+                                    case 'shared-resources':
+                                        deployModules('shared-resources')
                                         break
 
-                                    // case 'multiagent':
-                                    //     updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/multiagent/")
-                                    //     updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/multiagent-resource-values.yaml")
-                                    //     break
+                                    case 'dataflow':
+                                        def version = params.DF_VERSION?.trim() ?: params.VERSION?.trim()
+                                        updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/dataflow/", version)
+                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/dataflow-resource-values.yaml", version)
+                                        deployModules('dataflow')
+                                        break
 
-                                    // case 'gui':
-                                    //     updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/gui/")
-                                    //     updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/gui-resource-values.yaml")
-                                    //     break
-
-                                    default:
-                                        echo "Unknown module: ${mod}, skipping."
+                                    case 'multiagent':
+                                        def version = params.DF_VERSION?.trim() ?: params.VERSION?.trim()
+                                        updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/multiagent/", version)
+                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/multiagent-resource-values.yaml", version)
+                                        deployModules('multiagent')
+                                        break
                                 }
                             }
 
-
-                            if(params.deploy_type == 'FRESH_INSTALL') {
-                                echo("Removing previous helms")
-                                sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.yaml.gotmpl --deleteWait'")
-                                sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile1.yaml.gotmpl --deleteWait'")
-                                echo("Wait for the key resource is deleted")
-                                sh("until ! oc get deployment,statefulset,svc | grep 'unifai\\|qdrant\\|mongo\\|rabbitmq'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
-                                sh("sleep 10")
-
-                                echo("Deploy/update Helmfile1 for mongodb ,qdrant and rabbitmq")
-                                sh("podman exec -t helmfile bash -lc 'helmfile -f helmfile1.yaml.gotmpl apply'")
-                                sh("sleep 10")
-                            }
-                            else {
-                                echo("Removing previous app helms")
-                                sh("podman exec -t helmfile bash -c 'helmfile destroy -f helmfile2.yaml.gotmpl --deleteWait'")
-                                echo("Wait for the key genie resource is deleted")
-                                sh("""
-                                    until ! oc get deployment,statefulset,svc | grep 'unifai'; do echo 'Waiting for deployment deletion...'; sleep 5; done
-                                """)
-                                sh("sleep 10")
-                            }
-
-                            echo("Deploy/update Helmfile2 for everything else")
-                            sh("podman exec -t helmfile bash -lc 'helmfile -f helmfile2.yaml.gotmpl apply'")
-                            
-                            echo("Deploy completed successfully")
+                            echo("Deploy successfully completed")
                         }
-                        cleanWorkspace(module)
+                        cleanWorkspace()
                     }
                 }
             }
         }
     }
 
-    // Optional cleanup
-    // post {
-    //     always {
-    //         script {
-    //             echo "Running cleanup..."
-    //             cleanPodmanSystem()
-    //             cleanWs()
-    //         }
-    //     }
-    // }
 }
