@@ -16,6 +16,14 @@ unifai_dataflow_server:
   env:
     ROLE: "flask"
     SHARED_STORAGE: "/app/shared"
+  resources:
+    limits:
+      cpu: 4
+      memory: 12Gi
+    requests:
+      cpu: 4
+      memory: 12Gi
+
 
 unifai_dataflow_celery:
   debug: true
@@ -29,3 +37,12 @@ unifai_dataflow_celery:
     SHARED_STORAGE: "/app/shared"
     CELERY_QUEUES: "slack_queue,docs_queue"
     CELERY_WORKER: 1
+  resources:
+    limits:
+      cpu: 4
+      memory: 8Gi
+      nvidia.com/gpu: 1
+    requests:
+      cpu: 2
+      memory: 4Gi
+      nvidia.com/gpu: 1

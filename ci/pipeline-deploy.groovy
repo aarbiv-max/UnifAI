@@ -65,6 +65,13 @@ def updateValuesYaml(String filePath , String version) {
                 echo "🏷 Updating image tag in section: ${sectionName} to VERSION: ${version}"
                 sectionData.image.tag = version
             }
+            if (params.deploy_location == 'STAGING') {
+                echo "🛠 reduce resources in section: ${sectionName}"
+                sectionData.resources.limits.cpu = 2
+                sectionData.resources.limits.memory = 2Gi
+                sectionData.resources.requests.cpu = 2
+                sectionData.resources.requests.memory = 2Gi
+            }
         }
     }
 
@@ -159,9 +166,9 @@ pipeline {
                                 ClusterAccessToken = 'tenantaccess-unifai-sa-pp'
                                 break
                             case 'PRODUCTION':
-                                ClusterAddress = 'https://api.stc-ai-e1-prod.rtc9.p1.openshiftapps.com:6443'
-                                NameSpace = "tag-ai--pipeline"
-                                ClusterAccessToken = 'tenantaccess-unifai-sa-prod'
+                                //ClusterAddress = 'https://api.stc-ai-e1-prod.rtc9.p1.openshiftapps.com:6443'
+                                //NameSpace = "tag-ai--pipeline"
+                                //ClusterAccessToken = 'tenantaccess-unifai-sa-prod'
                                 break
                             default:
                                 error("Invalid deployment location: ${params.deploy_location}")

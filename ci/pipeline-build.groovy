@@ -33,26 +33,26 @@ def buildParams = [
 ]
 
 
-def buildDockerImage(String module, String component) {
+def buildDockerImage(String component) {
     String dockerfile = "Dockerfile"
-    String logFile = "/tmp/${module}_build.log"
+    String logFile = "/tmp/${component.replace("/", "_")}_build.log"
 
-    echo("---====  buildDockerImage ${module}  ====---")
+    echo("---====  buildDockerImage ${component}  ====---")
     def componentLower = component.toLowerCase()
-    def status = sh(script: "podman build -t ${componentLower}/${module}:${VERSION} -t ${componentLower}/${module}:latest -f ${component}/${module}/${dockerfile} . > ${logFile} 2>&1", returnStatus: true)
+    def status = sh(script: "podman build -t ${componentLower}:${VERSION} -t ${componentLower}:latest -f ${component}/${dockerfile} . > ${logFile} 2>&1", returnStatus: true)
 
     if (status != 0) {
-        echo("Build failed for module: ${componentLower}/${module}. Check ${logFile} for details.")
+        echo("Build failed for module: ${componentLower}. Check ${logFile} for details.")
         sh "cat ${logFile}"
         return false
     } else {
-        echo("Build completed successfully for module: ${module}.")
+        echo("Build completed successfully for module: ${componentLower}.")
         return true
     }
 }
 
-def tagAndPushImageToRegistry(module, buildParams,component) {
-    echo("Tagging and pushing image for ${module}.")
+def tagAndPushImageToRegistry( buildParams,component) {
+    echo("Tagging and pushing image for ${component}.")
     component = component.replace("-", "")
     def componentLower = component.toLowerCase()
 
@@ -63,22 +63,22 @@ def tagAndPushImageToRegistry(module, buildParams,component) {
     )]) {
         sh """
             podman login -u ${REGISTRY_USER} -p ${REGISTRY_PASS} ${buildParams.ImageRegistry}
-            podman push ${componentLower}/${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}/${module}:${VERSION}
+            podman push ${componentLower}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}:${VERSION}
         """
         if (params.set_image_canidate) {
             sh """
-                podman push --quiet ${componentLower}/${module}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}/${module}:latest
+                podman push --quiet ${componentLower}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}:latest
             """
         }
-        echo("Image for ${module} has been tagged and pushed to ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}/${module}:${VERSION}")
+        echo("Image for ${componentLower} has been tagged and pushed to ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}:${VERSION}")
     }
 }
 
-def cleanWorkspace(module,component) {
+def cleanWorkspace(component) {
     sh """
-        podman rm -f  ${component}/${module} || true
-        podman rmi -f ${component}/${module}:${VERSION} || true
-        podman rmi -f ${component}/${module}:latest || true  
+        podman rm -f  ${component} || true
+        podman rmi -f ${component}:${VERSION} || true
+        podman rmi -f ${component}:latest || true  
     """
 }
 
@@ -118,13 +118,13 @@ pipeline {
                     when { expression { params.build_dataflow_backend } }
                     steps {
                         script {
-                            def component = "DataPipelineHub"
-                            def module = "backend"
+                            def component = "DataPipelineHub/backend"
+                            def module = ""
                             dir("${buildParams.DevRoot}/${params.BRANCH}/") {
-                                cleanWorkspace(module, component)
-                                if (buildDockerImage(module, component)) {
-                                    tagAndPushImageToRegistry(module, buildParams,component)
-                                    cleanWorkspace(module,component)
+                                cleanWorkspace(component)
+                                if (buildDockerImage(component)) {
+                                    tagAndPushImageToRegistry(buildParams,component)
+                                    cleanWorkspace(component)
                                 } else {
                                     error("Terminating process for ${module}: Build failed")
                                 }
@@ -137,12 +137,11 @@ pipeline {
                     steps {
                         script {
                             def component = "multi-agent"
-                            def module = "backend"
                             dir("${buildParams.DevRoot}/${params.BRANCH}/") {
-                                cleanWorkspace(module, component)
-                                if (buildDockerImage(module, component)) {
-                                    tagAndPushImageToRegistry(module, buildParams, component)
-                                    cleanWorkspace(module,component)
+                                cleanWorkspace(component)
+                                if (buildDockerImage(component)) {
+                                    tagAndPushImageToRegistry(buildParams, component)
+                                    cleanWorkspace(component)
                                 } else {
                                     error("Terminating process for ${module}: Build failed")
                                 }
