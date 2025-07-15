@@ -202,6 +202,7 @@ pipeline {
                             for (mod in modules) {
                                 switch(mod.trim()) {
                                     case 'shared-resources':
+                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/shared-resource-values.yaml", version)
                                         deployModules('shared-resources')
                                         break
 
@@ -213,7 +214,7 @@ pipeline {
                                         break
 
                                     case 'multiagent':
-                                        def version = params.DF_VERSION?.trim() ?: params.VERSION?.trim()
+                                        def version = params.MA_VERSION?.trim() ?: params.VERSION?.trim()
                                         updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/multiagent/", version)
                                         updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/multiagent-resource-values.yaml", version)
                                         deployModules('multiagent')
