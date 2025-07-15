@@ -67,10 +67,18 @@ def updateValuesYaml(String filePath , String version) {
             }
             if (params.deploy_location == 'STAGING') {
                 echo "🛠 reduce resources in section: ${sectionName}"
-                sectionData.resources.limits.cpu = 2
-                sectionData.resources.limits.memory = 2Gi
-                sectionData.resources.requests.cpu = 2
-                sectionData.resources.requests.memory = 2Gi
+                
+                if (sectionName == "env") {
+                    echo "⚠️ Skipping top-level 'env' section (no resources)"
+                    return
+                }
+                sectionData.resources = sectionData.resources ?: [:]
+                sectionData.resources.limits = sectionData.resources.limits ?: [:]
+                sectionData.resources.requests = sectionData.resources.requests ?: [:]
+                sectionData.resources.limits.cpu = 1
+                sectionData.resources.limits.memory = "2Gi"
+                sectionData.resources.requests.cpu = 1
+                sectionData.resources.requests.memory = "2Gi"
             }
         }
     }
