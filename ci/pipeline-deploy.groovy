@@ -74,7 +74,7 @@ def updateValuesYaml(String filePath , String version) {
 }
 
 def deployModules(module){
-    echo "install modules: ${module}"
+    echo "deploying modules: ${module}"
     sh("podman exec -t helmfile bash -lc 'helmfile -f ${module}.yaml.gotmpl apply'")
     echo("${module} successfully deployed")
     sh("sleep 10")
@@ -85,9 +85,9 @@ def deleteRunningApplication(){
     sh("podman exec -t helmfile bash -c 'helmfile destroy -f dataflow.yaml.gotmpl --deleteWait'")
     sh("podman exec -t helmfile bash -c 'helmfile destroy -f multiagent.yaml.gotmpl --deleteWait'")
     sh("podman exec -t helmfile bash -c 'helmfile destroy -f shared-resources.yaml.gotmpl --deleteWait'")
-    echo("Wait for all the application is deleted")
+    echo("Wait for resource deletion...")
     sh("until ! oc get deployment,statefulset,svc | grep 'unifai\\|qdrant\\|mongo\\|rabbitmq'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
-    echo("Running UnifAi application successfully deleted")
+    echo("UnifAi application successfully deleted")
     sh("sleep 10")
 }
 
@@ -205,7 +205,6 @@ pipeline {
                                         break
                                 }
                             }
-
                             echo("Deploy successfully completed")
                         }
                         cleanWorkspace()

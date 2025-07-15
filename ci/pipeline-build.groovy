@@ -53,6 +53,7 @@ def buildDockerImage(String module, String component) {
 
 def tagAndPushImageToRegistry(module, buildParams,component) {
     echo("Tagging and pushing image for ${module}.")
+    component = component.replace("-", "")
     def componentLower = component.toLowerCase()
 
     withCredentials([usernamePassword(
