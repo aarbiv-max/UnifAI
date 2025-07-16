@@ -1,0 +1,230 @@
+---
+# PVC for model cache storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vllm-qwen3-model-cache
+  namespace: tag-ai--runtime-int
+  labels:
+    paas.redhat.com/appcode: TAG-001
+    app: vllm-model-preloader
+  annotations:
+    kubernetes.io/reclaimPolicy: "Delete"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: aws-ebs
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# Model preloader job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vllm-model-preloader
+  namespace: tag-ai--runtime-int
+  labels:
+    paas.redhat.com/appcode: TAG-001
+    app: vllm-model-preloader
+spec:
+  ttlSecondsAfterFinished: 7200  # Keep for 2 hours after completion
+  template:
+    metadata:
+      labels:
+        paas.redhat.com/appcode: TAG-001
+        app: vllm-model-preloader
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: model-preloader
+        image: python:3.11-slim
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          set -e
+          
+          echo "=== vLLM Model Preloader ==="
+          echo "Timestamp: $(date)"
+          echo "Model: Qwen/Qwen3-32B-FP8"
+          echo "Cache directory: /models/.cache"
+          echo "PVC size: 100Gi"
+          echo "Storage class: aws-ebs"
+          echo ""
+          
+          # Install required packages
+          echo "Installing required packages..."
+          pip install --no-cache-dir --user huggingface-hub torch transformers requests hf_transfer
+          
+          # Create cache directory structure
+          echo "Setting up cache directories..."
+          mkdir -p /models/.cache
+          mkdir -p /models/.cache/transformers
+          mkdir -p /models/.cache/huggingface
+          
+          # Set environment variables
+          export HF_HOME="/models/.cache"
+          export TRANSFORMERS_CACHE="/models/.cache"
+          export HF_HUB_CACHE="/models/.cache/huggingface"
+          
+          # Check available space
+          echo "Available disk space:"
+          df -h /models/
+          echo ""
+          
+          # Download model using Python
+          echo "Starting model download..."
+          python3 << 'EOF'
+          import os
+          import time
+          from huggingface_hub import snapshot_download, hf_hub_download
+          from transformers import AutoTokenizer, AutoConfig
+          
+          model_name = "Qwen/Qwen3-32B-FP8"
+          cache_dir = "/models/.cache"
+          
+          print(f"Downloading model: {model_name}")
+          print(f"Cache directory: {cache_dir}")
+          print("")
+          
+          try:
+              start_time = time.time()
+              
+              # Download all model files
+              print("📥 Downloading model files...")
+              model_path = snapshot_download(
+                  repo_id=model_name,
+                  cache_dir=cache_dir,
+                  local_files_only=False,
+                  resume_download=True,
+                  ignore_patterns=["*.bin"]  # Skip .bin files if .safetensors exist
+              )
+              print(f"✅ Model files downloaded to: {model_path}")
+              
+              # Download and cache tokenizer
+              print("📥 Downloading tokenizer...")
+              tokenizer = AutoTokenizer.from_pretrained(
+                  model_name,
+                  cache_dir=cache_dir,
+                  trust_remote_code=True
+              )
+              print("✅ Tokenizer downloaded and cached")
+              
+              # Download and cache config
+              print("📥 Downloading model config...")
+              config = AutoConfig.from_pretrained(
+                  model_name,
+                  cache_dir=cache_dir,
+                  trust_remote_code=True
+              )
+              print("✅ Model config downloaded and cached")
+              
+              end_time = time.time()
+              duration = end_time - start_time
+              
+              print("")
+              print("=== Download Summary ===")
+              print(f"Total time: {duration:.1f} seconds ({duration/60:.1f} minutes)")
+              print(f"Model: {model_name}")
+              print(f"Cache location: {cache_dir}")
+              
+              # Show cache size
+              cache_size = os.popen(f'du -sh {cache_dir}').read().strip()
+              print(f"Cache size: {cache_size}")
+              
+              # List cache contents
+              print("")
+              print("Cache contents:")
+              os.system(f'ls -la {cache_dir}/')
+              
+              print("")
+              print("🎉 Model preloading completed successfully!")
+              
+          except Exception as e:
+              print(f"❌ Error downloading model: {e}")
+              import traceback
+              traceback.print_exc()
+              exit(1)
+          EOF
+          
+          # Verify model is accessible
+          echo ""
+          echo "=== Verification ==="
+          echo "Verifying model accessibility..."
+          python3 << 'EOF'
+          from transformers import AutoTokenizer
+          
+          try:
+              tokenizer = AutoTokenizer.from_pretrained(
+                  "Qwen/Qwen3-32B-FP8",
+                  cache_dir="/models/.cache",
+                  trust_remote_code=True
+              )
+              print("✅ Model verification successful - tokenizer loaded")
+              print(f"Vocab size: {tokenizer.vocab_size}")
+          except Exception as e:
+              print(f"⚠️  Model verification failed: {e}")
+          EOF
+          
+          echo ""
+          echo "=== Final Status ==="
+          echo "Disk usage after download:"
+          df -h /models/
+          
+          echo ""
+          echo "Cache directory structure:"
+          find /models/.cache -type d -name "*qwen*" -o -name "*Qwen*" | head -10
+          
+          echo ""
+          echo "🚀 Model preloader job completed!"
+          echo "The model is now cached and ready for vLLM deployment."
+          echo ""
+          echo "Next steps:"
+          echo "1. Deploy vLLM using the existing PVC: vllm-qwen3-model-cache"
+          echo "2. vLLM startup should now take only 1-3 minutes"
+          
+        resources:
+          requests:
+            cpu: "2"
+            memory: "4Gi"
+          limits:
+            cpu: "8"
+            memory: "16Gi"
+        volumeMounts:
+        - name: model-cache
+          mountPath: /models
+        env:
+        - name: HOME
+          value: "/models"
+        - name: HF_HOME
+          value: "/models/.cache"
+        - name: TRANSFORMERS_CACHE
+          value: "/models/.cache"
+        - name: HF_HUB_CACHE
+          value: "/models/.cache/huggingface"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: HF_HUB_ENABLE_HF_TRANSFER
+          value: "1"
+      volumes:
+      - name: model-cache
+        persistentVolumeClaim:
+          claimName: vllm-qwen3-model-cache
+
+---
+# Service monitor for tracking preloader progress (optional)
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-model-preloader-monitor
+  namespace: tag-ai--runtime-int
+  labels:
+    app: vllm-model-preloader
+spec:
+  selector:
+    app: vllm-model-preloader
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP 
