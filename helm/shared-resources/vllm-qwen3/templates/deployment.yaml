@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -209,3 +210,391 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }} 
+=======
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vllm-qwen3.fullname" . }}
+  labels:
+    {{- include "vllm-qwen3.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "vllm-qwen3.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "vllm-qwen3.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "vllm-qwen3.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.volumes.modelCache.enabled }}
+      initContainers:
+      - name: model-preloader
+        image: python:3.11-slim
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          set -e
+          echo "=== Smart Model Preloader Init Container ==="
+          echo "Model: {{ .Values.vllm.model }}"
+          echo "Cache directory: /models/.cache"
+          echo "Force redownload: {{ .Values.volumes.modelCache.forceRedownload }}"
+          echo "Timestamp: $(date)"
+          echo ""
+          
+          # Install required packages
+          echo "Installing required packages..."
+          pip install --no-cache-dir --user huggingface-hub torch transformers
+          
+          # Create cache directory
+          mkdir -p /models/.cache
+          
+          # Set HuggingFace cache directory
+          export HF_HOME="/models/.cache"
+          export TRANSFORMERS_CACHE="/models/.cache"
+          
+          # Check available space
+          echo "Available disk space:"
+          df -h /models/
+          echo ""
+          
+          # Smart model caching with Python script
+          python3 << 'EOF'
+          import os
+          import time
+          import glob
+          from huggingface_hub import snapshot_download
+          from transformers import AutoTokenizer, AutoConfig
+          
+          model_name = "{{ .Values.vllm.model }}"
+          cache_dir = "/models/.cache"
+          force_redownload = "{{ .Values.volumes.modelCache.forceRedownload }}" == "true"
+          
+          print(f"Model: {model_name}")
+          print(f"Cache directory: {cache_dir}")
+          print(f"Force redownload: {force_redownload}")
+          print("")
+          
+          def check_model_cached():
+              """Check if model files are already cached"""
+              try:
+                  # Look for model files in cache
+                  model_patterns = [
+                      f"{cache_dir}/**/models--*{model_name.replace('/', '--')}*",
+                      f"{cache_dir}/models--*{model_name.replace('/', '--')}*"
+                  ]
+                  
+                  model_dirs = []
+                  for pattern in model_patterns:
+                      model_dirs.extend(glob.glob(pattern, recursive=True))
+                  
+                  if not model_dirs:
+                      return False, "No model cache directories found"
+                  
+                  # Check for essential files
+                  for model_dir in model_dirs:
+                      if os.path.isdir(model_dir):
+                          snapshots_dir = os.path.join(model_dir, "snapshots")
+                          if os.path.exists(snapshots_dir):
+                              # Check if there are snapshot directories
+                              snapshots = [d for d in os.listdir(snapshots_dir) 
+                                         if os.path.isdir(os.path.join(snapshots_dir, d))]
+                              if snapshots:
+                                  # Check for model files in latest snapshot
+                                  latest_snapshot = os.path.join(snapshots_dir, snapshots[0])
+                                  essential_files = ["config.json"]
+                                  model_files = [f for f in os.listdir(latest_snapshot) 
+                                               if f.endswith(('.safetensors', '.bin', '.json'))]
+                                  
+                                  if len(model_files) >= 3:  # Expect config + model files
+                                      return True, f"Found cached model with {len(model_files)} files"
+                  
+                  return False, "Model cache exists but incomplete"
+                  
+              except Exception as e:
+                  return False, f"Error checking cache: {e}"
+          
+          def download_model():
+              """Download and cache the model"""
+              try:
+                  start_time = time.time()
+                  
+                  print("📥 Downloading model files...")
+                  snapshot_download(
+                      repo_id=model_name,
+                      cache_dir=cache_dir,
+                      local_files_only=False,
+                      resume_download=True,
+                      ignore_patterns=["*.bin"] if ".safetensors" in model_name else []
+                  )
+                  
+                  print("📥 Downloading tokenizer...")
+                  tokenizer = AutoTokenizer.from_pretrained(
+                      model_name,
+                      cache_dir=cache_dir,
+                      trust_remote_code=True
+                  )
+                  
+                  print("📥 Downloading config...")
+                  config = AutoConfig.from_pretrained(
+                      model_name,
+                      cache_dir=cache_dir,
+                      trust_remote_code=True
+                  )
+                  
+                  end_time = time.time()
+                  duration = end_time - start_time
+                  
+                  print(f"✅ Model download completed in {duration:.1f}s ({duration/60:.1f}min)")
+                  return True
+                  
+              except Exception as e:
+                  print(f"❌ Error downloading model: {e}")
+                  return False
+          
+          def verify_model():
+              """Verify the model is accessible"""
+              try:
+                  print("🔍 Verifying model accessibility...")
+                  tokenizer = AutoTokenizer.from_pretrained(
+                      model_name,
+                      cache_dir=cache_dir,
+                      trust_remote_code=True
+                  )
+                  config = AutoConfig.from_pretrained(
+                      model_name,
+                      cache_dir=cache_dir,
+                      trust_remote_code=True
+                  )
+                  print(f"✅ Model verification successful - vocab size: {tokenizer.vocab_size}")
+                  return True
+              except Exception as e:
+                  print(f"⚠️ Model verification failed: {e}")
+                  return False
+          
+          # Main logic
+          try:
+              # Check if model is already cached
+              if not force_redownload:
+                  is_cached, cache_status = check_model_cached()
+                  print(f"Cache check: {cache_status}")
+                  
+                  if is_cached:
+                      print("🎯 Model already cached! Skipping download.")
+                      # Verify existing cache
+                      if verify_model():
+                          print("🚀 Using existing cached model.")
+                          cache_size = os.popen(f'du -sh {cache_dir}').read().strip()
+                          print(f"Cache size: {cache_size}")
+                          print("✅ Smart preloader completed - no download needed!")
+                          exit(0)
+                      else:
+                          print("⚠️ Cached model verification failed, re-downloading...")
+                  else:
+                      print("📥 Model not cached, downloading...")
+              else:
+                  print("🔄 Force redownload enabled, downloading fresh model...")
+              
+              # Download model
+              if download_model():
+                  # Verify download
+                  if verify_model():
+                      cache_size = os.popen(f'du -sh {cache_dir}').read().strip()
+                      print(f"Cache size: {cache_size}")
+                      print("✅ Smart preloader completed successfully!")
+                  else:
+                      print("❌ Downloaded model verification failed")
+                      exit(1)
+              else:
+                  exit(1)
+                  
+          except Exception as e:
+              print(f"❌ Preloader failed: {e}")
+              import traceback
+              traceback.print_exc()
+              exit(1)
+          EOF
+          
+          echo ""
+          echo "=== Smart Model Preloading Complete ==="
+          echo "Final disk usage:"
+          df -h /models/
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+        volumeMounts:
+        - name: model-cache
+          mountPath: /models
+        env:
+        - name: HOME
+          value: "/models"
+        - name: HF_HOME
+          value: "/models/.cache"
+        - name: TRANSFORMERS_CACHE
+          value: "/models/.cache"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--model"
+            - "{{ .Values.vllm.model }}"
+            - "--max-model-len"
+            - "{{ .Values.vllm.maxModelLen }}"
+            - "--gpu-memory-utilization"
+            - "{{ .Values.vllm.gpuMemoryUtilization }}"
+            - "--quantization"
+            - "{{ .Values.vllm.quantization }}"
+            - "--tensor-parallel-size"
+            - "{{ .Values.gpu.count }}"
+            {{- if .Values.vllm.ropeScaling }}
+            - "--rope-scaling"
+            - "{{ .Values.vllm.ropeScaling }}"
+            {{- end }}
+            - "--port"
+            - "{{ .Values.service.targetPort }}"
+            - "--host"
+            - "0.0.0.0"
+            - "--trust-remote-code"
+            {{- if .Values.vllm.enableAutoToolChoice }}
+            - "--enable-auto-tool-choice"
+            {{- end }}
+            {{- if .Values.vllm.toolCallParser }}
+            - "--tool-call-parser"
+            - "{{ .Values.vllm.toolCallParser }}"
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          {{- if .Values.healthProbes.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthProbes.readinessProbe.httpGet.path }}
+              port: {{ .Values.healthProbes.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.healthProbes.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbes.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthProbes.readinessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.healthProbes.readinessProbe.successThreshold }}
+            failureThreshold: {{ .Values.healthProbes.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.healthProbes.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthProbes.livenessProbe.httpGet.path }}
+              port: {{ .Values.healthProbes.livenessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.healthProbes.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbes.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthProbes.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.healthProbes.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.healthProbes.livenessProbe.failureThreshold }}
+          {{- end }}
+          env:
+            - name: FLASHINFER_WORKSPACE_DIR
+              value: "{{ .Values.env.flashinferWorkspaceDir }}"
+            - name: TRITON_CACHE_DIR
+              value: "{{ .Values.env.tritonCacheDir }}"
+            - name: CUDA_VISIBLE_DEVICES
+              value: "{{- if .Values.env.cudaVisibleDevices }}{{ .Values.env.cudaVisibleDevices }}{{- else if .Values.gpu.deviceIds }}{{ join "," .Values.gpu.deviceIds }}{{- else }}{{- range $i := until (int .Values.gpu.count) }}{{- if $i }},{{- end }}{{ $i }}{{- end }}{{- end }}"
+            - name: VLLM_ENGINE_USE_TCP
+              value: "{{ .Values.env.vllmEngineUseTcp }}"
+            - name: NCCL_P2P_DISABLE
+              value: "{{ .Values.env.ncclP2pDisable }}"
+            - name: TRANSFORMERS_CACHE
+              value: "{{ .Values.env.transformersCache }}"
+            - name: HOME
+              value: "{{ .Values.env.home }}"
+            - name: HF_HOME
+              value: "{{ .Values.env.hfHome }}"
+            - name: VLLM_CONFIG_ROOT
+              value: "{{ .Values.env.vllmConfigRoot }}"
+            - name: VLLM_CACHE_ROOT
+              value: "{{ .Values.env.vllmCacheRoot }}"
+            - name: CUDA_LAUNCH_BLOCKING
+              value: "{{ .Values.env.cudaLaunchBlocking }}"
+            - name: TOKENIZERS_PARALLELISM
+              value: "{{ .Values.env.tokenizersParallelism }}"
+            - name: VLLM_ALLOW_LONG_MAX_MODEL_LEN
+              value: "{{ .Values.env.vllmAllowLongMaxModelLen }}"
+            - name: VLLM_WORKER_MULTIPROC_METHOD
+              value: "{{ .Values.env.vllmWorkerMultiprocMethod }}"
+            - name: VLLM_ENGINE_ITERATION_TIMEOUT_S
+              value: "{{ .Values.env.vllmEngineIterationTimeoutS }}"
+          resources:
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+              nvidia.com/gpu: {{ .Values.gpu.count }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+              nvidia.com/gpu: {{ .Values.gpu.count }}
+          volumeMounts:
+            {{- if .Values.volumes.dshm.enabled }}
+            - name: dshm
+              mountPath: /dev/shm
+            {{- end }}
+            {{- if .Values.volumes.flashinferCache.enabled }}
+            - name: flashinfer-cache
+              mountPath: {{ .Values.env.flashinferWorkspaceDir }}
+            {{- end }}
+            {{- if .Values.volumes.modelCache.enabled }}
+            - name: model-cache
+              mountPath: /models
+            {{- end }}
+      volumes:
+        {{- if .Values.volumes.dshm.enabled }}
+        - name: dshm
+          emptyDir:
+            medium: {{ .Values.volumes.dshm.medium }}
+            sizeLimit: "{{ .Values.volumes.dshm.sizeLimit }}"
+        {{- end }}
+        {{- if .Values.volumes.flashinferCache.enabled }}
+        - name: flashinfer-cache
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.volumes.modelCache.enabled }}
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ include "vllm-qwen3.fullname" . }}-model-cache
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+            {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }} 
+
