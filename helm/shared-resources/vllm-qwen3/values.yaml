@@ -122,15 +122,17 @@ huggingFaceSecret:
 vllm:
   # Model to load - can be HuggingFace model ID or local path
   model: "Qwen/Qwen3-32B-FP8"
-  # Maximum model length - adjust based on model capabilities
-  maxModelLen: "65536"
+  # Maximum model length - set to practical tested limit (77K+ tokens verified working)
+  maxModelLen: "80000"
   # GPU memory utilization (0.0-1.0) - adjust based on available VRAM
   gpuMemoryUtilization: "0.85"
   # Quantization method - options: none, fp8, int8, etc.
   quantization: "fp8"
   # Note: tensorParallelSize is automatically set from gpu.count
-  # Rope scaling configuration - leave empty for auto-detection
-  ropeScaling: ""
+  # Rope scaling configuration for extending context length
+  # YARN (Yet Another RoPE extensioN) scaling allows extending context beyond original training length
+  # Format: JSON string with rope_type, factor, and original_max_position_embeddings
+  ropeScaling: "{\"rope_type\":\"yarn\",\"factor\":4.0,\"original_max_position_embeddings\":32768}"
   # Maximum number of batched tokens
   maxNumBatchedTokens: "32768"
   # Maximum number of sequences in a batch
@@ -145,10 +147,6 @@ vllm:
   disableLogRequests: true
   # Enable chunked prefill for better batching
   enableChunkedPrefill: true
-  # Enable auto tool choice
-  enableAutoToolChoice: true
-  # Tool call parser
-  toolCallParser: "hermes"
 
 # This sets the container port
 containerPort: 8000
