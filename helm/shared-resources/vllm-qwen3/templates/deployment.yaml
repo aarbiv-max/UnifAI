@@ -270,6 +270,13 @@ spec:
             - "--host"
             - "0.0.0.0"
             - "--trust-remote-code"
+            {{- if .Values.vllm.enableAutoToolChoice }}
+            - "--enable-auto-tool-choice"
+            {{- end }}
+            {{- if .Values.vllm.toolCallParser }}
+            - "--tool-call-parser"
+            - "{{ .Values.vllm.toolCallParser }}"
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.targetPort }}

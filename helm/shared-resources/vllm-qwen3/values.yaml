@@ -145,6 +145,10 @@ vllm:
   disableLogRequests: true
   # Enable chunked prefill for better batching
   enableChunkedPrefill: true
+  # Enable auto tool choice
+  enableAutoToolChoice: true
+  # Tool call parser
+  toolCallParser: "hermes"
 
 # This sets the container port
 containerPort: 8000
