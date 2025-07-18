@@ -247,6 +247,15 @@ service:
 
 ## 🧪 API Usage
 
+> **Note**: The examples below use `curl` for broad compatibility. If you prefer `wget`, you can use equivalent commands:
+> ```bash
+> # curl equivalent:
+> curl -X POST /v1/completions -H "Content-Type: application/json" -d '{"data":"value"}'
+> 
+> # wget equivalent:
+> wget -q -O - --post-data='{"data":"value"}' --header="Content-Type: application/json" /v1/completions
+> ```
+
 ### Health Check
 ```bash
 curl http://your-vllm-url/health

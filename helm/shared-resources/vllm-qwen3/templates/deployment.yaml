@@ -25,7 +25,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "vllm-qwen3.serviceAccountName" . }}
+
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -261,10 +261,10 @@ spec:
             - "{{ .Values.vllm.quantization }}"
             - "--tensor-parallel-size"
             - "{{ .Values.gpu.count }}"
-            {{- if .Values.vllm.ropeScaling }}
+              #{{- if .Values.vllm.ropeScaling }}
             - "--rope-scaling"
-            - "{{ .Values.vllm.ropeScaling }}"
-            {{- end }}
+            - "{\"rope_type\":\"yarn\",\"factor\":4.0,\"original_max_position_embeddings\":32768}"
+              #{{- end }}
             - "--port"
             - "{{ .Values.service.targetPort }}"
             - "--host"

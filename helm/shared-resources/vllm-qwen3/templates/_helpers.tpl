@@ -50,13 +50,4 @@ app.kubernetes.io/name: {{ include "vllm-qwen3.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/*
-Create the name of the service account to use
-*/}}
-{{- define "vllm-qwen3.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "vllm-qwen3.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }} 
+ 
