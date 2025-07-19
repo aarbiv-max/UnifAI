@@ -84,7 +84,7 @@ huggingFaceSecret:
 vllm:
   model: "Qwen/Qwen3-32B-FP8"
   localModelPath: "/models/Qwen3-32B-FP8"
-  maxModelLen: "16384"
+  maxModelLen: "90000"
   gpuMemoryUtilization: "0.90"
   quantization: "fp8"
 

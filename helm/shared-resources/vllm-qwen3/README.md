@@ -41,28 +41,19 @@ kubectl get nodes -l nvidia.com/gpu=true
 kubectl get pods -n nvidia-gpu-operator
 ```
 
-## 📦 Optional: Model Preloading (Recommended)
+## 📦 Integrated Model Caching
 
 > **⚡ Performance Boost**: Preloading the model significantly reduces vLLM startup time from **15-30 minutes** to **1-3 minutes** for subsequent deployments.
 
-The model preloading step is **completely optional** but highly recommended for production deployments. You can choose between:
+The vLLM deployment includes an **integrated initContainer** that automatically handles model caching for optimal performance:
 
-- **Option A**: Standard deployment (model downloads during vLLM startup)
-- **Option B**: Preload model first, then deploy vLLM with cached model
+### Integrated Model Caching
 
-### Option B: Preload Model (Recommended)
-
-#### 1. Run the Automated Preloader
-```bash
-cd helm/shared-resources/vllm-qwen3
-./preload-and-deploy.sh
-```
-
-This script will:
-1. 📥 Clone the Qwen3-32B-FP8 model (~30-40GB) using **Git LFS** to a persistent volume
-2. ✅ Verify the model files are complete
-3. 🚀 Deploy vLLM with the preloaded model cache
-4. ⚡ Result: Ultra-fast vLLM startup (1-3 minutes)
+The chart automatically:
+1. 📥 Downloads the Qwen3-32B-FP8 model (~30-40GB) using **Git LFS** via initContainer
+2. ✅ Caches the model to a persistent volume for reuse
+3. 🚀 Starts vLLM with the cached model for fast startup
+4. ⚡ Result: First deployment ~15 minutes, subsequent deployments ~1-3 minutes
 
 **🔧 Production-Validated Git LFS Approach**: Extensively tested in production OpenShift clusters, providing:
 - **Enterprise-Ready**: Works in restricted environments where Python approaches fail due to permission constraints
@@ -71,23 +62,9 @@ This script will:
 - **Outstanding Caching**: 99.9% faster subsequent deployments (15 minutes → 1 second)
 - **Resource Efficient**: Uses `alpine/git:latest` with git-lfs for minimal overhead
 
-#### 2. Manual Preloading (Alternative)
-```bash
-# Step 1: Preload the model using Git LFS
-oc apply -f model-preloader.yaml
+**Note**: The model will be cached to `/models/.cache/models--Qwen--Qwen3-32B-FP8/` and vLLM will automatically use the local path via `localModelPath` configuration. The initContainer is named "model-man" for easy identification.
 
-# Step 2: Monitor preload progress (15 minutes for fresh download, 1 second if cached)
-oc logs -f job/vllm-model-preloader -n tag-ai--runtime-int
-
-# Step 3: Deploy vLLM with cached model
-helm install vllm-qwen3 ./ \
-  --namespace tag-ai--runtime-int \
-  --set volumes.modelCache.enabled=true
-```
-
-**Note**: The model will be cloned to `/models/.cache/models--Qwen--Qwen3-32B-FP8/` and vLLM will automatically use this local path when `volumes.modelCache.enabled=true`. The initContainer is named "model-man" for easy identification.
-
-### Benefits of Preloading
+### Benefits of Integrated Caching
 - ⚡ **Faster Restarts**: Pod restarts take 1-3 minutes instead of 15-30 minutes
 - 🔄 **Persistent Cache**: Model persists across deployments and pod restarts  
 - 📈 **Better Resource Utilization**: No model download during production startup
@@ -126,7 +103,7 @@ The chart uses a **production-validated git LFS approach** tested on real OpenSh
 
 ## 🚀 Quick Start
 
-> **📝 Note**: This covers **Option A** (standard deployment). For faster startup times, see the [Optional Model Preloading](#-optional-model-preloading-recommended) section above.
+> **📝 Note**: The deployment includes integrated model caching for optimal performance. See the [Integrated Model Caching](#-integrated-model-caching) section above for details.
 
 ### 1. Install the Chart
 ```bash
@@ -149,7 +126,7 @@ helm install vllm-qwen3 ./helm/shared-resources/vllm-qwen3/ \
 ```bash
 # Check pod status 
 # Note: Model loading takes 15-30 minutes for first-time deployment
-#       or 1-3 minutes if using preloaded model cache
+#       or 1-3 minutes with integrated model caching
 kubectl get pods -n your-namespace -l app.kubernetes.io/name=vllm-qwen3
 
 # Monitor model loading progress
@@ -450,11 +427,11 @@ healthProbes:
   livenessProbe:
     initialDelaySeconds: 1500  # 25 minutes
 
-# Monitor model preloading (initContainer "model-man"):
+# Monitor model caching (initContainer "model-man"):
 kubectl logs -f deployment/vllm-qwen3 -c model-man -n your-namespace
 ```
 
-> **💡 Best Solution**: Use [Model Preloading](#-optional-model-preloading-recommended) to reduce startup time from 15 minutes to 1 second for subsequent deployments, eliminating timeout issues entirely. Our production testing shows 99.9% improvement in deployment speed.
+> **💡 Best Solution**: The chart includes [Integrated Model Caching](#-integrated-model-caching) to reduce startup time from 15 minutes to 1 second for subsequent deployments, eliminating timeout issues entirely. Our production testing shows 99.9% improvement in deployment speed.
 
 #### Out of Memory Errors
 ```bash
@@ -608,7 +585,7 @@ vllm-qwen3/
 ├── values.yaml                         # Default configuration
 ├── values-optimized-loading.yaml       # Performance optimized configuration
 ├── README.md                           # This documentation
-├── model-preloader.yaml               # Model preloading job template
+
 ├── templates/                          # Kubernetes manifests
 │   ├── deployment.yaml                 # Main vLLM deployment
 │   ├── service.yaml                    # Internal service
@@ -623,7 +600,7 @@ vllm-qwen3/
 │       └── BENCHMARK_TESTING.md        # Testing documentation
 └── scripts/development/                # Development and testing scripts
     ├── deploy-optimized-loading.sh     # Deployment automation
-    ├── preload-and-deploy.sh           # Model preloading automation
+    
     └── (various testing scripts...)    # Historical test scripts
 ```
 
@@ -660,4 +637,4 @@ This implementation has been **extensively tested and validated** in production 
 - **✅ Resource Efficiency**: 75% smaller containers, 80% less memory usage
 - **✅ Enterprise Ready**: Proven reliability where Python approaches fail
 
-**Note**: Model loading times with our git LFS implementation: 15 minutes for fresh downloads, **1 second for subsequent deployments** when using [Model Preloading](#-optional-model-preloading-recommended). This represents a **904-second improvement** (99.9% faster) for pod restarts and redeployments. 
+**Note**: Model loading times with our git LFS implementation: 15 minutes for fresh downloads, **1 second for subsequent deployments** with [Integrated Model Caching](#-integrated-model-caching). This represents a **904-second improvement** (99.9% faster) for pod restarts and redeployments. 
