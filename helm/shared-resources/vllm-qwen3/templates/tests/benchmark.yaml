@@ -15,7 +15,7 @@ spec:
     image: williamyeh/wrk:latest
     env:
     - name: MODEL_NAME
-      value: "{{ .Values.vllm.model }}"
+      value: "{{ .Values.vllm.localModelPath }}"
     - name: BASE_URL
       value: "http://{{ include "vllm-qwen3.fullname" . }}-{{ .Values.namespace | default .Release.Namespace }}.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
     command: ["/bin/sh"]

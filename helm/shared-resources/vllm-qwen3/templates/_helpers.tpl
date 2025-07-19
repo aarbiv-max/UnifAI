@@ -50,4 +50,6 @@ app.kubernetes.io/name: {{ include "vllm-qwen3.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
+
+
  

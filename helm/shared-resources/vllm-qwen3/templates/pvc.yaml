@@ -5,6 +5,9 @@ metadata:
   name: {{ include "vllm-qwen3.fullname" . }}-model-cache
   labels:
     {{- include "vllm-qwen3.labels" . | nindent 4 }}
+    {{- if .Values.labels }}
+    {{- toYaml .Values.labels | nindent 4 }}
+    {{- end }}
   annotations:
     kubernetes.io/reclaimPolicy: "Delete"
   namespace: {{ .Values.namespace | default .Release.Namespace }}

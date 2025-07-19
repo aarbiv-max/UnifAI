@@ -40,8 +40,8 @@ spec:
         # Test 2: Models Endpoint
         echo "🤖 Test 2: Models Endpoint"
         MODELS_RESPONSE=$(curl -s "$BASE_URL/v1/models")
-        if echo "$MODELS_RESPONSE" | grep -q "{{ .Values.vllm.model }}"; then
-          echo "✅ Models endpoint working - Found model: {{ .Values.vllm.model }}"
+        if echo "$MODELS_RESPONSE" | grep -q "{{ .Values.vllm.localModelPath }}"; then
+          echo "✅ Models endpoint working - Found model: {{ .Values.vllm.localModelPath }}"
         else
           echo "❌ Models endpoint failed - Model not found"
           echo "Response: $MODELS_RESPONSE"
@@ -53,7 +53,7 @@ spec:
         COMPLETION_RESPONSE=$(curl -s -X POST "$BASE_URL/v1/completions" \
           -H "Content-Type: application/json" \
           -d '{
-            "model": "{{ .Values.vllm.model }}",
+            "model": "{{ .Values.vllm.localModelPath }}",
             "prompt": "The capital of France is",
             "max_tokens": 10,
             "temperature": 0.1
