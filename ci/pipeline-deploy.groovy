@@ -80,6 +80,24 @@ def updateValuesYaml(String filePath , String version) {
                 sectionData.resources.requests.cpu = 1
                 sectionData.resources.requests.memory = "2Gi"
             }
+            else if (params.deploy_location == 'PRODUCTION') {
+                if (sectionData.tolerations instanceof List) {
+                    echo "🎯 Setting tolerations for PRODUCTION in section: ${sectionName}"
+                    sectionData.tolerations = [
+                        [
+                            key: "nvidia.com/gpu",
+                            operator: "Exists",
+                            effect: "NoSchedule"
+                        ],
+                        [
+                            key: "tenant",
+                            operator: "Equal",
+                            value: "llmaas-a100",
+                            effect: "NoSchedule"
+                        ]
+                    ]
+                }
+            }
         }
     }
 
