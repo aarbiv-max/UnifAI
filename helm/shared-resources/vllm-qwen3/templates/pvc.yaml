@@ -10,6 +10,9 @@ metadata:
     {{- end }}
   annotations:
     kubernetes.io/reclaimPolicy: "Delete"
+    {{- if .Values.volumes.modelCache.retainOnDelete }}
+    "helm.sh/resource-policy": keep
+    {{- end }}
   namespace: {{ .Values.namespace | default .Release.Namespace }}
 spec:
   accessModes:
