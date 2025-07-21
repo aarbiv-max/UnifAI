@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Optimized values for vLLM Qwen3-32B-FP8 - Performance Optimized Configuration
 # This configuration prioritizes model loading speed and performance optimization
 
@@ -300,7 +299,7 @@ vllm:
   # Model to load - can be HuggingFace model ID or local path
   model: "Qwen/Qwen3-32B-FP8"
   # Maximum model length - adjust based on model capabilities
-  maxModelLen: "65536"
+  maxModelLen: "8000"
   # GPU memory utilization (0.0-1.0) - adjust based on available VRAM
   gpuMemoryUtilization: "0.85"
   # Quantization method - options: none, fp8, int8, etc.
