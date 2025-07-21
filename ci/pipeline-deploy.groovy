@@ -97,11 +97,20 @@ def deployModules(module){
 
 def deleteRunningApplication(){
     echo("Removing running UnifAI application")
-    sh("podman exec -t helmfile bash -c 'helmfile destroy -f dataflow.yaml.gotmpl --deleteWait'")
-    sh("podman exec -t helmfile bash -c 'helmfile destroy -f multiagent.yaml.gotmpl --deleteWait'")
-    sh("podman exec -t helmfile bash -c 'helmfile destroy -f shared-resources.yaml.gotmpl --deleteWait'")
+
+    def charts = ["dataflow", "multiagent", "shared-resources"]
+
+    charts.each { chart ->
+        sh("podman exec -t helmfile bash -c 'helmfile destroy -f ${chart}.yaml.gotmpl --deleteWait'")
+    }
+
     echo("Wait for resource deletion...")
-    sh("until ! oc get deployment,statefulset,svc | grep 'unifai\\|qdrant\\|mongo\\|rabbitmq'; do echo 'Waiting for deployment deletion...'; sleep 5; done")
+    sh("""
+        until ! kubectl get deployment,statefulset,svc | grep 'unifai\\|qdrant\\|mongo\\|rabbitmq'; do
+            echo 'Waiting for deployment deletion...'
+            sleep 5
+        done
+    """)
     echo("UnifAi application successfully deleted")
     sh("sleep 10")
 }
@@ -174,9 +183,9 @@ pipeline {
                                 ClusterAccessToken = 'tenantaccess-unifai-sa-pp'
                                 break
                             case 'PRODUCTION':
-                                //ClusterAddress = 'https://api.stc-ai-e1-prod.rtc9.p1.openshiftapps.com:6443'
-                                //NameSpace = "tag-ai--pipeline"
-                                //ClusterAccessToken = 'tenantaccess-unifai-sa-prod'
+                                ClusterAddress = 'https://api.stc-ai-e1-prod.rtc9.p1.openshiftapps.com:6443'
+                                NameSpace = "tag-ai--pipeline"
+                                ClusterAccessToken = 'tenantaccess-unifai-sa-prod'
                                 break
                             default:
                                 error("Invalid deployment location: ${params.deploy_location}")
