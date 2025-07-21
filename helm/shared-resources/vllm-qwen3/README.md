@@ -21,10 +21,12 @@ This Helm chart provides a complete deployment solution for running Qwen3-32B-FP
 ## 📋 Prerequisites
 
 ### Hardware Requirements
-- **GPUs**: 2x NVIDIA GPUs with at least 16GB VRAM each
+- **GPUs**: 2x NVIDIA A100 GPUs (or equivalent) with at least 16GB VRAM each
 - **Memory**: 32GB+ RAM recommended
 - **CPU**: 8+ cores recommended
 - **Storage**: 50GB+ for model caching
+
+> **⚠️ Important**: This deployment requires **2+ available A100 GPUs** in your cluster. The Qwen3-32B-FP8 model with tensor parallelism is specifically optimized for A100 hardware and requires the compute capability and memory bandwidth these GPUs provide.
 
 ### Software Requirements
 - Kubernetes 1.24+ or OpenShift 4.10+
