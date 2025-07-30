@@ -9,7 +9,7 @@ properties([
         booleanParam(name: 'build_gui', defaultValue: false, description: 'Create image for UI'),
         booleanParam(name: 'build_dataflow_backend', defaultValue: false, description: 'Create image for dataflow backend'),
         booleanParam(name: 'build_multiagent_backend', defaultValue: false, description: 'Create image for multiagent backend'),
-        booleanParam(name: 'set_image_canidate', defaultValue: false, description: 'Set images with latest tag'),
+        booleanParam(name: 'set_image_candidate', defaultValue: false, description: 'Set images with latest tag'),
         
         // 🚀 Deployment Parameters
         choice(name: 'deploy_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Deployment type'),
@@ -65,7 +65,7 @@ def tagAndPushImageToRegistry( buildParams,component) {
             podman login -u ${REGISTRY_USER} -p ${REGISTRY_PASS} ${buildParams.ImageRegistry}
             podman push ${componentLower}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}:${VERSION}
         """
-        if (params.set_image_canidate) {
+        if (params.set_image_candidate) {
             sh """
                 podman push --quiet ${componentLower}:${VERSION} ${buildParams.ImageRegistry}/${buildParams.ImageRegistryPath}/${componentLower}:latest
             """
