@@ -12,9 +12,9 @@ properties([
         booleanParam(name: 'set_image_candidate', defaultValue: false, description: 'Set images with latest tag'),
         
         // 🚀 Deployment Parameters
+        booleanParam(name: 'deploy_unifai', defaultValue: false, description: 'True - Deploy UnifAI, False - Only build images and upload to image-paas'),
         choice(name: 'deploy_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Deployment type'),
         choice(name: 'deploy_location', choices: ['STAGING', 'PRODUCTION'], description: 'Deployment environment'),
-        booleanParam(name: 'deploy_unifai', defaultValue: false, description: 'True - Deploy UnifAI, False - Only build images and upload to image-paas'),
         booleanParam(name: 'debug_mode', defaultValue: false, description: 'True - create pods with debug mode')
         
     ])
