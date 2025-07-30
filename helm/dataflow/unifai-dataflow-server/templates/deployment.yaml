@@ -40,6 +40,11 @@ spec:
           {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          
+          {{- if .Values.debug }}
+          command: {{ .Values.command }}
+          {{- end }}
+          
           env:
           {{- range $key, $value := .Values.env }}
           - name: "{{ $key }}"
