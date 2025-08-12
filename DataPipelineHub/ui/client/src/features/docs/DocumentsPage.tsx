@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { FaTh, FaList } from "react-icons/fa";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Document } from "@/types";
 import { UploadTab } from "./UploadTab";
 import Sidebar from "@/components/layout/Sidebar";
@@ -26,13 +26,53 @@ export default function Documents() {
 
   const { currentPage, setPage, resetPage, itemsPerPage, } = usePaginationStore();
 
-  const { data: documents = [], isLoading, isError, error } = useQuery<Document[]>({
+  const { data: documentsRaw = [], isLoading, isError, error } = useQuery<Document[]>({
     queryKey: ['documents'],
     queryFn: fetchDocuments,
     refetchInterval: 10000,
     refetchOnMount: true, 
     refetchOnWindowFocus: true, 
   });
+
+  // Hide SKIPPED docs from the main list to avoid duplicates surfacing twice
+  const documents = useMemo(() => {
+    const visible = (documentsRaw || []).filter(d => d.status !== 'SKIPPED');
+    // Sort by last_uploaded (desc), fall back to created_at
+    const safeTime = (iso?: string) => (iso ? Date.parse(iso) : 0);
+    return [...visible].sort((a, b) => {
+      const at = safeTime(a.last_uploaded || a.created_at);
+      const bt = safeTime(b.last_uploaded || b.created_at);
+      return bt - at;
+    });
+  }, [documentsRaw]);
+
+  // Build a map from content_md5 -> preferred existing embedded doc
+  const md5PreferredMap = useMemo(() => {
+    const map: Record<string, Document> = {};
+    if (!documents?.length) return map;
+
+    const groups = new Map<string, Document[]>();
+    for (const doc of documents) {
+      const md5 = doc?.type_data?.content_md5;
+      if (!md5) continue;
+      const arr = groups.get(md5) || [];
+      arr.push(doc);
+      groups.set(md5, arr);
+    }
+
+    const pickPreferred = (arr: Document[]) => {
+      const done = arr.find(d => d.status === 'DONE');
+      if (done) return done;
+      const nonSkipped = arr.find(d => d.status && d.status !== 'SKIPPED');
+      if (nonSkipped) return nonSkipped;
+      return arr[0];
+    };
+
+    for (const [md5, arr] of groups) {
+      map[md5] = pickPreferred(arr);
+    }
+    return map;
+  }, [documents]);
 
   useEffect(() => {
     resetPage();
@@ -174,6 +214,7 @@ export default function Documents() {
                         retrying={retrying}
                         handleRetry={handleRetry}
                         footer={footer}
+                        md5PreferredMap={md5PreferredMap}
                       />
                     ) : (
                       <>
@@ -186,6 +227,7 @@ export default function Documents() {
                             onDeleteConfirmed={onDeleteConfirmed}
                             retrying={retrying}
                             handleRetry={handleRetry}
+                            md5PreferredMap={md5PreferredMap}
                           />
 
                         </div>

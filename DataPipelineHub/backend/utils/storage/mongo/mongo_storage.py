@@ -84,11 +84,13 @@ class MongoStorage:
                 source['status'] = None
             enriched.append(make_json_safe(source))
         
-        enriched_sorted = sorted(
-            enriched,
-            key=lambda s: s.get('created_at') or 0,  # default to 0 if created_at is missing
-            reverse=True
-        )
+        # Prefer last_uploaded for ordering if present; fallback to created_at
+        def _sort_key(s: Dict[str, Any]):
+            last_uploaded = s.get('last_uploaded')
+            created_at = s.get('created_at')
+            return last_uploaded or created_at or 0
+
+        enriched_sorted = sorted(enriched, key=_sort_key, reverse=True)
         return enriched_sorted
 
     def upsert_documents(self, db: str, col: str, docs: List[Dict[str, Any]], key_field: str) -> None:

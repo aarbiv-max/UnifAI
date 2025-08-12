@@ -18,9 +18,10 @@ interface DocumentTableProps {
   onDeleteConfirmed?: (id: string) => void;
   retrying?: boolean;
   handleRetry?: (id: string) => void;
+  md5PreferredMap?: Record<string, Document>;
 }
 
-export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry}) => {
+export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry, md5PreferredMap}) => {
   const [confirmDoc, setConfirmDoc] = useState<Document | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
@@ -30,28 +31,31 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       header: "Name",
       cell: ({ row }) => {
         const doc = row.original;
+        const md5 = doc?.type_data?.content_md5;
+        const preferred = md5 && md5PreferredMap ? md5PreferredMap[md5] : undefined;
+        const displayDoc = preferred && preferred.pipeline_id !== doc.pipeline_id ? preferred : doc;
         return (
           <div className="flex items-center space-x-2">
-            <div className={`p-1.5 rounded ${fileByColors[doc.type_data.file_type]}`}>
-              {getFileIcon(doc.type_data.file_type)}
+            <div className={`p-1.5 rounded ${fileByColors[displayDoc.type_data.file_type]}`}>
+              {getFileIcon(displayDoc.type_data.file_type)}
             </div>
-            <div className="truncate max-w-[200px]">{doc.source_name}</div>
+            <div className="truncate max-w-[200px]">{displayDoc.source_name}</div>
           </div>
         );
       },
       meta: { align: "left", filterType: "text" },
     },
     {
-      accessorKey: "created_at",
+      accessorKey: "last_uploaded",
       header: "Uploaded At",
       cell: ({ row }) =>
-        new Date(row.original.created_at).toLocaleString("en-GB"),
+        new Date((row.original.last_uploaded || row.original.created_at)).toLocaleString("en-GB"),
       meta: { align: "left" },
     },
     {
       accessorKey: "upload_by",
       header: "Uploaded By",
-      cell: ({ row }) => row.original.upload_by,
+      cell: ({ row }) => Array.isArray(row.original.uploaders) && row.original.uploaders.length > 1 ? `uploaded by ${row.original.uploaders.length} people` : row.original.upload_by,
       meta: { align: "left" },
     },
     {
@@ -59,7 +63,10 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       header: "Pages",
       cell: ({ row }) => {
         const doc = row.original;
-        return getDataToDisplay(doc) || doc.type_data.page_count;
+        const md5 = doc?.type_data?.content_md5;
+        const preferred = md5 && md5PreferredMap ? md5PreferredMap[md5] : undefined;
+        const displayDoc = preferred && preferred.pipeline_id !== doc.pipeline_id ? preferred : doc;
+        return getDataToDisplay(displayDoc) || displayDoc.type_data.page_count;
       },
       meta: { align: "center" },
     },
@@ -68,9 +75,12 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       header: "Size (MB)",
       cell: ({ row }) => {
         const doc = row.original;
-        if (isEmbeddingActivelyProcessing(doc)) return <InlineLoader />;
-        if (doc.status === PIPELINE_STATUS.PENDING) return "-";
-        return doc.type_data.file_size
+        const md5 = doc?.type_data?.content_md5;
+        const preferred = md5 && md5PreferredMap ? md5PreferredMap[md5] : undefined;
+        const displayDoc = preferred && preferred.pipeline_id !== doc.pipeline_id ? preferred : doc;
+        if (isEmbeddingActivelyProcessing(displayDoc)) return <InlineLoader />;
+        if (displayDoc.status === PIPELINE_STATUS.PENDING) return "-";
+        return displayDoc.type_data.file_size
       },
       meta: { align: "center" },
     },
@@ -89,7 +99,10 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       header: "Chunks",
       cell: ({ row }) => {
         const doc = row.original;
-        return getDataToDisplay(doc) || `${doc.pipeline_stats.chunks_generated}`
+        const md5 = doc?.type_data?.content_md5;
+        const preferred = md5 && md5PreferredMap ? md5PreferredMap[md5] : undefined;
+        const displayDoc = preferred && preferred.pipeline_id !== doc.pipeline_id ? preferred : doc;
+        return getDataToDisplay(displayDoc) || `${displayDoc.pipeline_stats.chunks_generated}`
       },
       meta: { align: "center" },
     },
@@ -125,7 +138,10 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       header: "",
       cell: ({ row }) => {
         const doc = row.original;
-        const isActive = activeDoc?.pipeline_id === doc.pipeline_id;
+        const md5 = doc?.type_data?.content_md5;
+        const preferred = md5 && md5PreferredMap ? md5PreferredMap[md5] : undefined;
+        const displayDoc = preferred && preferred.pipeline_id !== doc.pipeline_id ? preferred : doc;
+        const isActive = activeDoc?.pipeline_id === displayDoc.pipeline_id;
         return (
           <div className="flex items-center space-x-2 justify-end">
             {/* {doc.status === PIPELINE_STATUS.FAILED && (
@@ -143,7 +159,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
               variant="ghost"
               size="icon"
               className="h-6 w-6 p-0"
-              onClick={() => setActiveDoc?.(isActive ? null : doc)}
+              onClick={() => setActiveDoc?.(isActive ? null : displayDoc)}
             >
               <FaEye className={isActive ? "text-primary" : ""} />
             </Button>
@@ -175,7 +191,12 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
         enableColumnFilters={true}
         enablePagination={true}
         expendedRow={activeDoc}
-        renderExpandedRow={(doc) => <DocumentData doc={doc} />}
+        renderExpandedRow={(doc) => {
+          const md5 = doc?.type_data?.content_md5;
+          const preferred = md5 && md5PreferredMap ? md5PreferredMap[md5] : undefined;
+          const displayDoc = preferred && preferred.pipeline_id !== doc.pipeline_id ? preferred : doc;
+          return <DocumentData doc={displayDoc} />
+        }}
       />
 
       {confirmDoc && (

@@ -74,7 +74,10 @@ class SourcesRepository:
                        upload_by: str, pipeline_id: str, type_data: Optional[Dict[str, Any]] = None):
         """Create or update a source summary."""
         now = datetime.utcnow()
-        update = {"last_sync_at": now}
+        update = {
+            "last_sync_at": now,
+            "last_uploaded": now,
+        }
         if type_data:
             update["type_data"] = type_data
 
@@ -87,6 +90,8 @@ class SourcesRepository:
                     "source_name": source_name,
                     "source_type": source_type,
                     "upload_by": upload_by,
+                    # Track all uploaders. Initialize with first uploader
+                    "uploaders": [upload_by],
                     "pipeline_id": pipeline_id,
                     "created_at": now
                 }

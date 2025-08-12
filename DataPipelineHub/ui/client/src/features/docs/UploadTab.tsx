@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { FaFileAlt, FaUpload, FaTimes } from "react-icons/fa";
 import { Progress } from "@/components/ui/progress";
 import { ProcessingOptions } from "./ProcessingOptions";
-import { embedDocs, uploadDocs } from "@/api/docs";
+import { embedDocs, uploadDocs, fetchDocuments } from "@/api/docs";
+import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface UploadTabProps {
     setShowUploadModal: (showUploadModal: boolean) => void;
@@ -20,6 +22,9 @@ export const UploadTab: React.FC<UploadTabProps> = ({
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string>("");
     
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(true);
@@ -83,7 +88,32 @@ export const UploadTab: React.FC<UploadTabProps> = ({
     const startPipeline = async (docs: {source_name: string}[]) => {
         try {
             await embedDocs(docs)
-            console.log("API submission successful!");
+            // Actively poll for a short time to detect duplicate SKIPPED entries created by the pipeline
+            const uploadedNames = new Set<string>(docs.map((d: { source_name: string }) => d.source_name));
+            let duplicateDetected = false;
+            for (let i = 0; i < 8; i++) { // ~12s max if 1.5s interval
+                try {
+                    const current = await fetchDocuments();
+                    // Look for any SKIPPED doc among recently uploaded names
+                    const skippedDup = current.find((doc: any) => uploadedNames.has(doc.source_name) && doc.status === 'SKIPPED' && ((doc.type_data?.skip_reason as string | undefined)?.toLowerCase?.().includes('duplicate') || !!doc.type_data?.duplicate_of_pipeline_id));
+                    if (skippedDup) {
+                        duplicateDetected = true;
+                        break;
+                    }
+                } catch {}
+                await new Promise(res => setTimeout(res, 1500));
+            }
+
+            if (duplicateDetected) {
+                toast({
+                    title: "This document has already been embedded.",
+                    description: "Making it available...",
+                    variant: "destructive",
+                });
+            }
+            // Refresh documents cache and list immediately so the original jumps to top
+            queryClient.invalidateQueries({ queryKey: ['documents'] });
+            await fetchDocuments();
         } catch (error) {
             console.error(error);
             setError((error as Error).message);

@@ -84,14 +84,35 @@ class DocumentPipeline(Pipeline):
             if existing:
                 # Mark as skipped and remember why (store reason under data_sources)
                 repo.update_pipeline_status(self, PipelineStatus.SKIPPED.value)
+                # Persist duplicate metadata on the new (skipped) pipeline doc
                 repo.sources_collection.update_one(
                     {"pipeline_id": self.get_pipeline_id()},
                     {"$set": {
                         "type_data.content_md5": content_md5,
-                        "type_data.skip_reason": "Duplicate document content (MD5)"
+                        "type_data.skip_reason": "Duplicate document content (MD5)",
+                        "type_data.duplicate_of_pipeline_id": existing.get("pipeline_id"),
+                        "type_data.duplicate_of_source_id": existing.get("source_id"),
                     }},
                     upsert=True
                 )
+                # Update existing original doc with latest uploader and last_uploaded timestamp
+                uploader = self.metadata.upload_by or "default"
+                try:
+                    from datetime import datetime
+                    # Update all existing docs with same MD5 (excluding current) so the preferred one bubbles to top
+                    repo.sources_collection.update_many(
+                        {
+                            "source_type": self.SOURCE_TYPE,
+                            "type_data.content_md5": content_md5,
+                            "pipeline_id": {"$ne": self.get_pipeline_id()}
+                        },
+                        {
+                            "$set": {"last_uploaded": datetime.utcnow()},
+                            "$addToSet": {"uploaders": uploader},
+                        }
+                    )
+                except Exception:
+                    pass
         return self._cached_collected
 
 
