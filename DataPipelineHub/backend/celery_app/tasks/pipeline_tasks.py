@@ -111,6 +111,34 @@ def register_sources_task(self, data_list: list, source_type: str, upload_by: st
                 type_data=type_data
             )
             
+            # Create/ensure a pipeline document with PENDING status so UI shows queue state
+            try:
+                repo = PipelineRepository()
+                repo.pipelines_collection.update_one(
+                    {"pipeline_id": pipeline_id},
+                    {
+                        "$setOnInsert": {
+                            "pipeline_id": pipeline_id,
+                            "source_type": source_type.upper(),
+                            "status": "PENDING",
+                            "created_at": __import__("datetime").datetime.now(),
+                            "stats": {
+                                "documents_retrieved": 0,
+                                "chunks_generated": 0,
+                                "embeddings_created": 0,
+                                "api_calls": 0,
+                                "processing_time": 0,
+                            },
+                            "metadata": {}
+                        },
+                        "$set": {"last_updated": __import__("datetime").datetime.now()}
+                    },
+                    upsert=True
+                )
+            except Exception:
+                # Non-fatal if we cannot create the pipeline doc here; it will be created on execution
+                pass
+            
             # Return only essential data needed for pipeline execution
             registered_source = RegisteredSource(
                 pipeline_id=pipeline_id,
@@ -162,7 +190,12 @@ def execute_pipeline_task(self, source_type: str, source_data: dict):
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
         
-        metadata["pipeline_id"] = pipeline_id
+        # Dataclasses are frozen; build a new instance including pipeline_id
+        if source_type.upper() == DataSource.SLACK.upper_name:
+            metadata = SlackMetadata(**{**metadata_dict, "pipeline_id": pipeline_id})
+        elif source_type.upper() == DataSource.DOCUMENT.upper_name:
+            metadata = DocumentMetadata(**{**metadata_dict, "pipeline_id": pipeline_id})
+
         # Create factory and executor using the modular pipeline architecture
         factory = PipelineFactory.create(source_type)
         pipeline = factory.create_pipeline(metadata)

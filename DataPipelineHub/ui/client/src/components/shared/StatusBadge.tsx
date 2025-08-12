@@ -7,7 +7,6 @@ export function StatusBadge({
 }: { 
   status: EmbedChannel["status"] | Document["status"] | undefined;
 }) {
-  console.log(status)
   const { bgColor, textColor, label, isActive } = useMemo(() => {
     // Show "Pending" if there's no real pipeline status yet, even if actively embedding
     if (!status) {
@@ -46,6 +45,13 @@ export function StatusBadge({
           bgColor: "bg-red-500/15",
           textColor: "text-red-400",
           label: "Failed",
+          isActive: false,
+        };
+      case "SKIPPED":
+        return {
+          bgColor: "bg-slate-500/15",
+          textColor: "text-slate-400",
+          label: "Skipped",
           isActive: false,
         };
       case "ARCHIVED":

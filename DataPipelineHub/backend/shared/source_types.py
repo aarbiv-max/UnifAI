@@ -20,6 +20,7 @@ class SlackMetadata:
     channel_name: Optional[str] = None
     is_private: Optional[bool] = None
     upload_by: Optional[str] = None
+    pipeline_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class DocumentMetadata:
     doc_name: Optional[str] = None
     doc_path: Optional[str] = None
     upload_by: Optional[str] = None
+    pipeline_id: Optional[str] = None
 
 class SlackTypeData(BaseModel):
     """

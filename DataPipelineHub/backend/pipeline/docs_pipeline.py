@@ -1,4 +1,7 @@
 from typing import List, Dict
+import hashlib
+from config.constants import PipelineStatus
+from pipeline.pipeline_repository import PipelineRepository
 from data_sources.docs.doc_connector import DocumentConnector
 from data_sources.docs.document_processor import DocumentProcessor
 from data_sources.docs.pdf_chunker_strategy import PDFChunkerStrategy
@@ -62,7 +65,35 @@ class DocumentPipeline(Pipeline):
             document_path=self.metadata.doc_path,
             upload_by=self.metadata.upload_by
         )
+        # Duplicate detection: compute MD5 of full text and check in sources
+        try:
+            full_text = (self._cached_collected or {}).get("text", "")
+            content_md5 = hashlib.md5(full_text.encode("utf-8")).hexdigest() if full_text else None
+            self._cached_collected.setdefault("metadata", {})["content_md5"] = content_md5
+        except Exception:
+            content_md5 = None
+
+        if content_md5:
+            repo = PipelineRepository()
+            # Look for existing document with same hash (exclude current pipeline)
+            existing = repo.sources_collection.find_one({
+                "source_type": self.SOURCE_TYPE,
+                "type_data.content_md5": content_md5,
+                "pipeline_id": {"$ne": self.get_pipeline_id()}
+            })
+            if existing:
+                # Mark as skipped and remember why (store reason under data_sources)
+                repo.update_pipeline_status(self, PipelineStatus.SKIPPED.value)
+                repo.sources_collection.update_one(
+                    {"pipeline_id": self.get_pipeline_id()},
+                    {"$set": {
+                        "type_data.content_md5": content_md5,
+                        "type_data.skip_reason": "Duplicate document content (MD5)"
+                    }},
+                    upsert=True
+                )
         return self._cached_collected
+
 
     def process_data(self, data: Dict) -> Dict:
         return self.doc_processor.process(
@@ -74,6 +105,12 @@ class DocumentPipeline(Pipeline):
         )
 
     def chunk_and_embed(self, processed: Dict) -> List[Dict]:
+        # If this pipeline was marked SKIPPED during collection, exit early
+        repo = PipelineRepository()
+        current_status = repo.get_pipeline_field(self.get_pipeline_id(), "status", PipelineStatus.PENDING.value)
+        if current_status == PipelineStatus.SKIPPED.value:
+            return []
+
         embedding_ready_doc = self.doc_processor.prepare_for_single_doc_embedding(processed)
         chunks = self.doc_chunker.chunk_content([embedding_ready_doc])
 
@@ -83,5 +120,17 @@ class DocumentPipeline(Pipeline):
                 "source_id": self.metadata.doc_id,
                 "source_type": DataSource.DOCUMENT.upper_name,
             })
+
+        # After confirming not duplicate, persist MD5 on source.type_data
+        try:
+            content_md5 = processed.get("metadata", {}).get("content_md5")
+            if content_md5:
+                repo.sources_collection.update_one(
+                    {"pipeline_id": self.get_pipeline_id()},
+                    {"$set": {"type_data.content_md5": content_md5}},
+                    upsert=True
+                )
+        except Exception:
+            pass
 
         return self.embedder.generate_embeddings(chunks)
