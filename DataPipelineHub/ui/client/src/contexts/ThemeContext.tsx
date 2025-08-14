@@ -16,10 +16,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return (savedTheme as Theme) || "dark";
   });
 
-  // Update body class when theme changes
+  // Update body and html classes when theme changes
   useEffect(() => {
-    document.body.classList.remove("light-mode", "dark-mode");
-    document.body.classList.add(`${theme}-mode`);
+    const root = document.documentElement;
+    const body = document.body;
+    
+    // Remove old classes
+    root.classList.remove("dark", "light");
+    body.classList.remove("light-mode", "dark-mode");
+    
+    // Add new classes - both Tailwind's expected 'dark' class and custom classes for CSS variables
+    if (theme === "dark") {
+      root.classList.add("dark");
+      body.classList.add("dark-mode");
+    } else {
+      root.classList.add("light");
+      body.classList.add("light-mode");
+    }
+    
     localStorage.setItem("theme", theme);
   }, [theme]);
 

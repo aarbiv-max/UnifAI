@@ -9,6 +9,7 @@ export interface NodeData {
   description: string | null;
   style: string;
   icon: React.ReactNode;
+  tools: string[];
 }
 
 // Define types for GraphFlow structure

@@ -1,0 +1,36 @@
+{{- if .Values.route.enabled -}}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "vllm-qwen3.fullname" . }}
+  labels:
+    {{- include "vllm-qwen3.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+  {{- with .Values.route.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.route.host }}
+  host: {{ .Values.route.host }}
+  {{- else if .Values.route.clusterDomain }}
+  host: {{ include "vllm-qwen3.fullname" . }}-{{ .Values.namespace | default .Release.Namespace }}.{{ .Values.route.clusterDomain }}
+  {{- end }}
+  {{- if .Values.route.path }}
+  path: {{ .Values.route.path }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ include "vllm-qwen3.fullname" . }}
+    weight: 100
+  port:
+    targetPort: http
+  {{- if .Values.route.tls.enabled }}
+  tls:
+    termination: {{ .Values.route.tls.termination }}
+    {{- if .Values.route.tls.insecureEdgeTerminationPolicy }}
+    insecureEdgeTerminationPolicy: {{ .Values.route.tls.insecureEdgeTerminationPolicy }}
+    {{- end }}
+  {{- end }}
+  wildcardPolicy: None
+{{- end }} 

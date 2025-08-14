@@ -36,7 +36,7 @@ class SlackChunkerStrategy(ContentChunker):
         self.time_window_seconds = time_window_seconds
         self.tokenizer = tiktoken.get_encoding("cl100k_base")  # OpenAI's tokenizer, compatible with many embedding models
     
-    def chunk_content(self, content: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]]) -> List[Dict[str, Any]]:
+    def chunk_content(self, content: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]], upload_by: str = "default") -> List[Dict[str, Any]]:
         """
         Split Slack content into logical chunks using a hybrid strategy.
         
@@ -54,15 +54,15 @@ class SlackChunkerStrategy(ContentChunker):
         # Determine if we're dealing with threads or individual messages
         if content and isinstance(content[0], list):
             logger.info(f"Processing {len(content)} Slack threads for chunking")
-            self._chunk_threads(content)
+            self._chunk_threads(content, upload_by)
         else:
             logger.info(f"Processing {len(content)} individual Slack messages for chunking")
-            self._chunk_individual_messages(content)
+            self._chunk_individual_messages(content, upload_by)
         
         logger.info(f"Chunking complete. Generated {len(self._chunks)} chunks from Slack content")
         return self._chunks
     
-    def _chunk_threads(self, threads: List[List[Dict[str, Any]]]) -> None:
+    def _chunk_threads(self, threads: List[List[Dict[str, Any]]], upload_by) -> None:
         """
         Process thread messages, treating each thread as a potential chunk.
         
@@ -92,6 +92,7 @@ class SlackChunkerStrategy(ContentChunker):
                     "metadata": {
                         "source_type": "slack_thread",
                         "channel_name": channel_name,
+                        "upload_by": upload_by,
                         "thread_id": thread[0].get("metadata", {}).get("thread_ts", first_timestamp),
                         "time_range": f"{first_timestamp}-{last_timestamp}",
                         "message_count": len(thread),
@@ -104,13 +105,14 @@ class SlackChunkerStrategy(ContentChunker):
                 self._split_large_content(thread_text, {
                     "source_type": "slack_thread",
                     "channel_name": channel_name,
+                    "upload_by": upload_by,
                     "thread_id": thread[0].get("metadata", {}).get("thread_ts", first_timestamp),
                     "time_range": f"{first_timestamp}-{last_timestamp}",
                     "message_count": len(thread),
                     "is_split": True
                 })
     
-    def _chunk_individual_messages(self, messages: List[Dict[str, Any]]) -> None:
+    def _chunk_individual_messages(self, messages: List[Dict[str, Any]], upload_by) -> None:
         """
         Process individual messages by grouping them into time-based conversation bursts.
         
@@ -164,6 +166,7 @@ class SlackChunkerStrategy(ContentChunker):
                     "metadata": {
                         "source_type": "slack_conversation",
                         "channel_name": channel_name,
+                        "upload_by": upload_by,
                         "time_range": f"{first_timestamp}-{last_timestamp}",
                         "message_count": len(group),
                         "token_count": token_count
@@ -175,6 +178,7 @@ class SlackChunkerStrategy(ContentChunker):
                 self._split_large_content(conversation_text, {
                     "source_type": "slack_conversation",
                     "channel_name": channel_name,
+                    "upload_by": upload_by,
                     "time_range": f"{first_timestamp}-{last_timestamp}",
                     "message_count": len(group),
                     "is_split": True

@@ -1,6 +1,6 @@
 import re
 from typing import Optional
-from ..pipeline_monitor_base import PipelineStatus
+from config.constants import PipelineStatus
 from ..log_parser import LogParser
 
 class DocLogParser(LogParser):

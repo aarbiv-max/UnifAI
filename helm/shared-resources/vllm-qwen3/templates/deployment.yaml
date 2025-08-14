@@ -1,0 +1,233 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vllm-qwen3.fullname" . }}
+  labels:
+    {{- include "vllm-qwen3.labels" . | nindent 4 }}
+  namespace: {{ .Values.namespace | default .Release.Namespace }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "vllm-qwen3.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "vllm-qwen3.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.volumes.modelCache.enabled }}
+      initContainers:
+      - name: model-man
+        image: alpine/git:latest
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "=== Basic Model Download ==="
+          echo "Model: {{ .Values.vllm.model }}"
+          
+          # Create cache directory if it doesn't exist
+          mkdir -p /models/.cache
+          
+          # Check if git-lfs is available, if not try to install
+          if ! command -v git-lfs >/dev/null 2>&1; then
+            echo "Installing git-lfs..."
+            apk add --no-cache git git-lfs 2>/dev/null || echo "Could not install git-lfs, using basic git"
+          fi
+          
+          # Initialize git-lfs if available
+          git lfs install --skip-repo 2>/dev/null || echo "Using basic git without LFS"
+          
+          MODEL_DIR="models--$(echo '{{ .Values.vllm.model }}' | tr '/' '-')"
+          
+          {{- if .Values.vllm.forceDownload }}
+          # Force redownload - remove existing model
+          echo "🗑️ Forcing model redownload (forceDownload=true) - removing existing cache..."
+          rm -rf "/models/.cache/$MODEL_DIR"
+          rm -f "/models/Qwen3-32B-FP8"
+          {{- end }}
+          
+          # Check if model already exists
+          if [ -d "/models/.cache/$MODEL_DIR" ] && [ -f "/models/.cache/$MODEL_DIR/config.json" ]; then
+            echo "✅ Model already cached"
+          else
+            echo "📥 Downloading model..."
+            cd /models/.cache || exit 1
+            
+            # Use git clone with recovery for checkout failures
+            echo "Cloning https://huggingface.co/{{ .Values.vllm.model }}"
+            if ! git clone "https://huggingface.co/{{ .Values.vllm.model }}" "$MODEL_DIR"; then
+              echo "⚠️ Git clone failed, attempting recovery..."
+              if [ -d "$MODEL_DIR" ]; then
+                echo "🔧 Attempting git restore to recover working tree..."
+                cd "$MODEL_DIR" && git restore --source=HEAD :/
+                if [ $? -eq 0 ]; then
+                  echo "✅ Git restore successful"
+                  cd ..
+                else
+                  echo "❌ Git restore failed, cleaning up and retrying..."
+                  cd .. && rm -rf "$MODEL_DIR"
+                  echo "🔄 Retrying with git clone --depth 1..."
+                  git clone --depth 1 "https://huggingface.co/{{ .Values.vllm.model }}" "$MODEL_DIR" || {
+                    echo "❌ All git clone attempts failed"
+                    exit 1
+                  }
+                fi
+              else
+                echo "❌ Git clone completely failed"
+                exit 1
+              fi
+            fi
+          fi
+          
+          # Create symlink for vLLM to find the model at expected path
+          echo "🔗 Creating symlink for vLLM..."
+          mkdir -p /models/
+          if [ ! -L "/models/Qwen3-32B-FP8" ] && [ -d "/models/.cache/$MODEL_DIR" ]; then
+            ln -sf "/models/.cache/$MODEL_DIR" "/models/Qwen3-32B-FP8"
+            echo "✅ Symlink created: /models/Qwen3-32B-FP8 -> /models/.cache/$MODEL_DIR"
+          fi
+          
+          echo "🎉 Model setup completed!"
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "4"
+            memory: "8Gi"
+        volumeMounts:
+        - name: model-cache
+          mountPath: /models
+        env:
+        - name: HOME
+          value: "/models"
+        - name: HF_HOME
+          value: "/models/.cache"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--model"
+            - "{{ .Values.vllm.localModelPath }}"
+            - "--max-model-len"
+            - "{{ .Values.vllm.maxModelLen }}"
+            - "--gpu-memory-utilization"
+            - "{{ .Values.vllm.gpuMemoryUtilization }}"
+            - "--quantization"
+            - "{{ .Values.vllm.quantization }}"
+            - "--rope-scaling"
+            - "{\"rope_type\":\"yarn\",\"factor\":4.0,\"original_max_position_embeddings\":32768}"
+            - "--tensor-parallel-size"
+            - "{{ .Values.gpu.count }}"
+            - "--port"
+            - "{{ .Values.service.targetPort }}"
+            - "--host"
+            - "0.0.0.0"
+            - "--trust-remote-code"
+            - "--disable-log-stats"
+            - "--disable-log-requests"
+            {{- if .Values.vllm.enableAutoToolChoice }}
+            - "--enable-auto-tool-choice"
+            {{- end }}
+            {{- if .Values.vllm.toolCallParser }}
+            - "--tool-call-parser"
+            - "{{ .Values.vllm.toolCallParser }}"
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          {{- if .Values.healthProbes.readinessProbe.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthProbes.readinessProbe.httpGet.path }}
+              port: {{ .Values.healthProbes.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.healthProbes.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbes.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthProbes.readinessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.healthProbes.readinessProbe.successThreshold }}
+            failureThreshold: {{ .Values.healthProbes.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.healthProbes.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthProbes.livenessProbe.httpGet.path }}
+              port: {{ .Values.healthProbes.livenessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.healthProbes.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbes.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthProbes.livenessProbe.timeoutSeconds }}
+            successThreshold: {{ .Values.healthProbes.livenessProbe.successThreshold }}
+            failureThreshold: {{ .Values.healthProbes.livenessProbe.failureThreshold }}
+          {{- end }}
+          env:
+            {{- range $name, $value := .Values.env }}
+            - name: {{ $name }}
+              value: "{{ $value }}"
+            {{- end }}
+
+          resources:
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+              nvidia.com/gpu: {{ .Values.gpu.count }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+              nvidia.com/gpu: {{ .Values.gpu.count }}
+          volumeMounts:
+            {{- if .Values.volumes.dshm.enabled }}
+            - name: dshm
+              mountPath: /dev/shm
+            {{- end }}
+            {{- if .Values.volumes.modelCache.enabled }}
+            - name: model-cache
+              mountPath: /models
+            {{- end }}
+      volumes:
+        {{- if .Values.volumes.dshm.enabled }}
+        - name: dshm
+          emptyDir:
+            medium: {{ .Values.volumes.dshm.medium }}
+            sizeLimit: "{{ .Values.volumes.dshm.sizeLimit }}"
+        {{- end }}
+
+        {{- if .Values.volumes.modelCache.enabled }}
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ include "vllm-qwen3.fullname" . }}-model-cache
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }} 

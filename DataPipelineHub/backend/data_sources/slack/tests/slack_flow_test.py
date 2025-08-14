@@ -43,7 +43,7 @@ def slack_flow():
         # Test authentication
         if connector.authenticate():
             # Get available channels
-            channels = connector.get_available_slack_channels(types="private_channel")
+            channels = connector.get_available_slack_channels_from_cache(types="private_channel")
             print(f"Found {len(channels)} channels")
             
             # Get history for the first channel if available

@@ -1,0 +1,156 @@
+replicaCount: 1
+image:
+  repository: vllm/vllm-openai
+  pullPolicy: IfNotPresent
+  tag: "latest"
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+podAnnotations: {}
+podLabels:
+  paas.redhat.com/appcode: "TAG-001"
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+route:
+  enabled: true
+  host: ""
+  clusterDomain: ""
+  path: ""
+  annotations:
+    haproxy.router.openshift.io/timeout: "300s"
+    haproxy.router.openshift.io/balance: "roundrobin"
+  tls:
+    enabled: false
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+gpu:
+  count: 2
+  deviceIds: []
+resources:
+  limits:
+    cpu: '8'
+    memory: 48Gi
+    nvidia.com/gpu: 2
+  requests:
+    cpu: '4'
+    memory: 24Gi
+    nvidia.com/gpu: 2
+huggingFaceSecret:
+  name: "huggingface-token-secret"
+  key: "token"
+vllm:
+  model: "Qwen/Qwen3-32B-FP8"
+  localModelPath: "/models/Qwen3-32B-FP8"
+  maxModelLen: "80000"
+  gpuMemoryUtilization: "0.90"
+  quantization: "fp8"
+  tensorParallelSize: "2"
+  enableAutoToolChoice: true
+  toolCallParser: "hermes"
+  disableLogRequests: true
+  forceDownload: true
+containerPort: 8000
+healthProbes:
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 180
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 30
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 240
+    periodSeconds: 20
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 15
+env:
+  HOME: "/tmp"
+  HF_HOME: "/models/.cache"
+  TORCH_COMPILE_DISABLE: "1"
+  NCCL_DEBUG: "INFO"
+  NCCL_P2P_LEVEL: "LOC"
+  NCCL_SOCKET_IFNAME: "^docker,lo"
+  VLLM_RAY_START_UP_TIMEOUT_S: "900"
+  VLLM_WORKER_USE_RAY: "0"
+  VLLM_CONFIG_ROOT: "/models/.cache"
+  VLLM_CACHE_ROOT: "/models/.cache"
+  CUDA_LAUNCH_BLOCKING: "0"
+  TOKENIZERS_PARALLELISM: "true"
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  VLLM_WORKER_MULTIPROC_METHOD: "spawn"
+  VLLM_ENGINE_ITERATION_TIMEOUT_S: "600"
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+volumes:
+  dshm:
+    enabled: true
+    medium: Memory
+    sizeLimit: "16Gi"
+  modelCache:
+    enabled: true
+    storageClass: "aws-ebs"
+    size: "200Gi"
+    accessMode: "ReadWriteOnce"
+    retainOnDelete: true
+  flashinferCache:
+    enabled: true
+nodeSelector: {}
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+  - key: tenant
+    operator: Equal
+    value: rh-jarvis-ai-a100
+    effect: NoSchedule
+  - key: tenant
+    operator: Equal
+    value: llmaas-a100
+    effect: NoSchedule
+  - key: tenant
+    operator: Equal
+    value: rh-jarvis-ai
+    effect: NoSchedule
+  - key: tenant
+    operator: Equal
+    value: llmaas
+    effect: NoSchedule
+affinity: {}
+labels:
+  paas.redhat.com/appcode: "TAG-001"
+serviceAccount:
+  create: false
+  name: ""

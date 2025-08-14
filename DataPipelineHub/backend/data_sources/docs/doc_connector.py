@@ -4,6 +4,7 @@ from pathlib import Path
 from shared.logger import logger
 from utils.data_connector import DataConnector
 from .doc_config_manager import DocConfigManager
+from .pdf_chunker_strategy import DoclingProcessingError
 
 from docling.document_converter import DocumentConverter, ConversionResult
 
@@ -49,7 +50,7 @@ class DocumentConnector(DataConnector):
         """
         return True
     
-    def process_document(self, document_path: str) -> Optional[Dict[str, Any]]:
+    def process_document(self, document_path: str, upload_by: str = "default") -> Optional[Dict[str, Any]]:
         """
         Process a document file and extract text and metadata.
         
@@ -71,11 +72,11 @@ class DocumentConnector(DataConnector):
         if file_extension.lower() not in supported_extensions:
             logger.error(f"Unsupported file extension: {file_extension}. Supported types: {supported_extensions}")
             return None
-            
+
         # Check file size
         file_size_mb = os.path.getsize(document_path) / (1024 * 1024)
         max_size_mb = self._config_manager.get_config_value("max_file_size_mb")
-        
+
         if file_size_mb > max_size_mb:
             logger.error(f"File size ({file_size_mb:.2f} MB) exceeds maximum allowed size ({max_size_mb} MB)")
             return None
@@ -92,8 +93,15 @@ class DocumentConnector(DataConnector):
             self._conversion_results[document_path] = result
             
             # Extract text and metadata
+            text_content = result.document.export_to_text()
+            
+            # Validate that docling extracted content
+            if not text_content or not text_content.strip():
+                logger.error(f"Docling failed to extract text content from document: {document_path}")
+                raise DoclingProcessingError(f"Docling was unable to process the provided document '{os.path.basename(document_path)}'. Failed to extract text content from the document.")
+       
             document_data = {
-                "text": result.document.export_to_text(),
+                "text": text_content,
                 "markdown": result.document.export_to_markdown(),
                 "path": document_path,
                 "filename": os.path.basename(document_path),
@@ -101,11 +109,13 @@ class DocumentConnector(DataConnector):
             
             # Add metadata if requested
             if self._config_manager.get_config_value("include_metadata"):
-                document_data["metadata"] = self._extract_metadata(result)
+                document_data["metadata"] = self._extract_metadata(result, upload_by, file_size_mb)
                 
             logger.info(f"Document processed successfully: {document_path}")
             return document_data
             
+        except DoclingProcessingError:
+            raise
         except Exception as e:
             logger.error(f"Error processing document {document_path}: {str(e)}")
             return None
@@ -153,8 +163,15 @@ class DocumentConnector(DataConnector):
             self._conversion_results[document_url] = result
             
             # Extract text and metadata
+            text_content = result.document.export_to_text()
+            
+            # Validate that docling extracted meaningful content
+            if not text_content or not text_content.strip():
+                logger.error(f"Docling failed to extract text content from document URL: {document_url}")
+                raise DoclingProcessingError(f"Docling was unable to process the provided document from URL '{document_url}'. Failed to extract text content from the document.")
+                        
             document_data = {
-                "text": result.document.export_to_text(),
+                "text": text_content,
                 "markdown": result.document.export_to_markdown(),
                 "url": document_url,
             }
@@ -166,11 +183,13 @@ class DocumentConnector(DataConnector):
             logger.info(f"Document from URL processed successfully: {document_url}")
             return document_data
             
+        except DoclingProcessingError:
+            raise
         except Exception as e:
             logger.error(f"Error processing document from URL {document_url}: {str(e)}")
             return None
     
-    def _extract_metadata(self, conversion_result: ConversionResult) -> Dict[str, Any]:
+    def _extract_metadata(self, conversion_result: ConversionResult, upload_by="default", file_size=0) -> Dict[str, Any]:
         """
         Extract metadata from a conversion result.
         
@@ -191,6 +210,12 @@ class DocumentConnector(DataConnector):
 
             # Extract title
             metadata["title"] = doc.title if hasattr(doc, "title") else "Untitled"
+
+            # Extract uploader
+            metadata["upload_by"] = upload_by
+            
+            # Extract file size
+            metadata["file_size"] = f"{file_size:.2f} MB" if file_size > 0 else "Unknown size"
                 
             # Extract structural information
             metadata["page_count"] = len(doc.pages) if hasattr(doc, "pages") else 1

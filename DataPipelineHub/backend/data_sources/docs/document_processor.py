@@ -55,6 +55,11 @@ class DocumentProcessor(DataProcessor):
         Returns:
             Processed document data dictionary
         """
+        # Handle case where doc is None (e.g., from failed document collection)
+        if doc is None:
+            logger.error("Cannot process document: doc is None (likely from failed document collection)")
+            raise ValueError("Document data is None - collection phase may have failed")
+        
         # Get processing options
         clean_markdown = kwargs.get("clean_markdown", True)
         clean_text = kwargs.get("clean_text", False)
@@ -259,6 +264,7 @@ class DocumentProcessor(DataProcessor):
                 "content": doc.get("clean_text", doc.get("text", "")),
                 "metadata": {
                     "title": doc.get("metadata", {}).get("title", "Untitled"),
+                    "upload_by": doc.get("metadata", {}).get("upload_by", "default"),
                     "page_count": doc.get("metadata", {}).get("page_count", 1),
                     "word_count": doc.get("metadata", {}).get("word_count", 0),
                     "source_path": doc.get("path", ""),

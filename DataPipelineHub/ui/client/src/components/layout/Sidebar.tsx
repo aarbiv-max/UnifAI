@@ -4,21 +4,40 @@ import { useProject } from "@/contexts/ProjectContext";
 import { 
   FaTachometerAlt, FaCogs, FaFileAlt, 
   FaChartLine, FaUserShield, FaCog, FaSignOutAlt,
-  FaRobot
+  FaRobot, FaFile, FaChevronLeft, FaChevronRight 
 } from "react-icons/fa";
 import { FaJira, FaSlack, FaBars } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
+import { useAuth, User } from '@/contexts/AuthContext';
 
 export default function Sidebar() {
   const [location] = useLocation();
   const { currentProject } = useProject();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Save collapse state when it changes
+  const toggleCollapse = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+  
+  const { user, logout } = useAuth();
+
+  const getInitials = (name: string): string => {
+    return name
+      .split(' ')                         // Split by spaces
+      .filter(Boolean)                    // Remove empty parts
+      .map(part => part[0].toUpperCase()) // Take first letter of each part and capitalize
+      .join('');                          // Join into a string
+  }
   
   return (
     <div 
-      className={`w-1/5 min-w-[250px] bg-background-surface flex flex-col border-r border-gray-800 relative transition-all ${
+      className={`${
+        isCollapsed ? 'w-16' : 'w-1/5 min-w-[250px]'
+      } bg-background-surface flex flex-col border-r border-gray-800 relative transition-all duration-300 ${
         mobileOpen ? "absolute inset-y-0 left-0 z-50" : "hidden md:flex"
       }`}
     >
@@ -30,14 +49,33 @@ export default function Sidebar() {
               <path d="M3 12H7M17 12H21M12 3V7M12 17V21M5 19L8 16M16 8L19 5M19 19L16 16M5 5L8 8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          <span className="font-heading font-bold text-xl text-white">UnifAI</span>
+          {!isCollapsed && (
+            <motion.span 
+              initial={false}
+              animate={{ opacity: isCollapsed ? 0 : 1 }}
+              transition={{ duration: 0.2 }}
+              className="font-heading font-bold text-xl text-white"
+            >
+              UnifAI
+            </motion.span>
+          )}
         </div>
-        <button 
-          className="md:hidden text-gray-400 hover:text-gray-800 dark:hover:text-white"
-          onClick={() => setMobileOpen(false)}
-        >
-          <FaBars />
-        </button>
+        <div className="flex items-center space-x-2">
+          {/* Collapse Toggle Button */}
+          <button 
+            className="text-gray-400 hover:text-white transition-colors p-1 rounded hover:bg-white hover:bg-opacity-10"
+            onClick={toggleCollapse}
+          >
+            {isCollapsed ? <FaChevronRight size={14} /> : <FaChevronLeft size={14} />}
+          </button>
+          
+          <button 
+            className="md:hidden text-gray-400 hover:text-gray-800 dark:hover:text-white"
+            onClick={() => setMobileOpen(false)}
+          >
+            <FaBars />
+          </button>
+        </div>
       </div>
 
       {/* Project Selector */}
@@ -57,9 +95,16 @@ export default function Sidebar() {
 
       {/* Navigation Menu */}
       <nav className="mt-4 flex-grow">
-        <div className="px-3 mb-2">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Data Preparation</span>
-        </div>
+        {!isCollapsed && (
+          <motion.div 
+            initial={false}
+            animate={{ opacity: isCollapsed ? 0 : 1 }}
+            transition={{ duration: 0.2 }}
+            className="px-3 mb-2"
+          >
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Data Preparation</span>
+          </motion.div>
+        )}
         <ul>
           <NavItem 
             icon={<FaTachometerAlt className="sidebar-icon" />} 
@@ -67,13 +112,7 @@ export default function Sidebar() {
             to="/"
             isActive={location === '/'}
             status={null}
-          />
-          <NavItem 
-            icon={<FaJira className="sidebar-icon" />} 
-            label="Jira Integration" 
-            to="/jira"
-            isActive={location === '/jira'}
-            status="Connected"
+            isCollapsed={isCollapsed}
           />
           <NavItem 
             icon={<FaSlack className="sidebar-icon" />} 
@@ -81,6 +120,7 @@ export default function Sidebar() {
             to="/slack"
             isActive={location === '/slack'}
             status={null}
+            isCollapsed={isCollapsed}
           />
           <NavItem 
             icon={<FaFileAlt className="sidebar-icon" />} 
@@ -88,32 +128,57 @@ export default function Sidebar() {
             to="/documents"
             isActive={location === '/documents'}
             status={null}
+            isCollapsed={isCollapsed}
           />
         </ul>
 
-        <div className="px-3 mt-6 mb-2">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Agentic AI</span>
-        </div>
+        {!isCollapsed && (
+          <motion.div 
+            initial={false}
+            animate={{ opacity: isCollapsed ? 0 : 1 }}
+            transition={{ duration: 0.2 }}
+            className="px-3 mt-6 mb-2"
+          >
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Agentic AI</span>
+          </motion.div>
+        )}
         <ul>
+          <NavItem 
+              icon={<FaFile className="sidebar-icon" />} 
+              label="Repository" 
+              to="/repository"
+              isActive={location === '/repository'}
+              status={null}
+              isCollapsed={isCollapsed}
+          />
           <NavItem 
             icon={<FaRobot className="sidebar-icon" />} 
             label="Agentic AI" 
             to="/agentic-ai"
             isActive={location === '/agentic-ai'}
             status="New"
+            isCollapsed={isCollapsed}
           />
         </ul>
 
-        <div className="px-3 mt-6 mb-2">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">System</span>
-        </div>
+        {!isCollapsed && (
+          <motion.div 
+            initial={false}
+            animate={{ opacity: isCollapsed ? 0 : 1 }}
+            transition={{ duration: 0.2 }}
+            className="px-3 mt-6 mb-2"
+          >
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">System</span>
+          </motion.div>
+        )}
         <ul>
           <NavItem 
-              icon={<FaCogs className="sidebar-icon" />} 
-              label="Configuration" 
-              to="/configuration"
-              isActive={location === '/configuration'}
-              status={null}
+            icon={<FaCogs className="sidebar-icon" />} 
+            label="Configuration" 
+            to="/configuration"
+            isActive={location === '/configuration'}
+            status={null}
+            isCollapsed={isCollapsed}
           />
           <NavItem 
             icon={<FaChartLine className="sidebar-icon" />} 
@@ -121,6 +186,7 @@ export default function Sidebar() {
             to="/analytics"
             isActive={location === '/analytics'}
             status={null}
+            isCollapsed={isCollapsed}
           />
           <NavItem 
             icon={<FaUserShield className="sidebar-icon" />} 
@@ -128,6 +194,7 @@ export default function Sidebar() {
             to="/users"
             isActive={location === '/users'}
             status={null}
+            isCollapsed={isCollapsed}
           />
           <NavItem 
             icon={<FaCog className="sidebar-icon" />} 
@@ -135,27 +202,43 @@ export default function Sidebar() {
             to="/settings"
             isActive={location === '/settings'}
             status={null}
+            isCollapsed={isCollapsed}
           />
         </ul>
       </nav>
 
       {/* User Profile */}
-      <div className="px-4 py-3 border-t border-gray-800 mt-auto">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-accent to-primary flex items-center justify-center">
-            <span className="text-sm font-medium text-white">AK</span>
+      {/* <div className="px-4 py-3 border-t border-gray-800 mt-auto">
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-accent to-primary flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-medium text-white">{getInitials(user?.name || '')}</span>
           </div>
-          <div className="flex-grow">
-            <h4 className="text-sm font-medium">Alex Kim</h4>
-            <p className="text-xs text-gray-400">Administrator</p>
-          </div>
-          <SimpleTooltip content={<p>Sign out</p>}>
-            <button className="text-gray-400 hover:text-white">
-              <FaSignOutAlt />
-            </button>
-          </SimpleTooltip>
+          {!isCollapsed && (
+            <motion.div 
+              initial={false}
+              animate={{ opacity: isCollapsed ? 0 : 1 }}
+              transition={{ duration: 0.2 }}
+              className="flex-grow"
+            >
+              <h4 className="text-sm font-medium">{user?.name}</h4>
+              <p className="text-xs text-gray-400">Administrator</p>
+            </motion.div>
+          )}
+          {!isCollapsed && (
+            <motion.div
+              initial={false}
+              animate={{ opacity: isCollapsed ? 0 : 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              <SimpleTooltip content={<p>Sign out</p>}>
+                <button className="text-gray-400 hover:text-white">
+                  <FaSignOutAlt />
+                </button>
+              </SimpleTooltip>
+            </motion.div>
+          )}
         </div>
-      </div>
+      </div> */}
     </div>
   );
 }
@@ -166,35 +249,60 @@ interface NavItemProps {
   to: string;
   isActive: boolean;
   status: string | null;
+  isCollapsed: boolean;
 }
 
-function NavItem({ icon, label, to, isActive, status }: NavItemProps) {
+function NavItem({ icon, label, to, isActive, status, isCollapsed }: NavItemProps) {
+  const content = (
+    <div 
+      className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} py-2.5 ${
+        isActive 
+          ? "text-white bg-primary bg-opacity-20 border-l-2 border-primary" 
+          : "text-gray-400 hover:text-gray-800 dark:hover:text-white hover:bg-white hover:bg-opacity-5"
+      } transition-all cursor-pointer`}
+    >
+      <div className={`flex items-center ${isCollapsed ? '' : 'space-x-3'}`}>
+        {React.cloneElement(icon as React.ReactElement, { 
+          className: `sidebar-icon ${isActive ? 'text-primary' : 'text-gray-400'}`
+        })}
+        {!isCollapsed && (
+          <motion.span
+            initial={false}
+            animate={{ opacity: isCollapsed ? 0 : 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            {label}
+          </motion.span>
+        )}
+      </div>
+      {!isCollapsed && status && (
+        <motion.span 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="text-xs py-0.5 px-2 rounded-full bg-success bg-opacity-20 text-success"
+        >
+          {status}
+        </motion.span>
+      )}
+    </div>
+  );
+
+  if (isCollapsed) {
+    return (
+      <li className="sidebar-item">
+        <SimpleTooltip content={<p>{label}</p>}>
+          <Link href={to}>
+            {content}
+          </Link>
+        </SimpleTooltip>
+      </li>
+    );
+  }
+
   return (
     <li className="sidebar-item">
       <Link href={to}>
-        <div 
-          className={`flex items-center justify-between px-4 py-2.5 ${
-            isActive 
-              ? "text-white bg-primary bg-opacity-20 border-l-2 border-primary" 
-              : "text-gray-400 hover:text-gray-800 dark:hover:text-white hover:bg-white hover:bg-opacity-5"
-          } transition-all cursor-pointer`}
-        >
-          <div className="flex items-center space-x-3">
-            {React.cloneElement(icon as React.ReactElement, { 
-              className: `sidebar-icon ${isActive ? 'text-primary' : 'text-gray-400'}`
-            })}
-            <span>{label}</span>
-          </div>
-          {status && (
-            <motion.span 
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="text-xs py-0.5 px-2 rounded-full bg-success bg-opacity-20 text-success"
-            >
-              {status}
-            </motion.span>
-          )}
-        </div>
+        {content}
       </Link>
     </li>
   );

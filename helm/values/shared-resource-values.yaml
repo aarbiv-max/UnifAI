@@ -1,0 +1,35 @@
+mongodb:
+  image:
+    registry: "images.paas.redhat.com/genie"
+    repository: "mongo"
+    pullPolicy: IfNotPresent
+  service:
+    type: LoadBalancer
+    port: 27017
+
+qdrant:
+  replicaCount: 1
+  image:
+    registry: "images.paas.redhat.com/genie"
+    repository: "qdrant"
+    pullPolicy: IfNotPresent
+    tag: "stable"
+  service:
+    type: LoadBalancer
+    port: 6333
+  resources:
+    limits:
+      cpu: 8
+      memory: 16Gi
+    requests:
+      cpu: 4
+      memory: 12Gi
+
+rabbitmq:
+  image:
+    registry: images.paas.redhat.com/genie
+    repository: rabbitmq
+    pullPolicy: IfNotPresent
+    tag: 4.0.5-debian-12-r0
+  service:
+    type: LoadBalancer

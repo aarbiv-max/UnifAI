@@ -1,6 +1,0 @@
-{
-  "rabbitmq_port": "${RABBITMQ_PORT}",
-  "rabbitmq_ip": "${RABBITMQ_IP}",
-  "mongodb_port": "${MONGODB_PORT}",
-  "mongodb_ip": "${MONGODB_IP}"
-}

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Optional
-from .pipeline_monitor_base import PipelineStatus, SourceType
+from config.constants import PipelineStatus, SourceType
 
 
 class MongoDBPipelineRepository:
@@ -188,3 +188,29 @@ class MongoDBPipelineRepository:
             "pending_pipelines": 0,
             "latest_update": None
         }
+        
+    def get_pipeline_by_query(self, query: object) -> List[Dict]:
+        """
+        Get pipelines for a specific query.
+        
+        Args:
+            query: The mongo query to execute
+            
+        Returns:
+            List of pipelines dictionaries
+        """
+        return list(self.pipelines.find(query, {"_id": 0}).sort("created_at", -1))
+        
+    def delete_pipeline(self, pipeline_id: str) -> bool:
+        """
+        Set pipeline as deleted.
+        
+        Args:
+            type: The datasource type
+            limit: Maximum number of pipelines entries to return
+            
+        Returns:
+            List of pipelines dictionaries
+        """
+        result = self.pipelines.update_one({"pipeline_id": pipeline_id}, {"$set": {"deleted": True}})
+        return result.modified_count > 0

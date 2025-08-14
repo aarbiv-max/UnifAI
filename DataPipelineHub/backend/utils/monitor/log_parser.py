@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 from typing import Optional, Tuple
-from .pipeline_monitor_base import PipelineStatus
+from config.constants import PipelineStatus
 
 class LogParser:
     """

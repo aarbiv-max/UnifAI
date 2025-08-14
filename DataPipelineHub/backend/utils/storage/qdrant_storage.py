@@ -319,3 +319,62 @@ class QdrantStorage(VectorStorage):
                 )
         
         return qmodels.Filter(must=must_conditions)
+    
+    def delete_source(self, source_id: str, source_type: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Delete all embeddings for a specific source from Qdrant.
+        
+        Args:
+            source_id: The ID of the source to delete
+            source_type: Optional source type for additional filtering
+            
+        Returns:
+            Dictionary with deletion results
+        """
+        try:
+            # Build filter for source deletion
+            filters = {"metadata.source_id": source_id}
+            if source_type:
+                filters["metadata.source_type"] = source_type.upper()
+            
+            # Count embeddings to be deleted
+            deleted_count = self.count(filters=filters)
+            logger.info(f"Found {deleted_count} embeddings to delete for source {source_id}")
+            
+            if deleted_count == 0:
+                logger.warning(f"No embeddings found in Qdrant for source {source_id}")
+                return {
+                    "success": True,
+                    "embeddings_deleted": 0,
+                    "message": f"No embeddings found for source {source_id}"
+                }
+            
+            # Delete embeddings
+            self.delete(filters=filters)
+            logger.info(f"Deleted {deleted_count} embeddings from Qdrant for source {source_id}")
+            
+            # Verify deletion
+            remaining_count = self.count(filters=filters)
+            if remaining_count > 0:
+                logger.error(f"Deletion incomplete: {remaining_count} embeddings still remain for source {source_id}")
+                return {
+                    "success": False,
+                    "embeddings_deleted": deleted_count - remaining_count,
+                    "remaining_count": remaining_count,
+                    "error": f"Deletion incomplete, {remaining_count} embeddings remain"
+                }
+            else:
+                logger.info(f"Successfully verified deletion - no embeddings remain for source {source_id}")
+                return {
+                    "success": True,
+                    "embeddings_deleted": deleted_count,
+                    "message": f"Successfully deleted all embeddings for source {source_id}"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error deleting source {source_id} from Qdrant: {e}")
+            return {
+                "success": False,
+                "embeddings_deleted": 0,
+                "error": str(e)
+            }

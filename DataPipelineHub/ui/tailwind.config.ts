@@ -1,4 +1,7 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
+import animate from "tailwindcss-animate";
+import typography from "@tailwindcss/typography";
 
 export default {
   darkMode: ["class"],
@@ -86,5 +89,29 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
+  plugins: [
+    animate,
+    typography,
+    plugin(function({ addUtilities }) {
+      const newUtilities = {
+        '.input-dark-theme': {
+          'color': '#f9fafb !important',
+          'background-color': 'hsl(var(--input)) !important',
+          'border-color': 'hsl(var(--border)) !important',
+          '&::placeholder': {
+            'color': 'rgba(255, 255, 255, 0.5) !important',
+          },
+          '&:focus': {
+            'color': '#f9fafb !important',
+          }
+        },
+        '.select-dark-theme': {
+          'color': '#f9fafb !important',
+          'background-color': 'hsl(var(--background)) !important',
+          'border-color': 'hsl(var(--border)) !important',
+        }
+      }
+      addUtilities(newUtilities)
+    })
+  ],
 } satisfies Config;

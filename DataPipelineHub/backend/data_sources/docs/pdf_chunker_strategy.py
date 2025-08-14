@@ -5,6 +5,10 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from shared.logger import logger
 from utils.content_chunker import ContentChunker
 
+class DoclingProcessingError(Exception):
+    """Raised when docling fails to extract meaningful content from documents"""
+    pass
+
 class PDFChunkerStrategy(ContentChunker):
     """
     Implementation of ContentChunker for PDFs using langchain's RecursiveCharacterTextSplitter.
@@ -122,4 +126,5 @@ class PDFChunkerStrategy(ContentChunker):
             self._chunks.extend(doc_chunks)
         
         logger.info(f"Completed chunking with {len(self._chunks)} total chunks generated")
+
         return self._chunks

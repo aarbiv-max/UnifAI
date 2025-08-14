@@ -20,19 +20,19 @@ class DocPipelineMonitor:
         self.monitor = monitor
         logger.info("Initialized DocPipelineMonitor")
     
-    def get_doc_stats(self, doc_id: str) -> Dict:
-        """
-        Get statistics for a specific document.
+    # def get_doc_stats(self, doc_id: str) -> Dict:
+    #     """
+    #     Get statistics for a specific document.
         
-        Args:
-            doc_id: The ID of the document
+    #     Args:
+    #         doc_id: The ID of the document
             
-        Returns:
-            Dictionary containing document statistics
-        """
-        pipeline_id = f"doc_{doc_id}"
-        logger.debug(f"Retrieving stats for document pipeline: {pipeline_id}")
-        return self.monitor.get_pipeline_stats(pipeline_id)
+    #     Returns:
+    #         Dictionary containing document statistics
+    #     """
+    #     pipeline_id = f"doc_{doc_id}"
+    #     logger.debug(f"Retrieving stats for document pipeline: {pipeline_id}")
+    #     return self.monitor.get_pipeline_stats(pipeline_id)
     
     def get_all_docs_stats(self) -> Dict:
         """
@@ -44,15 +44,15 @@ class DocPipelineMonitor:
         logger.debug("Retrieving aggregated stats for all document pipelines")
         return self.monitor.get_source_stats(SourceType.DOCUMENT)
     
-    def get_active_docs(self) -> List[Dict]:
-        """
-        Get all active Document pipelines.
+    # def get_active_docs(self) -> List[Dict]:
+    #     """
+    #     Get all active Document pipelines.
         
-        Returns:
-            List of active Document pipeline dictionaries
-        """
-        logger.debug("Retrieving active document pipelines")
-        return self.monitor.get_active_pipelines(SourceType.DOCUMENT)
+    #     Returns:
+    #         List of active Document pipeline dictionaries
+    #     """
+    #     logger.debug("Retrieving active document pipelines")
+    #     return self.monitor.get_active_pipelines(SourceType.DOCUMENT)
     
     def get_recent_docs_activity(self, limit: int = 10) -> List[str]:
         """

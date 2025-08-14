@@ -21,7 +21,8 @@ class SlackRetriever(BaseRetriever):
         params = {
             "query": query,
             "top_k_results": self.top_k,
-            "scope": get_current_context().scope
+            "scope": get_current_context().scope,
+            "loggedInUser": get_current_context().logged_in_user
         }
 
         resp = requests.get(self.api_url, params=params)
