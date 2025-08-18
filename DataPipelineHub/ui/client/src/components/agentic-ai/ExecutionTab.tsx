@@ -150,7 +150,7 @@ export default function ExecutionTab({
       setError(null);
       
       const userId = user?.username || "default";
-      const response = await axios.get(`/api/sessions/session.user.chat.get?userId=${userId}`);
+      const response = await axios.get(`/sessions/session.user.chat.get?userId=${userId}`);
       const transformedSessions = transformApiDataToSessions(response.data);
       
       // sort chat sessions based on the latest date
@@ -282,13 +282,15 @@ export default function ExecutionTab({
         loggedInUser: user?.username || "default",
       };
       
-      const response = await fetch(`${AXIOS_AGENTS_IP}/api/sessions/user.session.execute`, {
+      const response = await fetch(`/api2/sessions/user.session.execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payloadWithScope),
       });
+
+
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       if (!response.body) throw new Error('ReadableStream not supported!');
@@ -316,7 +318,7 @@ export default function ExecutionTab({
       
       try {
         const session_response = await axios.get(
-          `/api/sessions/session.state.get?sessionId=${sessionPayload.sessionId}`
+          `/sessions/session.state.get?sessionId=${sessionPayload.sessionId}`
         );
         return session_response.data.output;
       } catch (error) {

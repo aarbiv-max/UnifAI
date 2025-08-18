@@ -1,5 +1,5 @@
+import { api } from '@/http/queryClient';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import axiosInstance from '@/http/axiosConfig';
 
 export interface User {
   username: string;
@@ -32,7 +32,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check authentication status
   const checkAuthStatus = async () => {
     try {
-      const response = await axiosInstance.get('/api/auth/user');
+      const response = await api.get('/auth/user');
       if (response.data.authenticated && response.data.user) {
         setUser(response.data.user);
         setIsAuthenticated(true);
@@ -51,13 +51,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Initiate login by redirecting to backend auth endpoint
   const login = () => {
-    window.location.href = `${axiosInstance.defaults.baseURL}/api/auth/login`;
+    window.location.href = `${api.defaults.baseURL}/auth/login`;
   };
 
   // Logout user
   const logout = async () => {
     try {
-      await axiosInstance.post('/api/auth/logout');
+      await api.post('/auth/logout');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -106,7 +106,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const refreshToken = async () => {
       try {
-        await axiosInstance.post('/api/auth/refresh');
+        await api.post('/auth/refresh');
         // Recheck auth status to get updated token info
         await checkAuthStatus();
       } catch (error) {
@@ -116,8 +116,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    // Check token expiration every minute
-    const interval = setInterval(checkTokenExpiration, 60000);
+    // Check token expiration every 10 minute
+    const interval = setInterval(checkTokenExpiration, 600000);
 
     // Initial check
     checkTokenExpiration();

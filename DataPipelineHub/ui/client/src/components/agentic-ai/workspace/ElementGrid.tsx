@@ -1,0 +1,245 @@
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { motion } from 'framer-motion';
+import { 
+  Settings, 
+  Trash2, 
+  LoaderCircle,
+  FileText,
+  Database,
+  Eye
+} from 'lucide-react';
+import { ElementInstance, ElementType } from '../../../types/workspace';
+
+interface ElementGridProps {
+  elements: ElementInstance[];
+  elementType: ElementType;
+  isLoading: boolean;
+  onEditElement: (element: ElementInstance) => void;
+  onDeleteElement: (rid: string) => void;
+}
+
+export const ElementGrid: React.FC<ElementGridProps> = ({
+  elements,
+  elementType,
+  isLoading,
+  onEditElement,
+  onDeleteElement
+}) => {
+  const [selectedElement, setSelectedElement] = useState<ElementInstance | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+
+  const handleViewDetails = (element: ElementInstance) => {
+    setSelectedElement(element);
+    setIsDetailsModalOpen(true);
+  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoaderCircle className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (elements.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+        <Database className="h-12 w-12 mb-4 opacity-50" />
+        <h3 className="text-lg font-medium mb-2">No {elementType.name} instances found</h3>
+        <p className="text-sm text-center max-w-md">
+          Create your first {elementType.name.toLowerCase()} instance by clicking the "Create New" button above.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {elements.map((element, index) => (
+        <motion.div
+          key={element.rid}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: index * 0.1 }}
+        >
+          <Card className="bg-background-card shadow-card border-gray-800 h-full flex flex-col">
+            <CardHeader className="py-4 px-6 border-b border-gray-800">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center">
+                  <FileText className="h-5 w-5 mr-2 text-primary" />
+                  <CardTitle className="text-lg font-heading">
+                    {element.name || `${elementType.name} Instance`}
+                  </CardTitle>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-gray-400 hover:text-red-400"
+                  onClick={() => onDeleteElement(element.rid)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            
+            <CardContent className="p-4 flex-grow">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-xs text-gray-500">ID:</span>
+                  <span className="text-xs font-mono text-gray-300">
+                    {element.rid.slice(0, 8)}...
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-gray-500">Type:</span>
+                  <Badge variant="outline" className="text-xs">
+                    {elementType.type}
+                  </Badge>
+                </div>
+                {element.version && (
+                  <div className="flex justify-between">
+                    <span className="text-xs text-gray-500">Version:</span>
+                    <span className="text-xs text-gray-300">v{element.version}</span>
+                  </div>
+                )}
+                {element.updated && (
+                  <div className="flex justify-between">
+                    <span className="text-xs text-gray-500">Last Updated:</span>
+                    <span className="text-xs text-gray-300">
+                      {new Date(element.updated).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+                {element.config && (
+                  <div className="mt-3">
+                    <span className="text-xs text-gray-500">Configuration:</span>
+                    <div className="text-xs text-gray-300 mt-1 space-y-1">
+                      {Object.keys(element.config).slice(0, 3).map((key) => (
+                        <div key={key} className="flex justify-between">
+                          <span className="truncate">{key}:</span>
+                          <span className="text-gray-400 ml-2 truncate max-w-24">
+                            {typeof element.config[key] === 'string' 
+                              ? element.config[key].slice(0, 15) + (element.config[key].length > 15 ? '...' : '')
+                              : typeof element.config[key] === 'object'
+                              ? '[Object]'
+                              : String(element.config[key])}
+                          </span>
+                        </div>
+                      ))}
+                      {Object.keys(element.config).length > 3 && (
+                        <div className="text-gray-500 text-center">
+                          +{Object.keys(element.config).length - 3} more...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+
+            <CardFooter className="px-6 py-3 border-t border-gray-800 bg-background-dark">
+              <div className="flex gap-2 w-full">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1 flex items-center justify-center gap-2"
+                  onClick={() => onEditElement(element)}
+                >
+                  <Settings className="h-3 w-3" />
+                  Configure
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="flex-1 flex items-center justify-center gap-2"
+                  onClick={() => handleViewDetails(element)}
+                >
+                  <Eye className="h-3 w-3" />
+                  Details
+                </Button>
+              </div>
+            </CardFooter>
+          </Card>
+        </motion.div>
+      ))}
+      
+      {/* Details Modal */}
+      <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
+        <DialogContent className="bg-background-card border-gray-800 text-foreground max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              {selectedElement?.name || `${elementType.name} Details`}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedElement && (
+            <div className="space-y-4">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Resource ID</label>
+                  <p className="font-mono text-sm text-gray-300">{selectedElement.rid}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Type</label>
+                  <p className="text-sm text-gray-300">{selectedElement.type}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Version</label>
+                  <p className="text-sm text-gray-300">v{selectedElement.version || 1}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Category</label>
+                  <p className="text-sm text-gray-300">{selectedElement.category}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Created</label>
+                  <p className="text-sm text-gray-300">
+                    {selectedElement.created ? new Date(selectedElement.created).toLocaleString() : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Last Updated</label>
+                  <p className="text-sm text-gray-300">
+                    {selectedElement.updated ? new Date(selectedElement.updated).toLocaleString() : 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {/* References */}
+              {selectedElement.nested_refs && selectedElement.nested_refs.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Referenced Resources</label>
+                  <div className="mt-1 space-y-1">
+                    {selectedElement.nested_refs.map((ref, index) => (
+                      <Badge key={index} variant="outline" className="mr-2">
+                        {ref}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Configuration */}
+              {selectedElement.config && (
+                <div>
+                  <label className="text-sm font-medium text-gray-400">Full Configuration</label>
+                  <div className="mt-2 bg-gray-900 p-4 rounded-md">
+                    <pre className="text-xs text-gray-300 whitespace-pre-wrap overflow-x-auto">
+                      {JSON.stringify(selectedElement.config, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};

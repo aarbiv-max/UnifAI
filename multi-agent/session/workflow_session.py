@@ -1,6 +1,5 @@
 from session.session_registry import SessionRegistry
-from schemas.blueprint.blueprint import BlueprintSpec
-from graph.graph_plan import GraphPlan
+from graph.rt_graph_plan import RTGraphPlan
 from engine.builder.base_graph_builder import BaseGraphBuilder
 from engine.executor.interfaces import GraphExecutor
 from core.run_context import RunContext
@@ -24,9 +23,8 @@ class WorkflowSession:
     def __init__(
             self,
             session_registry: SessionRegistry,
-            blueprint: BlueprintSpec,
             blueprint_id: str,
-            graph_plan: GraphPlan,
+            rt_graph_plan: RTGraphPlan,
             executable_graph: GraphExecutor,
             builder: BaseGraphBuilder,
             run_context: RunContext,
@@ -35,9 +33,8 @@ class WorkflowSession:
             metadata: SessionMeta | None = None
     ) -> None:
         self.session_registry = session_registry
-        self.blueprint = blueprint
         self.blueprint_id = blueprint_id
-        self.graph_plan = graph_plan
+        self.rt_graph_plan = rt_graph_plan
         self.executable_graph = executable_graph
         # self.logger = logger
         self.builder = builder
@@ -51,7 +48,7 @@ class WorkflowSession:
         Rebuilds the executable_graph from the current graph_plan,
         using the stored builder.
         """
-        self.executable_graph = self.builder.compile_from_plan(self.graph_plan)
+        self.executable_graph = self.builder.compile_from_plan(self.rt_graph_plan)
 
     def get_user_id(self) -> str:
         """

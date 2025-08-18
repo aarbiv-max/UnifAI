@@ -1,4 +1,4 @@
-import { api } from '@/lib/queryClient';
+import { api } from '@/http/queryClient';
 import type { Document } from '@/types';
 
 export async function fetchDocuments(): Promise<Document[]> {

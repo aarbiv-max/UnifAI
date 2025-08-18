@@ -1,17 +1,33 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from .slack_thread_retriever import SlackThreadRetriever
 from shared.logger import logger
 
 class ThreadRetrieverWorker:
-    def __init__(self, retriever: SlackThreadRetriever, max_workers: int = 10, thread_number: int = 1):
+    def __init__(
+        self,
+        retriever: SlackThreadRetriever,
+        max_workers: int = 10,
+        thread_number: int = 1,
+        oldest: Optional[str] = None,
+        latest: Optional[str] = None,
+    ):
         self.retriever = retriever
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.futures = []
         self.thread_number = thread_number
+        self.oldest = oldest
+        self.latest = latest
 
     def submit(self, channel_id: str, thread_ts: str):
-        future = self.executor.submit(self.retriever.get_thread_replies, channel_id, thread_ts, self.thread_number)
+        future = self.executor.submit(
+            self.retriever.get_thread_replies,
+            channel_id,
+            thread_ts,
+            self.thread_number,
+            self.oldest,
+            self.latest,
+        )
         self.thread_number = self.thread_number + 1
         self.futures.append(future)
 

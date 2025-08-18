@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from shared.logger import logger
 
 class SlackThreadRetriever:
@@ -18,7 +18,14 @@ class SlackThreadRetriever:
         """
         self._connector = slack_connector
     
-    def get_thread_replies(self, channel_id: str, thread_ts: str, thread_number: int) -> List[Dict[str, Any]]:
+    def get_thread_replies(
+        self,
+        channel_id: str,
+        thread_ts: str,
+        thread_number: int,
+        oldest: Optional[str] = None,
+        latest: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Get all replies in a thread.
         
@@ -34,6 +41,10 @@ class SlackThreadRetriever:
             'ts': thread_ts,
             'limit': 1000  # Maximum allowed by Slack API
         }
+        if oldest:
+            params['oldest'] = oldest
+        if latest:
+            params['latest'] = latest
         
         response = self._connector._make_api_request("conversations.replies", params)
         

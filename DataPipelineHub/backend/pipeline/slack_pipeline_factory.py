@@ -1,3 +1,5 @@
+from functools import cached_property
+from typing import Dict
 from pipeline.pipeline_factory import PipelineFactory
 from data_sources.slack.slack_config_manager import SlackConfigManager
 from data_sources.slack.slack_connector import SlackConnector
@@ -36,9 +38,9 @@ class SlackPipelineFactory(PipelineFactory):
         return SlackProcessor()
     
     def _create_chunker(self) -> SlackChunkerStrategy:
-            cfg = ChunkerConfig()
-            return SlackChunkerStrategy(
-                max_tokens_per_chunk=cfg.max_tokens_per_chunk,
-                overlap_tokens=cfg.overlap_tokens,
-                time_window_seconds=300
-            )
+        cfg = ChunkerConfig()
+        return SlackChunkerStrategy(
+            max_tokens_per_chunk=cfg.max_tokens_per_chunk,
+            overlap_tokens=cfg.overlap_tokens,
+            time_window_seconds=300
+        )

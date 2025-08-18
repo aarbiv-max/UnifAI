@@ -10,6 +10,7 @@ import { GraphNode } from "../../pages/AgenticAI"
 import { useStreamingData, NodeEntry } from "./StreamingDataContext"
 import axios from '../../http/axiosAgentConfig'
 import { GraphFlow } from './graphs/interfaces'
+import { useAuth } from "@/contexts/AuthContext";
 
 interface LogEntry {
   id: string;
@@ -67,6 +68,7 @@ export default function ExecutionStream({
   const [isPaused, setIsPaused] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const { nodeListRef } = useStreamingData();
+  const { user } = useAuth();
 
   const extractNodeData = (graphFlow: GraphFlow): { id: string; name: string; description: string | null }[] => {
     if (!graphFlow || !graphFlow.plan) {
@@ -75,23 +77,23 @@ export default function ExecutionStream({
   
     return graphFlow.plan.map(item => ({
       id: item.uid,
-      name: item.meta?.display_name || item.node?._meta.display_name || "General Node",
-      description: item.meta?.description || item.node?._meta.description || null
+      name: item.meta?.display_name || "General Node",
+      description: item.meta?.description || null
     }));
   };
   
   // Create agent nodes from selected graph nodes on component mount
   useEffect(() => {
     const getGraphNodes = async () => {
-      const response = await axios.get('/api/blueprints/available.blueprints.get');
-      const plans = response.data.flatMap((plan) => plan);
+      const response = await axios.get(`/blueprints/available.blueprints.get?userId=${user?.username || "default"}`);
+      const blueprintObjects = response.data;
       
-      // Find the specific graph flow by ID
-      const targetGraphFlow = plans.find(plan => 
-        Object.keys(plan).includes(blueprintId)
+      // Find the specific graph flow by blueprint_id
+      const targetBlueprintObj = blueprintObjects.find((blueprintObj: any, index: number) => 
+        blueprintObj.blueprint_id === blueprintId
       );
   
-      return extractNodeData(targetGraphFlow[blueprintId]);
+      return targetBlueprintObj ? extractNodeData(targetBlueprintObj.spec_dict) : [];
     }
   
     const fetchAndSetNodes = async () => {

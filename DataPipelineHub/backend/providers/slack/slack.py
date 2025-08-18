@@ -51,12 +51,12 @@ def get_slack_user_info(user_id: str = None, include_locale: bool = False):
         raise RuntimeError("Slack authentication failed")
 
 def count_channel_chunks(channel_name: str) -> int:
-    vector_storage = initialize_vector_storage(source_type=SourceType.SLACK)
+    vector_storage = initialize_vector_storage(source_type=SourceType.SLACK.value)
     return vector_storage.count(filters={"metadata.channel_name": channel_name})
 
 def get_best_match_results(query: str, top_k_results: int = 5, scope: str = "public", logged_in_user: str = "default"):
     embedding_generator = initialize_embedding_generator()
-    vector_storage = initialize_vector_storage(embedding_generator.embedding_dim, SourceType.SLACK)
+    vector_storage = initialize_vector_storage(embedding_generator.embedding_dim, SourceType.SLACK.value)
     
     query_embedding = embedding_generator.generate_query_embedding(query)
     

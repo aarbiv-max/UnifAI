@@ -1,7 +1,6 @@
 import json
 from .base_blueprint_loader import BaseBlueprintLoader
-from schemas.blueprint.blueprint_schema import B
-from plugins.exceptions import InvalidBlueprintError
+from elements.common.exceptions import InvalidBlueprintError
 
 
 class JSONBlueprintLoader(BaseBlueprintLoader):

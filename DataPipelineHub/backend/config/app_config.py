@@ -32,7 +32,7 @@ class AppConfig(SharedConfig):
     frontend_url: str = "http://localhost:5000"
     upload_folder: str = "/app/shared"
     # session_cookie_secure=True
-    backend_env: str = "production"
+    backend_env: str = "development"
 
     # qdrant_ip: str = "http://a467739e076d04bf1b15aa68187cbc05-1112405490.us-east-1.elb.amazonaws.com"
     # mongodb_ip: str = "ae8f0dd8e6cd046539c3f0b7c6a75f13-508991814.us-east-1.elb.amazonaws.com"

@@ -1,11 +1,19 @@
-from registry.element_registry import ElementRegistry
+from catalog.element_registry import ElementRegistry
+from catalog.service import CatalogService
 from blueprints.repository.mongo_blueprint_repository import MongoBlueprintRepository
 from blueprints.service import BlueprintService
+from blueprints.resolver import BlueprintResolver
 from session.workflow_session_factory import WorkflowSessionFactory
 from session.repository.mongo_session_repository import MongoSessionRepository
 from session.user_session_manager import UserSessionManager
 from session.session_executor import SessionExecutor
 from session.service import SessionService
+from resources.registry import ResourcesRegistry
+from resources.service import ResourcesService
+from resources.repository.mongo_repository import MongoResourceRepository
+from graph.service import GraphService
+from graph.validation.service import GraphValidationService
+from actions.service import ActionsService
 from config.app_config import AppConfig
 from global_utils.utils.singleton import SingletonMeta
 
@@ -27,14 +35,42 @@ class AppContainer(metaclass=SingletonMeta):
         self.element_registry = ElementRegistry()
         self.element_registry.auto_discover()
 
+        # actions service (independent of element registry)
+        self.actions_service = ActionsService()
+        # auto-discover and register all actions
+        self.actions_service.auto_discover_actions()
+
+        # catalog service
+        self.catalog_service = CatalogService(self.element_registry)
+
+        # Graph service (building only)
+        self.graph_service = GraphService(self.element_registry)
+        
+        # Graph validation service (validation only)
+        self.graph_validation_service = GraphValidationService(self.element_registry)
+
         # blueprint catalog
         self.blueprint_repo = MongoBlueprintRepository(
-            mongodb_port=cfg.mongodb_port,
-            mongodb_ip=cfg.mongodb_ip,
             db_name=cfg.mongo_db,
             coll_name=cfg.blueprint_coll
         )
-        self.blueprint_service = BlueprintService(self.blueprint_repo)
+
+        # resource registry
+        resource_registry = ResourcesRegistry(repo=MongoResourceRepository(cfg.mongodb_port,
+                                                                           mongodb_ip=cfg.mongodb_ip,
+                                                                           db_name=cfg.mongo_db,
+                                                                           coll_name=cfg.resources_coll),
+                                              bp_repo=self.blueprint_repo)
+
+        # resources service
+        self.resources_service = ResourcesService(resource_registry=resource_registry,
+                                                  element_registry=self.element_registry)
+        # blueprint resolver
+        self.blueprint_resolver = BlueprintResolver(resource_registry=resource_registry,
+                                                    element_registry=self.element_registry)
+
+        # blueprint service
+        self.blueprint_service = BlueprintService(self.blueprint_repo, resolver=self.blueprint_resolver)
 
         # session orchestration
         self.session_factory = WorkflowSessionFactory(
@@ -45,12 +81,12 @@ class AppContainer(metaclass=SingletonMeta):
             mongodb_port=cfg.mongodb_port,
             mongodb_ip=cfg.mongodb_ip,
             db_name=cfg.mongo_db,
-            collection_name=cfg.session_coll,
-            session_factory=self.session_factory
+            collection_name=cfg.session_coll
         )
         self.session_manager = UserSessionManager(
             repository=self.session_repo,
-            session_factory=self.session_factory
+            session_factory=self.session_factory,
+            blueprint_service=self.blueprint_service
         )
         self.session_executor = SessionExecutor(
             session_manager=self.session_manager,

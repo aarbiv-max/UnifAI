@@ -5,7 +5,6 @@ import { Document } from "@/types";
 import { UploadTab } from "./UploadTab";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import axiosInstance from "@/http/axiosConfig";
 import { useQuery } from "@tanstack/react-query";
 import { usePaginationStore } from "@/stores/usePaginationStore";
 import { DocumentFilters } from "./DocumentFilters";
@@ -170,7 +169,7 @@ export default function Documents() {
   const handleRetry = async (id: string) => {
     try {
       setRetrying(true);
-      await axiosInstance.put("/api/docs/retry.embedding", { "pipelineId": id });
+      // await axiosInstance.put("/api/docs/retry.embedding", { "pipelineId": id });
     } catch (error) {
       console.error("Error retrying embedding:", error);
     } finally {

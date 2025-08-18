@@ -33,3 +33,14 @@ rabbitmq:
     tag: 4.0.5-debian-12-r0
   service:
     type: LoadBalancer
+
+storage:
+  volumeName: unifai-dataflow-shared-storage
+  requestedSize: 100Gi
+  className: aws-efs-tier-c1
+  accessModes:
+    - ReadWriteMany
+  annotations:
+    kubernetes.io/reclaimPolicy: Delete
+  labels:
+    paas.redhat.com/appcode: TAG-001

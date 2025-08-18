@@ -1,8 +1,9 @@
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Any, Dict, Iterator, List, Tuple, Set
 from typing_extensions import Annotated
 from pydantic import BaseModel, Field, ConfigDict
-from llms.chat.message import ChatMessage
+from elements.llms.common.chat.message import ChatMessage
 from .merge_strategies import merge_string_dicts, append_chat_messages, merge_dynamic_fields
+from enum import Enum
 
 
 class GraphState(BaseModel):
@@ -22,12 +23,17 @@ class GraphState(BaseModel):
 
     # —————– Channels (with merge strategies) —————–
     # last-writer-wins for user_prompt:
-    user_prompt: Annotated[str, lambda old, new: new] = ""
+    user_prompt: Annotated[str, lambda old, new: new] = Field(default="", json_schema_extra={'external': True})
     # merge dicts into a new dict:
     nodes_output: Annotated[Dict[str, str], merge_string_dicts] = Field(default_factory=dict)
 
     # appending messages to a list:
     messages: Annotated[list[ChatMessage], append_chat_messages] = Field(default_factory=list)
+
+    # last-writer-wins for output
+    output: Annotated[str, lambda old, new: new] = ""
+
+    target_branch: Annotated[str, lambda old, new: new] = ""
 
     # Dynamic storage for extra fields (will be included in serialization)
     dynamic_fields: Annotated[Dict[str, Any], merge_dynamic_fields] = Field(default_factory=dict)
@@ -73,6 +79,14 @@ class GraphState(BaseModel):
     def keys(self) -> Iterator[str]:
         return iter(list(self.__class__.model_fields.keys()) + list(self.dynamic_fields.keys()))
 
+    @classmethod
+    def get_external_channels(cls) -> Set[str]:
+        """
+        Returns names of all fields marked as external variables/channels
+        """
+        return set([field_name for field_name, field_info in cls.model_fields.items()
+                    if field_info.json_schema_extra and field_info.json_schema_extra.get('external', False)])
+
     def items(self) -> Iterator[Tuple[str, Any]]:
         for k in self.__class__.model_fields:
             yield k, getattr(self, k)
@@ -98,3 +112,11 @@ class GraphState(BaseModel):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.dict()})"
+
+
+def _build_channel_enum() -> Enum:
+    mapping = {name.upper(): name for name in GraphState.model_fields}
+    return Enum("Channel", mapping, type=str)
+
+
+Channel = _build_channel_enum()

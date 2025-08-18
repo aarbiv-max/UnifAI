@@ -40,9 +40,9 @@ export function getColumns(
         const isNew = channel.created && isChannelNew(new Date(channel.created))
         
         return (
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-col">
             <div className="flex items-center space-x-2">
-            {channel.is_private ? (
+              {channel.is_private ? (
                 <HiOutlineLockClosed className="mr-2 h-4 w-4" />
               ) : (
                 <span className="mr-2">#</span>
@@ -56,6 +56,11 @@ export function getColumns(
                 </Badge>
               )}
             </div>
+            {channel.initialTimestamp && (
+              <span className="text-xs text-muted-foreground mt-1 ml-5">
+                Messages starting from: {channel.initialTimestamp}
+              </span>
+            )}
           </div>
         )
       }

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict
-from graph.graph_plan import GraphPlan, Step
+from graph.rt_graph_plan import RTGraphPlan
 from engine.executor.interfaces import GraphExecutor
 
 
@@ -61,7 +61,7 @@ class BaseGraphBuilder(ABC):
 
     def compile_from_plan(
             self,
-            plan: GraphPlan) -> GraphExecutor:
+            plan: RTGraphPlan) -> GraphExecutor:
         """
         Default helper: wires up all steps, dependencies, conditionals,
         and identifies entry/exit, then builds.

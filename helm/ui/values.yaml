@@ -3,15 +3,34 @@
 # Declare variables to be passed into your templates.
 
 # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
-replicaCount: 1
+#replicaCount: 1
 
+# env:
+#   NGINX_PORT: "8080"
+#   DATAPIPELINEHUB_PORT: "13456"
+#   DATAPIPELINEHUB_HOST: "unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
+#   MULTIAGENT_PORT: "8003"
+#   MULTIAGENT_HOST: "10.46.254.131"
+#   SCHEME: "https"
+debug: false
+command: ["/bin/sh", "-c", "sleep infinity"]
+
+env:
+  NGINX_PORT: "8080"
+  DATAPIPELINEHUB_PORT: "13456"
+  DATAPIPELINEHUB_HOST: "unifai-dataflow-server"
+  MULTIAGENT_PORT: "8080"
+  MULTIAGENT_HOST: "unifai-multiagent-be"
+
+
+# command: ["/bin/sh", "-c", "sleep infinity"]
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
-  repository: nginx
+  repository: images.paas.redhat.com/unifai/ui
   # This sets the pull policy for images.
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "latest"
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -19,17 +38,6 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
-serviceAccount:
-  # Specifies whether a service account should be created
-  create: true
-  # Automatically mount a ServiceAccount's API credentials?
-  automount: true
-  # Annotations to add to the service account
-  annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
-  name: ""
 
 # This is for setting Kubernetes Annotations to a Pod.
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
@@ -51,10 +59,19 @@ securityContext: {}
 
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
+  portList:
+  - name: ui
+    port: 8080
+  - name: df-backend
+    port: 13456
+  - name: ma-backend
+    port: 8003
   # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
-  type: ClusterIP
+  type: LoadBalancer
   # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-  port: 80
+
+route:
+  host: unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com
 
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:

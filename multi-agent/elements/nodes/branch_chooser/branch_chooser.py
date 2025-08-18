@@ -1,0 +1,40 @@
+from elements.nodes.common.base_node import BaseNode
+from graph.state.graph_state import Channel
+from graph.state.state_view import StateView
+from typing import Optional
+
+
+class BranchChooserNode(BaseNode):
+    """
+    Mock node that looks at target branches from step context and chooses the first one.
+    Writes the chosen branch to the target_branch state channel.
+    """
+    READS = set()  # We don't read from state channels, we read from step context
+    WRITES = {"target_branch"}  # Write to the target_branch channel
+
+    def __init__(self,
+                 *,
+                 default_branch: Optional[str] = None,
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.default_branch = default_branch
+
+    def run(self, state: StateView) -> StateView:
+        # Get target branches from step context
+        chosen_branch = None
+
+        if self._ctx and self._ctx.branches:
+            # Get the first branch from the step context branches
+            first_branch_key = next(iter(self._ctx.branches.keys()), None)
+
+            if first_branch_key:
+                chosen_branch = self._ctx.branches[first_branch_key]
+
+        # Fall back to default branch if no branches found
+        if chosen_branch is None:
+            chosen_branch = self.default_branch or "default_branch"
+
+        print("in BranchChooserNode.run, chosen_branch:", chosen_branch)
+        # Write the chosen branch to the target_branch state channel
+        state["target_branch"] = chosen_branch
+        return state

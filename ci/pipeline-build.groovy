@@ -34,12 +34,24 @@ def buildParams = [
 
 
 def buildDockerImage(String component) {
+    // Default assumptions: Dockerfile at component root, repo-root as build context
     String dockerfile = "Dockerfile"
+    String context = "."
+
+    // Special-case UI: Dockerfile lives under deployment/, and context must be the UI folder
+    // will be fix in followup ticket to fix all non-importnet issues.
+    if (component == "DataPipelineHub/ui") {
+        dockerfile = "deployment/Dockerfile"
+        context = "${component}"
+    }
+
     String logFile = "/tmp/${component.replace("/", "_")}_build.log"
 
     echo("---====  buildDockerImage ${component}  ====---")
-    def componentLower = component.toLowerCase()
-    def status = sh(script: "podman build -t ${componentLower}:${VERSION} -t ${componentLower}:latest -f ${component}/${dockerfile} . > ${logFile} 2>&1", returnStatus: true)
+
+    def componentLower = component.toLowerCase().replace("-", "")
+
+    def status = sh(script: "podman build -t ${componentLower}:${VERSION} -t ${componentLower}:latest -f ${component}/${dockerfile} ${context} > ${logFile} 2>&1", returnStatus: true)
 
     if (status != 0) {
         echo("Build failed for module: ${componentLower}. Check ${logFile} for details.")
@@ -126,7 +138,7 @@ pipeline {
                                     tagAndPushImageToRegistry(buildParams,component)
                                     cleanWorkspace(component)
                                 } else {
-                                    error("Terminating process for ${module}: Build failed")
+                                    error("Terminating process for ${component}: Build failed")
                                 }
                             }
                         }
@@ -143,31 +155,30 @@ pipeline {
                                     tagAndPushImageToRegistry(buildParams, component)
                                     cleanWorkspace(component)
                                 } else {
-                                    error("Terminating process for ${module}: Build failed")
+                                    error("Terminating process for ${component}: Build failed")
                                 }
                             }
                         }
                     }
                 }
-                // stage('build_gui_image') {
-                //     when { expression { params.build_gui } }
-                //     steps {
-                //         script {
-                //             def component = "DataPipelineHub"
-                //             def module = "ui"
-                //             def componentLower = component.toLowerCase()
-                //             dir("${buildParams.DevRoot}/${params.BRANCH}/${component}/${module}/") {
-                //                 cleanWorkspace(module, componentLower)
-                //                 if (buildDockerImage(module, componentLower)) {
-                //                     tagAndPushImageToRegistry(module, buildParams, componentLower)
-                //                     cleanWorkspace(module, componentLower)
-                //                 } else {
-                //                     error("Terminating process for ${module}: Build failed")
-                //                 }
-                //             }
-                //         }
-                //     }
-                // }
+                stage('build_gui_image') {
+                    when { expression { params.build_gui } }
+                    steps {
+                        script {
+                            def component = "DataPipelineHub/ui"
+                            def module = ""
+                            dir("${buildParams.DevRoot}/${params.BRANCH}/") {
+                                cleanWorkspace(component)
+                                if (buildDockerImage(component)) {
+                                    tagAndPushImageToRegistry(buildParams, component)
+                                    cleanWorkspace(component)
+                                } else {
+                                    error("Terminating process for ${component}: Build failed")
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -180,7 +191,7 @@ pipeline {
                     def modules = []
                     if (params.build_dataflow_backend) modules << 'dataflow'
                     if (params.build_multiagent_backend) modules << 'multiagent'
-                    if (params.build_gui) modules << 'gui'
+                    if (params.build_gui) modules << 'ui'
                     def modulesToDeploy = modules.join(',')
 
                     echo "Triggering deployment pipeline with MODULES_TO_DEPLOY = ${modulesToDeploy}"

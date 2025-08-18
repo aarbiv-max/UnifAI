@@ -1,6 +1,7 @@
 import os
 import uuid
 from pipeline.pipeline_repository import PipelineRepository
+from global_utils.helpers.helpers import calculate_date_range
 from config.app_config import AppConfig
 from global_utils.celery_app import CeleryApp
 from pipeline.pipeline_factory import PipelineFactory
@@ -10,11 +11,8 @@ from shared.source_types import (
     RegisteredSource, RegistrationResponse, PipelineExecutionResult
 )
 from shared.logger import logger
-from config.constants import DataSource
+from config.constants import DataSource, PipelineStatus
 from utils.storage.mongo.mongo_helpers import get_mongo_storage
-# Import the concrete factories to ensure they register themselves
-from pipeline.slack_pipeline_factory import SlackPipelineFactory
-from pipeline.doc_pipeline_factory import DocumentPipelineFactory
 
 app_config = AppConfig()
 upload_folder = app_config.get("upload_folder", "")
@@ -65,9 +63,14 @@ def register_sources_task(self, data_list: list, source_type: str, upload_by: st
                     upload_by=upload_by
                 )
                 
+                date_range = user_metadata.get("dateRange")
+                start_datetime, end_datetime = calculate_date_range(date_range)
+                
                 # Create type_data for Slack using Pydantic model
                 slack_type_data = SlackTypeData(
                     is_private=instance.get("is_private", False),
+                    start_timestamp=start_datetime,
+                    end_timestamp=end_datetime,
                     **user_metadata  # Unpack user metadata into the model
                 )
                 type_data = slack_type_data.model_dump()
@@ -144,10 +147,11 @@ def register_sources_task(self, data_list: list, source_type: str, upload_by: st
                 pipeline_id=pipeline_id,
                 metadata=metadata.__dict__, 
                 source_type=source_type.upper(),
-                upload_by=upload_by
+                upload_by=upload_by,
+                type_data=type_data
             )
             
-            registered_sources.append(registered_source)
+            registered_sources.append(registered_source.model_dump())
             metadata_info = f" with user settings: {user_metadata}" if user_metadata else ""
             logger.info(f"Registered {source_type} source: {source_name} with pipeline_id: {pipeline_id}{metadata_info}")
         
@@ -180,12 +184,21 @@ def execute_pipeline_task(self, source_type: str, source_data: dict):
         if not pipeline_id or not metadata_dict:
             raise ValueError("Pipeline ID or metadata not found in source_data")
 
-        # Deserialize metadata based on source type
+        metadata_dict_copy = metadata_dict.copy()
+        metadata_dict_copy.pop('pipeline_id', None)
+        # Remove any existing type_data to avoid passing duplicate keyword arguments
+        metadata_dict_copy.pop('type_data', None)
+        payload_type_data = source_data.get("type_data")
+        
         if source_type.upper() == DataSource.SLACK.upper_name:
-            metadata = SlackMetadata(**metadata_dict)
+            metadata = SlackMetadata(
+                **metadata_dict_copy,
+                pipeline_id=pipeline_id,
+                type_data=payload_type_data
+            )
             
         elif source_type.upper() == DataSource.DOCUMENT.upper_name:
-            metadata = DocumentMetadata(**metadata_dict)
+            metadata = DocumentMetadata(**metadata_dict_copy, pipeline_id=pipeline_id)
             logger.info(f"Document path: {metadata}")
         else:
             raise ValueError(f"Unsupported source type: {source_type}")

@@ -1,4 +1,4 @@
-from registry import element_registry
+from catalog import element_registry
 from session.repository.mongo_session_repository import MongoSessionRepository
 from blueprints.loader.yaml_blueprint_loader import YAMLBlueprintLoader
 from session.workflow_session_factory import WorkflowSessionFactory
@@ -6,8 +6,13 @@ from session.user_session_manager import UserSessionManager
 from session.session_executor import SessionExecutor
 from blueprints.service import BlueprintService
 from blueprints.repository.mongo_blueprint_repository import MongoBlueprintRepository
-
+from resources.service import ResourcesService
+from resources.registry import ResourcesRegistry
+from resources.repository.mongo_repository import MongoResourceRepository
+from blueprints.resolver import BlueprintResolver
+from core.app_container import AppContainer
 from typing import Iterator, Any, Dict, List
+from config.app_config import get_app_config
 from rich.live import Live
 from rich.panel import Panel
 from rich.layout import Layout
@@ -127,29 +132,90 @@ def main_resume_session(run_id: str):
     stream_with_rich(stream)
 
 
-if __name__ == "__main__":
-    # main_resume_session("64fc9af1-2dd8-405d-a491-925639a4100f")
-    blueprint_loader = YAMLBlueprintLoader()
-    spec1 = blueprint_loader.load("run/test_1_agent_add_tool.yml")
-    spec2 = blueprint_loader.load("run/test_2_agents_slack_docs_merger.yml")
-    spec3 = blueprint_loader.load("run/test_1_agent_ssh_exec_tool.yml")
-    spec4 = blueprint_loader.load("run/test_1_agent_mcp_tool.yml")
-    spec5 = blueprint_loader.load("run/test_1_agent_mcp_tool_proxy.yml")
-    # spec5 = blueprint_loader.load("run/test_1_agent_2_mcp_providers.yml")
-    repo = MongoBlueprintRepository()
-    service = BlueprintService(repo)
-    bid1 = service.register(spec1)
-    bid2 = service.register(spec2)
-    bid3 = service.register(spec3)
-    bid4 = service.register(spec4)
-    bid5 = service.register(spec5)
-    # bid5 = service.register(spec5)
-    # print(service.count())
-    # print(service.get_blueprint_spec("81bdd223-4dba-4bb3-81d1-20fbaf19dd01"))
-    import json
+def save_resources(app):
+    llm_rid = app.resources_service.create(user_id="alice",
+                                           category="llms",
+                                           type="openai",
+                                           name="openai_llm",
+                                           config={
+                                               "type": "openai",
+                                               "model_name": "gemini-2.0-flash",
+                                               "api_key": "AIzaSyBwuQtKPtwKILBulq_YW16RKjMAVx4gbKQ",
+                                               "base_url": "https://generativelanguage.googleapis.com/v1beta/openai"
+                                           }).rid
 
-    # print(service.delete("707f3ac8-3d09-41dd-90c3-d3ce0a6dacb2"))
-    # print(json.dumps(service.get_dict("81bdd223-4dba-4bb3-81d1-20fbaf19dd01")))
-    # main_new_session()
-    # main_resume_session(get_current_context().run_id)
-    # main_resume_session("64fc9af1-2dd8-405d-a491-925639a4100f")
+    mcp_rid = app.resources_service.create(user_id="alice",
+                                           category="providers",
+                                           type="mcp_server",
+                                           name="My mcp server Node",
+                                           config={
+                                               "type": "mcp_server",
+                                               "sse_endpoint": "http://localhost:8004"
+                                           }).rid
+
+    tool_rid = app.resources_service.create(user_id="alice",
+                                            category="tools",
+                                            type="mcp_proxy",
+                                            name="My mcp addition tool",
+                                            config={
+                                                "type": "mcp_proxy",
+                                                "tool_name": "addition",
+                                                "provider": f"$ref:{mcp_rid}"
+                                            }).rid
+
+    app.resources_service.create(user_id="alice",
+                                 category="nodes",
+                                 type="custom_agent_node",
+                                 name="My Agent Node",
+                                 config={
+                                     "type": "custom_agent_node",
+                                     "llm": f"$ref:{llm_rid}",
+                                     "tools": [f"$ref:{tool_rid}"],
+                                     "system_message": "You are a smart assistant …"})
+
+
+def run_test_new_version(app, blueprint_id):
+    session = app.session_service.create(user_id="alice", blueprint_id=blueprint_id)
+    print(f"Created session with id: {session.run_context.run_id}")
+    print(app.session_service.execute(session_id=session.run_context.run_id,
+                                      inputs={"user_prompt": "what is latest issues in GENIE project? search for GENIE project and GENIE-2"},
+                                      stream=False,
+                                      scope="public"))
+
+
+from graph.graph_plan import GraphPlan
+from dataclasses import dataclass, asdict
+import json
+
+if __name__ == "__main__":
+    config = get_app_config()
+    app = AppContainer(config)
+
+    blueprint_loader = YAMLBlueprintLoader()
+    # raw = blueprint_loader.load("run/branch_router_demo.yml")
+    # raw = blueprint_loader.load("run/boolean_router_demo.yml")
+    raw = blueprint_loader.load("run/blueprint_SDJ.yml")
+    blueprint_id = app.blueprint_service.save_draft(user_id="alice", draft_dict=raw)
+    blueprint_spec = app.blueprint_service.load_resolved(blueprint_id=blueprint_id)
+    run_test_new_version(app, blueprint_id=blueprint_id)
+
+    # Use the separate services - build with graph service, validate with validation service
+    # plan = app.graph_service.build_plan(blueprint_spec)
+    # result, suggestions = app.graph_validation_service.validate_and_suggest(plan)
+
+    # plan.pretty_print()
+    # Alternative methods available:
+    # result = app.graph_validation_service.validate_channels(plan)
+    # result = app.graph_validation_service.validate_all(plan)
+    # print(result)
+    # print(result.model_dump_json())
+    # print()
+    # for fix in suggestions:
+    #     print(fix.model_dump_json())
+    # save_resources(app)
+
+    # run_test_new_version(app)
+
+    # app.blueprint_service.delete(blueprint_id="2af1b9b2900284ed79192e4ebbf8a05cf")
+    # app.resources_service.delete(rid="af1b9b2900284ed79192e4ebbf8a05cf")
+    # app.resources_service.delete(rid="49f4170dd7da45289a500e43c6a7f8b5")

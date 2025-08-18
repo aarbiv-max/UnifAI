@@ -5,7 +5,7 @@ from session.workflow_session import WorkflowSession
 from core.run_context import RunContext
 from graph.state.graph_state import GraphState
 from session.status import SessionStatus
-from schemas.blueprint.blueprint import BlueprintSpec
+from blueprints.service import BlueprintService
 from session.models import SessionMeta
 
 
@@ -18,21 +18,22 @@ class UserSessionManager:
     def __init__(
             self,
             repository: SessionRepository,
-            session_factory: WorkflowSessionFactory
+            session_factory: WorkflowSessionFactory,
+            blueprint_service: BlueprintService
     ):
         self._repo = repository
         self._factory = session_factory
+        self._bp_service = blueprint_service
 
     def create_session(
             self,
             user_id: str,
-            blueprint_spec: BlueprintSpec,
             blueprint_id: str,
             metadata: SessionMeta = None
     ) -> WorkflowSession:
         """Instantiate a fresh session and persist it. Returns run_id."""
         session = self._factory.create(
-            blueprint_spec=blueprint_spec,
+            blueprint_spec=self._bp_service.load_resolved(blueprint_id),
             blueprint_id=blueprint_id,
             user_id=user_id,
             metadata=metadata
@@ -54,7 +55,7 @@ class UserSessionManager:
         # Re-create fresh session via factory
         session = self._factory.create(
             user_id=ctx.user_id,
-            blueprint_spec=BlueprintSpec.model_validate(doc["blueprint_spec"]),
+            blueprint_spec=self._bp_service.load_resolved(doc.get("blueprint_id")),
             blueprint_id=doc.get("blueprint_id"),
             metadata=SessionMeta.from_dict(doc.get("metadata", {}))
         )

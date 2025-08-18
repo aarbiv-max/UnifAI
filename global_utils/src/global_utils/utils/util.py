@@ -5,6 +5,9 @@ import json
 import os
 from pathlib import Path
 import asyncio
+import threading
+from concurrent.futures import ThreadPoolExecutor
+import anyio
 from jsonschema import validate, ValidationError, Draft202012Validator
 from datamodel_code_generator import (
     generate,
@@ -18,6 +21,7 @@ import sys
 import re
 
 config = SharedConfig()
+
 
 def get_mongo_url():
     ip = config.mongodb_ip
@@ -69,31 +73,35 @@ def get_root_dir() -> Path:
     return root_dir
 
 
-def singleton(cls):
-    instances = {}
-
-    def get_instance(*args, **kwargs):
-        if cls not in instances:
-            instances[cls] = cls(*args, **kwargs)
-        return instances[cls]
-
-    return get_instance
-
-
 def run_async(awaitable: Any) -> Any:
     """
-    Run an awaitable from sync code.
-    - If no loop is running, uses asyncio.run().
-    - If already inside a loop, uses run_until_complete().
+    Run awaitable using anyio for loop-agnostic execution.
+
+    This approach:
+    1. Uses current event loop if available (async context)
+    2. Creates new event loop if none exists (sync context)
+    3. Supports nested calls naturally
+    4. Works with anyio locks across different loops
+
+    Uses anyio which provides cross-loop synchronization primitives.
     """
     try:
-        loop = asyncio.get_running_loop()
+        # Check if we're already in an async context
+        asyncio.get_running_loop()
+
+        # We're in an async context - use anyio.from_thread to run in thread
+        # anyio.from_thread.run expects a coroutine function, so we wrap the awaitable
+        async def _run_awaitable():
+            return await awaitable
+
+        return anyio.from_thread.run(_run_awaitable)
     except RuntimeError:
-        # no loop: safe to start a new one
-        return asyncio.run(awaitable)
-    else:
-        # loop already running (e.g. in a web framework), so block on it
-        return loop.run_until_complete(awaitable)
+        # No event loop running - create one with anyio
+        # anyio.run expects a coroutine function, so we wrap the awaitable
+        async def _run_awaitable():
+            return await awaitable
+
+        return anyio.run(_run_awaitable)
 
 
 def json_schema_model(

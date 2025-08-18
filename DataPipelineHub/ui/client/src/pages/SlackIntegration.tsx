@@ -114,7 +114,7 @@ export default function SlackIntegration() {
                             className="mt-1 bg-background-dark"
                           />
                           <p className="text-xs text-gray-400 mt-1">
-                            Enter your Slack workspace URL
+                            Enter your Slack resources URL
                           </p>
                         </div>
 

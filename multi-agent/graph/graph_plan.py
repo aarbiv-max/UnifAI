@@ -1,20 +1,18 @@
-from typing import List, Dict, Optional, Any, Callable
-from schemas.blueprint.blueprint import StepMeta
-from .step import Step
+from typing import List, Dict, Optional, Iterator
+from .models import Step
 
 
 class GraphPlan:
     """
-    Holds the abstract workflow: a (possibly cyclic) graph of Steps.
+    Container for workflow steps. Pure data structure, no validation logic.
 
     Responsibilities:
-      - Adding, removing, replacing steps
-      - Querying step dependencies
-      - Simple validations (unique uids, missing dependencies)
+      - Store and retrieve steps
+      - Query graph structure (roots, leaves, dependencies)
+      - Serialization for debugging
     """
 
     def __init__(self) -> None:
-        # preserve insertion order for deterministic builds
         self._steps: List[Step] = []
         self._index: Dict[str, Step] = {}
 
@@ -23,86 +21,60 @@ class GraphPlan:
         """Ordered list of steps."""
         return list(self._steps)
 
-    def add_step(
-            self,
-            uid: str,
-            func: Any,
-            after: Optional[List[str]] = None,
-            exit_condition: Callable[[str], Callable[[Dict[str, Any]], Any]] = None,
-            branches: Optional[Dict[str, str]] = None,
-            metadata: Optional[StepMeta] = StepMeta(),
-    ) -> None:
-        """
-        Add a new step or replace an existing one with the same uid.
-        """
-        if uid in self._index:
-            raise ValueError(f"Step '{uid}' already exists in plan.")
-        step = Step(uid, func, after, exit_condition, branches, metadata)
+    def add_step(self, step: Step) -> None:
+        """Add a step to the plan."""
+        if step.uid in self._index:
+            raise ValueError(f"Step '{step.uid}' already exists in plan.")
         self._steps.append(step)
-        self._index[uid] = step
+        self._index[step.uid] = step
 
     def get_step(self, uid: str) -> Optional[Step]:
-        """Return the Step by uid, or None if missing."""
+        """Get step by uid."""
         return self._index.get(uid)
 
     def remove_step(self, uid: str) -> None:
-        """Remove a step by uid (and forget its index)."""
+        """Remove a step by uid."""
         step = self._index.pop(uid, None)
         if step:
             self._steps = [s for s in self._steps if s.uid != uid]
 
-    def replace_step(self, new_step: Step) -> None:
-        """
-        Replace an existing step (matched by uid) with a new Step instance.
-        """
-        if new_step.uid not in self._index:
-            raise KeyError(f"Step '{new_step.uid}' not found for replacement.")
-        self.remove_step(new_step.uid)
-        self._steps.append(new_step)
-        self._index[new_step.uid] = new_step
-
-    def validate(self) -> None:
-        """
-        Perform basic sanity checks:
-          - All `after` references exist
-          - All `branches` targets exist
-          - No duplicate UIDs (enforced in add_step)
-        Raises:
-          ValueError if any problem found.
-        """
-        for step in self._steps:
-            for dep in step.after:
-                if dep not in self._index:
-                    raise ValueError(f"Step '{step.uid}' depends on missing step '{dep}'.")
-            for branch_target in step.branches.values():
-                if branch_target not in self._index:
-                    raise ValueError(f"Step '{step.uid}' branches to unknown step '{branch_target}'.")
-
     def get_roots(self) -> List[Step]:
-        """
-        Return steps that have no dependencies (no 'after').
-        """
-        return [s for s in self._steps if not s.after]
+        """Return steps with no dependencies and are not branch targets."""
+        # Collect all branch targets across all steps
+        branch_targets = set()
+        for step in self._steps:
+            branch_targets.update(step.branches.values())
+
+        # A root is a step with no 'after' dependencies AND not a branch target
+        return [s for s in self._steps if not s.after and s.uid not in branch_targets]
 
     def get_leaves(self) -> List[Step]:
-        """
-        Return steps that nothing depends on (no other step lists them in 'after').
-        """
+        """Return steps that nothing depends on (including branch targets)."""
         dependents = {dep for s in self._steps for dep in s.after}
+        # Also include branch targets as dependents
+        dependents.update({target for s in self._steps for target in s.branches.values()})
         return [s for s in self._steps if s.uid not in dependents]
 
     def to_dict(self) -> Dict:
-        """
-        Serialize plan structure for introspection or persistence.
-        """
+        """Serialize for debugging/logging."""
         return {
             s.uid: {
+                "type": s.type_key,
+                "reads": list(s.total_reads()),
+                "writes": list(s.writes),
                 "after": s.after,
-                "exit_condition": s.exit_condition,
                 "branches": s.branches
             }
             for s in self._steps
         }
+
+    def __iter__(self) -> Iterator[Step]:
+        """Make GraphPlan iterable."""
+        return iter(self.steps)
+
+    def __len__(self) -> int:
+        """Number of steps."""
+        return len(self._steps)
 
     def pretty_print(self) -> None:
         """

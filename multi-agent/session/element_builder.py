@@ -16,7 +16,7 @@ Key features
 from collections import deque
 from typing import Dict, List, Type
 from session.session_registry import SessionRegistry
-from schemas.blueprint.blueprint import BlueprintSpec
+from blueprints.models.blueprint import BlueprintSpec
 from core.enums import ResourceCategory
 
 # concrete builders
@@ -25,7 +25,7 @@ from .category_builders.llm_builder import LLMBuilder
 from .category_builders.retriever_builder import RetrieverBuilder
 from .category_builders.condition_builder import ConditionBuilder
 from .category_builders.tool_builder import ToolBuilder
-
+from .category_builders.node_builder import NodeBuilder
 from .category_builders.category_builder import CategoryBuilder
 
 
@@ -41,6 +41,7 @@ class SessionElementBuilder:
         RetrieverBuilder,
         ConditionBuilder,
         ToolBuilder,
+        NodeBuilder
     ]
 
     # --------------------------------------------------------------------- #

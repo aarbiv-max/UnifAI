@@ -1,10 +1,13 @@
-"""
-Domain value objects used by the *session* layer.
-These are **not** view-specific and are persisted as part of WorkflowSession.
-"""
-
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any
+
+
+@dataclass(frozen=True)
+class RuntimeElement:
+    """Complete runtime element: instance + config + spec."""
+    instance: Any
+    config: Any
+    spec: Any
 
 
 @dataclass(slots=True)

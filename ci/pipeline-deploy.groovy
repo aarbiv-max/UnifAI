@@ -1,13 +1,17 @@
 properties([
     parameters([
+        // 🌐 Global Parameters
+        string(name: "PIPELINE_BRANCH", defaultValue: "main", description: "Git branch to take the pipeline from, for testing purpose"),
+        string(name: "BRANCH", defaultValue: "main", description: "Branch to deploy from."),
+        
+        // 🚀 Deployment Parameters
         choice(name: 'deploy_location', choices: ['STAGING', 'PRODUCTION'], description: 'Deployment environment'),
         choice(name: 'deploy_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Deployment type'),
-        string(name: "BRANCH", defaultValue: "main", description: "Branch to deploy from."),
         string(name: "VERSION", defaultValue: "", description: "DONT SET THIS VALUE!"),
         string(name: "DF_VERSION", defaultValue: "", description: "Image tag for dataflow"),
         string(name: "MA_VERSION", defaultValue: "", description: "Image tag for multi-agent"),
         string(name: "GUI_VERSION", defaultValue: "", description: "Image tag for UI"),
-        string(name: "MODULES_TO_DEPLOY", defaultValue: "", description: "Comma-separated list of modules to update (e.g. dataflow,multiagent,gui)"),
+        string(name: "MODULES_TO_DEPLOY", defaultValue: "", description: "Comma-separated list of modules to update (e.g. dataflow,multiagent,ui)"),
         booleanParam(name: 'debug_mode', defaultValue: false, description: 'debug the pods'),
     ])
 ])
@@ -67,7 +71,6 @@ def updateValuesYaml(String filePath , String version) {
             }
             if (params.deploy_location == 'STAGING') {
                 echo "🛠 reduce resources in section: ${sectionName}"
-                
                 if (sectionName == "env") {
                     echo "⚠️ Skipping top-level 'env' section (no resources)"
                     return
@@ -81,6 +84,24 @@ def updateValuesYaml(String filePath , String version) {
                 sectionData.resources.requests.memory = "2Gi"
             }
             else if (params.deploy_location == 'PRODUCTION') {
+
+                // Ensure env map exists before accessing nested properties
+                sectionData.env = sectionData.env ?: [:]
+                if (sectionData.env.FRONTEND_URL) {
+                    echo "🌐 Setting FRONTEND_URL & UI routes for PRODUCTION"
+                    sectionData.env.FRONTEND_URL = "http://unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
+                    echo "Updated FRONTEND_URL: ${sectionData.env.FRONTEND_URL}"
+                }
+
+
+                if (sectionData.env?.DATAPIPELINEHUB_HOST && sectionData.env?.MULTIAGENT_HOST) {
+                    echo "🚦 Updating DATAPIPELINEHUB_HOST & MULTIAGENT_HOST for PRODUCTION"
+                    sectionData.env.DATAPIPELINEHUB_HOST = "https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
+                    sectionData.env.MULTIAGENT_HOST = "http://unifai-multiagent-be-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
+                    echo "Updated DATAPIPELINEHUB_HOST: ${sectionData.env.DATAPIPELINEHUB_HOST}"
+                    echo "Updated MULTIAGENT_HOST: ${sectionData.env.MULTIAGENT_HOST}"
+                }
+
                 if (sectionData.tolerations instanceof List) {
                     echo "🎯 Setting tolerations for PRODUCTION in section: ${sectionName}"
                     sectionData.tolerations = [
@@ -96,6 +117,7 @@ def updateValuesYaml(String filePath , String version) {
                             effect: "NoSchedule"
                         ]
                     ]
+                    echo "Updated tolerations: ${sectionData.tolerations}"
                 }
             }
         }
@@ -245,6 +267,13 @@ pipeline {
                                         updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/multiagent/", version)
                                         updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/multiagent-resource-values.yaml", version)
                                         deployModules('multiagent')
+                                        break
+
+                                    case 'ui':
+                                        def version = params.GUI_VERSION?.trim() ?: params.VERSION?.trim()
+                                        updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/ui/", version)
+                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/ui-values.yaml", version)
+                                        deployModules('ui')
                                         break
                                 }
                             }

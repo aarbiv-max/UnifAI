@@ -5,11 +5,13 @@ metadata:
   labels:
     {{- include "ui.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
-  ports:
-    - port: {{ .Values.service.port }}
-      targetPort: http
-      protocol: TCP
-      name: http
   selector:
     {{- include "ui.selectorLabels" . | nindent 4 }}
+  ports:
+  {{- range .Values.service.portList }}
+    - name: http-{{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .port }}
+      protocol: TCP
+  {{- end }}
+  type: {{ .Values.service.type }} # Or NodePort if you prefer, but LoadBalancer is typical for external 

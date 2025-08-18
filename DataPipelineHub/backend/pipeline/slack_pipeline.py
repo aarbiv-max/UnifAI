@@ -1,6 +1,6 @@
 # pipelines/slack_pipeline.py
 
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from data_sources.slack.slack_data_processor import SlackProcessor
 from data_sources.slack.slack_connector import SlackConnector
 from data_sources.slack.slack_chunker_strategy import SlackChunkerStrategy
@@ -10,6 +10,9 @@ from pipeline.pipeline import Pipeline
 from utils.embedding.embedding_generator import EmbeddingGenerator
 from utils.monitor.pipeline_monitor import PipelineMonitor
 from utils.storage.vector_storage import VectorStorage
+from shared.logger import logger
+from datetime import datetime
+from global_utils.helpers.helpers import get_time_range_bounds_from_type_data
 
 
 class SlackPipeline(Pipeline):
@@ -52,6 +55,23 @@ class SlackPipeline(Pipeline):
         }
         
     def collect_data(self) -> Tuple[List[Dict], List[List[Dict]]]:
+        type_data = getattr(self.metadata, "type_data", None)
+        oldest, latest = get_time_range_bounds_from_type_data(
+            type_data,
+            output="slack_ts",
+        )
+        if oldest or latest:
+            logger.info(
+                f"Fetching messages for channel {self.metadata.channel_name} in range oldest={oldest}, latest={latest}"
+            )
+            return self.collector.get_conversations_history(
+                channel_id=self.metadata.channel_id,
+                oldest=oldest,
+                latest=latest,
+            )
+        logger.info(
+            f"Fetching all messages for channel {self.metadata.channel_name} (no time range specified)"
+        )
         return self.collector.get_conversations_history(
             channel_id=self.metadata.channel_id
         )

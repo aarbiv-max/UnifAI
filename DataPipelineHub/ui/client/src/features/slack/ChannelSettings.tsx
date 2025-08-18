@@ -23,7 +23,7 @@ export interface ChannelSettingsProps {
 }
 
 export const defaultChannelSettings: ChannelSettingsData = {
-  dateRange: '30d',
+  dateRange: '180d',
   includeThreads: true,
   processFileContent: false,
 };

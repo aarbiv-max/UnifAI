@@ -1,16 +1,13 @@
-from typing import Optional, Callable, Type
-from pathlib import Path
-from registry.element_registry import ElementRegistry
-from blueprints.loader.base_blueprint_loader import BaseBlueprintLoader
+from catalog.element_registry import ElementRegistry
 from session.element_builder import SessionElementBuilder
-from composers.plan_composer import PlanComposer
 from engine.builder.graph_builder_factory import GraphBuilderFactory
 from session.workflow_session import WorkflowSession
 from graph.state.graph_state import GraphState
+from graph.plan_builder import PlanBuilder
+from graph.rt_graph_plan import RTGraphPlan
 from core.run_context import RunContext
 from core.context import set_current_context
-from logs.logger_interface import LoggerInterface
-from schemas.blueprint.blueprint import BlueprintSpec
+from blueprints.models.blueprint import BlueprintSpec
 from .models import SessionMeta
 
 
@@ -55,31 +52,28 @@ class WorkflowSessionFactory:
         )
         set_current_context(ctx)
 
-        # 1) Instantiate session‐wide components ———
-        session_registry = self._session_builder.build(blueprint_spec)
-
-        # 2) Compose abstract plan ———
-        composer = PlanComposer(session_registry)
-        graph_plan = composer.compose(blueprint_spec.plan)
+        # 1. Build logical plan
+        plan_builder = PlanBuilder(self._elements)
+        logical_plan = plan_builder.build(blueprint_spec)
 
         # Optional: visualize
-        graph_plan.pretty_print()
+        logical_plan.pretty_print()
 
-        # 3) Compile to executable graph ———
+        # 2. Instantiate session‐wide components ———
+        session_registry = self._session_builder.build(blueprint_spec)
+
+        # 3. Compose abstract plan ———
+        rt_graph_plan = RTGraphPlan(logical_plan, session_registry)
+
+        # 4. Compile to executable graph ———
         _engine_builder = GraphBuilderFactory(GraphState).create(self._engine_name)
-        executable_graph = _engine_builder.compile_from_plan(graph_plan)
+        executable_graph = _engine_builder.compile_from_plan(rt_graph_plan)
 
-        # 4) Create logger, saver, modifier ———
-        # logger = self._logger_factory(ctx)
-        # graph_saver = self._graph_saver
-        # graph_modifier = self._graph_modifier_cls  # class, we'll instantiate below
-
-        # 5) Wire into WorkflowSession ———
+        # 5. Wire into WorkflowSession ———
         session = WorkflowSession(
             session_registry=session_registry,
-            blueprint=blueprint_spec,
             blueprint_id=blueprint_id,
-            graph_plan=graph_plan,
+            rt_graph_plan=rt_graph_plan,
             executable_graph=executable_graph,
             builder=_engine_builder,
             run_context=ctx,

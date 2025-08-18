@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Iterable, Sequence, Protocol
-from plugins.exceptions import PluginConfigurationError
+from typing import Any, ClassVar, Iterable
+from elements.common.exceptions import PluginConfigurationError
 from pydantic import ValidationError
 from core.enums import ResourceCategory
 from core.contracts import SessionRegistry
-from schemas.blueprint.blueprint import BlueprintSpec
+from blueprints.models.blueprint import BlueprintSpec, ResourceSpec
 
 
 class CategoryBuilder(ABC):
@@ -18,47 +18,53 @@ class CategoryBuilder(ABC):
         self._registry_elements = registry_elements
 
     def build(self, blueprint: BlueprintSpec, registry: SessionRegistry) -> None:
-        for d in self._iter_specs(blueprint):
-            inst = self._create_instance(d, registry)
-            self._register(registry, d.name, inst)
+        for resource in self._iter_specs(blueprint):
+            # Get spec once
+            spec = self._registry_elements.get_spec(self.category, resource.type)
+            
+            # Create instance
+            inst = self._create_instance(resource, registry)
+            
+            # Store complete runtime element (instance + config + spec)
+            self._register(registry, resource.rid.ref, inst, resource.config, spec)
 
     # -------- protected helpers ----------------------------------------
 
     @abstractmethod
-    def _iter_specs(self, blueprint: BlueprintSpec) -> Iterable[Any]:
+    def _iter_specs(self, blueprint: BlueprintSpec) -> Iterable[ResourceSpec]:
         ...
 
-    def _register(self, registry, name: str, inst: Any):
-        registry.register(self.category, name, inst)
+    def _register(self, registry, name: str, inst: Any, config: Any, spec: Any):
+        registry.register(self.category, name, inst, config, spec)
 
     # ––– shared factory construction with error handling ––––––––––––––
-    def _create_instance(self, cfg, session_registry: SessionRegistry) -> Any:
+    def _create_instance(self, resource_spec: ResourceSpec, session_registry: SessionRegistry) -> Any:
         """Lookup factory, validate schema, create instance with extras."""
         try:
-            factory_cls = self._registry_elements.get_factory(self.category, cfg.type)
-            schema_cls = self._registry_elements.get_schema(self.category, cfg.type)
+            factory_cls = self._registry_elements.get_factory_class(self.category, resource_spec.type)
+            schema_cls = self._registry_elements.get_schema(self.category, resource_spec.type)
         except KeyError as e:
             raise PluginConfigurationError(
-                f"No plugin for {self.category!r} type={cfg.type!r}", cfg.dict()
+                f"No plugin for {self.category!r} type={resource_spec.type!r}", resource_spec.config.dict()
             ) from e
 
         # schema validation / merge
-        raw = cfg.dict(exclude_unset=True)
+        raw = resource_spec.config.dict(exclude_unset=True)
         try:
             validated = schema_cls(**raw) if schema_cls else raw
         except ValidationError as ve:
             raise PluginConfigurationError(
-                f"Config validation failed for {self.category}/{cfg.type}: {ve}", raw
+                f"Config validation failed for {self.category}/{resource_spec.type}: {ve}", raw
             ) from ve
 
         factory = factory_cls()
-        if not factory.accepts(validated):
+        if not factory.accepts(cfg=validated, element_type=resource_spec.type):
             raise PluginConfigurationError(
-                f"{factory_cls.__name__} rejects config", validated
+                f"{factory_cls.__name__} rejects config of element resource type `{resource_spec.type}`", validated
             )
 
         try:
-            return factory.create(validated, **self._extra_kwargs(cfg, session_registry))
+            return factory.create(validated, **self._extra_kwargs(resource_spec.config, session_registry))
         except Exception as e:
             raise PluginConfigurationError(
                 f"{factory_cls.__name__}.create() failed: {e}", validated

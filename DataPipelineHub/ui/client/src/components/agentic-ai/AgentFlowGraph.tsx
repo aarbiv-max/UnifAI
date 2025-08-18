@@ -1,37 +1,60 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Activity, Database, FileText, Zap, Filter, GitBranch, MessageSquare, BookOpen } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import {
+  Activity,
+  Database,
+  FileText,
+  Zap,
+  Filter,
+  GitBranch,
+  MessageSquare,
+  BookOpen,
+  Network, // Added Network icon
+} from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StreamingDataProvider } from "@/components/agentic-ai/StreamingDataContext";
-import { GraphFlow, FlowObject } from './graphs/interfaces';
-import ReactFlowGraph from '../agentic-ai/graphs/ReactFlowGraph';
-import axios from '../../http/axiosAgentConfig';
+import { GraphFlow, FlowObject } from "./graphs/interfaces";
+import ReactFlowGraph from "../agentic-ai/graphs/ReactFlowGraph";
+import axios from "../../http/axiosAgentConfig";
 
 // Create a ReactFlow provider wrapper
-import { ReactFlowProvider } from 'reactflow';
+import { ReactFlowProvider } from "reactflow";
 
-// Function to convert graph flow JSON to flow object
-const convertGraphFlowToFlowObject = (graphFlow: GraphFlow, index: number, graphId?: string): FlowObject => {
+// Helper function to convert GraphFlow to FlowObject
+const convertGraphFlowToFlowObject = (
+  graphFlow: GraphFlow,
+  index: number,
+  blueprintId?: string,
+): FlowObject => {
   if (!graphFlow) return null;
 
   // Extract metadata
-  const name = graphFlow.display_name || `Flow ${index + 1}`;
-  const description = graphFlow.display_description || 'No description available';
+  const name = graphFlow.name || `Flow ${index + 1}`;
+  const description = graphFlow.description || "No description available";
 
   // Generate a random icon for the flow
-  const iconOptions: React.FC<{ className?: string }>[] = [Activity, Database, FileText, Zap, Filter, GitBranch, MessageSquare, BookOpen];
+  const iconOptions: React.FC<{ className?: string }>[] = [
+    Activity,
+    Database,
+    FileText,
+    Zap,
+    Filter,
+    GitBranch,
+    MessageSquare,
+    BookOpen,
+  ];
   const IconComponent = iconOptions[index % iconOptions.length];
-  
+
   return {
-    id: graphId || `flow-${index}`,
+    id: blueprintId || index.toString(), // Use blueprintId if available
     name,
     description,
     icon: <IconComponent className="h-4 w-4 mr-2" />,
     flow: {
       nodes: [],
-      edges: []
-    }
+      edges: [],
+    },
   };
 };
 
@@ -40,7 +63,10 @@ type AgentFlowGraphProps = {
   setSelectedFlow: (flow: FlowObject | null) => void;
 };
 
-export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlowGraphProps): React.ReactElement {
+export default function AgentFlowGraph({
+  selectedFlow,
+  setSelectedFlow,
+}: AgentFlowGraphProps): React.ReactElement {
   // State for available graph flows
   const [graphFlows, setGraphFlows] = useState<FlowObject[]>([]);
   const [activeFlowIds, setActiveFlowIds] = useState<string[]>([]);
@@ -52,22 +78,23 @@ export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlo
   useEffect(() => {
     const fetchGraphFlows = async () => {
       try {
-        const response = await axios.get('/api/blueprints/available.blueprints.get');
-        const planKeys: string[] = response.data.flatMap((plan) => Object.keys(plan));
-        const mockGraphFlows: GraphFlow[] = response.data.flatMap((plan) => Object.values(plan));
+        const response = await axios.get(
+          `/blueprints/available.blueprints.get?userId=${user?.username || "default"}`,
+        );
+        const blueprints: Array<{ blueprint_id: string; spec_dict: GraphFlow }> = response.data;
 
-        // Convert the mock graph flows to the format expected by the component
-        const processedFlows = mockGraphFlows.map((flow, index) =>
-          convertGraphFlowToFlowObject(flow, index, planKeys[index])
+        // Convert the blueprints to the format expected by the component
+        const processedFlows = blueprints.map((blueprint) =>
+          convertGraphFlowToFlowObject(blueprint.spec_dict, 0, blueprint.blueprint_id),
         );
         setGraphFlows(processedFlows);
-        
+
         // Select the first flow by default
         if (processedFlows.length > 0) {
           setSelectedFlow(processedFlows[0]);
         }
       } catch (error) {
-        console.error('Error fetching available plans:', error);
+        console.error("Error fetching available plans:", error);
       } finally {
         setIsLoading(false);
       }
@@ -75,17 +102,17 @@ export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlo
 
     const fetchActiveFlows = async () => {
       try {
-        const response = await axios.get(`/api/sessions/session.user.blueprints.get?userId=${user?.username || "default"}`);
+        const response = await axios.get(`/sessions/session.user.blueprints.get?userId=${user?.username || "default"}`);
         setActiveFlowIds(response.data || []);
       } catch (error) {
-        console.error('Error fetching active flows:', error);
+        console.error("Error fetching active flows:", error);
         setActiveFlowIds([]);
       }
     };
-    
+
     fetchGraphFlows();
     fetchActiveFlows();
-  }, [setSelectedFlow]);
+  }, [setSelectedFlow, user]);
 
   const handleFlowSelect = (flow: FlowObject): void => {
     setSelectedFlow(flow);
@@ -99,7 +126,9 @@ export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlo
     return (
       <Card className="bg-background-card shadow-card border-gray-800">
         <CardHeader className="py-4 px-6">
-          <CardTitle className="text-lg font-heading">Agent Flow Visualization</CardTitle>
+          <CardTitle className="text-lg font-heading">
+            Agent Flow Visualization
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0" style={{ height: "80vh" }}>
           <div className="flex items-center justify-center h-full">
@@ -113,7 +142,9 @@ export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlo
   return (
     <Card className="bg-background-card shadow-card border-gray-800">
       <CardHeader className="py-4 px-6 flex flex-row justify-between items-center">
-        <CardTitle className="text-lg font-heading">Agent Flow Visualization</CardTitle>
+        <CardTitle className="text-lg font-heading">
+          Agent Flow Visualization
+        </CardTitle>
       </CardHeader>
       <CardContent className="p-0" style={{ height: "80vh" }}>
         <div className="flex h-full">
@@ -128,8 +159,8 @@ export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlo
                   key={flow.id}
                   className={`px-4 py-2 border-l-2 cursor-pointer ${
                     selectedFlow?.id === flow.id
-                      ? 'border-[#003f5c] bg-[#003f5c] bg-opacity-10'
-                      : 'border-transparent hover:bg-background-surface'
+                      ? "border-[#003f5c] bg-[#003f5c] bg-opacity-10"
+                      : "border-transparent hover:bg-background-surface"
                   }`}
                   onClick={() => handleFlowSelect(flow)}
                   whileHover={{ x: 2 }}
@@ -146,18 +177,20 @@ export default function AgentFlowGraph({selectedFlow, setSelectedFlow}: AgentFlo
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">{flow.description}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {flow.description}
+                  </p>
                 </motion.div>
               ))}
             </div>
           </div>
-          
+
           {/* Graph visualization */}
           <div className="flex-grow">
             <StreamingDataProvider>
               <ReactFlowProvider>
-                <ReactFlowGraph 
-                  blueprintId={selectedFlow?.id}
+                <ReactFlowGraph
+                  blueprintId={selectedFlow?.id} // Pass the id (which is blueprintId)
                   height="100%"
                   showControls={true}
                   showMiniMap={true}

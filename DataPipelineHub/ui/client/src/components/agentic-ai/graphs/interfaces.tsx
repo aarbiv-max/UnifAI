@@ -10,72 +10,101 @@ export interface NodeData {
   style: string;
   icon: React.ReactNode;
   tools: string[];
+  workspaceData?: any;
+  onDelete?: (nodeId: string) => void;
 }
 
 // Define types for GraphFlow structure
 export interface NodeDefinition {
-  type: string;
-  name?: string | null;
-  _meta: _NodeMetadata;
-  llm?: string | null;
-  retriever?: string | null;
-  system_message?: string | null;
-  retries?: number | null;
-  tools: string[] | null;
-}
-
-export interface PlanItem {
+  config: {
+    retries?: number;
+    type: string;
+    llm?: string;
+    retriever?: string;
+    system_message?: string;
+    tools?: string[];
+    [key: string]: any; // For additional config properties
+  };
   name: string;
-  node?: NodeDefinition;
-  after?: string | string[] | null;
-  branches: null;
-  exit_condition: null;
-  uid: string;
-  meta: NodeMetadata | null;
-}
-
-export interface GraphFlowMetadata {
-  name?: string;
-  description?: string;
-}
-
-export interface _NodeMetadata {
-  category: string,
-  description: string,
-  display_name: string,
-  type: string,
-}
-
-export interface NodeMetadata {
-  description: string,
-  display_name: string,
-  tags: string[]
+  rid: string;
+  type: string;
 }
 
 export interface LLMDefinition {
-  _meta: _NodeMetadata;
+  config: {
+    api_key?: string;
+    base_url?: string;
+    extra?: { [key: string]: any };
+    max_tokens?: number;
+    model_name?: string;
+    temperature?: number;
+    type: string;
+    [key: string]: any;
+  };
   name: string;
+  rid: string;
   type: string;
-  model_name: string;
-  base_url: string;
-  temperature: number;
 }
 
 export interface RetrieverDefinition {
-  _meta: _NodeMetadata;
+  config: {
+    api_url?: string;
+    threshold?: number;
+    top_k_results?: number;
+    type: string;
+    [key: string]: any;
+  };
   name: string;
+  rid: string;
   type: string;
+}
+
+export interface ToolDefinition {
+  config: {
+    provider?: string;
+    tool_name?: string;
+    type: string;
+    [key: string]: any;
+  };
+  name: string;
+  rid: string;
+  type: string;
+}
+
+export interface ProviderDefinition {
+  config: {
+    sse_endpoint?: string;
+    type: string;
+    [key: string]: any;
+  };
+  name: string;
+  rid: string;
+  type: string;
+}
+
+export interface PlanItem {
+  after?: string | string[] | null;
+  branches: null;
+  exit_condition: null;
+  meta: {
+    description: string;
+    display_name: string;
+    tags: string[];
+  };
+  node: string; // Reference to the node's rid
+  uid: string;
 }
 
 export interface GraphFlow {
   conditions?: any[];
   description: string;
-  display_description: string,
-  display_name: string
-  llms?: LLMDefinition[];
+  name: string;
+  nodes: NodeDefinition[];
   plan: PlanItem[];
+  llms?: LLMDefinition[];
   retrievers?: RetrieverDefinition[];
-  tools?: any[];
+  tools?: ToolDefinition[];
+  providers?: ProviderDefinition[];
 }
 
 export interface FlowObject {
@@ -88,3 +117,20 @@ export interface FlowObject {
     edges: Edge[];
   };
 }
+
+// Additional interfaces for the graph builder
+export interface EnhancedNodeData extends NodeData {
+  status?: 'IDLE' | 'PROGRESS' | 'DONE';
+  timestamp?: string;
+  execution_data?: any;
+}
+
+export interface ReactFlowGraphProps {
+  blueprintId?: string;
+  height?: string;
+  showControls?: boolean;
+  showMiniMap?: boolean;
+  showBackground?: boolean;
+  interactive?: boolean;
+  isLiveRequest?: boolean;
+} 

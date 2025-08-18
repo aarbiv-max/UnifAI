@@ -357,8 +357,14 @@ class SlackConnector(DataConnector):
         logger.info(f"Retrieved {len(channels)} Slack channels from {api_call_count} fallback API calls")
         return channels
     
-    def get_conversations_history(self, channel_id: str, limit: int = 1000, 
-                               cursor: Optional[str] = None) -> Tuple[List[Dict[str, Any]], List[List[Dict[str, Any]]]]:
+    def get_conversations_history(
+        self,
+        channel_id: str,
+        limit: int = 1000,
+        cursor: Optional[str] = None,
+        oldest: Optional[str] = None,
+        latest: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], List[List[Dict[str, Any]]]]:
         """
         Get conversation history for a Slack channel with pagination handling and concurrently fetches thread replies.
         
@@ -376,13 +382,17 @@ class SlackConnector(DataConnector):
         page = 1
 
         thread_retriever = SlackThreadRetriever(self)
-        thread_worker = ThreadRetrieverWorker(thread_retriever)
+        thread_worker = ThreadRetrieverWorker(thread_retriever, oldest=oldest, latest=latest)
         
         while has_more:
             params = {
                 'channel': channel_id,
                 'limit': limit
             }
+            if oldest:
+                params['oldest'] = oldest
+            if latest:
+                params['latest'] = latest
             
             if current_cursor:
                 params['cursor'] = current_cursor

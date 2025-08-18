@@ -1,0 +1,18 @@
+environments:
+  default:
+    values:
+      - ./values/ui-values.yaml
+---
+
+helmDefaults:
+  createNamespace: false
+  wait: false
+
+releases:
+
+  - name: unifai-ui
+    chart: ./ui
+    wait: true
+    values:
+      - {{- toYaml .Values.ui | nindent 8 }}
+      - ./values/global-config.yaml

@@ -34,7 +34,7 @@ def get_best_match_results(query: str, top_k_results: int = 5, scope: str = "pub
     embedding_generator = initialize_embedding_generator()
     
     # Create vector storage
-    vector_storage = initialize_vector_storage(embedding_generator.embedding_dim, SourceType.DOCUMENT)
+    vector_storage = initialize_vector_storage(embedding_generator.embedding_dim, SourceType.DOCUMENT.value)
     
     query_embedding = embedding_generator.generate_query_embedding(query)
     

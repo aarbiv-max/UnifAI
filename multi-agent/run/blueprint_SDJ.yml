@@ -1,0 +1,212 @@
+description: |
+  A multi-agent pipeline that combines document retrieval, Slack context, and Jira tool execution to produce a single smart answer to user questions.
+
+name: |
+  Slack, Docs & Jira Search
+
+# ----------------------------
+# Providers
+# ----------------------------
+providers:
+  - rid: mcp_server_rid
+    name: mcp
+    type: mcp_server
+    config:
+      type: mcp_server
+      sse_endpoint: http://10.46.254.131:8007/servers/mcp-atlassian/sse
+      tool_names:
+        - jira_get_issue
+        - jira_search
+        - jira_get_project_issues
+        - jira_create_issue
+        - jira_update_issue
+        - jira_link_to_epic
+
+# ----------------------------
+# LLM Definitions
+# ----------------------------
+llms:
+  - rid: openai_llm_rid
+    name: openai_llm
+    type: openai
+    config:
+      type: openai
+      model_name: gemini-2.5-flash
+      api_key: AIzaSyBwuQtKPtwKILBulq_YW16RKjMAVx4gbKQ
+      base_url: https://generativelanguage.googleapis.com/v1beta/openai
+
+# ----------------------------
+# Retriever
+# ----------------------------
+retrievers:
+  - rid: docs_retriever_rid
+    name: my_docs
+    type: docs
+    config:
+      type: docs
+      top_k_results: 5
+      api_url: https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/api/docs/query.match
+
+  - rid: slack_retriever_rid
+    name: my_slack
+    type: slack
+    config:
+      type: slack
+      top_k_results: 5
+      api_url: https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/api/slack/query.match
+
+
+# ----------------------------
+# Tool Stubs
+# ----------------------------
+tools: []
+
+# ----------------------------
+# Conditions
+# ----------------------------
+conditions: [ ]
+
+nodes:
+  - rid: user_question_node_rid
+    name: User Question Node
+    type: user_question_node
+    config:
+      type: user_question_node
+
+  - rid: final_answer_node_rid
+    name: Final Answer None
+    type: final_answer_node
+    config:
+      type: final_answer_node
+
+  - rid: docs_agent_rid
+    name: docs_agent
+    type: custom_agent_node
+    config:
+      type: custom_agent_node
+      llm: openai_llm_rid
+      retriever: docs_retriever_rid
+      system_message: |
+        You are a Document Retrieval Assistant.
+        • Use only the excerpts returned from the docs retriever as your context.
+        • Answer the user’s question strictly from those document passages.
+        • When quoting or paraphrasing, cite the document name in brackets (e.g., 'ProjectGuide.pdf').
+        • mention all the documents names you take the info from(names not uid).
+        • If no document passage is relevant, respond: “I’m sorry, I don’t know.”
+
+  - rid: slack_agent_rid
+    name: slack_agent
+    type: custom_agent_node
+    config:
+      type: custom_agent_node
+      llm: openai_llm_rid
+      retriever: slack_retriever_rid
+      system_message: |
+        You are a Slack Context Assistant.
+        • Use only the messages returned from the Slack retriever as your context.
+        • Answer the user’s question strictly based on those Slack messages.
+        • If you refer to a specific message, indicate the timestamp or author.
+        • If no Slack message is relevant, respond: “I’m sorry, I don’t know.”
+
+  - rid: agent_with_jira_rid
+    name: agent_with_jira
+    type: custom_agent_node
+    config:
+      type: custom_agent_node
+      llm: openai_llm_rid
+      provider: mcp_server_rid
+      system_message: |
+        You are a Jira Assistant.
+        • Use the Jira tools to answer questions about issues, projects, and tasks.
+        • If you need to retrieve an issue, use the 'get_issue' tool.
+        • If you need to search for issues, use the 'jira_search' tool.
+        • If you need to create or update an issue, use the appropriate tools.
+        • Always provide clear and concise answers based on the Jira data.
+
+  - rid: agent_merger_rid
+    name: agent_merger
+    type: merger_node
+    config:
+      type: merger_node
+      llm: openai_llm_rid
+      system_message: |
+        You are the Merger Agent. Your role is to combine answers from specialized agents into one clear, helpful response.
+
+        1. **Merge answers**:
+           - Combine all relevant information into a single coherent message.
+           - Attribute each part using inline tags like “[Slack Agent]”, “[Document Agent]”, etc.
+           - If sources agree, write: “...confirmed by multiple sources [Slack Agent, Document Agent].”
+           - For conflicting views, show both sides neutrally.
+
+        2. **Preserve original references**:
+           - If an agent mentioned a source (e.g., PDF name, Slack user, timestamp), include it in parentheses within the sentence.
+           - Keep source mentions (like file names or authors) distinct from agent tags.
+
+        3. **Missing info**:
+           - If any agent asked for more input, list those requests at the end under:
+             "**To improve this answer, consider providing:**"
+           - Only include real prompts—don’t invent or specify which agent asked.
+
+        Output:
+        - Start with the merged answer using inline agent tags and source mentions.
+        - End with the improvement section if needed.
+        - Use a professional, neutral tone that’s easy to follow.
+
+# ----------------------------
+# Plan Steps
+# ----------------------------
+plan:
+  - uid: user_input
+    node: user_question_node_rid
+    meta:
+      display_name: User Question
+      description: |
+        The user inputs a question or request.
+
+  ##### DOCS ######
+  - uid: docs_agent
+    after: user_input
+    node: docs_agent_rid
+    meta:
+      display_name: Doc Agent
+      description: |
+        Retrieve doc data
+
+  ##### SLACK ######
+  - uid: slack_agent
+    after: user_input
+    node: slack_agent_rid
+    meta:
+      display_name: Slack Agent
+      description: |
+        Retrieve slack data
+
+
+  ##### JIRA ######
+  - uid: agent_with_jira
+    after: user_input
+    node: agent_with_jira_rid
+    meta:
+      display_name: Jira Agent
+      description: |
+        Get Jira data using JIRA tools
+
+  - uid: agent_merger
+    after:
+      - docs_agent
+      - slack_agent
+      - agent_with_jira
+    node: agent_merger_rid
+    meta:
+      display_name: Agent Unifier
+      description: |
+        Merge all agents' responses into a final answer
+
+  - uid: finalize
+    after: agent_merger
+    node: final_answer_node_rid
+    meta:
+      display_name: Final Answer
+      description: |
+        Provide the final answer to the user based on all gathered information.
+

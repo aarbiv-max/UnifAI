@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Sequence, Optional
 from itertools import islice
-from llms.chat.message import ChatMessage, Role
+from elements.llms.common.chat.message import ChatMessage, Role
 
 
 def merge_string_dicts(existing: Dict[str, str], new_item: Any) -> Dict[str, str]:
