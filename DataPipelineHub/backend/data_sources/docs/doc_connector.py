@@ -1,7 +1,11 @@
 import os
+import hashlib
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from shared.logger import logger
+from pymongo import MongoClient
+from global_utils.utils.util import get_mongo_url
+from config.constants import PipelineStatus
 from utils.data_connector import DataConnector
 from .doc_config_manager import DocConfigManager
 from .pdf_chunker_strategy import DoclingProcessingError
@@ -110,6 +114,24 @@ class DocumentConnector(DataConnector):
             # Add metadata if requested
             if self._config_manager.get_config_value("include_metadata"):
                 document_data["metadata"] = self._extract_metadata(result, upload_by, file_size_mb)
+            
+            # Always compute MD5 of the full text for duplicate detection and persistence
+            try:
+                content_md5 = hashlib.md5(text_content.encode("utf-8")).hexdigest() if text_content else None
+            except Exception:
+                content_md5 = None
+            if content_md5:
+                document_data.setdefault("metadata", {})["content_md5"] = content_md5
+
+                # Detect duplication immediately and stop flow if duplicate found
+                dup = self.detect_duplication(content_md5)
+                if dup is not None:
+                    raise DuplicateDocumentError(
+                        content_md5=content_md5,
+                        existing_pipeline_id=dup.get("pipeline_id"),
+                        existing_source_id=dup.get("source_id"),
+                        existing_doc=dup,
+                    )
                 
             logger.info(f"Document processed successfully: {document_path}")
             return document_data
@@ -188,6 +210,46 @@ class DocumentConnector(DataConnector):
         except Exception as e:
             logger.error(f"Error processing document from URL {document_url}: {str(e)}")
             return None
+
+    def detect_duplication(self, content_md5: str) -> Optional[Dict[str, Any]]:
+        """
+        Check if a document with the same content MD5 already exists.
+        Returns the existing source doc if found AND its pipeline status is DONE, otherwise None.
+        """
+        try:
+            client = MongoClient(get_mongo_url())
+            sources_col = client["data_sources"]["sources"]
+            pipelines_col = client["pipeline_monitoring"]["pipelines"]
+
+            # Find all matching sources by MD5
+            candidates = sources_col.find({
+                "source_type": "DOCUMENT",
+                "type_data.content_md5": content_md5,
+            }, {"pipeline_id": 1, "source_id": 1, "source_name": 1})
+
+            for existing in candidates:
+                pipeline_id = existing.get("pipeline_id")
+                if not pipeline_id:
+                    continue
+                pipeline_doc = pipelines_col.find_one({
+                    "pipeline_id": pipeline_id,
+                    "status": PipelineStatus.DONE.value,
+                }, {"_id": 1})
+                if pipeline_doc:
+                    return existing
+            return None
+        except Exception as e:
+            logger.warning(f"Duplicate detection failed: {e}")
+            return None
+
+
+class DuplicateDocumentError(Exception):
+    def __init__(self, content_md5: str, existing_pipeline_id: Optional[str], existing_source_id: Optional[str], existing_doc: Optional[Dict[str, Any]] = None):
+        super().__init__("Duplicate document content detected")
+        self.content_md5 = content_md5
+        self.existing_pipeline_id = existing_pipeline_id
+        self.existing_source_id = existing_source_id
+        self.existing_doc = existing_doc
     
     def _extract_metadata(self, conversion_result: ConversionResult, upload_by="default", file_size=0) -> Dict[str, Any]:
         """
