@@ -60,7 +60,7 @@ const SaveBlueprintModal: React.FC<SaveBlueprintModalProps> = ({
               placeholder="e.g., Slack, Docs & Jira Search"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+              className="input-dark-theme bg-input border-border text-foreground"
               disabled={isLoading}
             />
           </div>
@@ -75,7 +75,7 @@ const SaveBlueprintModal: React.FC<SaveBlueprintModalProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
-              className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 resize-none"
+              className="input-dark-theme bg-input border-border text-foreground resize-none"
               disabled={isLoading}
             />
           </div>

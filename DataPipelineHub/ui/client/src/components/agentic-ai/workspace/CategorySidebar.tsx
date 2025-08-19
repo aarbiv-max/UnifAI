@@ -122,7 +122,7 @@ export const CategorySidebar: React.FC<CategorySidebarProps> = ({
                       className={`w-full justify-start px-4 py-2 rounded-none text-xs ${
                         selectedElementType?.type === elementType.type && 
                         selectedElementType?.category === elementType.category
-                          ? 'bg-primary bg-opacity-20 text-primary border-r-2 border-primary'
+                          ? 'bg-primary bg-opacity-20 text-secondary border-r-2 border-primary'
                           : 'text-gray-400 hover:text-gray-200'
                       }`}
                       onClick={() => handleElementTypeClick(category.category, elementType)}

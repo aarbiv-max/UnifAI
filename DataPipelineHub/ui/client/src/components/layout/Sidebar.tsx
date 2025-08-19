@@ -263,7 +263,7 @@ function NavItem({ icon, label, to, isActive, status, isCollapsed }: NavItemProp
     >
       <div className={`flex items-center ${isCollapsed ? '' : 'space-x-3'}`}>
         {React.cloneElement(icon as React.ReactElement, { 
-          className: `sidebar-icon ${isActive ? 'text-primary' : 'text-gray-400'}`
+          className: `sidebar-icon ${isActive ? 'text-secondary' : 'text-gray-400'}`
         })}
         {!isCollapsed && (
           <motion.span

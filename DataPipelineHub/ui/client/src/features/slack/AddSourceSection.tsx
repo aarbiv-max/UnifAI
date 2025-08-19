@@ -75,6 +75,7 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [selectedChannelEntities, setSelectedChannelEntities] = useState<Record<string, Channel>>({});
   const [channelSettings, setChannelSettings] = useState<Record<string, ChannelSettingsData>>({});
   const [lastSelectedChannel, setLastSelectedChannel] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -198,64 +199,24 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
   });
 
   const getSelectedChannels = useCallback(async (): Promise<ChannelWithSettings[]> => {
-    // Use settings from the last selected channel for all selected channels
-    const settingsToUse = lastSelectedChannel 
-      ? (channelSettings[lastSelectedChannel] || defaultChannelSettings)
-      : defaultChannelSettings;
-      
-    // CRITICAL FIX: Get ALL channels from React Query cache for filtering
-    // regardless of current scope, so we don't lose selections from other scopes
-    let allChannelsForFiltering: Channel[] = [];
-    
-    try {
-      // Try to get cached data from all scopes
-      const publicCacheData = queryClient.getQueryData([CACHE_KEY, CHANNEL_TYPE.PUBLIC, '']) as any;
-      const privateCacheData = queryClient.getQueryData([CACHE_KEY, CHANNEL_TYPE.PRIVATE, '']) as any;
-      const allCacheData = queryClient.getQueryData([CACHE_KEY, ALL_CHANNEL_TYPES, '']) as any;
-      
-      // Use cached "all" data first, then fall back to merging public + private cache
-      if (allCacheData?.pages) {
-        allChannelsForFiltering = allCacheData.pages.flatMap((page: any) => page.channels);
-      } else if (publicCacheData?.pages || privateCacheData?.pages) {
-        const publicChannels = publicCacheData?.pages?.flatMap((page: any) => page.channels) || [];
-        const privateChannels = privateCacheData?.pages?.flatMap((page: any) => page.channels) || [];
-        const mergedChannels = [...publicChannels, ...privateChannels];
-        allChannelsForFiltering = Array.from(
-          new Map(mergedChannels.map(c => [c.channel_id, c])).values()
-        );
-      } else {
-        // If no cache available, make API calls as fallback
-        const [pubResponse, privResponse] = await Promise.all([
-          fetchAvailableSlackChannels(CHANNEL_TYPE.PUBLIC, { limit: 1000 }),
-          fetchAvailableSlackChannels(CHANNEL_TYPE.PRIVATE, { limit: 1000 }),
-        ]);
-
-        const mergedChannels = [...pubResponse.channels, ...privResponse.channels];
-        allChannelsForFiltering = Array.from(
-          new Map(mergedChannels.map(c => [c.channel_id, c])).values()
-        );
-      }
-    } catch (error) {
-      console.error('Failed to get all channels, falling back to current scope channels:', error);
-      // Fallback to current scope channels if everything fails
-      allChannelsForFiltering = channels;
-    }
-    
-    const filtered = allChannelsForFiltering
-      .filter(c => selectedChannels.includes(getChannelUniqueId(c)));
-      
-    const result = filtered.map(c => ({
-        ...c,
+    // Build payload per-channel using its own saved settings
+    const result: ChannelWithSettings[] = [];
+    for (const id of selectedChannels) {
+      const channel = selectedChannelEntities[id] || channels.find(c => getChannelUniqueId(c) === id);
+      if (!channel) continue;
+      const settingsForThisChannel = channelSettings[id] || defaultChannelSettings;
+      result.push({
+        ...channel,
         settings: {
-          dateRange: settingsToUse.dateRange,
+          dateRange: settingsForThisChannel.dateRange,
           communityPrivacy: 'public' as const,
-          includeThreads: settingsToUse.includeThreads,
-          processFileContent: settingsToUse.processFileContent,
+          includeThreads: settingsForThisChannel.includeThreads,
+          processFileContent: settingsForThisChannel.processFileContent,
         }
-      }));
-    
+      });
+    }
     return result;
-  }, [selectedChannels, channelSettings, lastSelectedChannel, scope, channels, queryClient]);
+  }, [selectedChannels, selectedChannelEntities, channelSettings, channels]);
 
   useImperativeHandle(ref, () => ({
     getSelectedChannels,
@@ -286,6 +247,11 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
           ...prevSettings,
           [uniqueId]: defaultChannelSettings
         }));
+        // Persist the channel entity for reliable payload building
+        setSelectedChannelEntities(prevEntities => ({
+          ...prevEntities,
+          [uniqueId]: channel,
+        }));
         // Set this as the last selected channel
         setLastSelectedChannel(uniqueId);
       } else if (isCurrentlySelected) {
@@ -295,6 +261,12 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
           const remainingChannels = newSelected;
           setLastSelectedChannel(remainingChannels.length > 0 ? remainingChannels[remainingChannels.length - 1] : null);
         }
+        // Remove the entity when deselecting
+        setSelectedChannelEntities(prevEntities => {
+          const copy = { ...prevEntities };
+          delete copy[uniqueId];
+          return copy;
+        });
       }
       
       return newSelected;
@@ -329,6 +301,7 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
       if (allSelected) {
         // Clear all selections
         setLastSelectedChannel(null);
+        setSelectedChannelEntities({});
         return [];
       } else {
         // Select all available channels
@@ -345,6 +318,16 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
               }
             });
             return newSettings;
+          });
+          // Persist entities for all newly selected channels
+          const idToChannel = new Map<string, Channel>(filteredChannels.map(c => [getChannelUniqueId(c), c]));
+          setSelectedChannelEntities(prevEntities => {
+            const copy = { ...prevEntities };
+            newChannels.forEach(id => {
+              const ch = idToChannel.get(id);
+              if (ch) copy[id] = ch;
+            });
+            return copy;
           });
           
           // Set the last channel in the list as the last selected
@@ -516,11 +499,17 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
                   {!c.is_private && <Badge className="ml-2 bg-secondary bg-opacity-20 text-gray-400">Public</Badge>}
                   {isEmbedded && <Badge className="ml-2 bg-green-500/20 text-green-400 border border-green-400/30">Embedded</Badge>}
                 </div>
-                <Switch 
-                  checked={isEmbedded || selectedChannels.includes(uniqueId)} 
-                  disabled={isEmbedded}
-                  onCheckedChange={() => handleToggleChannel(c)} 
-                />
+                <div 
+                  onClick={(e) => e.stopPropagation()} 
+                  onPointerDown={(e) => e.stopPropagation()} 
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <Switch 
+                    checked={isEmbedded || selectedChannels.includes(uniqueId)} 
+                    disabled={isEmbedded}
+                    onCheckedChange={() => handleToggleChannel(c)} 
+                  />
+                </div>
               </div>
             );
           })}

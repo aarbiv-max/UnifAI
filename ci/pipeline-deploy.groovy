@@ -78,10 +78,10 @@ def updateValuesYaml(String filePath , String version) {
                 sectionData.resources = sectionData.resources ?: [:]
                 sectionData.resources.limits = sectionData.resources.limits ?: [:]
                 sectionData.resources.requests = sectionData.resources.requests ?: [:]
-                sectionData.resources.limits.cpu = 1
-                sectionData.resources.limits.memory = "2Gi"
-                sectionData.resources.requests.cpu = 1
-                sectionData.resources.requests.memory = "2Gi"
+                sectionData.resources.limits.cpu = 4
+                sectionData.resources.limits.memory = "8Gi"
+                sectionData.resources.requests.cpu = 4
+                sectionData.resources.requests.memory = "8Gi"
             }
             else if (params.deploy_location == 'PRODUCTION') {
 

@@ -248,9 +248,9 @@ class SlackConnector(DataConnector):
         """
         try:
             # Check if cache is empty - if so, fall back to API
-            if not self._mongo_storage.slack_channels.has_cached_channels(self._project_id) and not search_regex:
-                logger.warning(f"No cached channels found for project {self._project_id}. Falling back to API call.")
-                return self._fallback_with_pagination(types, cursor, limit)
+            # if not self._mongo_storage.slack_channels.has_cached_channels(self._project_id) and not search_regex:
+            #     logger.warning(f"No cached channels found for project {self._project_id}. Falling back to API call.")
+            #     return self._fallback_with_pagination(types, cursor, limit)
             
             # Get channels from repository with pagination
             return self._mongo_storage.slack_channels.get_channels_with_pagination(
