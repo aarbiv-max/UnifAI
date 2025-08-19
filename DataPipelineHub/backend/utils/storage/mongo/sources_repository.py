@@ -1,6 +1,6 @@
 from typing import Optional, Dict, List, Any
 from pymongo.collection import Collection
-from datetime import datetime
+from datetime import datetime, timezone
 from .utils import make_json_safe
 from shared.logger import logger
 
@@ -73,7 +73,7 @@ class SourcesRepository:
     def upsert_summary(self, source_id: str, source_name: str, source_type: str,
                        upload_by: str, pipeline_id: str, type_data: Optional[Dict[str, Any]] = None):
         """Create or update a source summary."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         update = {
             "last_sync_at": now,
             "last_updated": now,

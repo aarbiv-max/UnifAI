@@ -73,6 +73,7 @@ export interface Document {
   _id: string;
   pipeline_id: string;
   created_at: string;
+  last_updated: string;
   source_id: string;
   source_name: string;
   source_type: string;
@@ -82,8 +83,9 @@ export interface Document {
     page_count: number;
     full_text: string;
     file_size: string;
+    content_md5: string;
   };
-  upload_by: string | string[];
+  upload_by: string;
   pipeline_stats: {
     status: PipelineStatus;
     documents_retrieved: number;

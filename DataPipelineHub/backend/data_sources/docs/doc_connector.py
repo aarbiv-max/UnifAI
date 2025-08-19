@@ -115,9 +115,9 @@ class DocumentConnector(DataConnector):
             try:
                 text_md5 = self._compute_file_md5(text_content)
                 if text_md5:
-                    dup_text = self._detect_duplication_by_field("type_data.content_md5", text_md5)
-                    if dup_text is not None:
-                        raise DuplicateDocumentError(content_md5=text_md5)
+                    dup_doc = self._detect_duplication(text_md5)
+                    if dup_doc:
+                        raise DuplicateDocumentError(dup_doc=dup_doc)
                     else:
                         document_data.setdefault("metadata", {})["content_md5"] = text_md5
             except DuplicateDocumentError:
@@ -209,7 +209,7 @@ class DocumentConnector(DataConnector):
             logger.error(f"Error processing document from URL {document_url}: {str(e)}")
             return None
 
-    def detect_duplication(self, content_md5: str) -> Optional[Dict[str, Any]]:
+    def _detect_duplication(self, content_md5: str) -> Optional[Dict[str, Any]]:
         """
         Check if a document with the same content MD5 already exists.
         Returns the existing source doc if found AND its pipeline status is DONE, otherwise None.
@@ -223,49 +223,18 @@ class DocumentConnector(DataConnector):
             candidates = sources_col.find({
                 "source_type": "DOCUMENT",
                 "type_data.content_md5": content_md5,
-            }, {"pipeline_id": 1, "source_id": 1, "source_name": 1})
+            })
 
             for existing in candidates:
-                pipeline_id = existing.get("pipeline_id")
-                if not pipeline_id:
-                    continue
                 pipeline_doc = pipelines_col.find_one({
-                    "pipeline_id": pipeline_id,
+                    "pipeline_id": existing.get("pipeline_id"),
                     "status": PipelineStatus.DONE.value,
-                }, {"_id": 1})
+                })
                 if pipeline_doc:
                     return existing
             return None
         except Exception as e:
             logger.warning(f"Duplicate detection failed: {e}")
-            return None
-
-    def _detect_duplication_by_field(self, field: str, value: str) -> Optional[Dict[str, Any]]:
-        """
-        Check for duplicates using an alternate indexed field (e.g., content_md5) and only
-        return a match if the associated pipeline is DONE.
-        """
-        try:
-            client = MongoClient(get_mongo_url())
-            sources_col = client["data_sources"]["sources"]
-            pipelines_col = client["pipeline_monitoring"]["pipelines"]
-            candidates = sources_col.find({
-                "source_type": "DOCUMENT",
-                field: value,
-            }, {"pipeline_id": 1, "source_id": 1, "source_name": 1})
-            for existing in candidates:
-                pipeline_id = existing.get("pipeline_id")
-                if not pipeline_id:
-                    continue
-                pipeline_doc = pipelines_col.find_one({
-                    "pipeline_id": pipeline_id,
-                    "status": PipelineStatus.DONE.value,
-                }, {"_id": 1})
-                if pipeline_doc:
-                    return existing
-            return None
-        except Exception as e:
-            logger.warning(f"Duplicate detection by field failed: {e}")
             return None
 
     def _compute_file_md5(self, full_text: str) -> Optional[str]:
@@ -329,6 +298,6 @@ class DocumentConnector(DataConnector):
 
 
 class DuplicateDocumentError(Exception):
-    def __init__(self, content_md5: Optional[str]):
+    def __init__(self, dup_doc: Optional[str]):
         super().__init__("Duplicate document content detected")
-        self.content_md5 = content_md5
+        self.dup_doc = dup_doc
