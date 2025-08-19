@@ -57,27 +57,19 @@ class PipelineExecutor:
 
     def run(self) -> Any:
         self._run_orchestration()
-        
         collected   = self._run_collect()
-        # If the pipeline was marked SKIPPED during collection, stop early
-        current_status = self.repo.get_pipeline_field(self.pipeline.get_pipeline_id(), "status", PipelineStatus.PENDING.value)
-        if current_status == PipelineStatus.SKIPPED.value:
-            self._run_clean_orchestration()
-            # Do not overwrite SKIPPED with DONE
-            return {}
-
         processed   = self._run_process(collected)
         embeddings  = self._run_chunk_and_embed(processed)
         stored      = self._run_store(embeddings)
         
         self._run_clean_orchestration()
-        # Only mark DONE if not SKIPPED or FAILED
         current_status = self.repo.get_pipeline_field(self.pipeline.get_pipeline_id(), "status", PipelineStatus.PENDING.value)
         if current_status not in {PipelineStatus.SKIPPED.value, PipelineStatus.FAILED.value}:
             self.repo.update_pipeline_status(
                 self.pipeline,
                 new_status=PipelineStatus.DONE.value
             )
+            
         self.repo.register_data_source(
             pipeline=self.pipeline,
             summary=self.pipeline.summary()

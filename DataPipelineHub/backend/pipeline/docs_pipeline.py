@@ -106,10 +106,26 @@ class DocumentPipeline(Pipeline):
                             "type_data.content_md5": content_md5,
                             "pipeline_id": {"$ne": self.get_pipeline_id()}
                         },
-                        {
-                            "$set": {"last_uploaded": datetime.utcnow()},
-                            "$addToSet": {"uploaders": uploader},
-                        }
+                        [
+                            {
+                                "$set": {
+                                    "last_uploaded": datetime.utcnow(),
+                                    "upload_by": {
+                                        "$cond": [
+                                            {"$isArray": "$upload_by"},
+                                            {"$setUnion": ["$upload_by", [uploader]]},
+                                            {
+                                                "$cond": [
+                                                    {"$eq": ["$upload_by", uploader]},
+                                                    "$upload_by",
+                                                    ["$upload_by", uploader]
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
                     )
                 except Exception:
                     pass

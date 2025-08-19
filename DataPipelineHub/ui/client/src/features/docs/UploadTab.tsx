@@ -21,6 +21,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string>("");
+    // Tracks upload and duplicate detection state within function scope; no component state needed
     
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -91,12 +92,18 @@ export const UploadTab: React.FC<UploadTabProps> = ({
             // Actively poll for a short time to detect duplicate SKIPPED entries created by the pipeline
             const uploadedNames = new Set<string>(docs.map((d: { source_name: string }) => d.source_name));
             let duplicateDetected = false;
+            let foundDup: any | undefined = undefined;
             for (let i = 0; i < 8; i++) { // ~12s max if 1.5s interval
                 try {
                     const current = await fetchDocuments();
                     // Look for any SKIPPED doc among recently uploaded names
-                    const skippedDup = current.find((doc: any) => uploadedNames.has(doc.source_name) && doc.status === 'SKIPPED' && ((doc.type_data?.skip_reason as string | undefined)?.toLowerCase?.().includes('duplicate') || !!doc.type_data?.duplicate_of_pipeline_id));
-                    if (skippedDup) {
+                    const match = current.find((doc: any) =>
+                        uploadedNames.has(doc.source_name) &&
+                        doc.status === 'SKIPPED' &&
+                        (((doc.type_data?.skip_reason as string | undefined)?.toLowerCase?.().includes('duplicate')) || !!doc.type_data?.duplicate_of_pipeline_id)
+                    );
+                    if (match) {
+                        foundDup = match;
                         duplicateDetected = true;
                         break;
                     }
@@ -104,13 +111,15 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                 await new Promise(res => setTimeout(res, 1500));
             }
 
-            if (duplicateDetected) {
+            if (duplicateDetected && foundDup) {
                 toast({
-                    title: "This document has already been embedded.",
-                    description: "Making it available...",
+                    title: "Duplicate document detected",
+                    description: `The document "${foundDup.source_name}" has already been embedded. Making it available...`,
                     variant: "destructive",
+                    duration: 10000, // 10 seconds
                 });
             }
+
             // Refresh documents cache and list immediately so the original jumps to top
             queryClient.invalidateQueries({ queryKey: ['documents'] });
             await fetchDocuments();

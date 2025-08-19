@@ -77,25 +77,22 @@ export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, delet
         <CardContent className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {paginatedDocuments.map((doc) => {
-              const md5 = doc?.type_data?.content_md5;
-              const preferred = md5 && md5PreferredMap ? md5PreferredMap[md5] : undefined;
-              const displayDoc = preferred && preferred.pipeline_id !== doc.pipeline_id ? preferred : doc;
               return (
                 <DataCard
                   key={doc.pipeline_id}
-                  iconRenderer={() => getFileIcon(displayDoc.type_data.file_type)}
-                  iconBgClass={fileByColors[displayDoc.type_data.file_type]}
-                  title={displayDoc.source_name}
+                  iconRenderer={() => getFileIcon(doc.type_data.file_type)}
+                  iconBgClass={fileByColors[doc.type_data.file_type]}
+                  title={doc.source_name}
                   status={doc.status}
-                  subtitle={getDataToDisplay(displayDoc) || `${displayDoc.type_data.page_count} pages | ${displayDoc.type_data.file_type} | ${displayDoc.type_data.file_size}`}
+                  subtitle={getDataToDisplay(doc) || `${doc.type_data.page_count} pages | ${doc.type_data.file_type} | ${doc.type_data.file_size}`}
                   metadata={
-                    Array.isArray(displayDoc.uploaders) && displayDoc.uploaders.length > 1
-                      ? `Uploaded ${new Date((displayDoc.last_uploaded || displayDoc.created_at)).toLocaleString("en-GB")} — uploaded by ${displayDoc.uploaders.length} people`
-                      : `Uploaded ${new Date((displayDoc.last_uploaded || displayDoc.created_at)).toLocaleString("en-GB")} by ${displayDoc.upload_by}`
+                    Array.isArray(doc.upload_by) && doc.upload_by.length > 1
+                      ? `Uploaded ${new Date(doc.created_at).toLocaleString("en-GB")} — by ${doc.upload_by.length} people`
+                      : `Uploaded ${new Date(doc.created_at).toLocaleString("en-GB")} by ${Array.isArray(doc.upload_by) ? doc.upload_by[0] : doc.upload_by}`
                   }
-                  footer={getDataToDisplay(displayDoc) || `${displayDoc.pipeline_stats?.chunks_generated} chunks`}
+                  footer={getDataToDisplay(doc) || `${doc.pipeline_stats?.chunks_generated} chunks`}
                   selected={doc === activeDoc}
-                  onClick={() => setActiveDoc(doc === activeDoc ? null : displayDoc)}
+                  onClick={() => setActiveDoc(doc === activeDoc ? null : doc)}
                   // extraTopRight={getExtraTopRight(doc, handleRetry, retrying)}
                   actions={getActions(doc, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed)}
                 />

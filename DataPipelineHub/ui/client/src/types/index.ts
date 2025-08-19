@@ -83,7 +83,7 @@ export interface Document {
     full_text: string;
     file_size: string;
   };
-  upload_by: string;
+  upload_by: string | string[];
   pipeline_stats: {
     status: PipelineStatus;
     documents_retrieved: number;

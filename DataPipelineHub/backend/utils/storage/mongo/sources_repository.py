@@ -90,8 +90,6 @@ class SourcesRepository:
                     "source_name": source_name,
                     "source_type": source_type,
                     "upload_by": upload_by,
-                    # Track all uploaders. Initialize with first uploader
-                    "uploaders": [upload_by],
                     "pipeline_id": pipeline_id,
                     "created_at": now
                 }
