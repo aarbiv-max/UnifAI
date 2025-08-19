@@ -21,7 +21,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string>("");
-    // Tracks upload and duplicate detection state within function scope; no component state needed
+    const [skippedDup, setSkippedDup] = useState<any>();
     
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -88,22 +88,26 @@ export const UploadTab: React.FC<UploadTabProps> = ({
 
     const startPipeline = async (docs: {source_name: string}[]) => {
         try {
+            const startedAt = Date.now();
             await embedDocs(docs)
             // Actively poll for a short time to detect duplicate SKIPPED entries created by the pipeline
             const uploadedNames = new Set<string>(docs.map((d: { source_name: string }) => d.source_name));
             let duplicateDetected = false;
-            let foundDup: any | undefined = undefined;
+            let foundDup: any | undefined;
             for (let i = 0; i < 8; i++) { // ~12s max if 1.5s interval
                 try {
                     const current = await fetchDocuments();
                     // Look for any SKIPPED doc among recently uploaded names
-                    const match = current.find((doc: any) =>
-                        uploadedNames.has(doc.source_name) &&
-                        doc.status === 'SKIPPED' &&
-                        (((doc.type_data?.skip_reason as string | undefined)?.toLowerCase?.().includes('duplicate')) || !!doc.type_data?.duplicate_of_pipeline_id)
-                    );
+                    const match = current.find((doc: any) => uploadedNames.has(doc.source_name) && doc.status === 'SKIPPED' && ((doc.type_data?.skip_reason as string | undefined)?.toLowerCase?.().includes('duplicate') || !!doc.type_data?.duplicate_of_pipeline_id))
                     if (match) {
                         foundDup = match;
+                        duplicateDetected = true;
+                        break;
+                    }
+                    // Fallback signal: original doc refreshed
+                    const matchUpdated = current.find((doc: any) => uploadedNames.has(doc.source_name) && doc.status !== 'SKIPPED' && !!doc.last_uploaded && new Date(doc.last_uploaded).getTime() >= startedAt - 500)
+                    if (matchUpdated) {
+                        foundDup = matchUpdated;
                         duplicateDetected = true;
                         break;
                     }

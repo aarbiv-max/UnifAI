@@ -138,6 +138,8 @@ class DocumentConnector(DataConnector):
             
         except DoclingProcessingError:
             raise
+        except DuplicateDocumentError:
+            raise
         except Exception as e:
             logger.error(f"Error processing document {document_path}: {str(e)}")
             return None
@@ -242,86 +244,43 @@ class DocumentConnector(DataConnector):
             logger.warning(f"Duplicate detection failed: {e}")
             return None
 
-
-class DuplicateDocumentError(Exception):
-    def __init__(self, content_md5: str, existing_pipeline_id: Optional[str], existing_source_id: Optional[str], existing_doc: Optional[Dict[str, Any]] = None):
-        super().__init__("Duplicate document content detected")
-        self.content_md5 = content_md5
-        self.existing_pipeline_id = existing_pipeline_id
-        self.existing_source_id = existing_source_id
-        self.existing_doc = existing_doc
-    
-    def _extract_metadata(self, conversion_result: ConversionResult, upload_by="default", file_size=0) -> Dict[str, Any]:
+    def _extract_metadata(self, conversion_result: ConversionResult, upload_by: str = "default", file_size: float = 0.0) -> Dict[str, Any]:
         """
         Extract metadata from a conversion result.
-        
-        Args:
-            conversion_result: The document conversion result
-            
-        Returns:
-            Dictionary containing document metadata
         """
-        metadata = {}
-        
+        metadata: Dict[str, Any] = {}
         try:
             doc = conversion_result.document
-            
-            # Extract basic document metadata
             if hasattr(doc, "metadata") and doc.metadata:
                 metadata.update(doc.metadata)
-
-            # Extract title
             metadata["title"] = doc.title if hasattr(doc, "title") else "Untitled"
-
-            # Extract uploader
             metadata["upload_by"] = upload_by
-            
-            # Extract file size
             metadata["file_size"] = f"{file_size:.2f} MB" if file_size > 0 else "Unknown size"
-                
-            # Extract structural information
             metadata["page_count"] = len(doc.pages) if hasattr(doc, "pages") else 1
-            
-            # Extract content statistics
             text = doc.export_to_text()
             metadata["character_count"] = len(text)
             metadata["word_count"] = len(text.split())
-            
-            # Extract table information if available
             if hasattr(conversion_result, "tables") and conversion_result.tables:
                 metadata["table_count"] = len(conversion_result.tables)
-                
-            # Extract image information if available
             if hasattr(conversion_result, "images") and conversion_result.images:
                 metadata["image_count"] = len(conversion_result.images)
-                
         except Exception as e:
             logger.warning(f"Error extracting metadata: {str(e)}")
-            
         return metadata
-    
+
     def get_document_structure(self, document_path: str) -> Optional[Dict[str, Any]]:
         """
-        Get the hierarchical structure of a document.
-        
-        Args:
-            document_path: Path to the document
-            
-        Returns:
-            Dictionary representing the document structure, or None if not available
+        Get the hierarchical structure of a processed document.
         """
         if document_path not in self._conversion_results:
             logger.warning(f"Document not processed yet: {document_path}")
             return None
-            
         try:
             result = self._conversion_results[document_path]
-            structure = {
+            structure: Dict[str, Any] = {
                 "title": result.document.title if hasattr(result.document, "title") else "Untitled",
                 "sections": []
             }
-            
-            # Extract sections and subsections if available
             if hasattr(result.document, "sections"):
                 for section in result.document.sections:
                     section_data = {
@@ -330,9 +289,16 @@ class DuplicateDocumentError(Exception):
                         "text": section.text if hasattr(section, "text") else "",
                     }
                     structure["sections"].append(section_data)
-            
             return structure
-            
         except Exception as e:
             logger.error(f"Error extracting document structure: {str(e)}")
             return None
+
+
+class DuplicateDocumentError(Exception):
+    def __init__(self, content_md5: str, existing_pipeline_id: Optional[str], existing_source_id: Optional[str], existing_doc: Optional[Dict[str, Any]] = None):
+        super().__init__("Duplicate document content detected")
+        self.content_md5 = content_md5
+        self.existing_pipeline_id = existing_pipeline_id
+        self.existing_source_id = existing_source_id
+        self.existing_doc = existing_doc

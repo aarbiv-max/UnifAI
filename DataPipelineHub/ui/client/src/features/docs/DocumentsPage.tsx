@@ -28,7 +28,7 @@ export default function Documents() {
   const { data: documentsRaw = [], isLoading, isError, error } = useQuery<Document[]>({
     queryKey: ['documents'],
     queryFn: fetchDocuments,
-    refetchInterval: 10000,
+    refetchInterval: 1000,
     refetchOnMount: true, 
     refetchOnWindowFocus: true, 
   });
@@ -44,34 +44,6 @@ export default function Documents() {
       return bt - at;
     });
   }, [documentsRaw]);
-
-  // Build a map from content_md5 -> preferred existing embedded doc
-  const md5PreferredMap = useMemo(() => {
-    const map: Record<string, Document> = {};
-    if (!documents?.length) return map;
-
-    const groups = new Map<string, Document[]>();
-    for (const doc of documents) {
-      const md5 = doc?.type_data?.content_md5;
-      if (!md5) continue;
-      const arr = groups.get(md5) || [];
-      arr.push(doc);
-      groups.set(md5, arr);
-    }
-
-    const pickPreferred = (arr: Document[]) => {
-      const done = arr.find(d => d.status === 'DONE');
-      if (done) return done;
-      const nonSkipped = arr.find(d => d.status && d.status !== 'SKIPPED');
-      if (nonSkipped) return nonSkipped;
-      return arr[0];
-    };
-
-    for (const [md5, arr] of groups) {
-      map[md5] = pickPreferred(arr);
-    }
-    return map;
-  }, [documents]);
 
   useEffect(() => {
     resetPage();
@@ -213,7 +185,6 @@ export default function Documents() {
                         retrying={retrying}
                         handleRetry={handleRetry}
                         footer={footer}
-                        md5PreferredMap={md5PreferredMap}
                       />
                     ) : (
                       <>
@@ -226,7 +197,6 @@ export default function Documents() {
                             onDeleteConfirmed={onDeleteConfirmed}
                             retrying={retrying}
                             handleRetry={handleRetry}
-                            md5PreferredMap={md5PreferredMap}
                           />
 
                         </div>

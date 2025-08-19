@@ -18,10 +18,9 @@ interface DocumentTableProps {
   onDeleteConfirmed?: (id: string) => void;
   retrying?: boolean;
   handleRetry?: (id: string) => void;
-  md5PreferredMap?: Record<string, Document>;
 }
 
-export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry, md5PreferredMap}) => {
+export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry}) => {
   const [confirmDoc, setConfirmDoc] = useState<Document | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
@@ -52,7 +51,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
     {
       accessorKey: "upload_by",
       header: "Uploaded By",
-      cell: ({ row }) => Array.isArray(row.original.upload_by) && row.original.upload_by.length > 1 ? `${row.original.upload_by.length} people` : (Array.isArray(row.original.upload_by) ? row.original.upload_by[0] : row.original.upload_by),
+      cell: ({ row }) => Array.isArray(row.original.upload_by) ? `${row.original.upload_by.length} people` : row.original.upload_by,
       meta: { align: "left" },
     },
     {

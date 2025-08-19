@@ -1,5 +1,4 @@
 from typing import List, Dict
-from datetime import datetime
 import hashlib
 from config.constants import PipelineStatus
 from pipeline.pipeline_repository import PipelineRepository
@@ -62,16 +61,14 @@ class DocumentPipeline(Pipeline):
             }
 
     def collect_data(self) -> Dict:
+        repo = PipelineRepository()
         try:
             self._cached_collected = self.collector.process_document(
                 document_path=self.metadata.doc_path,
                 upload_by=self.metadata.upload_by
             )
-            return self._cached_collected
-        
         except DuplicateDocumentError as dup:
-            # Early duplicate detection from collector: mark pipeline as SKIPPED and persist metadata
-            repo = PipelineRepository()
+            # Mark as skipped and remember why (store reason under data_sources)
             repo.update_pipeline_status(self, PipelineStatus.SKIPPED.value)
             repo.sources_collection.update_one(
                 {"pipeline_id": self.get_pipeline_id()},
@@ -83,10 +80,10 @@ class DocumentPipeline(Pipeline):
                 }},
                 upsert=True
             )
-            
             # Update existing original doc with latest uploader and last_uploaded timestamp
+            uploader = self.metadata.upload_by or "default"
             try:
-                uploader = self.metadata.upload_by or "default"
+                from datetime import datetime
                 repo.sources_collection.update_many(
                     {
                         "source_type": self.SOURCE_TYPE,
@@ -116,8 +113,73 @@ class DocumentPipeline(Pipeline):
                 )
             except Exception:
                 pass
-            # Return empty to stop further stages
+            # Stop further stages by returning empty dict
             return {}
+        # Duplicate detection: compute MD5 of full text and check in sources
+        try:
+            full_text = (self._cached_collected or {}).get("text", "")
+            content_md5 = hashlib.md5(full_text.encode("utf-8")).hexdigest() if full_text else None
+            self._cached_collected.setdefault("metadata", {})["content_md5"] = content_md5
+        except Exception:
+            content_md5 = None
+
+        if content_md5:
+            repo = PipelineRepository()
+            # Look for existing document with same hash (exclude current pipeline)
+            existing = repo.sources_collection.find_one({
+                "source_type": self.SOURCE_TYPE,
+                "type_data.content_md5": content_md5,
+                "pipeline_id": {"$ne": self.get_pipeline_id()}
+            })
+            if existing:
+                # Mark as skipped and remember why (store reason under data_sources)
+                repo.update_pipeline_status(self, PipelineStatus.SKIPPED.value)
+                # Persist duplicate metadata on the new (skipped) pipeline doc
+                repo.sources_collection.update_one(
+                    {"pipeline_id": self.get_pipeline_id()},
+                    {"$set": {
+                        "type_data.content_md5": content_md5,
+                        "type_data.skip_reason": "Duplicate document content (MD5)",
+                        "type_data.duplicate_of_pipeline_id": existing.get("pipeline_id"),
+                        "type_data.duplicate_of_source_id": existing.get("source_id"),
+                    }},
+                    upsert=True
+                )
+                # Update existing original doc with latest uploader and last_uploaded timestamp
+                uploader = self.metadata.upload_by or "default"
+                try:
+                    from datetime import datetime
+                    # Update all existing docs with same MD5 (excluding current) so the preferred one bubbles to top
+                    repo.sources_collection.update_many(
+                        {
+                            "source_type": self.SOURCE_TYPE,
+                            "type_data.content_md5": content_md5,
+                            "pipeline_id": {"$ne": self.get_pipeline_id()}
+                        },
+                        [
+                            {
+                                "$set": {
+                                    "last_uploaded": datetime.utcnow(),
+                                    "upload_by": {
+                                        "$cond": [
+                                            {"$isArray": "$upload_by"},
+                                            {"$setUnion": ["$upload_by", [uploader]]},
+                                            {
+                                                "$cond": [
+                                                    {"$eq": ["$upload_by", uploader]},
+                                                    "$upload_by",
+                                                    ["$upload_by", uploader]
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        ]
+                    )
+                except Exception:
+                    pass
+        return self._cached_collected
 
 
     def process_data(self, data: Dict) -> Dict:

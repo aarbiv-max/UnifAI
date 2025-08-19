@@ -16,7 +16,6 @@ interface DocumentGridProps {
   retrying: boolean;
   handleRetry: (id: string) => void;
   footer?: React.ReactNode;
-  md5PreferredMap?: Record<string, Document>;
 }
 
 const getFooterText = (doc: Document) => {
@@ -70,7 +69,7 @@ const getActions = (
   },
 ];
 
-export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry, footer, md5PreferredMap}: DocumentGridProps) => {
+export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry, footer}: DocumentGridProps) => {
   return (
     <>
       <Card className="bg-background-card shadow-card border-gray-800">
@@ -86,9 +85,9 @@ export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, delet
                   status={doc.status}
                   subtitle={getDataToDisplay(doc) || `${doc.type_data.page_count} pages | ${doc.type_data.file_type} | ${doc.type_data.file_size}`}
                   metadata={
-                    Array.isArray(doc.upload_by) && doc.upload_by.length > 1
-                      ? `Uploaded ${new Date(doc.created_at).toLocaleString("en-GB")} — by ${doc.upload_by.length} people`
-                      : `Uploaded ${new Date(doc.created_at).toLocaleString("en-GB")} by ${Array.isArray(doc.upload_by) ? doc.upload_by[0] : doc.upload_by}`
+                    Array.isArray(doc.upload_by)
+                      ? `Uploaded ${new Date(doc.last_uploaded || doc.created_at).toLocaleString("en-GB")} — by ${doc.upload_by.length} people`
+                      : `Uploaded ${new Date(doc.last_uploaded || doc.created_at).toLocaleString("en-GB")} by ${doc.upload_by}`
                   }
                   footer={getDataToDisplay(doc) || `${doc.pipeline_stats?.chunks_generated} chunks`}
                   selected={doc === activeDoc}
