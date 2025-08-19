@@ -182,6 +182,8 @@ class PipelineRepository:
             {"pipeline_id": pipeline_id},
             {field_name: True, "_id": False}
         )
+        print("!!!!!!")
+        print(doc)
         if not doc:
             return default
         return doc.get(field_name, default)

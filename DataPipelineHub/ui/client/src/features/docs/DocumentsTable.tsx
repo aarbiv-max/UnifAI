@@ -42,7 +42,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       meta: { align: "left", filterType: "text" },
     },
     {
-      accessorKey: "last_uploaded",
+      accessorKey: "last_updated",
       header: "Uploaded At",
       cell: ({ row }) =>
         new Date(row.original.created_at).toLocaleString("en-GB"),

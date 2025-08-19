@@ -87,7 +87,7 @@ class DocumentConnector(DataConnector):
             
         try:
             logger.info(f"Processing document: {document_path}")
-            
+
             # Process the document with docling
             # Note: Docling's DocumentConverter.convert() doesn't accept custom parameters (those are stored in the configuration but don't passed to the method)
             logger.info(f"Using default docling conversion parameters (custom options not supported)")
@@ -111,28 +111,24 @@ class DocumentConnector(DataConnector):
                 "filename": os.path.basename(document_path),
             }
             
+            # Compute MD5 of the extracted full text (post-conversion) and detect duplicates
+            try:
+                text_md5 = self._compute_file_md5(text_content)
+                if text_md5:
+                    dup_text = self._detect_duplication_by_field("type_data.content_md5", text_md5)
+                    if dup_text is not None:
+                        raise DuplicateDocumentError(content_md5=text_md5)
+                    else:
+                        document_data.setdefault("metadata", {})["content_md5"] = text_md5
+            except DuplicateDocumentError:
+                raise
+            except Exception as e:
+                logger.warning(f"Failed computing text MD5 for duplicate detection: {e}")
+
             # Add metadata if requested
             if self._config_manager.get_config_value("include_metadata"):
                 document_data["metadata"] = self._extract_metadata(result, upload_by, file_size_mb)
-            
-            # Always compute MD5 of the full text for duplicate detection and persistence
-            try:
-                content_md5 = hashlib.md5(text_content.encode("utf-8")).hexdigest() if text_content else None
-            except Exception:
-                content_md5 = None
-            if content_md5:
-                document_data.setdefault("metadata", {})["content_md5"] = content_md5
 
-                # Detect duplication immediately and stop flow if duplicate found
-                dup = self.detect_duplication(content_md5)
-                if dup is not None:
-                    raise DuplicateDocumentError(
-                        content_md5=content_md5,
-                        existing_pipeline_id=dup.get("pipeline_id"),
-                        existing_source_id=dup.get("source_id"),
-                        existing_doc=dup,
-                    )
-                
             logger.info(f"Document processed successfully: {document_path}")
             return document_data
             
@@ -244,6 +240,43 @@ class DocumentConnector(DataConnector):
             logger.warning(f"Duplicate detection failed: {e}")
             return None
 
+    def _detect_duplication_by_field(self, field: str, value: str) -> Optional[Dict[str, Any]]:
+        """
+        Check for duplicates using an alternate indexed field (e.g., content_md5) and only
+        return a match if the associated pipeline is DONE.
+        """
+        try:
+            client = MongoClient(get_mongo_url())
+            sources_col = client["data_sources"]["sources"]
+            pipelines_col = client["pipeline_monitoring"]["pipelines"]
+            candidates = sources_col.find({
+                "source_type": "DOCUMENT",
+                field: value,
+            }, {"pipeline_id": 1, "source_id": 1, "source_name": 1})
+            for existing in candidates:
+                pipeline_id = existing.get("pipeline_id")
+                if not pipeline_id:
+                    continue
+                pipeline_doc = pipelines_col.find_one({
+                    "pipeline_id": pipeline_id,
+                    "status": PipelineStatus.DONE.value,
+                }, {"_id": 1})
+                if pipeline_doc:
+                    return existing
+            return None
+        except Exception as e:
+            logger.warning(f"Duplicate detection by field failed: {e}")
+            return None
+
+    def _compute_file_md5(self, full_text: str) -> Optional[str]:
+        try:
+            if not full_text:
+                return None
+            return hashlib.md5(full_text.encode("utf-8")).hexdigest()
+        except Exception as e:
+            logger.warning(f"Failed to compute text MD5: {e}")
+            return None
+
     def _extract_metadata(self, conversion_result: ConversionResult, upload_by: str = "default", file_size: float = 0.0) -> Dict[str, Any]:
         """
         Extract metadata from a conversion result.
@@ -296,9 +329,6 @@ class DocumentConnector(DataConnector):
 
 
 class DuplicateDocumentError(Exception):
-    def __init__(self, content_md5: str, existing_pipeline_id: Optional[str], existing_source_id: Optional[str], existing_doc: Optional[Dict[str, Any]] = None):
+    def __init__(self, content_md5: Optional[str]):
         super().__init__("Duplicate document content detected")
         self.content_md5 = content_md5
-        self.existing_pipeline_id = existing_pipeline_id
-        self.existing_source_id = existing_source_id
-        self.existing_doc = existing_doc

@@ -84,11 +84,11 @@ class MongoStorage:
                 source['status'] = None
             enriched.append(make_json_safe(source))
         
-        # Prefer last_uploaded for ordering if present; fallback to created_at
+        # Prefer last_updated for ordering if present; fallback to created_at
         def _sort_key(s: Dict[str, Any]):
-            last_uploaded = s.get('last_uploaded')
+            last_updated = s.get('last_updated')
             created_at = s.get('created_at')
-            return last_uploaded or created_at or 0
+            return last_updated or created_at or 0
 
         enriched_sorted = sorted(enriched, key=_sort_key, reverse=True)
         return enriched_sorted

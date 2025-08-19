@@ -13,7 +13,7 @@ export function StatusBadge({
       return {
         bgColor: "bg-grey-500/15",
         textColor: "text-grey-400",
-        label: "Pending",
+        label: "In queue",
         isActive: true,
       };
     }
@@ -66,7 +66,7 @@ export function StatusBadge({
           bgColor: "bg-blue-500/15",
           textColor: "text-blue-400",
           label: "Pending",
-          isActive: true,
+          isActive: false,
         };
       // Handle all the processing statuses as active states
       case "CHUNKING_AND_EMBEDDING":

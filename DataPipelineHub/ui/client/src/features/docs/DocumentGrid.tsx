@@ -86,8 +86,8 @@ export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, delet
                   subtitle={getDataToDisplay(doc) || `${doc.type_data.page_count} pages | ${doc.type_data.file_type} | ${doc.type_data.file_size}`}
                   metadata={
                     Array.isArray(doc.upload_by)
-                      ? `Uploaded ${new Date(doc.last_uploaded || doc.created_at).toLocaleString("en-GB")} — by ${doc.upload_by.length} people`
-                      : `Uploaded ${new Date(doc.last_uploaded || doc.created_at).toLocaleString("en-GB")} by ${doc.upload_by}`
+                      ? `Uploaded ${new Date(doc.last_updated || doc.created_at).toLocaleString("en-GB")} — by ${doc.upload_by.length} people`
+                      : `Uploaded ${new Date(doc.last_updated || doc.created_at).toLocaleString("en-GB")} by ${doc.upload_by}`
                   }
                   footer={getDataToDisplay(doc) || `${doc.pipeline_stats?.chunks_generated} chunks`}
                   selected={doc === activeDoc}

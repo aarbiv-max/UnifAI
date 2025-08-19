@@ -1,5 +1,6 @@
 from typing import List, Dict
 import hashlib
+from datetime import datetime
 from config.constants import PipelineStatus
 from pipeline.pipeline_repository import PipelineRepository
 from data_sources.docs.doc_connector import DocumentConnector, DuplicateDocumentError
@@ -68,52 +69,58 @@ class DocumentPipeline(Pipeline):
                 upload_by=self.metadata.upload_by
             )
         except DuplicateDocumentError as dup:
-            # Mark as skipped and remember why (store reason under data_sources)
+            # Mark as skipped and mirror the duplicate-handling behavior using the provided MD5
             repo.update_pipeline_status(self, PipelineStatus.SKIPPED.value)
-            repo.sources_collection.update_one(
-                {"pipeline_id": self.get_pipeline_id()},
-                {"$set": {
-                    "type_data.content_md5": dup.content_md5,
-                    "type_data.skip_reason": "Duplicate document content (MD5)",
-                    "type_data.duplicate_of_pipeline_id": dup.existing_pipeline_id,
-                    "type_data.duplicate_of_source_id": dup.existing_source_id,
-                }},
-                upsert=True
-            )
-            # Update existing original doc with latest uploader and last_uploaded timestamp
-            uploader = self.metadata.upload_by or "default"
-            try:
-                from datetime import datetime
-                repo.sources_collection.update_many(
-                    {
+            content_md5 = getattr(dup, "content_md5", None)
+            if content_md5:
+                try:
+                    # Upsert MD5 on the skipped pipeline's source doc
+                    repo.sources_collection.update_one(
+                        {"pipeline_id": self.get_pipeline_id()},
+                        {"$set": {"type_data.content_md5": content_md5}},
+                        upsert=True
+                    )
+
+                    # Find existing original doc with same MD5
+                    existing = repo.sources_collection.find_one({
                         "source_type": self.SOURCE_TYPE,
-                        "type_data.content_md5": dup.content_md5,
+                        "type_data.content_md5": content_md5,
                         "pipeline_id": {"$ne": self.get_pipeline_id()}
-                    },
-                    [
-                        {
-                            "$set": {
-                                "last_uploaded": datetime.utcnow(),
-                                "upload_by": {
-                                    "$cond": [
-                                        {"$isArray": "$upload_by"},
-                                        {"$setUnion": ["$upload_by", [uploader]]},
-                                        {
-                                            "$cond": [
-                                                {"$eq": ["$upload_by", uploader]},
-                                                "$upload_by",
-                                                ["$upload_by", uploader]
-                                            ]
-                                        }
-                                    ]
-                                }
-                            }
-                        }
-                    ]
-                )
-            except Exception:
-                pass
-            # Stop further stages by returning empty dict
+                    })
+                    if existing:
+                        # Mark duplicate relationship
+                        repo.sources_collection.update_one(
+                            {"pipeline_id": self.get_pipeline_id()},
+                            {"$set": {"type_data.duplicate_of_pipeline_id": existing.get("pipeline_id")}},
+                            upsert=True
+                        )
+
+                        # Update existing doc(s) so they bubble to the top and capture uploader
+                        uploader = self.metadata.upload_by or "default"
+                        try:
+                            dup_created_at = repo.get_pipeline_field(self.get_pipeline_id(), "created_at", datetime.now())
+                            repo.sources_collection.update_many(
+                                {
+                                    "source_type": self.SOURCE_TYPE,
+                                    "type_data.content_md5": content_md5,
+                                    "pipeline_id": {"$ne": self.get_pipeline_id()}
+                                },
+                                [{"$set": {"last_updated": dup_created_at,
+                                             "upload_by": {
+                                                 "$cond": [
+                                                     {"$isArray": "$upload_by"},
+                                                     {"$setUnion": ["$upload_by", [uploader]]},
+                                                     {"$cond": [{"$eq": ["$upload_by", uploader]}, "$upload_by", ["$upload_by", uploader]]}
+                                                 ]
+                                             }
+                                          }
+                                 }
+                                ]
+                            )
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
             return {}
         # Duplicate detection: compute MD5 of full text and check in sources
         try:
@@ -139,38 +146,28 @@ class DocumentPipeline(Pipeline):
                     {"pipeline_id": self.get_pipeline_id()},
                     {"$set": {
                         "type_data.content_md5": content_md5,
-                        "type_data.skip_reason": "Duplicate document content (MD5)",
                         "type_data.duplicate_of_pipeline_id": existing.get("pipeline_id"),
-                        "type_data.duplicate_of_source_id": existing.get("source_id"),
                     }},
                     upsert=True
                 )
-                # Update existing original doc with latest uploader and last_uploaded timestamp
+                # Update existing original doc with latest uploader and last_updated timestamp
                 uploader = self.metadata.upload_by or "default"
                 try:
-                    from datetime import datetime
-                    # Update all existing docs with same MD5 (excluding current) so the preferred one bubbles to top
+                    # Use the duplicate pipeline's created_at as the last_updated time
+                    dup_created_at = repo.get_pipeline_field(self.get_pipeline_id(), "created_at", datetime.now())
+                    # Update all existing docs with same MD5 (excluding current) so the preferred one bubbles to top)
                     repo.sources_collection.update_many(
                         {
                             "source_type": self.SOURCE_TYPE,
                             "type_data.content_md5": content_md5,
                             "pipeline_id": {"$ne": self.get_pipeline_id()}
                         },
-                        [
-                            {
-                                "$set": {
-                                    "last_uploaded": datetime.utcnow(),
+                        [{"$set": {"last_updated": dup_created_at,
                                     "upload_by": {
                                         "$cond": [
                                             {"$isArray": "$upload_by"},
                                             {"$setUnion": ["$upload_by", [uploader]]},
-                                            {
-                                                "$cond": [
-                                                    {"$eq": ["$upload_by", uploader]},
-                                                    "$upload_by",
-                                                    ["$upload_by", uploader]
-                                                ]
-                                            }
+                                            {"$cond": [{"$eq": ["$upload_by", uploader]}, "$upload_by", ["$upload_by", uploader]]}
                                         ]
                                     }
                                 }

@@ -76,7 +76,7 @@ class SourcesRepository:
         now = datetime.utcnow()
         update = {
             "last_sync_at": now,
-            "last_uploaded": now,
+            "last_updated": now,
         }
         if type_data:
             update["type_data"] = type_data

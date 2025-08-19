@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { FaTh, FaList } from "react-icons/fa";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Document } from "@/types";
 import { UploadTab } from "./UploadTab";
 import Sidebar from "@/components/layout/Sidebar";
@@ -12,6 +12,7 @@ import { DocumentTable } from "./DocumentsTable";
 import { PageLoader } from "@/components/shared/PageLoader";
 import { DocumentGrid } from "./DocumentGrid";
 import { deleteDoc, fetchDocuments } from "@/api/docs";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -33,17 +34,63 @@ export default function Documents() {
     refetchOnWindowFocus: true, 
   });
 
+  // Duplicate detection toast: show when a SKIPPED duplicate is detected; dismiss when the original appears at the top
+  const { toast } = useToast();
+  const duplicateToastsRef = useRef<Map<string, { dismiss: () => void }>>(new Map());
+
   // Hide SKIPPED docs from the main list to avoid duplicates surfacing twice
   const documents = useMemo(() => {
     const visible = (documentsRaw || []).filter(d => d.status !== 'SKIPPED');
-    // Sort by last_uploaded (desc), fall back to created_at
+    // Sort by last_updated (desc), fall back to created_at
     const safeTime = (iso?: string) => (iso ? Date.parse(iso) : 0);
     return [...visible].sort((a, b) => {
-      const at = safeTime(a.last_uploaded || a.created_at);
-      const bt = safeTime(b.last_uploaded || b.created_at);
+      const at = safeTime(a.last_updated || a.created_at);
+      const bt = safeTime(b.last_updated || b.created_at);
       return bt - at;
     });
   }, [documentsRaw]);
+
+  // Manage duplicate toasts lifecycle relative to list state
+  useEffect(() => {
+    if (!documentsRaw?.length) return;
+
+    const getDuplicateKey = (d: Document) => d?.type_data?.content_md5 || d?.source_name || d?.pipeline_id;
+
+    // Show toasts for any newly detected SKIPPED duplicates
+    for (const d of documentsRaw) {
+      if (d?.status === 'SKIPPED') {
+        const key = getDuplicateKey(d);
+        if (!duplicateToastsRef.current.has(key)) {
+          const t = toast({
+            title: 'Duplicate document detected',
+            description: `The document "${d.source_name}" has already been embedded. Making it available...`,
+            variant: 'destructive',
+          });
+          duplicateToastsRef.current.set(key, { dismiss: t.dismiss });
+        }
+      }
+    }
+
+    // Dismiss any active duplicate toast when the corresponding original doc surfaces at the top
+    const top = documents?.[0];
+    if (top) {
+      const topKey = getDuplicateKey(top);
+      if (duplicateToastsRef.current.has(topKey)) {
+        duplicateToastsRef.current.get(topKey)?.dismiss();
+        duplicateToastsRef.current.delete(topKey);
+      }
+    }
+  }, [documentsRaw, documents, toast]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      for (const { dismiss } of duplicateToastsRef.current.values()) {
+        dismiss();
+      }
+      duplicateToastsRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     resetPage();
