@@ -58,15 +58,10 @@ class PipelineExecutor:
     def run(self) -> Any:
         self._run_orchestration()
         collected   = self._run_collect()
-        # If collection marked the pipeline as SKIPPED (e.g., duplicate), stop immediately
-        current_status = self.repo.get_pipeline_field(self.pipeline.get_pipeline_id(), "status", PipelineStatus.PENDING.value)
-        if current_status == PipelineStatus.SKIPPED.value:
+        # If collection marked the pipeline as SKIPPED (e.g., duplicate), or the pipeline doc was deleted (status None), stop immediately
+        current_status = self.repo.get_pipeline_field(self.pipeline.get_pipeline_id(), "status", None)
+        if current_status == PipelineStatus.SKIPPED.value or current_status is None:
             self._run_clean_orchestration()
-            # Optionally register summary to persist any collected metadata
-            self.repo.register_data_source(
-                pipeline=self.pipeline,
-                summary=self.pipeline.summary()
-            )
             return {}
 
         processed   = self._run_process(collected)
@@ -74,8 +69,8 @@ class PipelineExecutor:
         stored      = self._run_store(embeddings)
         
         self._run_clean_orchestration()
-        current_status = self.repo.get_pipeline_field(self.pipeline.get_pipeline_id(), "status", PipelineStatus.PENDING.value)
-        if current_status not in {PipelineStatus.SKIPPED.value, PipelineStatus.FAILED.value}:
+        current_status = self.repo.get_pipeline_field(self.pipeline.get_pipeline_id(), "status", None)
+        if current_status not in {PipelineStatus.SKIPPED.value, PipelineStatus.FAILED.value, None}:
             self.repo.update_pipeline_status(
                 self.pipeline,
                 new_status=PipelineStatus.DONE.value

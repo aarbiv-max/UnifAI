@@ -74,6 +74,14 @@ class DocumentPipeline(Pipeline):
             self.handle_duplication(dup_doc)
             return {}
         
+        # Persist MD5 under type_data immediately after collection (if available)
+        try:
+            content_md5 = (self._cached_collected or {}).get("metadata", {}).get("content_md5")
+            if content_md5:
+                repo.register_data_source(self, {"content_md5": content_md5})
+        except Exception:
+            pass
+
         return self._cached_collected
 
 
@@ -103,64 +111,44 @@ class DocumentPipeline(Pipeline):
                 "source_type": DataSource.DOCUMENT.upper_name,
             })
 
-        # After confirming not duplicate, persist MD5 on source.type_data
-        try:
-            content_md5 = processed.get("metadata", {}).get("content_md5")
-            if content_md5:
-                repo.sources_collection.update_one(
-                    {"pipeline_id": self.get_pipeline_id()},
-                    {"$set": {"type_data.content_md5": content_md5}},
-                    upsert=True
-                )
-        except Exception:
-            pass
-
         return self.embedder.generate_embeddings(chunks)
 
-    def handle_duplication(self, dup_doc: Dict) -> None:
+    def handle_duplication(self, dup_doc: Optional[Dict]) -> None:
         """
-        Handle duplicate document detection side-effects:
-        - Mark pipeline as SKIPPED immediately to halt processing
-        - Perform the rest of the DB updates asynchronously
+        Handle duplicate detection by:
+        - Marking pipeline as SKIPPED
+        - Updating the original source's last_updated to its created_at and merging uploader
+        - Removing the duplicate source and pipeline documents
         """
-        repo = PipelineRepository()
-        repo.update_pipeline_status(self, PipelineStatus.SKIPPED.value)
-        print(dup_doc)
         try:
-            # Persist MD5 on skipped pipeline's source doc
-            repo.sources_collection.update_one(
-                {"pipeline_id": self.get_pipeline_id()},
-                {"$set": {"type_data.content_md5": dup_doc.get("type_data").get("content_md5")}},
-                upsert=True
-            )
+            repo = PipelineRepository()
+            repo.update_pipeline_status(self, PipelineStatus.SKIPPED.value)
 
-            # Mark duplicate relationship
-            repo.sources_collection.update_one(
-                {"pipeline_id": self.get_pipeline_id()},
-                {"$set": {"type_data.duplicate_of_pipeline_id": dup_doc.get("pipeline_id")}},
-                upsert=True
-            )
-
-            uploader = getattr(self.metadata, 'upload_by', None) or "default"
-            try:
-                # Use created_at from the sources collection (original doc), not pipelines
+            original_pipeline_id = (dup_doc or {}).get("pipeline_id") if isinstance(dup_doc, dict) else None
+            if original_pipeline_id:
                 original = repo.sources_collection.find_one({
-                    "pipeline_id": self.get_pipeline_id()
+                    "pipeline_id": original_pipeline_id
                 }, {"created_at": 1}) or {}
                 dup_created_at = original.get("created_at", datetime.now())
+                uploader = getattr(self.metadata, 'upload_by', None) or "default"
 
-                repo.sources_collection.update_many(
-                    {
-                        "source_type": self.SOURCE_TYPE,
-                        "type_data.content_md5": dup_doc.get("type_data").get("content_md5"),
-                        "pipeline_id": {"$ne": self.get_pipeline_id()}
-                    },
+                repo.sources_collection.update_one(
+                    {"pipeline_id": original_pipeline_id},
                     [{"$set": {"last_updated": dup_created_at, "upload_by": {
-                        "$cond": [{"$isArray": "$upload_by"}, {"$setUnion": ["$upload_by", [uploader]]},
-                        {"$cond": [{"$eq": ["$upload_by", uploader]}, "$upload_by", ["$upload_by", uploader]]}]}}}]
+                        "$cond": [
+                            {"$isArray": "$upload_by"},
+                            {"$setUnion": ["$upload_by", [uploader]]},
+                            {"$cond": [
+                                {"$eq": ["$upload_by", uploader]},
+                                "$upload_by",
+                                ["$upload_by", uploader]
+                            ]}
+                        ]
+                    }}}]
                 )
-            except Exception:
-                pass
+            id = self.get_pipeline_id()
+            repo.sources_collection.delete_one({"pipeline_id": id})
+            repo.pipelines_collection.delete_one({"pipeline_id": id})
         except Exception:
             pass
 

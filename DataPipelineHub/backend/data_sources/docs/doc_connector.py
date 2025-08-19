@@ -125,9 +125,7 @@ class DocumentConnector(DataConnector):
             except Exception as e:
                 logger.warning(f"Failed computing text MD5 for duplicate detection: {e}")
 
-            # Add metadata if requested
-            if self._config_manager.get_config_value("include_metadata"):
-                document_data["metadata"] = self._extract_metadata(result, upload_by, file_size_mb)
+            document_data["metadata"] = self._extract_metadata(result, upload_by, file_size_mb, text_md5)
 
             logger.info(f"Document processed successfully: {document_path}")
             return document_data
@@ -246,7 +244,7 @@ class DocumentConnector(DataConnector):
             logger.warning(f"Failed to compute text MD5: {e}")
             return None
 
-    def _extract_metadata(self, conversion_result: ConversionResult, upload_by: str = "default", file_size: float = 0.0) -> Dict[str, Any]:
+    def _extract_metadata(self, conversion_result: ConversionResult, upload_by: str = "default", file_size: float = 0.0, md5: str = "") -> Dict[str, Any]:
         """
         Extract metadata from a conversion result.
         """
@@ -257,6 +255,7 @@ class DocumentConnector(DataConnector):
                 metadata.update(doc.metadata)
             metadata["title"] = doc.title if hasattr(doc, "title") else "Untitled"
             metadata["upload_by"] = upload_by
+            metadata["content_md5"] = md5
             metadata["file_size"] = f"{file_size:.2f} MB" if file_size > 0 else "Unknown size"
             metadata["page_count"] = len(doc.pages) if hasattr(doc, "pages") else 1
             text = doc.export_to_text()
