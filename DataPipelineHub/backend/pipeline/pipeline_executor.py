@@ -65,6 +65,7 @@ class PipelineExecutor:
         
         self._run_clean_orchestration()
         self.repo.update_pipeline_status(
+            pipeline=self.pipeline,
             new_status=PipelineStatus.DONE.value
         )
         self.repo.register_data_source(

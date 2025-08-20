@@ -152,17 +152,18 @@ def execute_pipeline_task(self, source_type: str, source_data: dict):
         if not pipeline_id or not metadata_dict:
             raise ValueError("Pipeline ID or metadata not found in source_data")
 
-        # Deserialize metadata based on source type
+        metadata_dict_copy = metadata_dict.copy()
+        metadata_dict_copy.pop('pipeline_id', None) 
+        
         if source_type.upper() == DataSource.SLACK.upper_name:
-            metadata = SlackMetadata(**metadata_dict)
+            metadata = SlackMetadata(**metadata_dict_copy, pipeline_id=pipeline_id)
             
         elif source_type.upper() == DataSource.DOCUMENT.upper_name:
-            metadata = DocumentMetadata(**metadata_dict)
+            metadata = DocumentMetadata(**metadata_dict_copy, pipeline_id=pipeline_id)
             logger.info(f"Document path: {metadata}")
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
         
-        metadata["pipeline_id"] = pipeline_id
         # Create factory and executor using the modular pipeline architecture
         factory = PipelineFactory.create(source_type)
         pipeline = factory.create_pipeline(metadata)
