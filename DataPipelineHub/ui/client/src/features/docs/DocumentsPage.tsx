@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { FaTh, FaList } from "react-icons/fa";
+import { FaTh, FaList, FaClone } from "react-icons/fa";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Document } from "@/types";
 import { UploadTab } from "./UploadTab";
@@ -25,6 +25,8 @@ export default function Documents() {
   const [retrying, setRetrying] = useState(false);
 
   const { currentPage, setPage, resetPage, itemsPerPage, } = usePaginationStore();
+  const { toast } = useToast();
+  const shownDupNoticesRef = useRef<Set<string>>(new Set());
 
   const { data: documents = [], isLoading, isError, error } = useQuery<Document[]>({
     queryKey: ['documents'],
@@ -37,6 +39,32 @@ export default function Documents() {
   useEffect(() => {
     fetchDocuments();
   }, [showUploadModal, activeDoc])
+
+  // Show a one-time toast if any document was updated due to a duplicate upload
+  useEffect(() => {
+    if (!documents?.length) return;
+    for (const doc of documents) {
+      const notice = doc.duplication_notice;
+      if (notice) {
+        const key = `${doc.pipeline_id}:${notice.duplicate_at}`;
+        if (!shownDupNoticesRef.current.has(key)) {
+          shownDupNoticesRef.current.add(key);
+          const duplicateUploadedName = notice.duplicate_uploaded_name || "the uploaded file";
+          const existingName = notice.existing_name || doc.source_name;
+          toast({
+            className: "bg-white text-black border border-gray-200",
+            title: (
+              <span className="inline-flex items-center gap-2">
+                <FaClone className="text-red-500" />
+                Duplicate detected
+              </span>
+            ),
+            description: `"${duplicateUploadedName}" is already embedded as "${existingName}" and is now available.`,
+          });
+        }
+      }
+    }
+  }, [documents, toast]);
 
   const filteredDocuments = documents.filter((doc) => {
     const matchesType = fileTypeFilter === "all" || doc.type_data.file_type === fileTypeFilter;

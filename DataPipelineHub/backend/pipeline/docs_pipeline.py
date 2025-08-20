@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any, cast
 import hashlib
 from datetime import datetime
 from config.constants import PipelineStatus
@@ -43,10 +43,12 @@ class DocumentPipeline(Pipeline):
         )
 
     def get_source_id(self) -> str:
-        return self.metadata.doc_id
+        md = cast(DocumentMetadata, self.metadata)
+        return md.doc_id
 
     def get_source_name(self) -> str:
-        return self.metadata.doc_name or f"document_{self.metadata.doc_id}"
+        md = cast(DocumentMetadata, self.metadata)
+        return md.doc_name or f"document_{md.doc_id}"
 
     def summary(self) -> Dict:
         if self._cached_collected:
@@ -65,9 +67,10 @@ class DocumentPipeline(Pipeline):
     def collect_data(self) -> Dict:
         repo = PipelineRepository()
         try:
+            md = cast(DocumentMetadata, self.metadata)
             self._cached_collected = self.collector.process_document(
-                document_path=self.metadata.doc_path,
-                upload_by=self.metadata.upload_by
+                document_path=str(md.doc_path or ""),
+                upload_by=str(md.upload_by or "default")
             )
         except DuplicateDocumentError as dup:
             original_doc = getattr(dup, "original_doc", None)
@@ -82,7 +85,7 @@ class DocumentPipeline(Pipeline):
         except Exception:
             pass
 
-        return self._cached_collected
+        return self._cached_collected or {}
 
 
     def process_data(self, data: Dict) -> Dict:
@@ -105,9 +108,10 @@ class DocumentPipeline(Pipeline):
         chunks = self.doc_chunker.chunk_content([embedding_ready_doc])
 
         for idx, chunk in enumerate(chunks):
-            md = chunk.setdefault("metadata", {})
-            md.update({
-                "source_id": self.metadata.doc_id,
+            mdict = chunk.setdefault("metadata", {})
+            src_md = cast(DocumentMetadata, self.metadata)
+            mdict.update({
+                "source_id": src_md.doc_id,
                 "source_type": DataSource.DOCUMENT.upper_name,
             })
 
@@ -124,13 +128,17 @@ class DocumentPipeline(Pipeline):
             repo = PipelineRepository()
             repo.update_pipeline_status(self, PipelineStatus.SKIPPED.value)
 
+            # Ensure dict access does not fail if original_doc is None
+            original_doc = original_doc or {}
+
             dup_id = self.get_pipeline_id()
             dup = repo.sources_collection.find_one({
                     "pipeline_id": dup_id
-                }, {"created_at": 1}) or {}
+                }, {"created_at": 1, "source_name": 1, "upload_by": 1}) or {}
             
             dup_created_at = dup.get("created_at", datetime.now())
             uploader = dup.get("upload_by", "default")
+            dup_uploaded_name = dup.get("source_name", "uploaded document")
 
             repo.sources_collection.update_one(
                 {"pipeline_id": original_doc.get("pipeline_id", "")},
@@ -144,6 +152,10 @@ class DocumentPipeline(Pipeline):
                             ["$upload_by", uploader]
                         ]}
                     ]
+                }, "duplication_notice": {
+                    "duplicate_uploaded_name": dup_uploaded_name,
+                    "existing_name": original_doc.get("source_name", ""),
+                    "duplicate_at": dup_created_at
                 }}}]
             )
             repo.sources_collection.delete_one({"pipeline_id": dup_id})
