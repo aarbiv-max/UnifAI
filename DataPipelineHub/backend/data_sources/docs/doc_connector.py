@@ -217,17 +217,10 @@ class DocumentConnector(DataConnector):
             sources_col = client["data_sources"]["sources"]
             pipelines_col = client["pipeline_monitoring"]["pipelines"]
 
-            # Find all matching sources by MD5
-            candidates = sources_col.find({
-                "source_type": "DOCUMENT",
-                "type_data.content_md5": content_md5,
-            })
-
+            # Find matching sources by MD5
+            candidates = sources_col.find({"source_type": "DOCUMENT", "type_data.content_md5": content_md5})
             for existing in candidates:
-                pipeline_doc = pipelines_col.find_one({
-                    "pipeline_id": existing.get("pipeline_id"),
-                    "status": PipelineStatus.DONE.value,
-                })
+                pipeline_doc = pipelines_col.find_one({"pipeline_id": existing.get("pipeline_id"), "status": PipelineStatus.DONE.value})
                 if pipeline_doc:
                     return existing
             return None
@@ -258,11 +251,17 @@ class DocumentConnector(DataConnector):
             metadata["content_md5"] = md5
             metadata["file_size"] = f"{file_size:.2f} MB" if file_size > 0 else "Unknown size"
             metadata["page_count"] = len(doc.pages) if hasattr(doc, "pages") else 1
+            
+            # Extract content statistics
             text = doc.export_to_text()
             metadata["character_count"] = len(text)
             metadata["word_count"] = len(text.split())
+            
+            # Extract table information if available
             if hasattr(conversion_result, "tables") and conversion_result.tables:
                 metadata["table_count"] = len(conversion_result.tables)
+                
+            # Extract image information if available
             if hasattr(conversion_result, "images") and conversion_result.images:
                 metadata["image_count"] = len(conversion_result.images)
         except Exception as e:
@@ -271,17 +270,25 @@ class DocumentConnector(DataConnector):
 
     def get_document_structure(self, document_path: str) -> Optional[Dict[str, Any]]:
         """
-        Get the hierarchical structure of a processed document.
+        Get the hierarchical structure of a document.
+        
+        Args:
+            document_path: Path to the document
+            
+        Returns:
+            Dictionary representing the document structure, or None if not available
         """
         if document_path not in self._conversion_results:
             logger.warning(f"Document not processed yet: {document_path}")
             return None
         try:
             result = self._conversion_results[document_path]
-            structure: Dict[str, Any] = {
+            structure = {
                 "title": result.document.title if hasattr(result.document, "title") else "Untitled",
                 "sections": []
             }
+            
+            # Extract sections and subsections if available
             if hasattr(result.document, "sections"):
                 for section in result.document.sections:
                     section_data = {

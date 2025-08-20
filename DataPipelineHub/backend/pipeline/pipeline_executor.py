@@ -69,12 +69,10 @@ class PipelineExecutor:
         stored      = self._run_store(embeddings)
         
         self._run_clean_orchestration()
-        current_status = self.repo.get_pipeline_field(self.pipeline.get_pipeline_id(), "status", None)
-        if current_status not in {PipelineStatus.SKIPPED.value, PipelineStatus.FAILED.value, None}:
-            self.repo.update_pipeline_status(
-                self.pipeline,
-                new_status=PipelineStatus.DONE.value
-            )
+        self.repo.update_pipeline_status(
+            self.pipeline,
+            new_status=PipelineStatus.DONE.value
+        )
             
         self.repo.register_data_source(
             pipeline=self.pipeline,

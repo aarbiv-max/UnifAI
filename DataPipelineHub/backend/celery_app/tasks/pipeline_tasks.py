@@ -17,7 +17,7 @@ from utils.storage.mongo.mongo_helpers import get_mongo_storage
 from utils.filename import sanitize_filename
 
 app_config = AppConfig()
-upload_folder = app_config.get("upload_folder", "") or ""
+upload_folder = app_config.get("upload_folder", "")
 
 # Initialize mongo storage for registration
 mongo_storage = get_mongo_storage()

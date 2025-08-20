@@ -77,6 +77,11 @@ export interface Document {
   source_id: string;
   source_name: string;
   source_type: string;
+  duplication_notice?: {
+    duplicate_uploaded_name: string;
+    existing_name: string;
+    duplicate_at: string;
+  };
   type_data: {
     file_type: string;
     doc_path: string;

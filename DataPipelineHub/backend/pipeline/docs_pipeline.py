@@ -65,7 +65,6 @@ class DocumentPipeline(Pipeline):
             }
 
     def collect_data(self) -> Dict:
-        repo = PipelineRepository()
         try:
             md = cast(DocumentMetadata, self.metadata)
             self._cached_collected = self.collector.process_document(
@@ -81,6 +80,7 @@ class DocumentPipeline(Pipeline):
         try:
             content_md5 = (self._cached_collected or {}).get("metadata", {}).get("content_md5")
             if content_md5:
+                repo = PipelineRepository()
                 repo.register_data_source(self, {"content_md5": content_md5})
         except Exception:
             pass
@@ -132,9 +132,7 @@ class DocumentPipeline(Pipeline):
             original_doc = original_doc or {}
 
             dup_id = self.get_pipeline_id()
-            dup = repo.sources_collection.find_one({
-                    "pipeline_id": dup_id
-                }, {"created_at": 1, "source_name": 1, "upload_by": 1}) or {}
+            dup = repo.sources_collection.find_one({"pipeline_id": dup_id}, {"created_at": 1, "source_name": 1, "upload_by": 1}) or {}
             
             dup_created_at = dup.get("created_at", datetime.now())
             uploader = dup.get("upload_by", "default")

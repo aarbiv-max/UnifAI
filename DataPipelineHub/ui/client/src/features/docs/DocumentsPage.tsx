@@ -31,10 +31,14 @@ export default function Documents() {
   const { data: documents = [], isLoading, isError, error } = useQuery<Document[]>({
     queryKey: ['documents'],
     queryFn: fetchDocuments,
-    refetchInterval: 1000,
+    refetchInterval: 10000,
     refetchOnMount: true, 
     refetchOnWindowFocus: true, 
   });
+
+  useEffect(() => {
+    resetPage();
+  }, []);
 
   useEffect(() => {
     fetchDocuments();
