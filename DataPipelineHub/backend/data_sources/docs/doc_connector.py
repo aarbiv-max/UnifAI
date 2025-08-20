@@ -115,9 +115,9 @@ class DocumentConnector(DataConnector):
             try:
                 text_md5 = self._compute_file_md5(text_content)
                 if text_md5:
-                    dup_doc = self._detect_duplication(text_md5)
-                    if dup_doc:
-                        raise DuplicateDocumentError(dup_doc=dup_doc)
+                    original_doc = self._detect_duplication(text_md5)
+                    if original_doc:
+                        raise DuplicateDocumentError(original_doc=original_doc)
                     else:
                         document_data.setdefault("metadata", {})["content_md5"] = text_md5
             except DuplicateDocumentError:
@@ -297,6 +297,6 @@ class DocumentConnector(DataConnector):
 
 
 class DuplicateDocumentError(Exception):
-    def __init__(self, dup_doc: Optional[str]):
+    def __init__(self, original_doc: Optional[str]):
         super().__init__("Duplicate document content detected")
-        self.dup_doc = dup_doc
+        self.original_doc = original_doc
