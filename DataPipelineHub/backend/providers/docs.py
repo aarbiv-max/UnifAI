@@ -7,7 +7,7 @@ from config.app_config import AppConfig
 from utils.storage.mongo.mongo_storage import MongoStorage
 from shared.logger import logger
 from global_utils.utils.util import get_mongo_url
-from werkzeug.utils import secure_filename
+from utils.filename import sanitize_filename
 from providers.data_sources import initialize_embedding_generator, initialize_vector_storage
 from config.constants import SourceType
 import pymongo
@@ -21,7 +21,8 @@ data_source_repo = MongoStorage(get_mongo_url())
 def upload_docs(files):
     try:
         for file in files:
-            filename = secure_filename(file["name"])
+            # Sanitize filename to a safe, filesystem-friendly version (handles spaces and special chars)
+            filename = sanitize_filename(file["name"]) or "uploaded_document"
             content = base64.b64decode(file["content"])
             with open(os.path.join(upload_folder, filename), "wb") as f:
                 f.write(content)

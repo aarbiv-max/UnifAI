@@ -14,9 +14,10 @@ from shared.source_types import (
 from shared.logger import logger
 from config.constants import DataSource, PipelineStatus
 from utils.storage.mongo.mongo_helpers import get_mongo_storage
+from utils.filename import sanitize_filename
 
 app_config = AppConfig()
-upload_folder = app_config.get("upload_folder", "")
+upload_folder = app_config.get("upload_folder", "") or ""
 
 # Initialize mongo storage for registration
 mongo_storage = get_mongo_storage()
@@ -78,7 +79,7 @@ def register_sources_task(self, data_list: list, source_type: str, upload_by: st
                 
             elif source_type.upper() == DataSource.DOCUMENT.upper_name:
                 source_id = str(uuid.uuid4())
-                source_name = instance.get("source_name", "")
+                source_name = sanitize_filename(instance.get("source_name", ""))
                 doc_path = os.path.join(upload_folder, source_name)
                 pipeline_id = f"{DataSource.DOCUMENT.value}_{source_id}"
                 
