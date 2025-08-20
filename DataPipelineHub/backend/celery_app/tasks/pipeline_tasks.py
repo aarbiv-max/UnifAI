@@ -115,7 +115,7 @@ def register_sources_task(self, data_list: list, source_type: str, upload_by: st
                 pipeline_id=pipeline_id,
                 type_data=type_data
             )
-
+            
             # Return only essential data needed for pipeline execution
             registered_source = RegisteredSource(
                 pipeline_id=pipeline_id,

@@ -21,7 +21,6 @@ data_source_repo = MongoStorage(get_mongo_url())
 def upload_docs(files):
     try:
         for file in files:
-            # Sanitize filename to a safe, filesystem-friendly version (handles spaces and special chars)
             filename = sanitize_filename(file["name"]) or "uploaded_document"
             content = base64.b64decode(file["content"])
             with open(os.path.join(upload_folder, filename), "wb") as f:

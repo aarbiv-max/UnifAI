@@ -70,7 +70,7 @@ class PipelineExecutor:
         
         self._run_clean_orchestration()
         self.repo.update_pipeline_status(
-            self.pipeline,
+            pipeline=self.pipeline,
             new_status=PipelineStatus.DONE.value
         )
             
