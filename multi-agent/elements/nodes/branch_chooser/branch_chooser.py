@@ -23,12 +23,16 @@ class BranchChooserNode(BaseNode):
         # Get target branches from step context
         chosen_branch = None
 
-        if self._ctx and self._ctx.branches:
-            # Get the first branch from the step context branches
-            first_branch_key = next(iter(self._ctx.branches.keys()), None)
+        try:
+            context = self.get_context()
+            if context.branches:
+                # Get the first branch from the step context branches
+                first_branch_key = next(iter(context.branches.keys()), None)
 
-            if first_branch_key:
-                chosen_branch = self._ctx.branches[first_branch_key]
+                if first_branch_key:
+                    chosen_branch = context.branches[first_branch_key]
+        except RuntimeError:
+            pass
 
         # Fall back to default branch if no branches found
         if chosen_branch is None:

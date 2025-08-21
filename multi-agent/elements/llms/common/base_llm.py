@@ -25,8 +25,11 @@ class BaseLLM(ABC):
         pass
 
     @abstractmethod
-    def bind_tools(self, tools: List[BaseTool]) -> None:
+    def bind_tools(self, tools: List[BaseTool]) -> "BaseLLM":
         """
-        Bind tools to the LLM for use in completions.
+        Bind tools to the LLM, returning a new instance to avoid cross-contamination.
+        
+        Returns:
+            A new LLM instance with tools bound, leaving the original unchanged.
         """
         pass

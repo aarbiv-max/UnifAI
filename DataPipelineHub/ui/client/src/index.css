@@ -55,6 +55,11 @@
     border-color: var(--border) !important;
   }
 
+  .dark-mode input:disabled,
+  .dark-mode textarea:disabled {
+    color: #ffffff !important;
+  }
+
   /* Ensure placeholder text has proper contrast */
   .light-mode input::placeholder, 
   .light-mode textarea::placeholder {

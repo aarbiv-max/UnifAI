@@ -15,6 +15,6 @@ class LLMMergerNodeElementSpec(BaseElementSpec):
     description = META.description
     config_schema = MergerLLMNodeConfig
     factory_cls = LLMMergerNodeFactory
-    reads = LLMMergerNode.READS
-    writes = LLMMergerNode.WRITES
+    reads = LLMMergerNode.total_reads()
+    writes = LLMMergerNode.total_writes()
     tags = META.tags

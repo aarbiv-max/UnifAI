@@ -1,7 +1,4 @@
-# env:
-#   MONGODB_IP: mongodb
-#   MONGODB_PORT: 27017
-#   RABBITMQ_IP: rabbitmq
-#   RABBITMQ_PORT: 5672
 env:
-  test: "123"
+  FRONTEND_URL: "http://unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
+  DATAPIPELINEHUB_HOST: "https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
+  MULTIAGENT_HOST: "http://unifai-multiagent-be-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"

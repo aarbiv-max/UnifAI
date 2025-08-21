@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -32,6 +32,8 @@ export const FieldPopulation: React.FC<FieldPopulationProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [populatedOptions, setPopulatedOptions] = useState<string[]>([]);
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [shouldKeepOpen, setShouldKeepOpen] = useState(false);
 
   // Find the populate action from elementActions
   const populateAction = elementActions.find(
@@ -41,6 +43,17 @@ export const FieldPopulation: React.FC<FieldPopulationProps> = ({
   if (!populateAction) {
     return null;
   }
+
+  // Effect to force dropdown to stay open for multi-select
+  useEffect(() => {
+    if (shouldKeepOpen && populateHint.multi_select && !isDropdownOpen) {
+      const timer = setTimeout(() => {
+        setIsDropdownOpen(true);
+        setShouldKeepOpen(false);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldKeepOpen, populateHint.multi_select, isDropdownOpen]);
 
   const performPopulation = async () => {
     setIsLoading(true);
@@ -122,6 +135,15 @@ export const FieldPopulation: React.FC<FieldPopulationProps> = ({
     onPopulateResult(fieldName, newSelectedValues, populateHint.multi_select || false);
   };
 
+  // Handle item selection for multi-select to keep dropdown open
+  const handleItemSelect = (value: string) => {
+    handleSelectChange(value);
+    // For multi-select, signal that we want to keep the dropdown open
+    if (populateHint.multi_select) {
+      setShouldKeepOpen(true);
+    }
+  };
+
   const removeSelectedValue = (valueToRemove: string) => {
     const newSelectedValues = selectedValues.filter(val => val !== valueToRemove);
     setSelectedValues(newSelectedValues);
@@ -173,7 +195,18 @@ export const FieldPopulation: React.FC<FieldPopulationProps> = ({
         <div className="space-y-2">
           <Select
             value=""
-            onValueChange={handleSelectChange}
+            open={isDropdownOpen}
+            onOpenChange={(open) => {
+              setIsDropdownOpen(open);
+            }}
+            onValueChange={(value) => {
+              if (populateHint.multi_select) {
+                handleItemSelect(value);
+              } else {
+                handleSelectChange(value);
+                setIsDropdownOpen(false);
+              }
+            }}
           >
             <SelectTrigger className="bg-background-dark">
               <SelectValue placeholder={
@@ -182,15 +215,44 @@ export const FieldPopulation: React.FC<FieldPopulationProps> = ({
                   : `Select ${populateHint.field_mapping || 'option'}...`
               } />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent
+              onCloseAutoFocus={(e) => {
+                // Prevent auto-focus to allow multiple selections for multi-select
+                if (populateHint.multi_select) {
+                  e.preventDefault();
+                }
+              }}
+              onPointerDownOutside={() => {
+                // Close when clicking outside
+                setIsDropdownOpen(false);
+              }}
+              onEscapeKeyDown={() => {
+                // Close on Escape key
+                setIsDropdownOpen(false);
+              }}
+            >
               {availableOptions.map((option: string, index: number) => (
-                <SelectItem key={index} value={option}>
+                <SelectItem 
+                  key={index} 
+                  value={option}
+                  onSelect={(event) => {
+                    if (populateHint.multi_select) {
+                      event.preventDefault();
+                      handleItemSelect(option);
+                    }
+                  }}
+                >
                   {option}
                 </SelectItem>
               ))}
-              {availableOptions.length === 0 && (
+              {availableOptions.length === 0 && populatedOptions.length > 0 && (
                 <SelectItem value="__no_options_disabled__" disabled>
                   {populateHint.multi_select ? 'All options selected' : 'No options available'}
+                </SelectItem>
+              )}
+              {populatedOptions.length === 0 && (
+                <SelectItem value="__no_options_disabled__" disabled>
+                  No options available
                 </SelectItem>
               )}
             </SelectContent>
@@ -203,13 +265,13 @@ export const FieldPopulation: React.FC<FieldPopulationProps> = ({
                 <Badge
                   key={index}
                   variant="secondary"
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 bg-gray-700 text-white border-gray-600 hover:bg-gray-600"
                 >
                   {selectedValue}
                   <button
                     type="button"
                     onClick={() => removeSelectedValue(selectedValue)}
-                    className="ml-1 text-xs hover:text-red-400"
+                    className="ml-1 text-xs text-gray-300 hover:text-red-400 transition-colors"
                   >
                     ×
                   </button>

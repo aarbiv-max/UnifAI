@@ -12,7 +12,7 @@ from resources.repository.mongo_repository import MongoResourceRepository
 from blueprints.resolver import BlueprintResolver
 from core.app_container import AppContainer
 from typing import Iterator, Any, Dict, List
-from config.app_config import get_app_config
+from config.app_config import AppConfig
 from rich.live import Live
 from rich.panel import Panel
 from rich.layout import Layout
@@ -178,7 +178,7 @@ def run_test_new_version(app, blueprint_id):
     session = app.session_service.create(user_id="alice", blueprint_id=blueprint_id)
     print(f"Created session with id: {session.run_context.run_id}")
     print(app.session_service.execute(session_id=session.run_context.run_id,
-                                      inputs={"user_prompt": "what is latest issues in GENIE project? search for GENIE project and GENIE-2"},
+                                      inputs={"user_prompt": "what is latest issues in GENIE project?"},
                                       stream=False,
                                       scope="public"))
 
@@ -188,13 +188,14 @@ from dataclasses import dataclass, asdict
 import json
 
 if __name__ == "__main__":
-    config = get_app_config()
+    config = AppConfig.get_instance()
     app = AppContainer(config)
 
     blueprint_loader = YAMLBlueprintLoader()
     # raw = blueprint_loader.load("run/branch_router_demo.yml")
     # raw = blueprint_loader.load("run/boolean_router_demo.yml")
-    raw = blueprint_loader.load("run/blueprint_SDJ.yml")
+    raw = blueprint_loader.load("run/blueprint_mcp_agent.yml")
+    # raw = blueprint_loader.load("run/blueprint_SDJ.yml")
     blueprint_id = app.blueprint_service.save_draft(user_id="alice", draft_dict=raw)
     blueprint_spec = app.blueprint_service.load_resolved(blueprint_id=blueprint_id)
     run_test_new_version(app, blueprint_id=blueprint_id)

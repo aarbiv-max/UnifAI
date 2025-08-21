@@ -85,7 +85,7 @@ export default function ExecutionStream({
   // Create agent nodes from selected graph nodes on component mount
   useEffect(() => {
     const getGraphNodes = async () => {
-      const response = await axios.get(`/blueprints/available.blueprints.get?userId=${user?.username || "default"}`);
+      const response = await axios.get(`/blueprints/available.blueprints.resolved.get?userId=${user?.username || "default"}`);
       const blueprintObjects = response.data;
       
       // Find the specific graph flow by blueprint_id

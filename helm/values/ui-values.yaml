@@ -15,10 +15,10 @@ debug: false
 ui:
   env:
     NGINX_PORT: "8080"
-    DATAPIPELINEHUB_PORT: ""
-    DATAPIPELINEHUB_HOST: "https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
-    MULTIAGENT_PORT: ""
-    MULTIAGENT_HOST: "http://unifai-multiagent-be-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
+    # DATAPIPELINEHUB_PORT: ""
+    # DATAPIPELINEHUB_HOST: "https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
+    # MULTIAGENT_PORT: ""
+    # MULTIAGENT_HOST: "http://unifai-multiagent-be-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
 
   image:
     repository: images.paas.redhat.com/unifai/datapipelinehub/ui
@@ -33,4 +33,4 @@ ui:
       port: 13456
     - name: ma-backend
       port: 8003
-    type: LoadBalancer
+    type: ClusterIP

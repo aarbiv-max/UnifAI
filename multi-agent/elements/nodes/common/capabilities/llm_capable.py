@@ -1,5 +1,5 @@
 from elements.llms.common.chat.message import ChatMessage, Role
-from typing import Any, TypeVar, Generic, List
+from typing import Any, TypeVar, Generic, List, ClassVar
 from core.contracts import SupportsStreaming
 from elements.llms.common.base_llm import BaseLLM
 from elements.tools.common.base_tool import BaseTool
@@ -15,6 +15,9 @@ TSupportStream = TypeVar("TSupportStream", bound=SupportsStreaming)
 
 
 class LlmCapableMixin(Generic[TSupportStream]):
+    """LLM mixin channels - automatically included in any LLM node"""
+    MIXIN_READS: ClassVar[set[str]] = {}
+    MIXIN_WRITES: ClassVar[set[str]] = {}
     """
     Mixin: Adds LLM-chat capability that leverages existing streaming support.
 
@@ -37,13 +40,15 @@ class LlmCapableMixin(Generic[TSupportStream]):
     def __init_subclass__(cls) -> None:
         """
         At subclass definition time, ensure the concrete class implements
-        the streaming protocol so that `_chat()` can safely call
-        `self._stream()` and `self.is_streaming()`.
+        the streaming protocol and declares required channels.
         """
         if not issubclass(cls, SupportsStreaming):
             raise TypeError(
                 f"{cls.__name__} requires streaming support (_stream + is_streaming)."
             )
+        
+        # Chat context channels are now automatically included via MIXIN_READS/MIXIN_WRITES
+            
         super().__init_subclass__()
 
     def __init__(
@@ -134,7 +139,7 @@ class LlmCapableMixin(Generic[TSupportStream]):
     def _bind_tools(self, tools: List[BaseTool]) -> None:
         """
         Bind tools to this node's LLM instance, creating an isolated copy to avoid cross-contamination.
-
+        
         This creates a new LLM instance with tools bound, ensuring each node has its own
         tool-bound LLM without affecting other nodes that share the same base LLM.
         """

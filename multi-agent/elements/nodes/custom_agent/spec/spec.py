@@ -15,6 +15,6 @@ class CustomAgentNodeElementSpec(BaseElementSpec):
     description = META.description
     config_schema = CustomAgentNodeConfig
     factory_cls = CustomAgentNodeFactory
-    reads = CustomAgentNode.READS
-    writes = CustomAgentNode.WRITES
+    reads = CustomAgentNode.total_reads()
+    writes = CustomAgentNode.total_writes()
     tags = META.tags

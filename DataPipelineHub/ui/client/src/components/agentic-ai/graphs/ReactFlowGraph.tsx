@@ -26,6 +26,9 @@ import {
 } from "./interfaces";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStreamingData } from "../StreamingDataContext";
+import { BuildingBlock } from "../../../types/graph";
+import InnerRefElement from "./InnerRefElement";
+import { useWorkspaceData } from "../../../hooks/useWorkspaceData";
 import axios from "../../../http/axiosAgentConfig";
 
 // Node status enum
@@ -34,6 +37,9 @@ type NodeStatus = "IDLE" | "PROGRESS" | "DONE";
 // Enhanced NodeData interface
 interface EnhancedNodeData extends NodeData {
   status: NodeStatus;
+  allBlocks?: any[];
+  workspaceData?: any;
+  fetchResourceById?: (refId: string) => Promise<any>;
 }
 
 // Custom node components with status-aware styling
@@ -48,6 +54,117 @@ const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({
   const hasTools = data.tools && data.tools.length > 0;
   const isInProgress = data.status === "PROGRESS";
   const isDone = data.status === "DONE";
+
+  // Shared function to extract reference IDs from configuration
+  const extractReferences = useCallback((config: any): { [key: string]: string } => {
+    const refs: { [key: string]: string } = {};
+
+    if (!config || typeof config !== "object") {
+      return refs;
+    }
+
+    const traverse = (obj: any, path: string = "") => {
+      for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === "string" && value.startsWith("$ref:")) {
+          // Extract the actual reference ID after $ref:
+          const refId = value.substring(5);
+          refs[key] = refId;
+        } else if (Array.isArray(value)) {
+          // Handle arrays that might contain $ref values
+          value.forEach((item, index) => {
+            if (typeof item === "string" && item.startsWith("$ref:")) {
+              const refId = item.substring(5);
+              refs[`${key}[${index}]`] = refId;
+            }
+          });
+        } else if (typeof value === "object" && value !== null) {
+          traverse(value, path ? `${path}.${key}` : key);
+        }
+      }
+    };
+
+    traverse(config);
+    return refs;
+  }, []);
+
+  // Extract reference IDs from the node configuration and fetch them
+  const extractAndFetchReferences = useCallback(async (config: any, allBlocks: any[], fetchResourceByIdFn: (refId: string) => Promise<any>): Promise<BuildingBlock[]> => {
+    const refs = extractReferences(config);
+
+    // Fetch all referenced resources
+    const fetchedBlocks: BuildingBlock[] = [];
+    for (const [key, refId] of Object.entries(refs)) {
+      // Check if we already have this resource in allBlocks
+      const existingBlock = allBlocks.find(block => 
+        block.workspaceData?.rid === refId || block.id === refId
+      );
+
+      if (!existingBlock) {
+        try {
+          const resourceData = await fetchResourceByIdFn(refId);
+          if (resourceData) {
+            const buildingBlock: BuildingBlock = {
+              id: resourceData.rid || refId,
+              type: resourceData.type || 'unknown',
+              label: resourceData.name || refId,
+              color: "#FFB300", // Default color
+              description: "",
+              workspaceData: {
+                rid: resourceData.rid,
+                name: resourceData.name,
+                category: resourceData.category,
+                type: resourceData.type,
+                config: resourceData.cfg_dict,
+                version: resourceData.version,
+                created: resourceData.created,
+                updated: resourceData.updated,
+                nested_refs: resourceData.nested_refs,
+              }
+            };
+            fetchedBlocks.push(buildingBlock);
+          }
+        } catch (error) {
+          console.error(`Failed to fetch referenced resource ${refId}:`, error);
+        }
+      }
+    }
+
+    return fetchedBlocks;
+  }, [extractReferences]);
+
+  // State to manage fetched references
+  const [enhancedAllBlocks, setEnhancedAllBlocks] = useState<BuildingBlock[]>([]);
+  const [referencesLoaded, setReferencesLoaded] = useState(false);
+
+  // Load references when component mounts
+  useEffect(() => {
+    if (data.workspaceData?.config && !referencesLoaded && data.fetchResourceById) {
+      extractAndFetchReferences(data.workspaceData.config, data.allBlocks || [], data.fetchResourceById)
+        .then(fetchedBlocks => {
+          // Combine original blocks with fetched references
+          const originalBlocks = (data.allBlocks || []).map(block => ({
+            id: block.id || '',
+            type: block.workspaceData?.type || 'unknown',
+            label: block.workspaceData?.name || block.label || '',
+            color: "#FFB300",
+            description: block.description || "",
+            workspaceData: block.workspaceData
+          }));
+          
+          setEnhancedAllBlocks([...originalBlocks, ...fetchedBlocks]);
+          setReferencesLoaded(true);
+        })
+        .catch(error => {
+          console.error('Failed to fetch references:', error);
+          setReferencesLoaded(true);
+        });
+    }
+  }, [data.workspaceData?.config, data.allBlocks, referencesLoaded, data.fetchResourceById, extractAndFetchReferences]);
+
+  const references = data.workspaceData?.config 
+    ? extractReferences(data.workspaceData.config)
+    : {};
+  const hasReferences = Object.keys(references).length > 0;
 
   // Dynamic styling based on status
   const getStatusStyles = () => {
@@ -153,7 +270,7 @@ const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({
           </div>
         </div>
 
-        {/* Tools section - 25% of height */}
+        {/* Tools section */}
         {hasTools && (
           <div className="px-4 py-2">
             <div
@@ -175,6 +292,25 @@ const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({
                 >
                   {tool}
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* References section */}
+        {hasReferences && (
+          <div className="px-4 py-2">
+            <div className={`text-xs text-gray-400 mb-1`}>
+              References:
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {Object.entries(references).map(([key, refId]) => (
+                <InnerRefElement
+                  key={`${key}-${refId}`}
+                  refId={refId}
+                  refData={{ key, value: refId }}
+                  allBlocks={enhancedAllBlocks}
+                />
               ))}
             </div>
           </div>
@@ -280,6 +416,7 @@ const getEdgeStyle = (
 // Function to parse the JSON graph flow into ReactFlow nodes and edges
 const parseGraphFlow = (
   graphFlow: GraphFlow,
+  fetchResourceByIdFn?: (refId: string) => Promise<any>
 ): { nodes: Node<EnhancedNodeData>[]; edges: Edge[] } => {
   if (!graphFlow || !graphFlow.plan) {
     return { nodes: [], edges: [] };
@@ -413,6 +550,9 @@ const parseGraphFlow = (
         icon: icon,
         tools: nodeTools || [],
         status: "IDLE" as NodeStatus,
+        workspaceData: nodeDefinition,
+        allBlocks: graphFlow.nodes || [],
+        fetchResourceById: fetchResourceByIdFn,
       },
       position: { x: xOffset, y: yOffset },
       sourcePosition,
@@ -493,6 +633,7 @@ export default function ReactFlowGraph({
   const streamingContext = isLiveRequest ? useStreamingData() : null;
   const prevNodeListRef = useRef<Map<string, any>>(new Map());
   const { user } = useAuth();
+  const { fetchResourceById } = useWorkspaceData();
 
   // Function to update node status based on streaming data
   const updateNodeStatuses = useCallback(() => {
@@ -578,7 +719,7 @@ export default function ReactFlowGraph({
     try {
       setIsLoading(true);
       const response = await axios.get(
-        `/blueprints/available.blueprints.get?userId=${user?.username || "default"}`,
+        `/blueprints/available.blueprints.resolved.get?userId=${user?.username || "default"}`,
       );
       const blueprintObjects = response.data;
 
@@ -590,7 +731,7 @@ export default function ReactFlowGraph({
 
       if (targetBlueprintObj) {
         const { nodes: newNodes, edges: newEdges } =
-          parseGraphFlow(targetBlueprintObj.spec_dict);
+          parseGraphFlow(targetBlueprintObj.spec_dict, fetchResourceById);
 
         setNodes(newNodes);
         setEdges(newEdges);

@@ -14,4 +14,4 @@ class CustomAgentNodeConfig(NodeBaseConfig):
     retriever: Optional[RetrieverRef] = Field(None, description="Retriever key to use")
     tools: Optional[List[ToolRef]] = Field(default_factory=list, description="List of tool keys")
     provider: Optional[ProviderRef] = Field(default=None, description="MCP Provider Ref")
-    system_message: str = Field(None, description="Custom system prompt")
+    system_message: str = Field("", description="Custom system prompt")

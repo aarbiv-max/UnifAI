@@ -15,6 +15,6 @@ class MockAgentNodeElementSpec(BaseElementSpec):
     description = META.description
     config_schema = MockAgentNodeConfig
     factory_cls = MockAgentNodeFactory
-    reads = MockAgentNode.READS
-    writes = MockAgentNode.WRITES
+    reads = MockAgentNode.total_reads()
+    writes = MockAgentNode.total_writes()
     tags = META.tags

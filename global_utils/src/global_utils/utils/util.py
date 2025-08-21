@@ -1,4 +1,4 @@
-from global_utils.config.config import SharedConfig
+from global_utils.config import SharedConfig
 from typing import Any, Type
 from pydantic import BaseModel
 import json
@@ -20,7 +20,7 @@ import importlib.util
 import sys
 import re
 
-config = SharedConfig()
+config = SharedConfig.get_instance()
 
 
 def get_mongo_url():

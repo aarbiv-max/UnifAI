@@ -72,6 +72,34 @@ class BlueprintService:
         docs = self._repo.list_docs(user_id=user_id, **pg)
         return [doc for doc in docs]
 
+    def list_resolved_docs(
+            self, *, user_id: str | None = None, **pg
+    ) -> List[Mapping[str, Any]]:
+        """
+        Return documents with resolved spec_dict instead of draft spec_dict.
+        """
+        docs = self._repo.list_docs(user_id=user_id, **pg)
+        resolved_docs = []
+        
+        for doc in docs:
+            try:
+                # Create draft from spec_dict
+                draft = BlueprintDraft(**doc["spec_dict"])
+                # Resolve the draft to BlueprintSpec
+                resolved_spec = self._resolver.resolve(draft)
+                # Convert resolved spec to dict
+                resolved_dict = resolved_spec.model_dump(mode="json")
+                
+                # Create new doc with resolved spec_dict
+                resolved_doc = dict(doc)  # Copy all fields from original doc
+                resolved_doc["spec_dict"] = resolved_dict  # Replace spec_dict with resolved version
+                resolved_docs.append(resolved_doc)
+            except Exception as e:
+                # If resolution fails, skip this document
+                continue
+                
+        return resolved_docs
+
     def count(self, *, user_id: str | None = None) -> int:
         return self._repo.count(user_id=user_id)
 

@@ -11,7 +11,7 @@ case "$ROLE" in
   flask)
     echo "🟢 Starting Flask API (Server)..."
     . ~/venv/bin/activate
-    exec gunicorn -w 4 -b 0.0.0.0:$PORT --chdir ~/app run.wsgi:application
+    exec gunicorn -w $GUNICORN_WORKERS -b 0.0.0.0:$PORT --timeout $GUNICORN_TIMEOUT --chdir ~/app run.wsgi:application
     ;;
     
   # celery)

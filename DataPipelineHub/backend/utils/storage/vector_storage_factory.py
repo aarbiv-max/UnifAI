@@ -3,7 +3,7 @@ from .qdrant_storage import QdrantStorage
 from typing import Dict, Any
 from config.app_config import AppConfig
 
-app_config = AppConfig()
+app_config = AppConfig.get_instance()
 
 class VectorStorageFactory:
     """Factory for creating vector storage instances based on configuration."""

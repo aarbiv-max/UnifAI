@@ -106,16 +106,16 @@ class OpenAILLM(BaseLLM, SupportsStreaming):
     def bind_tools(self, tools: List[BaseTool]) -> "OpenAILLM":
         """
         Return a new OpenAILLM instance with tools bound, avoiding cross-contamination.
-
+        
         This creates a copy of the current LLM with tools bound to the client,
         ensuring the original LLM instance remains unchanged.
         """
         # Create a shallow copy of the current instance
         new_llm = copy.copy(self)
-
+        
         # Create a new client with tools bound (LangChain's bind_tools returns a copy)
         new_llm.client = self.client.bind_tools(LangChainToolsConverter.to_lc(tools))
-
+        
         return new_llm
 
     @property

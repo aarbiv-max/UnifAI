@@ -15,6 +15,6 @@ class BranchChooserNodeElementSpec(BaseElementSpec):
     description = META.description
     config_schema = BranchChooserNodeConfig
     factory_cls = BranchChooserNodeFactory
-    reads = BranchChooserNode.READS
-    writes = BranchChooserNode.WRITES
+    reads = BranchChooserNode.total_reads()
+    writes = BranchChooserNode.total_writes()
     tags = META.tags

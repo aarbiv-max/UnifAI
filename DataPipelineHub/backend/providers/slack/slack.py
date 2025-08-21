@@ -5,7 +5,7 @@ from config.constants import SourceType
 from config.app_config import AppConfig
 
 def _get_configured_connector() -> SlackConnector:
-    app_config = AppConfig()
+    app_config = AppConfig.get_instance()
     config_manager = SlackConfigManager()
     config_manager.set_project_tokens(
         project_id="example-project",

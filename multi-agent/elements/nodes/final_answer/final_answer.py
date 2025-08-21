@@ -1,72 +1,82 @@
-from typing import Sequence, Mapping
+from typing import List, ClassVar, Dict, Any
 from elements.nodes.common.base_node import BaseNode
+from elements.nodes.common.capabilities.iem_capable import IEMCapableMixin
 from graph.state.graph_state import Channel
 from graph.state.state_view import StateView
-from elements.llms.common.chat.message import ChatMessage, Role
+from elements.nodes.common.workload import AgentResult
 
 
-class _DefaultFormatter:
-    """Internal helper—formats nodes_output into a final reply."""
-
-    @staticmethod
-    def format(outputs: Mapping[str, str]) -> str:
-        if not outputs:
-            return "I apologize, but I don't have any specific information to provide."
-        if len(outputs) == 1:
-            return next(iter(outputs.values())).strip()
-
-        parts = []
-        for name, text in outputs.items():
-            text = text.strip()
-            if not text:
-                continue
-            display = name.replace("_", " ").title()
-            parts.append(f"**{display}:**\n{text}")
-        return "\n\n".join(parts) if parts else (
-            "I apologize, but I don't have any specific information to provide."
-        )
-
-
-class FinalAnswerNode(BaseNode):
+class FinalAnswerNode(IEMCapableMixin, BaseNode):
     """
-    Ensures the conversation ends with an assistant response if the user spoke last.
-    Uses an internal formatter class—no external injection required, but you
-    can still override `_formatter` in a subclass if you want a different style.
+    Enhanced final node that collects task results and creates final output.
+    
+    Behavior:
+    - Processes TaskPackets and extracts task results
+    - Collects all AgentResults from tasks
+    - Merges them into one final message
+    - Promotes to messages and sets Channel.OUTPUT
     """
-    READS = {Channel.MESSAGES, Channel.NODES_OUTPUT}
-    WRITES = {Channel.MESSAGES, Channel.OUTPUT}
+    
+    READS: ClassVar[set[str]] = {Channel.MESSAGES}
+    WRITES: ClassVar[set[str]] = {Channel.MESSAGES, Channel.OUTPUT}
 
-    # default formatter instance; you can override in a subclass if needed
-    _formatter = _DefaultFormatter()
-
-    def __init__(
-            self,
-            *,
-            name: str = "final_answer",
-            **kwargs
-    ):
+    def __init__(self, *, name: str = "final_answer", **kwargs):
         super().__init__(**kwargs)
         self.name = name
+        self._collected_results: List[AgentResult] = []
 
     def run(self, state: StateView) -> StateView:
-        messages = state.get(Channel.MESSAGES, [])
-
-        if not self._last_is_assistant(messages):
-            raw = state.get(Channel.NODES_OUTPUT, {})
-            reply = self._formatter.format(raw)
-            self._append_message(state, reply)
-
-        messages = state.get(Channel.MESSAGES, [])
-        if messages:
-            state[Channel.OUTPUT] = messages[-1].content
-
+        """Process all incoming TaskPackets and create final answer."""
+        # Process all incoming task packets
+        self.process_packets(state)
+        
+        # Create final answer if we have collected results
+        if self._collected_results:
+            final_answer = self._merge_results()
+            self.promote_to_messages(final_answer)
+            state[Channel.OUTPUT] = final_answer
+            
+            # Clear collected results
+            self._collected_results.clear()
+        
         return state
 
-    @staticmethod
-    def _last_is_assistant(messages: Sequence[ChatMessage]) -> bool:
-        return bool(messages) and messages[-1].role == Role.ASSISTANT
+    def handle_task_packet(self, packet) -> None:
+        """
+        Collect task results from TaskPackets.
+        
+        Extracts task from packet and collects AgentResult if present.
+        """
+        try:
+            task = packet.extract_task()
 
-    def _append_message(self, state: StateView, content: str) -> None:
-        new_msg = ChatMessage(role=Role.ASSISTANT, content=content)
-        updated = list(state.get(Channel.MESSAGES, [])) + [new_msg]
-        state[Channel.MESSAGES] = updated
+            # Extract AgentResult from task if present
+            if task.result and isinstance(task.result, AgentResult):
+                self._collected_results.append(task.result)
+                print(f"FinalAnswerNode {self.uid}: Collected result from {task.result.agent_name}")
+                
+        except Exception as e:
+            print(f"FinalAnswerNode {self.uid}: Error collecting task result: {e}")
+
+    def _merge_results(self) -> str:
+        """Merge all collected AgentResult objects into one final message."""
+        if not self._collected_results:
+            return "I apologize, but I don't have any information to provide."
+        
+        if len(self._collected_results) == 1:
+            return self._collected_results[0].content
+        
+        # Remove duplicates while preserving order
+        unique_contents = []
+        seen = set()
+        for result in self._collected_results:
+            content = result.content.strip()
+            if content and content not in seen:
+                unique_contents.append(content)
+                seen.add(content)
+        
+        if len(unique_contents) == 1:
+            return unique_contents[0]
+        
+        # Join multiple unique results
+        return "\n\n".join(unique_contents)

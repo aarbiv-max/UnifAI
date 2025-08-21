@@ -2,6 +2,7 @@ from typing import Literal
 from .identifiers import Identifier
 from pydantic import Field, HttpUrl
 from elements.retrievers.common.base_config import BaseRetrieverConfig
+from core.field_hints import HiddenHint
 
 
 class SlackRetrieverConfig(BaseRetrieverConfig):
@@ -10,8 +11,11 @@ class SlackRetrieverConfig(BaseRetrieverConfig):
     """
     type: Literal[Identifier.TYPE] = Identifier.TYPE
     api_url: HttpUrl = Field(
-        default_factory=lambda: HttpUrl("http://0.0.0.0:13456/api/slack/query.match"),
-        description="URL for retrieving slack messages from the API"
+        HttpUrl("https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/api/slack/query.match"),
+        # default_factory=lambda: HttpUrl(
+            # "https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/api/slack/query.match"),
+        description="URL for retrieving slack messages from the API",
+        json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints()
     )
     top_k_results: int = Field(
         3, ge=1,

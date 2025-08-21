@@ -1,4 +1,8 @@
-from typing import Protocol, runtime_checkable, Mapping, Any, Iterator
+from typing import Protocol, runtime_checkable, Mapping, Any, Iterator, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from graph.state.state_view import StateView
+    from graph.step_context import StepContext
 from abc import ABC, abstractmethod
 from .enums import ResourceCategory
 
@@ -8,6 +12,23 @@ class SupportsStreaming(Protocol):
     def _stream(self, payload: Mapping[str, Any]) -> None: ...
 
     def is_streaming(self) -> bool: ...
+
+
+@runtime_checkable  
+class SupportsStateContext(Protocol):
+    """
+    Protocol for classes that provide access to graph state and step context.
+    
+    This ensures that mixins requiring state/context access can only be used
+    with classes that provide these capabilities.
+    """
+    def get_state(self) -> "StateView":
+        """Get the current state view for this node."""
+        ...
+    
+    def get_context(self) -> "StepContext":
+        """Get the current step context for this node."""
+        ...
 
 
 class LLMSupportsStreaming(ABC):

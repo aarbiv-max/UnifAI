@@ -16,7 +16,7 @@ unifai_dataflow_server:
   env:
     ROLE: "flask"
     SHARED_STORAGE: "/app/shared"
-    FRONTEND_URL: "http://unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
+    #FRONTEND_URL: "http://unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
   resources:
     limits:
       cpu: 4

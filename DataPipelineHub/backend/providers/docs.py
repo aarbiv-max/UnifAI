@@ -12,8 +12,8 @@ from providers.data_sources import initialize_embedding_generator, initialize_ve
 from config.constants import SourceType
 import pymongo
 
-app_config = AppConfig()
-upload_folder = app_config.get("upload_folder", "")
+app_config = AppConfig.get_instance()
+upload_folder = app_config.upload_folder
 
 mongo_client = pymongo.MongoClient(get_mongo_url())
 data_source_repo = MongoStorage(get_mongo_url())

@@ -15,6 +15,6 @@ class UserQuestionNodeElementSpec(BaseElementSpec):
     description = META.description
     config_schema = UserQuestionNodeConfig
     factory_cls = UserQuestionNodeFactory
-    reads = UserQuestionNode.READS
-    writes = UserQuestionNode.WRITES
+    reads = UserQuestionNode.total_reads()
+    writes = UserQuestionNode.total_writes()
     tags = META.tags

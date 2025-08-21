@@ -395,6 +395,7 @@ export const useWorkspaceData = () => {
     fetchElementSchema,
     fetchElementActions,
     fetchResourcesForCategory,
+    fetchResourceById,
     saveElement,
     deleteElement,
     refetchCategories: fetchCategories,

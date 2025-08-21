@@ -1,5 +1,4 @@
 from global_utils.config.config import SharedConfig
-from functools import lru_cache
 
 
 class AppConfig(SharedConfig):
@@ -12,8 +11,3 @@ class AppConfig(SharedConfig):
 
     # Engine
     engine_name: str = "langgraph"
-
-
-@lru_cache(maxsize=1)
-def get_app_config() -> AppConfig:
-    return AppConfig()

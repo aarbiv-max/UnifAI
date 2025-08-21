@@ -16,7 +16,7 @@ class SlackPipelineFactory(PipelineFactory):
         self,
     ):
         super().__init__()
-        self.app_config = AppConfig()
+        self.app_config = AppConfig.get_instance()
 
     def _get_configured_connector(self) -> SlackConnector:
         config_manager = SlackConfigManager()

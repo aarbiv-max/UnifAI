@@ -197,6 +197,7 @@ pipeline {
                     echo "Triggering deployment pipeline with MODULES_TO_DEPLOY = ${modulesToDeploy}"
                     build job: 'app-deployer',
                     parameters: [
+                        string(name: 'PIPELINE_BRANCH', value: params.PIPELINE_BRANCH),
                         string(name: 'deploy_location', value: params.deploy_location),
                         string(name: 'deploy_type', value: params.deploy_type),
                         string(name: 'BRANCH', value: params.BRANCH),

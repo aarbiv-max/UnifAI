@@ -3,34 +3,16 @@
 # Declare variables to be passed into your templates.
 
 # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
-#replicaCount: 1
-
-# env:
-#   NGINX_PORT: "8080"
-#   DATAPIPELINEHUB_PORT: "13456"
-#   DATAPIPELINEHUB_HOST: "unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
-#   MULTIAGENT_PORT: "8003"
-#   MULTIAGENT_HOST: "10.46.254.131"
-#   SCHEME: "https"
+replicaCount: 1
 debug: false
 command: ["/bin/sh", "-c", "sleep infinity"]
-
-env:
-  NGINX_PORT: "8080"
-  DATAPIPELINEHUB_PORT: "13456"
-  DATAPIPELINEHUB_HOST: "unifai-dataflow-server"
-  MULTIAGENT_PORT: "8080"
-  MULTIAGENT_HOST: "unifai-multiagent-be"
-
-
-# command: ["/bin/sh", "-c", "sleep infinity"]
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
-  repository: images.paas.redhat.com/unifai/ui
+  repository: nginx
   # This sets the pull policy for images.
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
+  tag: ""
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -38,6 +20,17 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
 
 # This is for setting Kubernetes Annotations to a Pod.
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
@@ -70,8 +63,15 @@ service:
   type: LoadBalancer
   # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
 
-route:
-  host: unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com
+debug: false
+command: ["/bin/sh", "-c", "sleep infinity"]
+
+env:
+  NGINX_PORT: "8080"
+  DATAPIPELINEHUB_PORT: "13456"
+  # DATAPIPELINEHUB_HOST: "unifai-dataflow-server"
+  MULTIAGENT_PORT: "8080"
+  # MULTIAGENT_HOST: "unifai-multiagent-be"
 
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
@@ -106,11 +106,11 @@ resources: {}
 livenessProbe:
   httpGet:
     path: /
-    port: http
+    port: 8080
 readinessProbe:
   httpGet:
     path: /
-    port: http
+    port: 8080
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:

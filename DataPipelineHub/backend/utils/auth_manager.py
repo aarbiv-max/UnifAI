@@ -13,7 +13,7 @@ from authlib.common.errors import AuthlibBaseError
 from shared.logger import logger
 from config.app_config import AppConfig
 
-config = AppConfig()
+config = AppConfig.get_instance()
 
 class AuthManager:
     def __init__(self, app=None):

@@ -9,10 +9,19 @@ import {
   GitBranch,
   MessageSquare,
   BookOpen,
-  Network, // Added Network icon
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StreamingDataProvider } from "@/components/agentic-ai/StreamingDataContext";
 import { GraphFlow, FlowObject } from "./graphs/interfaces";
 import ReactFlowGraph from "../agentic-ai/graphs/ReactFlowGraph";
@@ -71,6 +80,9 @@ export default function AgentFlowGraph({
   const [graphFlows, setGraphFlows] = useState<FlowObject[]>([]);
   const [activeFlowIds, setActiveFlowIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [flowToDelete, setFlowToDelete] = useState<FlowObject | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const { user } = useAuth();
 
@@ -79,7 +91,7 @@ export default function AgentFlowGraph({
     const fetchGraphFlows = async () => {
       try {
         const response = await axios.get(
-          `/blueprints/available.blueprints.get?userId=${user?.username || "default"}`,
+          `/blueprints/available.blueprints.resolved.get?userId=${user?.username || "default"}`,
         );
         const blueprints: Array<{ blueprint_id: string; spec_dict: GraphFlow }> = response.data;
 
@@ -102,7 +114,9 @@ export default function AgentFlowGraph({
 
     const fetchActiveFlows = async () => {
       try {
-        const response = await axios.get(`/sessions/session.user.blueprints.get?userId=${user?.username || "default"}`);
+        const response = await axios.get(
+          `/sessions/session.user.blueprints.get?userId=${user?.username || "default"}`
+        );
         setActiveFlowIds(response.data || []);
       } catch (error) {
         console.error("Error fetching active flows:", error);
@@ -120,6 +134,42 @@ export default function AgentFlowGraph({
 
   const isFlowActive = (flowId: string): boolean => {
     return activeFlowIds.includes(flowId);
+  };
+
+  const handleDeleteClick = (flow: FlowObject, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent flow selection when clicking delete
+    setFlowToDelete(flow);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!flowToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await axios.delete(`/blueprints/remove.blueprint?blueprintId=${flowToDelete.id}`);
+      
+      // Remove the deleted flow from the list
+      setGraphFlows(prevFlows => prevFlows.filter(flow => flow.id !== flowToDelete.id));
+      
+      // If the deleted flow was selected, clear the selection
+      if (selectedFlow?.id === flowToDelete.id) {
+        setSelectedFlow(null);
+      }
+      
+      setShowDeleteModal(false);
+      setFlowToDelete(null);
+    } catch (error) {
+      console.error('Error deleting blueprint:', error);
+      // Handle error (we can consider show a toast notification here)
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setFlowToDelete(null);
   };
 
   if (isLoading) {
@@ -171,11 +221,21 @@ export default function AgentFlowGraph({
                       {flow.icon}
                       <span className="text-sm font-medium">{flow.name}</span>
                     </div>
-                    {isFlowActive(flow.id) && (
-                      <span className="text-xs bg-primary text-white px-2 py-1 rounded-full">
-                        Active
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {isFlowActive(flow.id) && (
+                        <span className="text-xs bg-primary text-white px-2 py-1 rounded-full">
+                          Active
+                        </span>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-red-500/20 hover:text-red-400"
+                        onClick={(e) => handleDeleteClick(flow, e)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
                     {flow.description}
@@ -202,6 +262,34 @@ export default function AgentFlowGraph({
           </div>
         </div>
       </CardContent>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Flow</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {flowToDelete?.name}?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleDeleteCancel}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

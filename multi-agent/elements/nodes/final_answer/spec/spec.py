@@ -16,6 +16,6 @@ class FinalAnswerNodeElementSpec(BaseElementSpec):
     description = META.description
     config_schema = FinalAnswerNodeConfig
     factory_cls = FinalAnswerNodeFactory
-    reads = FinalAnswerNode.READS
-    writes = FinalAnswerNode.WRITES
+    reads = FinalAnswerNode.total_reads()
+    writes = FinalAnswerNode.total_writes()
     tags = META.tags

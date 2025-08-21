@@ -19,6 +19,18 @@ def available_doc_list(user_id):
         return jsonify({"error": str(e)}), 500
 
 
+@blueprints_bp.route("/available.blueprints.resolved.get", methods=["GET"])
+@from_query({
+    "user_id": fields.Str(data_key="userId", required=True)
+})
+def available_resolved_doc_list(user_id):
+    try:
+        svc = current_app.container.blueprint_service
+        return jsonify(svc.list_resolved_docs(user_id=user_id)), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @blueprints_bp.route("/blueprint.save", methods=["POST"])
 @from_body({
     "blueprint_raw": fields.Str(data_key="blueprintRaw", required=False),  # optional for non-JSON/YAML raw
@@ -83,3 +95,42 @@ def blueprint_draft_schema_get():
         return jsonify(schema), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@blueprints_bp.route("/remove.blueprint", methods=["DELETE"])
+@from_query({
+    "blueprint_id": fields.Str(data_key="blueprintId", required=True)
+})
+def remove_blueprint(blueprint_id):
+    """
+    Delete a blueprint by its ID.
+    """
+    try:
+        svc = current_app.container.blueprint_service
+        
+        # Check if blueprint exists before attempting deletion
+        if not svc.exists(blueprint_id):
+            return jsonify({
+                "status": "error",
+                "error": f"Blueprint with ID '{blueprint_id}' not found"
+            }), 404
+        
+        # Attempt to delete the blueprint
+        deleted = svc.delete(blueprint_id)
+        
+        if deleted:
+            return jsonify({
+                "status": "success",
+                "message": f"Blueprint '{blueprint_id}' deleted successfully"
+            }), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "error": f"Failed to delete blueprint '{blueprint_id}'"
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 500

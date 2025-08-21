@@ -17,7 +17,7 @@ import SlackAddSourcePage from "./features/slack/SlackAddSourcePage";
 function App() {
   // Set document title
   useEffect(() => {
-    document.title = "DataFlow Pro - Modern Pipeline Management";
+    document.title = "UnifAI";
   }, []);
 
   return (

@@ -15,4 +15,3 @@ spec:
     name: {{ include "ui.fullname" . }}
     weight: 100
   wildcardPolicy: None
-

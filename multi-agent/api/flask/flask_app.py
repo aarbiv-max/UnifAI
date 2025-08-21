@@ -16,7 +16,7 @@ def create_app(config: AppConfig = None) -> Flask:
     4) Register API‐Blueprints (route groups)
     5) Register error handlers
     """
-    config = config or AppConfig()
+    config = config or AppConfig.get_instance()
     app = Flask(__name__)
     CORS(app, resources={r"/api/*": {"origins": "*",
                                      "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],

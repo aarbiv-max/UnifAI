@@ -19,7 +19,7 @@ from global_utils.utils.util import get_mongo_url
 # Init FLASK
 app = Flask(__name__)
 
-config = AppConfig()
+config = AppConfig.get_instance()
 app.secret_key = config.get('secret_key', os.urandom(24))
 
 # Configure CORS to allow credentials
