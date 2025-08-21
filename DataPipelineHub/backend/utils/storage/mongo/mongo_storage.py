@@ -6,6 +6,8 @@ from utils.storage.mongo.slack_channels_repository import SlackChannelsRepositor
 from utils.storage.mongo.utils import make_json_safe
 from pymongo import UpdateOne
 from config.constants import Database, Collection as CollectionName
+from config.constants import PipelineStatus
+from datetime import datetime, timezone
 
 class MongoStorage:
     """Main MongoDB storage facade that composes repositories."""
@@ -47,7 +49,10 @@ class MongoStorage:
 
     def delete_source(self, source_id: str) -> Dict[str, Any]:
         """Delete source (delegates to sources repository)."""
-        return self.sources.delete(source_id)
+        return self.sources.delete_by_source_id(source_id)
+    
+    def delete_source_by_pipeline_id(self, pipeline_id: str) -> Dict[str, Any]:
+        return self.sources.delete_by_pipeline_id(pipeline_id)
 
     def upsert_source_summary(self, source_id: str, source_name: str, source_type: str,
                               upload_by: str, pipeline_id: str, type_data: Optional[Dict[str, Any]] = None) -> None:
@@ -106,3 +111,85 @@ class MongoStorage:
     def find_documents(self, db: str, col: str, query: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Generic document find operation."""
         return list(self._conn.get_collection(db, col).find(query or {}))
+
+    def find_duplicate_source_by_md5(self, content_md5: str, source_type: str) -> Optional[Dict[str, Any]]:
+        """Return the first existing source that has the same MD5 and whose pipeline is DONE."""
+        query: Dict[str, Any] = {"type_data.content_md5": content_md5}
+        if source_type:
+            query["source_type"] = source_type
+        candidates = list(self._conn.get_collection(Database.DATA_SOURCES.value, CollectionName.SOURCES.value).find(query))
+        for existing in candidates:
+            pipeline_id = existing.get("pipeline_id")
+            if not pipeline_id:
+                continue
+            status = self.pipelines.get_status(pipeline_id)
+            if status == PipelineStatus.DONE.value:
+                return existing
+        return None
+
+    def mark_pipeline_skipped(self, pipeline_id: str) -> bool:
+        return self.pipelines.update_status(pipeline_id, PipelineStatus.SKIPPED.value)
+
+    def delete_pipeline_and_source(self, pipeline_id: str) -> None:
+        try:
+            self.sources.delete_by_pipeline_id(pipeline_id)
+            self.pipelines.delete_by_pipeline_id(pipeline_id)
+        except Exception:
+            pass
+
+    def find_sources_by_content_md5(self, content_md5: str, source_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        return self.sources.find_by_content_md5(content_md5, source_type)
+
+    def update_original_source_on_duplicate(self, original_pipeline_id: str, duplicate_created_at, uploader: str,
+                                            duplicate_uploaded_name: str, original_name: str) -> None:
+        col = self._conn.get_collection(Database.DATA_SOURCES.value, CollectionName.SOURCES.value)
+        col.update_one(
+            {"pipeline_id": original_pipeline_id},
+            [{"$set": {"last_updated": duplicate_created_at, "upload_by": {
+                "$cond": [
+                    {"$isArray": "$upload_by"},
+                    {"$setUnion": ["$upload_by", [uploader]]},
+                    {"$cond": [
+                        {"$eq": ["$upload_by", uploader]},
+                        "$upload_by",
+                        ["$upload_by", uploader]
+                    ]}
+                ]
+            }, "duplication_notice": {
+                "duplicate_uploaded_name": duplicate_uploaded_name,
+                "existing_name": original_name,
+                "duplicate_at": duplicate_created_at
+            }} }]
+        )
+
+    def handle_document_duplicate(
+        self,
+        original_doc: Dict[str, Any],
+        duplicate_pipeline_id: str,
+        duplicate_source_name: str,
+        uploader: str,
+    ) -> None:
+        """One-shot handler to resolve a duplicate document pipeline."""
+        try:
+            # 1) Mark duplicate pipeline as SKIPPED
+            self.mark_pipeline_skipped(duplicate_pipeline_id)
+
+            # 2) Fetch duplicate doc created_at if present
+            col = self._conn.get_collection(Database.DATA_SOURCES.value, CollectionName.SOURCES.value)
+            dup_doc = col.find_one({"pipeline_id": duplicate_pipeline_id}, {"created_at": 1}) or {}
+            duplicate_created_at = dup_doc.get("created_at", datetime.now(timezone.utc))
+
+            # 3) Update original doc with duplication notice and merged uploader
+            self.update_original_source_on_duplicate(
+                original_pipeline_id=original_doc.get("pipeline_id", ""),
+                duplicate_created_at=duplicate_created_at,
+                uploader=uploader,
+                duplicate_uploaded_name=duplicate_source_name,
+                original_name=original_doc.get("source_name", ""),
+            )
+
+            # 4) Delete duplicate source and pipeline docs
+            self.delete_pipeline_and_source(duplicate_pipeline_id)
+        except Exception:
+            # Best effort only
+            pass

@@ -97,7 +97,7 @@ class SourcesRepository:
             upsert=True
         )
 
-    def delete(self, source_id: str) -> Dict[str, Any]:
+    def delete_by_source_id(self, source_id: str) -> Dict[str, Any]:
         """Delete a source by ID."""
         try:
             result = self.col.delete_one({"source_id": source_id})
@@ -109,3 +109,18 @@ class SourcesRepository:
         except Exception as e:
             logger.error(f"Error deleting source {source_id}: {e}")
             return {"success": False, "error": str(e)} 
+
+    def delete_by_pipeline_id(self, pipeline_id: str) -> Dict[str, Any]:
+        """Delete a source by its pipeline_id."""
+        try:
+            result = self.col.delete_one({"pipeline_id": pipeline_id})
+            return {
+                "success": True,
+                "source_deleted": result.deleted_count > 0,
+                "documents_deleted": result.deleted_count
+            }
+        except Exception as e:
+            logger.error(f"Error deleting source by pipeline_id {pipeline_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+    # Note: business logic functions are moved to MongoStorage to keep repository lean.

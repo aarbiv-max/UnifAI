@@ -1,16 +1,15 @@
 import os
-import hashlib
 from typing import Dict, List, Any, Optional
 from pathlib import Path
+from utils.documents import compute_file_md5
 from shared.logger import logger
-from pymongo import MongoClient
-from global_utils.utils.util import get_mongo_url
-from config.constants import PipelineStatus
+from providers.docs import find_duplicate_source_by_md5
+from config.constants import SourceType
 from utils.data_connector import DataConnector
 from .doc_config_manager import DocConfigManager
 from .pdf_chunker_strategy import DoclingProcessingError
 
-from docling.document_converter import DocumentConverter, ConversionResult
+from docling.document_converter import DocumentConverter, ConversionResult  # type: ignore[import]
 
 class DocumentConnector(DataConnector):
     """
@@ -113,9 +112,9 @@ class DocumentConnector(DataConnector):
             
             # Compute MD5 of the extracted full text (post-conversion) and detect duplicates
             try:
-                text_md5 = self._compute_file_md5(text_content)
+                text_md5 = compute_file_md5(text_content)
                 if text_md5:
-                    original_doc = self._detect_duplication(text_md5)
+                    original_doc = find_duplicate_source_by_md5(text_md5, SourceType.DOCUMENT.value)
                     if original_doc:
                         raise DuplicateDocumentError(original_doc=original_doc)
                     else:
@@ -125,7 +124,7 @@ class DocumentConnector(DataConnector):
             except Exception as e:
                 logger.warning(f"Failed computing text MD5 for duplicate detection: {e}")
 
-            document_data["metadata"] = self._extract_metadata(result, upload_by, file_size_mb, text_md5)
+            document_data["metadata"] = self._extract_metadata(result, upload_by, file_size_mb, text_md5 or "")
 
             logger.info(f"Document processed successfully: {document_path}")
             return document_data
@@ -207,36 +206,6 @@ class DocumentConnector(DataConnector):
             logger.error(f"Error processing document from URL {document_url}: {str(e)}")
             return None
 
-    def _detect_duplication(self, content_md5: str) -> Optional[Dict[str, Any]]:
-        """
-        Check if a document with the same content MD5 already exists.
-        Returns the existing source doc if found AND its pipeline status is DONE, otherwise None.
-        """
-        try:
-            client = MongoClient(get_mongo_url())
-            sources_col = client["data_sources"]["sources"]
-            pipelines_col = client["pipeline_monitoring"]["pipelines"]
-
-            # Find matching sources by MD5
-            candidates = sources_col.find({"source_type": "DOCUMENT", "type_data.content_md5": content_md5})
-            for existing in candidates:
-                pipeline_doc = pipelines_col.find_one({"pipeline_id": existing.get("pipeline_id"), "status": PipelineStatus.DONE.value})
-                if pipeline_doc:
-                    return existing
-            return None
-        except Exception as e:
-            logger.warning(f"Duplicate detection failed: {e}")
-            return None
-
-    def _compute_file_md5(self, full_text: str) -> Optional[str]:
-        try:
-            if not full_text:
-                return None
-            return hashlib.md5(full_text.encode("utf-8")).hexdigest()
-        except Exception as e:
-            logger.warning(f"Failed to compute text MD5: {e}")
-            return None
-
     def _extract_metadata(self, conversion_result: ConversionResult, upload_by: str = "default", file_size: float = 0.0, md5: str = "") -> Dict[str, Any]:
         """
         Extract metadata from a conversion result.
@@ -304,6 +273,6 @@ class DocumentConnector(DataConnector):
 
 
 class DuplicateDocumentError(Exception):
-    def __init__(self, original_doc: Optional[str]):
+    def __init__(self, original_doc: Optional[Dict[str, Any]]):
         super().__init__("Duplicate document content detected")
         self.original_doc = original_doc

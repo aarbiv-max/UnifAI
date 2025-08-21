@@ -1,6 +1,7 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from pymongo.collection import Collection
 from shared.logger import logger
+from datetime import datetime, timezone
 
 class PipelinesRepository:
     """Repository for managing pipeline documents in MongoDB."""
@@ -43,3 +44,29 @@ class PipelinesRepository:
         except Exception as e:
             logger.error(f"Error deleting pipeline {pipeline_id}: {e}")
             return {"success": False, "error": str(e)} 
+
+    def delete_by_pipeline_id(self, pipeline_id: str) -> Dict[str, Any]:
+        """Delete a single pipeline document by exact pipeline_id."""
+        try:
+            result = self.col.delete_one({"pipeline_id": pipeline_id})
+            return {
+                "success": True,
+                "pipelines_deleted": result.deleted_count
+            }
+        except Exception as e:
+            logger.error(f"Error deleting pipeline {pipeline_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+    def get_status(self, pipeline_id: str) -> Optional[str]:
+        """Get the current status for a pipeline by id."""
+        doc = self.col.find_one({"pipeline_id": pipeline_id}, {"status": 1, "_id": 0})
+        return None if not doc else doc.get("status")
+
+    def update_status(self, pipeline_id: str, new_status: str) -> bool:
+        """Update status and last_updated for a pipeline."""
+        now = datetime.now(timezone.utc)
+        result = self.col.update_one(
+            {"pipeline_id": pipeline_id},
+            {"$set": {"status": new_status, "last_updated": now}}
+        )
+        return result.modified_count > 0

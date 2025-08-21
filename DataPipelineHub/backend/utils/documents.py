@@ -1,7 +1,9 @@
 import os
 import re
 import unicodedata
-
+import hashlib
+from typing import Optional
+from shared.logger import logger
 
 def sanitize_filename(filename: str) -> str:
     """
@@ -23,3 +25,12 @@ def sanitize_filename(filename: str) -> str:
     cleaned = cleaned.strip("._")
     return cleaned or "uploaded_document"
 
+
+def compute_file_md5(full_text: str) -> Optional[str]:
+    try:
+        if not full_text:
+            return None
+        return hashlib.md5(full_text.encode("utf-8")).hexdigest()
+    except Exception as e:
+        logger.warning(f"Failed to compute text MD5: {e}")
+        return None

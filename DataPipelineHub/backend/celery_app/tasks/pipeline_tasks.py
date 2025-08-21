@@ -14,7 +14,7 @@ from shared.source_types import (
 from shared.logger import logger
 from config.constants import DataSource, PipelineStatus
 from utils.storage.mongo.mongo_helpers import get_mongo_storage
-from utils.filename import sanitize_filename
+from utils.documents import sanitize_filename
 
 app_config = AppConfig()
 upload_folder = app_config.get("upload_folder", "")
@@ -176,12 +176,6 @@ def execute_pipeline_task(self, source_type: str, source_data: dict):
             logger.info(f"Document path: {metadata}")
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
-        
-        # Dataclasses are frozen; build a new instance including pipeline_id
-        if source_type.upper() == DataSource.SLACK.upper_name:
-            metadata = SlackMetadata(**{**metadata_dict, "pipeline_id": pipeline_id})
-        elif source_type.upper() == DataSource.DOCUMENT.upper_name:
-            metadata = DocumentMetadata(**{**metadata_dict, "pipeline_id": pipeline_id})
 
         # Create factory and executor using the modular pipeline architecture
         factory = PipelineFactory.create(source_type)
