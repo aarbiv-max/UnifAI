@@ -122,5 +122,3 @@ class SourcesRepository:
         except Exception as e:
             logger.error(f"Error deleting source by pipeline_id {pipeline_id}: {e}")
             return {"success": False, "error": str(e)}
-
-    # Note: business logic functions are moved to MongoStorage to keep repository lean.

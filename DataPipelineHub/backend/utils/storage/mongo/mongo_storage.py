@@ -171,7 +171,7 @@ class MongoStorage:
     ) -> None:
         """One-shot handler to resolve a duplicate document pipeline."""
         try:
-            # 1) Mark duplicate pipeline as SKIPPED
+            # 1) Mark duplicate pipeline as skipped
             self.mark_pipeline_skipped(duplicate_pipeline_id)
 
             # 2) Fetch duplicate doc created_at if present
@@ -179,7 +179,7 @@ class MongoStorage:
             dup_doc = col.find_one({"pipeline_id": duplicate_pipeline_id}, {"created_at": 1}) or {}
             duplicate_created_at = dup_doc.get("created_at", datetime.now(timezone.utc))
 
-            # 3) Update original doc with duplication notice and merged uploader
+            # 3) Update original doc with duplication notice, updated creation time and merged uploader
             self.update_original_source_on_duplicate(
                 original_pipeline_id=original_doc.get("pipeline_id", ""),
                 duplicate_created_at=duplicate_created_at,
@@ -191,5 +191,4 @@ class MongoStorage:
             # 4) Delete duplicate source and pipeline docs
             self.delete_pipeline_and_source(duplicate_pipeline_id)
         except Exception:
-            # Best effort only
             pass
