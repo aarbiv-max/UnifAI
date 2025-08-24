@@ -3,7 +3,6 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 from utils.documents import compute_file_md5
 from shared.logger import logger
-from providers.docs import find_duplicate_source_by_md5
 from config.constants import SourceType
 from utils.data_connector import DataConnector
 from .doc_config_manager import DocConfigManager
@@ -110,19 +109,13 @@ class DocumentConnector(DataConnector):
                 "filename": os.path.basename(document_path),
             }
             
-            # Compute MD5 of the extracted full text (post-conversion) and detect duplicates
+            # Compute MD5 of the extracted full text (post-conversion)
             try:
                 text_md5 = compute_file_md5(text_content)
                 if text_md5:
-                    original_doc = find_duplicate_source_by_md5(text_md5, SourceType.DOCUMENT.value)
-                    if original_doc:
-                        raise DuplicateDocumentError(original_doc=original_doc)
-                    else:
-                        document_data.setdefault("metadata", {})["content_md5"] = text_md5
-            except DuplicateDocumentError:
-                raise
+                    document_data.setdefault("metadata", {})["content_md5"] = text_md5
             except Exception as e:
-                logger.warning(f"Failed computing text MD5 for duplicate detection: {e}")
+                logger.warning(f"Failed computing text MD5: {e}")
 
             document_data["metadata"] = self._extract_metadata(result, upload_by, file_size_mb, text_md5 or "")
 

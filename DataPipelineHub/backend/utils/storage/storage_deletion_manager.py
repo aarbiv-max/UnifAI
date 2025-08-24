@@ -38,7 +38,7 @@ class SourceDeletionManager:
         """
         logger.info(f"Step 2: Deleting from MongoDB - source {source_id}")
         try:
-            return self.mstore.sources.delete(source_id)
+            return self.mstore.delete_source(source_id)
         except Exception as e:
             logger.error(f"MongoDB deletion failed for source {source_id}: {e}")
             return {"success": False, "error": str(e), "source_deleted": False}

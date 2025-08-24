@@ -64,6 +64,7 @@ export default function Documents() {
               </span>
             ),
             description: `"${duplicateUploadedName}" is already embedded as "${existingName}" and is now available.`,
+            duration: 10000,
           });
         }
       }
