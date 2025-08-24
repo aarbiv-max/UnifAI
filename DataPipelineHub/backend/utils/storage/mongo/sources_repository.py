@@ -97,28 +97,31 @@ class SourcesRepository:
             upsert=True
         )
 
-    def delete_by_source_id(self, source_id: str) -> Dict[str, Any]:
-        """Delete a source by ID."""
+    def delete(self, filter_query: Dict[str, Any]) -> Dict[str, Any]:
+        """Generic delete that accepts an arbitrary filter and deletes all matches."""
         try:
-            result = self.col.delete_one({"source_id": source_id})
+            result = self.col.delete_many(filter_query or {})
             return {
                 "success": True,
-                "source_deleted": result.deleted_count > 0,
                 "documents_deleted": result.deleted_count
             }
         except Exception as e:
-            logger.error(f"Error deleting source {source_id}: {e}")
-            return {"success": False, "error": str(e)} 
+            logger.error(f"Error deleting sources with filter {filter_query}: {e}")
+            return {"success": False, "error": str(e)}
 
-    def delete_by_pipeline_id(self, pipeline_id: str) -> Dict[str, Any]:
-        """Delete a source by its pipeline_id."""
+    def update(self, filter_query: Dict[str, Any], update_ops: Any, many: bool = False, upsert: bool = False) -> Dict[str, Any]:
+        """Generic update supporting dict or aggregation-pipeline updates."""
         try:
-            result = self.col.delete_one({"pipeline_id": pipeline_id})
+            if many:
+                result = self.col.update_many(filter_query or {}, update_ops, upsert=upsert)
+            else:
+                result = self.col.update_one(filter_query or {}, update_ops, upsert=upsert)
             return {
                 "success": True,
-                "source_deleted": result.deleted_count > 0,
-                "documents_deleted": result.deleted_count
+                "matched": result.matched_count if hasattr(result, "matched_count") else None,
+                "modified": result.modified_count if hasattr(result, "modified_count") else None,
+                "upserted_id": getattr(result, "upserted_id", None)
             }
         except Exception as e:
-            logger.error(f"Error deleting source by pipeline_id {pipeline_id}: {e}")
+            logger.error(f"Error updating sources with filter {filter_query}: {e}")
             return {"success": False, "error": str(e)}
