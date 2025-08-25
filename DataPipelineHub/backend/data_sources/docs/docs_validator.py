@@ -6,8 +6,8 @@ from data_sources.docs.doc_connector import DuplicateDocumentError
 from utils.documents import compute_file_md5
 
 
-class DocumentAnalyzer:
-    """Analyze collected document data for duplication, specific to document pipelines.
+class DocumentValidator:
+    """Validate collected document source data (e.g. duplication checks).
 
     Responsibilities:
     - Ensure content MD5 exists (compute from text if missing)
@@ -15,7 +15,7 @@ class DocumentAnalyzer:
     - If duplicate found: perform duplicate handling via storage and raise DuplicateDocumentError
     """
 
-    def analyze(self, collected: Dict[str, Any], pipeline_id: str, source_name: str, uploader: str) -> None:
+    def validate(self, collected: Dict[str, Any], pipeline_id: str, source_name: str, uploader: str) -> None:
         if not collected:
             return
 
@@ -27,15 +27,13 @@ class DocumentAnalyzer:
             try:
                 text = collected.get("text", "")
                 content_md5 = compute_file_md5(text)
-                if content_md5:
-                    metadata["content_md5"] = content_md5
+                if not content_md5:
+                    return
+                metadata["content_md5"] = content_md5
             except Exception as e:
                 logger.warning(f"Failed to compute MD5 for document analysis: {e}")
                 content_md5 = None
-
-        if not content_md5:
-            return
-
+                
         try:
             storage = get_mongo_storage()
             original_doc = storage.find_duplicate_source_by_md5(content_md5, SourceType.DOCUMENT.value.upper())

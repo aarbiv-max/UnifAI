@@ -12,23 +12,23 @@ from utils.embedding.embedding_generator import EmbeddingGenerator
 from utils.monitor.pipeline_monitor import PipelineMonitor
 from utils.storage.vector_storage import VectorStorage
 from threading import Thread
-from data_sources.docs.docs_analyzer import DocumentAnalyzer
+from data_sources.docs.docs_validator import DocumentValidator
 
 class DocumentPipeline(Pipeline):
     SOURCE_TYPE = DataSource.DOCUMENT.upper_name
     def __init__(
         self,
         collector: DocumentConnector,
+        validator: DocumentValidator,
         processor: DocumentProcessor,
         chunker: PDFChunkerStrategy,
         embedder: EmbeddingGenerator,
         storage: VectorStorage,
         monitor: PipelineMonitor,
-        metadata: DocumentMetadata,
-        analyzer: Optional[DocumentAnalyzer] = None,
+        metadata: DocumentMetadata
     ):
         self.collector = collector
-        self.analyzer = analyzer or DocumentAnalyzer()
+        self.validator = validator
         self.doc_processor = processor
         self.doc_chunker = chunker
         self.embedder = embedder
@@ -69,16 +69,20 @@ class DocumentPipeline(Pipeline):
             }
 
     def collect_data(self) -> Dict:
+        doc_path = self._document_metadata.doc_path
+        if not doc_path:
+            raise ValueError("Document path is required for document collection")
+        upload_by = self._document_metadata.upload_by or "default"
         self._cached_collected = self.collector.process_document(
-            document_path=str(self._document_metadata.doc_path or ""),
-            upload_by=str(self._document_metadata.upload_by or "default")
+            document_path=doc_path,
+            upload_by=upload_by
         )
         return self._cached_collected or {}
 
 
     def process_data(self, data: Dict) -> Dict:
-        # Analyze for duplicates before processing
-        self.analyzer.analyze(
+        # Validate there are no duplicates before processing
+        self.validator.validate(
             collected=data or {},
             pipeline_id=self.get_pipeline_id(),
             source_name=self.get_source_name(),

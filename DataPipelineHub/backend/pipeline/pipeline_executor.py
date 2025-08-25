@@ -1,7 +1,7 @@
 from typing import Any
 from pipeline.pipeline_repository import PipelineRepository
 from config.constants import PipelineStatus
-from pipeline.decorators import pipeline_step
+from pipeline.decorators import pipeline_step, break_if_skipped, PipelineBreak
 from pipeline.pipeline_factory import Pipeline
 
 class PipelineExecutor:
@@ -28,6 +28,7 @@ class PipelineExecutor:
         return self.pipeline.orchestration()
 
     @pipeline_step(PipelineStatus.COLLECTING.value)
+    @break_if_skipped
     def _run_collect(self):
         return self.pipeline.collect_data()
 
@@ -57,10 +58,9 @@ class PipelineExecutor:
 
     def run(self) -> Any:
         self._run_orchestration()
-        collected   = self._run_collect()
-        # If collection marked the pipeline as SKIPPED (e.g., duplicate), or the pipeline doc was deleted (status None), stop immediately
-        current_status = self.repo.get_pipeline_field(self.pipeline.get_pipeline_id(), "status", None)
-        if current_status == PipelineStatus.SKIPPED.value or current_status is None:
+        try:
+            collected   = self._run_collect()
+        except PipelineBreak:
             self._run_clean_orchestration()
             return {}
 
