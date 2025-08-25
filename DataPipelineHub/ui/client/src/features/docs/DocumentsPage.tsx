@@ -14,6 +14,35 @@ import { DocumentGrid } from "./DocumentGrid";
 import { deleteDoc, fetchDocuments } from "@/api/docs";
 import { useToast } from "@/hooks/use-toast";
 
+// Persist seen duplicate notices across page visits
+const SEEN_DUP_NOTICES_STORAGE_KEY = "seen-duplication-notices";
+
+function loadSeenDuplicateNoticeKeys(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(SEEN_DUP_NOTICES_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as string[];
+    return new Set(parsed);
+  } catch {
+    return new Set();
+  }
+}
+
+function persistSeenDuplicateNoticeKey(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const current = loadSeenDuplicateNoticeKeys();
+    current.add(key);
+    window.localStorage.setItem(
+      SEEN_DUP_NOTICES_STORAGE_KEY,
+      JSON.stringify(Array.from(current))
+    );
+  } catch {
+    // no-op
+  }
+}
+
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -40,6 +69,11 @@ export default function Documents() {
     resetPage();
   }, []);
 
+  // Initialize in-memory set from localStorage so we don't re-show on fresh visits
+  useEffect(() => {
+    shownDupNoticesRef.current = loadSeenDuplicateNoticeKeys();
+  }, []);
+
   useEffect(() => {
     fetchDocuments();
   }, [showUploadModal, activeDoc])
@@ -53,6 +87,7 @@ export default function Documents() {
         const key = `${doc.pipeline_id}:${notice.duplicate_at}`;
         if (!shownDupNoticesRef.current.has(key)) {
           shownDupNoticesRef.current.add(key);
+          persistSeenDuplicateNoticeKey(key);
           const duplicateUploadedName = notice.duplicate_uploaded_name || "the uploaded file";
           const existingName = notice.existing_name || doc.source_name;
           toast({

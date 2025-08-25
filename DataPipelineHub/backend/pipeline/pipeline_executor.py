@@ -1,7 +1,7 @@
 from typing import Any
 from pipeline.pipeline_repository import PipelineRepository
 from config.constants import PipelineStatus
-from pipeline.decorators import pipeline_step, break_if_skipped, PipelineBreak
+from pipeline.decorators import pipeline_step, break_if_skipped, PipelineDuplicatedDocBreak
 from pipeline.pipeline_factory import Pipeline
 
 class PipelineExecutor:
@@ -60,22 +60,21 @@ class PipelineExecutor:
         self._run_orchestration()
         try:
             collected   = self._run_collect()
-        except PipelineBreak:
+            processed   = self._run_process(collected)
+            embeddings  = self._run_chunk_and_embed(processed)
+            stored      = self._run_store(embeddings)
+        
+            self._run_clean_orchestration()
+            self.repo.update_pipeline_status(
+                pipeline=self.pipeline,
+                new_status=PipelineStatus.DONE.value
+            )
+                
+            self.repo.register_data_source(
+                pipeline=self.pipeline,
+                summary=self.pipeline.summary()
+            )
+            return stored
+        except PipelineDuplicatedDocBreak:
             self._run_clean_orchestration()
             return {}
-
-        processed   = self._run_process(collected)
-        embeddings  = self._run_chunk_and_embed(processed)
-        stored      = self._run_store(embeddings)
-        
-        self._run_clean_orchestration()
-        self.repo.update_pipeline_status(
-            pipeline=self.pipeline,
-            new_status=PipelineStatus.DONE.value
-        )
-            
-        self.repo.register_data_source(
-            pipeline=self.pipeline,
-            summary=self.pipeline.summary()
-        )
-        return stored

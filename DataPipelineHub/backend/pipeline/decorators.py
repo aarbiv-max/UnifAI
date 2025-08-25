@@ -21,7 +21,7 @@ def pipeline_step(status: str):
     return decorator
 
 
-class PipelineBreak(Exception):
+class PipelineDuplicatedDocBreak(Exception):
     """Signal to halt the pipeline gracefully (not an error)."""
     pass
 
@@ -38,6 +38,6 @@ def break_if_skipped(fn: Callable) -> Callable:
         result = fn(self, *args, **kwargs)
         current_status = self.repo.get_pipeline_field(self.pipeline.get_pipeline_id(), "status", None)
         if current_status == PipelineStatus.SKIPPED.value or current_status is None:
-            raise PipelineBreak()
+            raise PipelineDuplicatedDocBreak()
         return result
     return wrapper
