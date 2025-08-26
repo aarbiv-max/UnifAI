@@ -9,14 +9,14 @@ metadata:
 spec:
   host: 
   port:
-    targetPort: {{ .Values.sso.backend.service.port }}
+    targetPort: {{ .Values.backend.service.port }}
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: None
 
   to:
     kind: Service
-    name: {{ include "sso.fullname" . }}
+    name: {{ .Values.backend.service.name }}
     weight: 100
   wildcardPolicy: None
 ---
@@ -31,13 +31,13 @@ metadata:
 spec:
   host: 
   port:
-    targetPort: {{ .Values.sso.nginx.service.port }}
+    targetPort: {{ .Values.nginx.service.port }}
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: None
 
   to:
     kind: Service
-    name: {{ include "sso.fullname" . }}
+    name: {{ .Values.backend.service.name }}
     weight: 100
   wildcardPolicy: None

@@ -53,11 +53,11 @@ sso:
       tag: "2025.08.26"
       pullPolicy: Always
     env:
-      ROLE: "debug"
+      ROLE: "flask"
 
     service:
       name: sso-backend
-      port: 5555
+      port: 13456
     type: ClusterIP
 
   nginx:
