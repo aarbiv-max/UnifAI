@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sso.fullname" . }}-backend
+  labels:
+    {{- include "sso.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.sso.backend.service.type }}
+  ports:
+    - port: {{ .Values.sso.backend.service.port }}
+      targetPort: {{ .Values.sso.backend.service.port }}
+      protocol: TCP
+      name: {{ .Values.sso.backend.service.name }}
+  selector:
+    {{- include "sso.selectorLabels" . | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sso.fullname" . }}-nginx
+  labels:
+    {{- include "sso.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.sso.nginx.service.type }}
+  ports:
+    - port: {{ .Values.sso.nginx.service.port }}
+      targetPort: {{ .Values.sso.nginx.service.port }}
+      protocol: TCP
+      name: {{ .Values.sso.nginx.service.name }}
+  selector:
+    {{- include "sso.selectorLabels" . | nindent 4 }}

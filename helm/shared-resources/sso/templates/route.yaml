@@ -1,0 +1,43 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    openshift.io/host.generated: "true"
+  labels:
+    {{- include "sso.labels" . | nindent 4 }}
+  name: {{ include "sso.fullname" . }}-backend
+spec:
+  host: 
+  port:
+    targetPort: {{ .Values.sso.backend.service.port }}
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: None
+
+  to:
+    kind: Service
+    name: {{ include "sso.fullname" . }}
+    weight: 100
+  wildcardPolicy: None
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    openshift.io/host.generated: "true"
+  labels:
+    {{- include "sso.labels" . | nindent 4 }}
+  name: {{ include "sso.fullname" . }}-nginx
+spec:
+  host: 
+  port:
+    targetPort: {{ .Values.sso.nginx.service.port }}
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: None
+
+  to:
+    kind: Service
+    name: {{ include "sso.fullname" . }}
+    weight: 100
+  wildcardPolicy: None

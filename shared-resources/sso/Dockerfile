@@ -6,8 +6,8 @@ RUN dnf update -y && dnf install -y vim less iputils telnet && dnf clean all
 USER default
 
 # Copy all backend files (including entrypoint.sh) and global_utils
-ADD  --chown=default:root --chmod=777 ./sso $HOME/app
-ADD  --chown=default:root --chmod=777 ./global_utils $HOME/global_utils
+ADD --chown=default:root --chmod=777 ./shared-resources/sso $HOME/app
+ADD --chown=default:root --chmod=777 ./global_utils $HOME/global_utils
 
 WORKDIR $HOME/app
 
@@ -20,6 +20,6 @@ RUN python3 -m venv venv
 # Activate venv and install requirements
 RUN /bin/bash -c "source venv/bin/activate && \
     pip install -r requirements.txt && \
-    pip install -e ../global_utils/"
+    pip install -e $HOME/global_utils/"
 
 ENTRYPOINT ["./entrypoint.sh"]
