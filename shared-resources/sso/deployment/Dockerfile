@@ -1,28 +1,28 @@
 #FROM  registry.access.redhat.com/ubi9/nodejs-18-minimal as build
-FROM  registry.access.redhat.com/ubi9/nodejs-22 as build
+# FROM  registry.access.redhat.com/ubi9/nodejs-22 as build
 
-ENV NODE_ENV=production
+# ENV NODE_ENV=production
 
-#create a working folder
-WORKDIR /ui
+# #create a working folder
+# WORKDIR /ui
 
-RUN npm install -g npm
-RUN npm --version
-#install pnpm via corepack (can be done via npmn as well instead)
-RUN npm install -g corepack
-RUN corepack enable                         
-RUN corepack prepare pnpm@latest --activate # Install pnpm via Corepack
+# RUN npm install -g npm
+# RUN npm --version
+# #install pnpm via corepack (can be done via npmn as well instead)
+# RUN npm install -g corepack
+# RUN corepack enable                         
+# RUN corepack prepare pnpm@latest --activate # Install pnpm via Corepack
 
-#copy the entire project to the working folder
-COPY . .
-# Install all dependencies (including devDependencies needed for the build).
-# `--frozen-lockfile` ensures reproducible builds based on pnpm-lock.yaml.
-RUN pnpm install --frozen-lockfile
+# #copy the entire project to the working folder
+# COPY . .
+# # Install all dependencies (including devDependencies needed for the build).
+# # `--frozen-lockfile` ensures reproducible builds based on pnpm-lock.yaml.
+# RUN pnpm install --frozen-lockfile
 
-# Run our combined build command.
-# As per your package.json, this builds:
-# - Frontend (Vite) to /ui/build
-RUN pnpm build
+# # Run our combined build command.
+# # As per your package.json, this builds:
+# # - Frontend (Vite) to /ui/build
+# RUN pnpm build
 
 
 
