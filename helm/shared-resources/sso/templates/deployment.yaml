@@ -37,15 +37,15 @@ spec:
         # Backend Container
         # ========================
         - name: backend
-          image: "{{ .Values.sso.backend.image.repository }}:{{ .Values.sso.backend.image.tag }}"
-          imagePullPolicy: {{ .Values.sso.backend.image.pullPolicy }}
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           ports:
-            - name: {{ .Values.sso.backend.service.name }}
-              containerPort: {{ .Values.sso.backend.service.port }}
+            - name: {{ .Values.backend.service.name }}
+              containerPort: {{ .Values.backend.service.port }}
               protocol: TCP
 
           env:
-          {{- range $key, $value := .Values.sso.env }}
+          {{- range $key, $value := .Values.backend.env }}
             - name: "{{ $key }}"
               value: "{{ $value }}"
           {{- end }}
@@ -58,14 +58,14 @@ spec:
         # Nginx Container
         # ========================
         - name: nginx
-          image: "{{ .Values.sso.nginx.image.repository }}:{{ .Values.sso.nginx.image.tag }}"
-          imagePullPolicy: {{ .Values.sso.nginx.image.pullPolicy }}
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
           ports:
-            - name: {{ .Values.sso.nginx.service.name }}
-              containerPort: {{ .Values.sso.nginx.service.port }}
+            - name: {{ .Values.nginx.service.name }}
+              containerPort: {{ .Values.nginx.service.port }}
               protocol: TCP
           env:
-          {{- range $key, $value := .Values.sso.env }}
+          {{- range $key, $value := .Values.nginx.env }}
             - name: "{{ $key }}"
               value: "{{ $value }}"
           {{- end }}
@@ -73,3 +73,4 @@ spec:
             - name: "{{ $key }}"
               value: "{{ $value }}"
           {{- end }}
+

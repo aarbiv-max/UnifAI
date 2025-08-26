@@ -53,7 +53,7 @@ sso:
       tag: "2025.08.26"
       pullPolicy: Always
     env:
-      - ROLE: "debug"
+      ROLE: "debug"
 
     service:
       name: sso-backend
@@ -62,12 +62,12 @@ sso:
 
   nginx:
     image:
-      repository: images.paas.redhat.com/unifai/datapipelinehub/ui
-      tag: "2025.08.25"
+      repository: images.paas.redhat.com/unifai/sso/sso-backend
+      tag: "2025.08.26"
       pullPolicy: Always
     
     env:
-      - ROLE: "debug"
+      ROLE: "debug"
 
     service:
       name: sso-nginx

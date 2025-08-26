@@ -115,8 +115,8 @@ affinity: {}
 sso:
   backend:
     image:
-      repository: images.paas.redhat.com/unifai/datapipelinehub/backend
-      tag: "2025.08.25"
+      repository: images.paas.redhat.com/unifai/sso/sso-backend
+      tag: "latest"
       pullPolicy: Always
     service:
       name: sso-backend
@@ -126,7 +126,7 @@ sso:
   nginx:
     image:
       repository: images.paas.redhat.com/unifai/datapipelinehub/ui
-      tag: "2025.08.25"
+      tag: "latest"
       pullPolicy: Always
 
     service:
