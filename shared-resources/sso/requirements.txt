@@ -1,0 +1,13 @@
+flask 
+flask-cors
+requests
+tiktoken
+langchain
+numpy
+sentence-transformers
+qdrant-client
+docling
+Authlib
+PyJWT
+python-dotenv
+pydantic
