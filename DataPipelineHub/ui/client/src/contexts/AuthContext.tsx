@@ -1,4 +1,4 @@
-import { api } from '@/http/queryClient';
+import { api } from '@/http/authClient';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 export interface User {
