@@ -6,7 +6,7 @@ RUN dnf update -y && dnf install -y vim less iputils telnet && dnf clean all
 USER default
 
 # Copy all backend files (including entrypoint.sh) and global_utils
-ADD --chown=default:root --chmod=777 ./shared-resources/sso $HOME/app
+ADD --chown=default:root --chmod=777 ./shared-resources/sso-backend $HOME/app
 ADD --chown=default:root --chmod=777 ./global_utils $HOME/global_utils
 
 WORKDIR $HOME/app
