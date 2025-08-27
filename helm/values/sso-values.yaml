@@ -1,6 +1,6 @@
 backend:
   image:
-    repository: images.paas.redhat.com/unifai/sharedresources/sso
+    repository: images.paas.redhat.com/unifai/sharedresources/ssobackend
     tag: "latest"
     pullPolicy: Always
   env:
@@ -14,7 +14,7 @@ backend:
 
 nginx:
   image:
-    repository: images.paas.redhat.com/unifai/sharedresources/sso
+    repository: images.paas.redhat.com/unifai/sharedresources/ssonginx
     tag: "latest"
     pullPolicy: Always
   

@@ -33,7 +33,7 @@ USER root
 RUN dnf update -y && dnf install -y vim less iputils nmap-ncat && dnf clean all
 
 # Copy and set permissions for entrypoint.sh while still root
-COPY /deployment/entrypoint.sh /opt/app-root/src/entrypoint.sh
+COPY entrypoint.sh /opt/app-root/src/entrypoint.sh
 RUN chmod +x /opt/app-root/src/entrypoint.sh
 RUN chmod -R 7777 /opt/app-root/src/
 RUN chown default:root /opt/app-root/src/
