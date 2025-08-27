@@ -128,7 +128,7 @@ pipeline {
         stage('Build and Push Images') {
             parallel {
                 stage('build_sso_image') {
-                    when { expression { params.build_dataflow_backend } }
+                    when { expression { params.build_sso_image } }
                     steps {
                         script {
                             def component = "shared-resources/sso"
