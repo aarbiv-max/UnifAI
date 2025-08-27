@@ -38,6 +38,6 @@ spec:
 
   to:
     kind: Service
-    name: {{ .Values.backend.service.name }}
+    name: {{ .Values.nginx.service.name }}
     weight: 100
   wildcardPolicy: None
