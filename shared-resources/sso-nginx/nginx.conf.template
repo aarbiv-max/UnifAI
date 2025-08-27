@@ -35,8 +35,8 @@ http {
     include /opt/app-root/etc/nginx.d/*.conf;
 
     server {
-        listen       ${NGINX_PORT} default_server;
-        listen       [::]:${NGINX_PORT} default_server;
+        listen       ${SSO_NGINX_SERVICE_PORT} default_server;
+        listen       [::]:${SSO_NGINX_SERVICE_PORT} default_server;
         server_name  _;
         root         /usr/share/nginx/html  ;
         client_max_body_size 50M;
