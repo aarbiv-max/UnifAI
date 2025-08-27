@@ -33,7 +33,7 @@ USER root
 RUN dnf update -y && dnf install -y vim less iputils nmap-ncat && dnf clean all
 
 # Copy and set permissions for entrypoint.sh while still root
-COPY entrypoint.sh /opt/app-root/src/entrypoint.sh
+COPY ./shared-resources/sso-nginx/entrypoint.sh /opt/app-root/src/entrypoint.sh
 RUN chmod +x /opt/app-root/src/entrypoint.sh
 RUN chmod -R 7777 /opt/app-root/src/
 RUN chown default:root /opt/app-root/src/
@@ -41,7 +41,7 @@ RUN chown default:root /opt/app-root/src/
 USER default
 #COPY --from=build /ui/build /usr/share/nginx/html
 
-COPY nginx.conf.template /etc/nginx/nginx.conf.template
+COPY ./shared-resources/sso-nginx/nginx.conf.template /etc/nginx/nginx.conf.template
 
 #EXPOSE 8080
 
