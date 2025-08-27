@@ -14,5 +14,5 @@ releases:
     chart: ./shared-resources/sso
     wait: true
     values:
-      - {{- toYaml .Values.sso | nindent 8 }}
+      - {{- toYaml .Values | nindent 8 }}
       - ./values/global-config.yaml
