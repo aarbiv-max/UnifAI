@@ -1,0 +1,29 @@
+sso:
+  backend:
+    image:
+      repository: images.paas.redhat.com/unifai/sso/sso-backend
+      tag: "latest"
+      pullPolicy: Always
+    env:
+      ROLE: "flask"
+      BACKEND_ENV: "production"
+
+    service:
+      name: sso-backend
+      port: 13456
+    type: ClusterIP
+
+  nginx:
+    image:
+      repository: images.paas.redhat.com/unifai/sso/sso-backend
+      tag: "latest"
+      pullPolicy: Always
+    
+    env:
+      ROLE: "debug"
+      BACKEND_ENV: "production"
+
+    service:
+      name: sso-nginx
+      port: 7777
+    type: ClusterIP

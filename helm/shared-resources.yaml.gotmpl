@@ -39,14 +39,6 @@ releases:
     values:
       - {{- toYaml .Values.rabbitmq | nindent 8 }}
 
-  - name: unifai-sso
-    chart: ./shared-resources/sso
-    wait: true
-    values:
-      - {{- toYaml .Values.sso | nindent 8 }}
-      - ./values/global-config.yaml
-
-
   - name: unifai-shared-config
     chart: ./shared-resources/shared-config
     wait: true

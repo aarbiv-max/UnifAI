@@ -44,32 +44,3 @@ storage:
     kubernetes.io/reclaimPolicy: Delete
   labels:
     paas.redhat.com/appcode: TAG-001
-
-
-sso:
-  backend:
-    image:
-      repository: images.paas.redhat.com/unifai/sso/sso-backend
-      tag: "2025.08.26"
-      pullPolicy: Always
-    env:
-      ROLE: "flask"
-
-    service:
-      name: sso-backend
-      port: 13456
-    type: ClusterIP
-
-  nginx:
-    image:
-      repository: images.paas.redhat.com/unifai/sso/sso-backend
-      tag: "2025.08.26"
-      pullPolicy: Always
-    
-    env:
-      ROLE: "debug"
-
-    service:
-      name: sso-nginx
-      port: 7777
-    type: ClusterIP

@@ -11,7 +11,8 @@ properties([
         string(name: "DF_VERSION", defaultValue: "", description: "Image tag for dataflow"),
         string(name: "MA_VERSION", defaultValue: "", description: "Image tag for multi-agent"),
         string(name: "GUI_VERSION", defaultValue: "", description: "Image tag for UI"),
-        string(name: "MODULES_TO_DEPLOY", defaultValue: "", description: "Comma-separated list of modules to update (e.g. dataflow,multiagent,ui)"),
+        string(name: "SSO_VERSION", defaultValue: "", description: "Image tag for SSO"),
+        string(name: "MODULES_TO_DEPLOY", defaultValue: "", description: "Comma-separated list of modules to update (e.g. dataflow,multiagent,ui,sso)"),
         booleanParam(name: 'debug_mode', defaultValue: false, description: 'debug the pods'),
     ])
 ])
@@ -117,7 +118,7 @@ def deployModules(module){
     echo "deploying modules: ${module}"
     sh("podman exec -t helmfile bash -lc 'helmfile -f ${module}.yaml.gotmpl apply'")
     echo("${module} successfully deployed")
-    sh("sleep 10")
+    sh("sleep 5")
 }
 
 def deleteRunningApplication(){
@@ -143,7 +144,7 @@ def deleteRunningApplication(){
 def cleanWorkspace() {
     sh """
         podman rm -f helmfile
-        sleep 10        
+        sleep 5        
     """
 }
 
@@ -239,6 +240,13 @@ pipeline {
                                     case 'shared-resources':
                                         updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/shared-resource-values.yaml", version)
                                         deployModules('shared-resources')
+                                        break
+
+                                    case 'sso':
+                                        def version = params.SSO_VERSION?.trim() ?: params.VERSION?.trim()
+                                        updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/shared-resources/sso/", version)
+                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/sso-values.yaml", version)
+                                        deployModules('sso')
                                         break
 
                                     case 'dataflow':
