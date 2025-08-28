@@ -15,7 +15,7 @@ events {
 
 http {
     log_format  main  '${DOLLAR}remote_addr - ${DOLLAR}remote_user [${DOLLAR}time_local] "${DOLLAR}request" '
-                      '${DOLLAR}status $body_bytes_sent "${DOLLAR}http_referer" '
+                      '${DOLLAR}status ${DOLLAR}body_bytes_sent "${DOLLAR}http_referer" '
                       '"${DOLLAR}http_user_agent" "${DOLLAR}http_x_forwarded_for"';
 
     access_log  /var/log/nginx/access.log  main;
@@ -49,7 +49,7 @@ http {
         }
 
         location /api1/ {
-           proxy_pass ${DATAFLOW_ADDR}:${DATAFLOW_PORT}/api/;
+           proxy_pass http://${DATAFLOW_ADDR}:${DATAFLOW_PORT}/api/;
            proxy_set_header X-Real-IP ${DOLLAR}remote_addr;
            proxy_set_header X-Forwarded-For ${DOLLAR}proxy_add_x_forwarded_for;
            proxy_set_header X-Forwarded-Proto ${DOLLAR}scheme;
@@ -57,7 +57,7 @@ http {
         }
 
         location /api2/ {
-           proxy_pass  ${MULTIAGENT_ADDR}:${MULTIAGENT_PORT}/api/;
+           proxy_pass  http://${MULTIAGENT_ADDR}:${MULTIAGENT_PORT}/api/;
            proxy_set_header X-Real-IP ${DOLLAR}remote_addr;
            proxy_set_header X-Forwarded-For ${DOLLAR}proxy_add_x_forwarded_for;
            proxy_set_header X-Forwarded-Proto ${DOLLAR}scheme;
