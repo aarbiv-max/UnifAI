@@ -93,8 +93,8 @@ releases:
               DATAFLOW_PORT=$(wait_for_port unifai-dataflow-server)
               DATAFLOW_IP=$(wait_for_service_name unifai-dataflow-server)
               
-              kubectl delete configmap multiagent-config
-              kubectl create configmap multiagent-config \
+              kubectl delete configmap unifai-dataflow-config
+              kubectl create configmap unifai-dataflow-config \
                 --from-literal=DATAFLOW_ADDR="$DATAFLOW_ADDR" \
                 --from-literal=DATAFLOW_PORT="$DATAFLOW_PORT" \
                 --from-literal=DATAFLOW_IP="$DATAFLOW_IP" \
