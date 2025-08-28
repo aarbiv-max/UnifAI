@@ -58,7 +58,7 @@ service:
   - name: df-backend
     port: 13456
   - name: ma-backend
-    port: 8080
+    port: 8003
   type: ClusterIP
   # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
 
