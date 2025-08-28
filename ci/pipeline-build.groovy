@@ -208,10 +208,10 @@ pipeline {
             steps {
                 script {
                     def modules = []
-                    if (params.build_sso_image) modules << 'sso'
                     if (params.build_dataflow_backend) modules << 'dataflow'
                     if (params.build_multiagent_backend) modules << 'multiagent'
                     if (params.build_gui) modules << 'ui'
+                    if (params.build_sso_image) modules << 'sso'
                     def modulesToDeploy = modules.join(',')
 
                     echo "Triggering deployment pipeline with MODULES_TO_DEPLOY = ${modulesToDeploy}"

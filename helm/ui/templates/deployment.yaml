@@ -53,6 +53,11 @@ spec:
               - name: "{{ $key }}"
                 value: "{{ $value }}"
           {{- end }}
+          envFrom:
+          {{- range $value := .Values.globalConfigMapNames }}
+          - configMapRef:
+              name: {{ $value }}
+          {{- end }}
           {{- if not .Values.debug  }}
           {{- with .Values.livenessProbe }}
           livenessProbe:

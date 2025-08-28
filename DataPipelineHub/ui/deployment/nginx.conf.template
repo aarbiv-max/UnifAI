@@ -45,22 +45,22 @@ http {
         include /opt/app-root/etc/nginx.default.d/*.conf;
 
         location ~ /api3/(.*)$ {
-             return 307 https://unifai-sso-backend-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/api/$1$is_args$args;
+             return 307 ${SSO_NGINX_HOST}/api/${DOLLAR}1${DOLLAR}is_args${DOLLAR}args;
         }
 
         location /api1/ {
-           proxy_pass ${DATAPIPELINEHUB_HOST}:${DATAPIPELINEHUB_PORT}/api/;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_pass ${DATAFLOW_ADDR}:${DATAFLOW_PORT}/api/;
+           proxy_set_header X-Real-IP ${DOLLAR}remote_addr;
+           proxy_set_header X-Forwarded-For ${DOLLAR}proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto ${DOLLAR}scheme;
            proxy_cookie_path / /;
         }
 
         location /api2/ {
-           proxy_pass  ${MULTIAGENT_HOST}:${MULTIAGENT_PORT}/api/;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_pass  ${MULTIAGENT_ADDR}:${MULTIAGENT_PORT}/api/;
+           proxy_set_header X-Real-IP ${DOLLAR}remote_addr;
+           proxy_set_header X-Forwarded-For ${DOLLAR}proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto ${DOLLAR}scheme;
            proxy_cookie_path / /;
         }
 
