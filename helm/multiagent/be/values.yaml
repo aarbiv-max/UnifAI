@@ -6,7 +6,7 @@ global:
   app: unifai
   # role: multiagent-app
   # mode: debug
-  port: 8080
+  port: 8003
 
 # This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
 replicaCount: 1
@@ -72,7 +72,7 @@ service:
   # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
   type: ClusterIP
   # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-  port: 8080
+  port: 8003
 
 route:
   enabled: false
@@ -113,7 +113,7 @@ livenessProbe:
     path: /api/health/
     # currently these are hardcoded to 8080, though we need to set this to be dependant on the port inserted at the top level values file, 
     #this means changing the structure for the liveness probe in the deployment file
-    port: 8080  # currently these are hardcoded to 8080, though we need to set this to be dependant on the port inserted at the top level values file, this means changing the structure for the liveness probe in the deployment file
+    port: 8003  # currently these are hardcoded to 8080, though we need to set this to be dependant on the port inserted at the top level values file, this means changing the structure for the liveness probe in the deployment file
   initialDelaySeconds: 10
   periodSeconds: 3
 
@@ -122,7 +122,7 @@ readinessProbe:
     path: /api/health/
     # currently these are hardcoded to 8080, though we need to set this to be dependant on the port inserted at the top level values file, 
     #this means changing the structure for the liveness probe in the deployment file
-    port: 8080
+    port: 8003
   initialDelaySeconds: 10
   periodSeconds: 3
 
