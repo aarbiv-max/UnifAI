@@ -10,5 +10,5 @@ env:
   DATAPIPELINEHUB_PORT: "13456"
   MULTIAGENT_HOST: "unifai-multiagent-be"
   MULTIAGENT_PORT: "8080"
-  #SSO_BACKEND_HOST: "http://unifai-sso-backend-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
+  SSO_BACKEND_HOST: "http://unifai-sso-backend-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
   SSO_NGINX_HOST: "https://unifai-sso-nginx-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
