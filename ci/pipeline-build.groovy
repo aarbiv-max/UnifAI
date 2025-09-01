@@ -6,7 +6,7 @@ properties([
         string(name: "VERSION", defaultValue: new Date().format('yyyy.MM.dd'), description: "Image version tag"),
         
         // 🛠️ Image Build Parameters
-        booleanParam(name: 'build_sso_image', defaultValue: false, description: 'Create image for sso-backend'),
+        booleanParam(name: 'build_sso_image', defaultValue: false, description: 'Create image for sso-backend and sso-nginx'),
         booleanParam(name: 'build_gui', defaultValue: false, description: 'Create image for UI'),
         booleanParam(name: 'build_dataflow_backend', defaultValue: false, description: 'Create image for dataflow backend'),
         booleanParam(name: 'build_multiagent_backend', defaultValue: false, description: 'Create image for multiagent backend'),
@@ -131,7 +131,7 @@ pipeline {
                     when { expression { params.build_sso_image } }
                     steps {
                         script {
-                            def component = "shared-resources/sso"
+                            def component = "shared-resources/sso-backend"
                             def module = ""
                             dir("${buildParams.DevRoot}/${params.BRANCH}/") {
                                 cleanWorkspace(component)
@@ -208,10 +208,10 @@ pipeline {
             steps {
                 script {
                     def modules = []
+                    if (params.build_sso_image) modules << 'sso'
                     if (params.build_dataflow_backend) modules << 'dataflow'
                     if (params.build_multiagent_backend) modules << 'multiagent'
                     if (params.build_gui) modules << 'ui'
-                    if (params.build_sso_image) modules << 'sso'
                     def modulesToDeploy = modules.join(',')
 
                     echo "Triggering deployment pipeline with MODULES_TO_DEPLOY = ${modulesToDeploy}"
