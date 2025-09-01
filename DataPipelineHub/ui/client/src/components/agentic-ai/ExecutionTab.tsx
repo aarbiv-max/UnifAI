@@ -46,6 +46,7 @@ interface ChatSessionData {
   blueprint_id: string;
   session_id: string;
   started_at: string;
+  blueprint_exists: boolean;
   state: {
     final_output: string;
     messages: ChatMessage[];
@@ -60,6 +61,7 @@ interface ChatSession {
   timestamp: Date;
   preview: string;
   messages: ChatMessage[];
+  blueprintExists: boolean;
 }
 
 export type SessionPayload = {
@@ -197,7 +199,8 @@ export default function ExecutionTab({
     return apiData.map((sessionData, index) => {
       const title = sessionData.metadata?.title || generateRandomTitle(index);
       const id = sessionData.session_id || generateRandomId();
-      const blueprintId = sessionData.blueprint_id
+      const blueprintId = sessionData.blueprint_id;
+      const blueprintExists = sessionData.blueprint_exists;
       const timestamp = new Date(sessionData.started_at);
       const lastActive = formatTimestamp(sessionData.started_at);
       const preview = getPreviewText(sessionData.state.messages);
@@ -210,6 +213,7 @@ export default function ExecutionTab({
         timestamp,
         preview,
         messages: sessionData.state.messages,
+        blueprintExists,  
       };
     });
   };
@@ -603,6 +607,10 @@ export default function ExecutionTab({
                             selectedSession?.id === session.id
                               ? "border-[#8A2BE2] bg-[#8A2BE2] bg-opacity-10"
                               : "border-transparent hover:bg-background-surface"
+                          } ${
+                            !session.blueprintExists 
+                              ? "opacity-50 bg-gray-800/30" 
+                              : ""
                           }`}
                           onClick={() => handleSessionSelect(session)}
                           whileHover={{ x: 2 }}
@@ -645,6 +653,7 @@ export default function ExecutionTab({
                 runId={selectedSession?.id || ''}
                 triggerExecution={triggerExecution}
                 initialMessages={currentSessionMessages}
+                blueprintExists={selectedSession?.blueprintExists ?? true}
               />
             </div>
 
