@@ -292,7 +292,7 @@ class ShareCloner:
 
         # Create new BlueprintDraft with cloned data
         return BlueprintDraft(
-            plan=[self._clone_step_def(step, rid_mapping) for step in draft.plan],
+            plan=self._clone_plan(draft.plan, rid_mapping),
             name=f"{draft.name} (from {sender_user_id})",
             description=draft.description,
             **resource_fields
@@ -310,23 +310,65 @@ class ShareCloner:
 
         return new_resource
 
-    def _clone_step_def(self, step: StepDef, rid_mapping: Dict[str, str]) -> StepDef:
-        """Clone a step definition with new UID and updated refs."""
-        new_step = step.model_copy(deep=True)
+    def _clone_plan(self, plan: List[StepDef], rid_mapping: Dict[str, str]) -> List[StepDef]:
+        """Clone plan with proper UID mapping for step references."""
+        if not plan:
+            return []
+        
+        # Pass 1: Create UID mapping (old_uid -> new_uid)
+        uid_mapping = {}
+        cloned_steps = []
+        
+        for step in plan:
+            # Clone step with new UID but keep original references for now
+            cloned_step = step.model_copy(deep=True)
+            new_uid = str(uuid4())
+            
+            # Store the mapping
+            uid_mapping[step.uid] = new_uid
+            cloned_step.uid = new_uid
+            
+            cloned_steps.append(cloned_step)
+        
+        # Pass 2: Update all step references and replace RIDs
+        for step in cloned_steps:
+            # Replace RIDs and UIDs in all fields except uid (which we already handled)
+            manually_handled_fields = {"uid"}
+            
+            for field_name in step.model_fields:
+                if field_name not in manually_handled_fields:
+                    field_value = getattr(step, field_name, None)
+                    if field_value is not None:
+                        # First replace RIDs, then replace UIDs
+                        updated_value = self._walk_and_replace(field_value, rid_mapping)
+                        updated_value = self._replace_step_uids(updated_value, uid_mapping)
+                        setattr(step, field_name, updated_value)
+        
+        return cloned_steps
 
-        # Generate new step UID to avoid conflicts
-        new_step.uid = str(uuid4())
-
-        # Handle all fields that might contain refs (node, after, exit_condition, branches, etc.)
-        manually_handled_fields = {"uid"}  # Only uid needs special handling (new UUID generation)
-
-        for field_name in new_step.model_fields:
-            if field_name not in manually_handled_fields:
-                field_value = getattr(new_step, field_name, None)
-                if field_value is not None:
-                    setattr(new_step, field_name, self._walk_and_replace(field_value, rid_mapping))
-
-        return new_step
+    def _replace_step_uids(self, obj: Any, uid_mapping: Dict[str, str]) -> Any:
+        """Replace step UIDs in after/branches fields, including dict keys and values."""
+        if isinstance(obj, str):
+            # Replace if this string is a step UID
+            return uid_mapping.get(obj, obj)
+        
+        elif isinstance(obj, list):
+            # Handle list of step UIDs (like in after: ["step1", "step2"])
+            return [self._replace_step_uids(item, uid_mapping) for item in obj]
+        
+        elif isinstance(obj, dict):
+            # Handle nested structures - replace UIDs in BOTH keys and values
+            new_dict = {}
+            for key, value in obj.items():
+                # Replace UID in key if it's a step UID
+                new_key = uid_mapping.get(key, key) if isinstance(key, str) else key
+                # Replace UIDs in value recursively
+                new_value = self._replace_step_uids(value, uid_mapping)
+                new_dict[new_key] = new_value
+            return new_dict
+        
+        else:
+            return obj
 
     def _walk_and_replace(self, node: Any, rid_mapping: Dict[str, str]) -> Any:
         """Walk object graph and replace refs, following RefWalker's traversal pattern."""
