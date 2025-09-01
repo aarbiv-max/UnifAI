@@ -56,21 +56,22 @@ spec:
 
         # ========================
         # Nginx Container
+        # TODO : follow up story for sso-nginx GENIE-812
         # ========================
-        - name: nginx
-          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
-          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
-          ports:
-            - name: {{ .Values.nginx.service.name }}
-              containerPort: {{ .Values.nginx.service.port }}
-              protocol: TCP
-          env:
-          {{- range $key, $value := .Values.nginx.env }}
-            - name: "{{ $key }}"
-              value: "{{ $value }}"
-          {{- end }}
-          {{- range $key, $value := .Values.env }}
-            - name: "{{ $key }}"
-              value: "{{ $value }}"
-          {{- end }}
+        # - name: nginx
+        #   image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+        #   imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+        #   ports:
+        #     - name: {{ .Values.nginx.service.name }}
+        #       containerPort: {{ .Values.nginx.service.port }}
+        #       protocol: TCP
+        #   env:
+        #   {{- range $key, $value := .Values.nginx.env }}
+        #     - name: "{{ $key }}"
+        #       value: "{{ $value }}"
+        #   {{- end }}
+        #   {{- range $key, $value := .Values.env }}
+        #     - name: "{{ $key }}"
+        #       value: "{{ $value }}"
+        #   {{- end }}
 

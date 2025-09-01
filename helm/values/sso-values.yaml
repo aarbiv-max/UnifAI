@@ -12,17 +12,18 @@ backend:
     port: 13456
   type: ClusterIP
 
-nginx:
-  image:
-    repository: images.paas.redhat.com/unifai/sharedresources/ssonginx
-    tag: "latest"
-    pullPolicy: Always
+# TODO : follow up story for sso-nginx GENIE-812
+# nginx:
+#   image:
+#     repository: images.paas.redhat.com/unifai/sharedresources/ssonginx
+#     tag: "latest"
+#     pullPolicy: Always
   
-  env:
-    ROLE: "debug"
-    BACKEND_ENV: "production"
+#   env:
+#     ROLE: "debug"
+#     BACKEND_ENV: "production"
 
-  service:
-    name: sso-nginx
-    port: 8080
-  type: ClusterIP
+#   service:
+#     name: sso-nginx
+#     port: 8080
+#   type: ClusterIP
