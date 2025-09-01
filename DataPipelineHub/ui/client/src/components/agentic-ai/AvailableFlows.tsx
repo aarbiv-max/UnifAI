@@ -293,7 +293,7 @@ export default function AvailableFlows({
                           Active
                         </span>
                       )}
-                      <SimpleTooltip content={<p>Share this blueprint</p>}>
+                      <SimpleTooltip content={<p>Share this workflow</p>}>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -304,7 +304,7 @@ export default function AvailableFlows({
                         </Button>
                       </SimpleTooltip>
                       {showDeleteButton && (
-                        <SimpleTooltip content={<p>Delete this blueprint</p>}>
+                        <SimpleTooltip content={<p>Delete this workflow</p>}>
                           <Button
                             variant="ghost"
                             size="sm"
