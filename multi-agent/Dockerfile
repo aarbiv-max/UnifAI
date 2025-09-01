@@ -12,11 +12,8 @@ RUN dnf update --nobest -y && dnf install -y vim less iputils nmap-ncat mongodb-
 ARG CERT_URL="https://certs.corp.redhat.com/certs/Current-IT-Root-CAs.pem"
 ARG CERT_NAME="Current-IT-Root-CAs.pem"
 
-RUN curl -fSL "$CERT_URL" -o /etc/pki/ca-trust/source/anchors/$CERT_NAME \
-    && chmod 644 /etc/pki/ca-trust/source/anchors/$CERT_NAME \
-    && update-ca-trust
-
-ENV SSL_CERT_FILE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+RUN curl -fSL "$CERT_URL" -o $HOME/$CERT_NAME 
+ENV SSL_CERT_FILE=$HOME/$CERT_NAME 
 
 # USER default
 # RUN ls -lia
