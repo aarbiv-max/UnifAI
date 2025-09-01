@@ -30,9 +30,13 @@ export default function AgenticAI() {
   const [builtGraphName, setBuiltGraphName] = useState<string | null>(null);
   const [selectedGraphId, setSelectedGraphId] = useState<string | null>(null);
   const [showGraphBuilder, setShowGraphBuilder] = useState(false);
+  const [isLoadingFlow, setIsLoadingFlow] = useState(false);
   const { user } = useAuth();
 
   const handleLoadFlow = async () => {
+    if (isLoadingFlow) return; // Prevent multiple calls
+    
+    setIsLoadingFlow(true);
     try {
       const graphId = selectedFlow?.id || `graph-${Date.now()}`;
       const graphName =
@@ -57,6 +61,8 @@ export default function AgenticAI() {
       window.location.href = "/agentic-chats";
     } catch (error) {
       console.error("Error create new graph session:", error);
+    } finally {
+      setIsLoadingFlow(false);
     }
   };
 
@@ -98,10 +104,11 @@ export default function AgenticAI() {
                         variant="outline"
                         size="sm"
                         onClick={handleLoadFlow}
-                        className="bg-primary hover:bg-[#7525c9] text-white flex items-center gap-2"
+                        disabled={isLoadingFlow}
+                        className="bg-primary hover:bg-[#7525c9] text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <LoaderCircle className="h-4 w-4" />
-                        Load Flow
+                        <LoaderCircle className={`h-4 w-4 ${isLoadingFlow ? 'animate-spin' : ''}`} />
+                        {isLoadingFlow ? 'Loading...' : 'Load Flow'}
                       </Button>
                       <Button
                         className="bg-primary hover:bg-opacity-80 flex items-center gap-2"

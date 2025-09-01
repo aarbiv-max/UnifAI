@@ -2,6 +2,9 @@ import React, { memo, useCallback, useMemo, useRef, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
 import { StreamLogEntry, ToolEntry } from './types';
 import { StatusIndicator } from './StatusIndicator';
+import { preprocessText, MarkdownComponents } from "./helpers/TextComponents";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface StreamLogItemProps {
   log: StreamLogEntry;
@@ -81,7 +84,7 @@ const ToolsSection = ({ tools }: { tools: ToolEntry[] }) => {
 
 ToolsSection.displayName = 'ToolsSection';
 
-// Separate component for message content with direct DOM updates to avoid re-renders
+// Separate component for message content with performance optimization
 const MessageContent = memo(({ 
   message, 
   status, 
@@ -100,15 +103,14 @@ const MessageContent = memo(({
   const textRef = useRef<HTMLDivElement>(null);
   const textColorClass = status === 'error' ? 'text-[#FF1744]' : 'text-gray-300';
   
-  // Update text content directly in DOM to avoid re-renders
+  // Update text content directly in DOM for collapsed view only to avoid re-renders
   useEffect(() => {
-    if (textRef.current) {
-      const displayText = isExpanded ? message : previewText;
-      if (textRef.current.textContent !== displayText) {
-        textRef.current.textContent = displayText;
+    if (textRef.current && !isExpanded) {
+      if (textRef.current.textContent !== previewText) {
+        textRef.current.textContent = previewText;
       }
     }
-  }, [message, isExpanded, previewText]);
+  }, [previewText, isExpanded]);
   
   const handleToggleMessage = useCallback(() => {
     if (onToggleExpansion) {
@@ -118,11 +120,22 @@ const MessageContent = memo(({
   
   return (
     <div className="w-full">
-      <div 
-        ref={textRef}
-        className={`text-sm font-mono whitespace-pre-wrap break-words w-full ${textColorClass}`}
-      >
-        {isExpanded ? message : previewText}
+      <div className={`text-sm whitespace-pre-wrap break-words w-full ${textColorClass}`}>
+        {isExpanded ? (
+          <ReactMarkdown
+            components={MarkdownComponents}
+            remarkPlugins={[remarkGfm]}
+          >
+            {preprocessText(message)}
+          </ReactMarkdown>
+        ) : (
+          <div 
+            ref={textRef}
+            className="font-mono"
+          >
+            {previewText}
+          </div>
+        )}
       </div>
       
       {hasMoreThanTwoLines && !isExpanded && onToggleExpansion && (
