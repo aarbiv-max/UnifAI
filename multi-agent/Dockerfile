@@ -9,6 +9,15 @@ USER root
 RUN echo -e "[mongodb-org-8.0]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/8.0/\$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" > /etc/yum.repos.d/mongodb-org-8.0.repo
 RUN dnf update --nobest -y && dnf install -y vim less iputils nmap-ncat mongodb-mongosh && dnf clean all
 
+ARG CERT_URL="https://certs.corp.redhat.com/certs/Current-IT-Root-CAs.pem"
+ARG CERT_NAME="Current-IT-Root-CAs.pem"
+
+RUN curl -fSL "$CERT_URL" -o /etc/pki/ca-trust/source/anchors/$CERT_NAME \
+    && chmod 644 /etc/pki/ca-trust/source/anchors/$CERT_NAME \
+    && update-ca-trust
+
+ENV SSL_CERT_FILE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+
 # USER default
 # RUN ls -lia
 
