@@ -1,15 +1,17 @@
 import logging
-from typing import Dict, List, Tuple, Set, Optional
+from typing import Dict, List, Tuple, Set, Optional, Any
 from uuid import uuid4
 from dataclasses import dataclass, field
 from datetime import datetime
+from pydantic import BaseModel
 
 from resources.models import ResourceDoc
 from resources.registry import ResourcesRegistry
-from blueprints.models.blueprint import BlueprintDraft
+from blueprints.models.blueprint import BlueprintDraft, Resource, StepDef
 from blueprints.service import BlueprintService
 from catalog.element_registry import ElementRegistry
 from core.ref import RefWalker
+from core.ref.models import Ref
 from core.enums import ResourceCategory
 
 logger = logging.getLogger(__name__)
@@ -20,7 +22,7 @@ class ResourceCacheData:
     """Cached data for a resource."""
     doc: ResourceDoc
     dependencies: Set[str]  # Pre-computed dependencies
-    cfg_model: object       # Pre-built schema model
+    cfg_model: object  # Pre-built schema model
 
 
 @dataclass
@@ -38,10 +40,12 @@ class ShareCloner:
     """
     Efficient cloner for sharing resources and blueprints.
     
+    Features:
     - Accurate dependency discovery with RefWalker
     - Single-pass loading and caching for efficiency  
-    - Clean reference replacement
-    - Proper logging and error handling
+    - Type-safe reference replacement with proper Ref handling
+    - Automatic step UID regeneration for conflict avoidance
+    - Comprehensive error handling and logging
     """
 
     def __init__(self,
@@ -61,7 +65,7 @@ class ShareCloner:
         closure_data = self._compute_closure({root_rid}, sender_user_id)
 
         # Clone using pre-computed data
-        result = self._clone_resource_set(closure_data, sender_user_id, recipient_user_id)
+        result = self._clone_resource_set(closure_data, recipient_user_id)
 
         if not result.success:
             raise ValueError(f"Resource cloning failed: {result.errors}")
@@ -74,78 +78,76 @@ class ShareCloner:
         """Clone blueprint and all its dependencies."""
         logger.info(f"Starting blueprint clone: {blueprint_id} from {sender_user_id} to {recipient_user_id}")
 
-        # Load blueprint document through service
-        bp_doc = self.blueprints.get_blueprint_draft_doc(blueprint_id)
-        if bp_doc["user_id"] != sender_user_id:
-            raise ValueError(f"Blueprint {blueprint_id} not owned by sender")
+        try:
+            # Load and validate blueprint
+            bp_doc = self.blueprints.get_blueprint_draft_doc(blueprint_id)
+            if bp_doc["user_id"] != sender_user_id:
+                raise ValueError(f"Blueprint {blueprint_id} not owned by sender")
 
-        draft = BlueprintDraft(**bp_doc["spec_dict"])
+            draft = BlueprintDraft(**bp_doc["spec_dict"])
 
-        # Get dependencies using RefWalker
-        external_rids = set(RefWalker.external_rids(draft))
+            # Use pre-computed external refs from the blueprint document
+            external_rids = set(bp_doc.get("rid_refs", []))
 
-        # Clone dependencies if any exist
-        rid_mapping = {}
-        name_conflicts = {}
-        resources_cloned = 0
+            # Clone dependencies and build RID mapping
+            rid_mapping, name_conflicts, resources_cloned = self._clone_dependencies(
+                external_rids, sender_user_id, recipient_user_id
+            )
 
-        if external_rids:  # Only if there are external refs
-            logger.debug(f"Found external references: {external_rids}")
+            # Clone blueprint with proper ref handling and new step UIDs
+            new_draft = self._clone_blueprint_draft(draft, rid_mapping, sender_user_id)
 
-            # Single pass: Load + analyze + cache all resource data
-            closure_data = self._compute_closure(external_rids, sender_user_id)
+            # Save blueprint through service
+            new_blueprint_id = self.blueprints.save_draft(
+                user_id=recipient_user_id,
+                draft_dict=new_draft.model_dump(mode="json")
+            )
 
-            if closure_data:
-                logger.debug(f"Total closure to clone: {set(closure_data.keys())}")
-                clone_result = self._clone_resource_set(closure_data, sender_user_id, recipient_user_id)
+            logger.info(f"Blueprint clone completed: {new_blueprint_id}, {resources_cloned} resources cloned")
+            return new_blueprint_id, rid_mapping, name_conflicts
 
-                if not clone_result.success:
-                    raise ValueError(f"Failed to clone resources: {clone_result.errors}")
+        except Exception as e:
+            logger.error(f"Blueprint clone failed: {e}")
+            raise
 
-                rid_mapping = clone_result.rid_mapping
-                name_conflicts = clone_result.name_conflicts
-                resources_cloned = clone_result.resources_cloned
-                logger.debug(f"RID mapping created: {rid_mapping}")
+    def _clone_dependencies(self, external_rids: Set[str], sender_user_id: str,
+                            recipient_user_id: str) -> Tuple[Dict[str, str], Dict[str, str], int]:
+        """Clone external dependencies and return mapping info."""
+        if not external_rids:
+            return {}, {}, 0
 
-        # Rewrite blueprint references if any exist
-        if rid_mapping:
-            new_spec_dict = self._replace_refs_in_dict(bp_doc["spec_dict"], rid_mapping)
-        else:
-            new_spec_dict = bp_doc["spec_dict"]
+        logger.debug(f"Found external references: {external_rids}")
 
-        new_draft = BlueprintDraft(**new_spec_dict)
+        # Single pass: Load + analyze + cache all resource data
+        closure_data = self._compute_closure(external_rids, sender_user_id)
 
-        # Handle blueprint name
-        new_draft.name = f"{new_draft.name} (from {sender_user_id})"
+        if not closure_data:
+            return {}, {}, 0
 
-        # Save blueprint through service
-        new_blueprint_id = self.blueprints.save_draft(
-            user_id=recipient_user_id,
-            draft_dict=new_draft.model_dump(mode="json")
-        )
+        logger.debug(f"Total closure to clone: {set(closure_data.keys())}")
+        clone_result = self._clone_resource_set(closure_data, recipient_user_id)
 
-        logger.info(f"Blueprint clone completed: {new_blueprint_id}, {resources_cloned} resources cloned")
-        return new_blueprint_id, rid_mapping, name_conflicts
+        if not clone_result.success:
+            raise ValueError(f"Failed to clone resources: {clone_result.errors}")
 
-    def _clone_resource_set(self, closure_data: Dict[str, ResourceCacheData], 
-                           sender_user_id: str, recipient_user_id: str) -> CloneResult:
+        logger.debug(f"RID mapping created: {clone_result.rid_mapping}")
+        return clone_result.rid_mapping, clone_result.name_conflicts, clone_result.resources_cloned
+
+    def _clone_resource_set(self, closure_data: Dict[str, ResourceCacheData],
+                            recipient_user_id: str) -> CloneResult:
         """Clone a set of resources using pre-computed closure data."""
         try:
             logger.debug(f"Cloning {len(closure_data)} resources using cached data")
 
-            # Ownership already validated during closure computation
             # Generate RID mapping for all resources
             rid_mapping = {old_rid: uuid4().hex for old_rid in closure_data.keys()}
             name_conflicts = {}
 
-            # Process each resource using cached data (no redundant loading/analysis)
+            # Process each resource using cached data
             new_docs = []
             for old_rid, cache_data in closure_data.items():
                 try:
-                    # Use pre-computed dependencies
-                    new_doc = self._clone_single_resource(
-                        cache_data, rid_mapping, recipient_user_id
-                    )
+                    new_doc = self._clone_single_resource(cache_data, rid_mapping, recipient_user_id)
 
                     # Track name conflicts
                     if new_doc.name != cache_data.doc.name:
@@ -175,14 +177,12 @@ class ShareCloner:
         """
         Compute resource closure and cache all data in a single pass.
         
-        - Loads each resource only once
-        - Runs RefWalker only once per resource 
-        - Caches schema models for reuse
-        - Validates ownership during traversal
+        Returns cached data for all resources in the dependency closure.
+        Only includes resources owned by the specified user.
         """
         visited_rids = set()
         to_visit = set(root_rids)
-        closure_cache = {}  # rid -> ResourceCacheData
+        closure_cache = {}
 
         while to_visit:
             rid = to_visit.pop()
@@ -191,30 +191,28 @@ class ShareCloner:
             visited_rids.add(rid)
 
             try:
-                # Load resource (only once per resource)
+                # Load and validate resource
                 doc = self.resources.get(rid)
-                
-                # Validate ownership (only once per resource)
+
                 if doc.user_id != owner_user_id:
                     logger.warning(f"Resource {rid} not owned by {owner_user_id}, owned by {doc.user_id}")
                     continue
 
-                # Create schema model (only once per resource)
+                # Create schema model and compute dependencies
                 cfg_model = self.elements.get_schema(
                     ResourceCategory(doc.category), doc.type
                 )(**doc.cfg_dict)
 
-                # Run RefWalker (only once per resource)
                 dependencies = RefWalker.external_rids(cfg_model)
 
-                # Cache all computed data for later use
+                # Cache all computed data
                 closure_cache[rid] = ResourceCacheData(
                     doc=doc,
                     dependencies=dependencies,
                     cfg_model=cfg_model
                 )
 
-                # Add dependencies to traversal queue
+                # Add new dependencies to traversal queue
                 for dep_rid in dependencies:
                     if dep_rid not in visited_rids:
                         to_visit.add(dep_rid)
@@ -227,30 +225,23 @@ class ShareCloner:
         return closure_cache
 
     def _clone_single_resource(self, cache_data: ResourceCacheData, rid_mapping: Dict[str, str],
-                              recipient_user_id: str) -> ResourceDoc:
-        """
-        Clone a single resource using pre-computed data.
-        
-        - Uses cached dependencies instead of re-running RefWalker
-        - Reuses schema model data from cache
-        """
+                               recipient_user_id: str) -> ResourceDoc:
+        """Clone a single resource using pre-computed data."""
         original_doc = cache_data.doc
         new_rid = rid_mapping[original_doc.rid]
 
-        # Resolve name conflicts (no changes here)
+        # Resolve name conflicts
         new_name = self._resolve_name_conflict(
             recipient_user_id, original_doc.category,
             original_doc.type, original_doc.name
         )
 
-        # Clone with reference rewriting (no changes here)
-        new_cfg_dict = self._replace_refs_in_dict(original_doc.cfg_dict, rid_mapping)
+        # Clone config with reference rewriting
+        new_cfg_dict = self._walk_and_replace(original_doc.cfg_dict, rid_mapping)
 
-        # Use pre-computed dependencies instead of re-running RefWalker
-        # Map old dependencies to new RIDs
-        original_dependencies = cache_data.dependencies
+        # Map dependencies to new RIDs
         new_nested_refs = [
-            rid_mapping.get(dep_rid, dep_rid) for dep_rid in original_dependencies
+            rid_mapping.get(dep_rid, dep_rid) for dep_rid in cache_data.dependencies
         ]
 
         return ResourceDoc(
@@ -274,34 +265,124 @@ class ShareCloner:
                                type_: str, preferred_name: str) -> str:
         """Resolve name conflicts by adding copy suffix."""
         base_name = preferred_name
-        counter = 1
         current_name = base_name
 
-        while True:
+        for counter in range(1, 101):  # Limit to 100 attempts
             existing = self.resources._repo.find_by_name(user_id, category, type_, current_name)
             if not existing:
                 return current_name
 
             current_name = f"{base_name} (copy {counter})" if counter > 1 else f"{base_name} (copy)"
-            counter += 1
 
-            if counter > 100:  # Prevent infinite loops
-                current_name = f"{base_name} ({uuid4().hex[:8]})"
-                break
+        # Fallback to UUID if too many conflicts
+        return f"{base_name} ({uuid4().hex[:8]})"
 
-        return current_name
+    def _clone_blueprint_draft(self, draft: BlueprintDraft, rid_mapping: Dict[str, str],
+                               sender_user_id: str) -> BlueprintDraft:
+        """Clone a BlueprintDraft with proper ref replacement and new step UIDs."""
 
-    def _replace_refs_in_dict(self, obj, rid_mapping: Dict[str, str]):
-        """Replace references in nested structures."""
-        if isinstance(obj, dict):
-            return {k: self._replace_refs_in_dict(v, rid_mapping) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [self._replace_refs_in_dict(v, rid_mapping) for v in obj]
-        elif isinstance(obj, str):
-            result = obj
-            for old_rid, new_rid in rid_mapping.items():
-                # Replace $ref: patterns
-                result = result.replace(f"$ref:{old_rid}", f"$ref:{new_rid}")
-            return result
+        # Clone resource categories using ResourceCategory enum
+        resource_fields = {
+            category.value: [
+                self._clone_resource_with_refs(res, rid_mapping)
+                for res in getattr(draft, category.value)
+            ]
+            for category in ResourceCategory
+        }
+
+        # Create new BlueprintDraft with cloned data
+        return BlueprintDraft(
+            plan=[self._clone_step_def(step, rid_mapping) for step in draft.plan],
+            name=f"{draft.name} (from {sender_user_id})",
+            description=draft.description,
+            **resource_fields
+        )
+
+    def _clone_resource_with_refs(self, resource: Resource, rid_mapping: Dict[str, str]) -> Resource:
+        """Clone a resource and replace any Ref instances."""
+        new_resource = resource.model_copy(deep=True)
+
+        # Handle all fields that might contain refs (rid, config, name, type, etc.)
+        for field_name in new_resource.model_fields:
+            field_value = getattr(new_resource, field_name, None)
+            if field_value is not None:
+                setattr(new_resource, field_name, self._walk_and_replace(field_value, rid_mapping))
+
+        return new_resource
+
+    def _clone_step_def(self, step: StepDef, rid_mapping: Dict[str, str]) -> StepDef:
+        """Clone a step definition with new UID and updated refs."""
+        new_step = step.model_copy(deep=True)
+
+        # Generate new step UID to avoid conflicts
+        new_step.uid = str(uuid4())
+
+        # Handle all fields that might contain refs (node, after, exit_condition, branches, etc.)
+        manually_handled_fields = {"uid"}  # Only uid needs special handling (new UUID generation)
+
+        for field_name in new_step.model_fields:
+            if field_name not in manually_handled_fields:
+                field_value = getattr(new_step, field_name, None)
+                if field_value is not None:
+                    setattr(new_step, field_name, self._walk_and_replace(field_value, rid_mapping))
+
+        return new_step
+
+    def _walk_and_replace(self, node: Any, rid_mapping: Dict[str, str]) -> Any:
+        """Walk object graph and replace refs, following RefWalker's traversal pattern."""
+        if isinstance(node, Ref):
+            return self._clone_ref_with_mapping(node, rid_mapping)
+
+        elif isinstance(node, BaseModel):
+            # Use RefWalker's pattern: iterate over __dict__.values()
+            new_node = node.model_copy(deep=True)
+            for field_name, field_value in new_node.__dict__.items():
+                setattr(new_node, field_name, self._walk_and_replace(field_value, rid_mapping))
+            return new_node
+
+        elif isinstance(node, dict):
+            # Use RefWalker's pattern: iterate over values
+            return {k: self._walk_and_replace(v, rid_mapping) for k, v in node.items()}
+
+        elif isinstance(node, (list, tuple)):
+            # Use RefWalker's pattern: handle both list and tuple
+            result = [self._walk_and_replace(v, rid_mapping) for v in node]
+            return tuple(result) if isinstance(node, tuple) else result
+
+        elif isinstance(node, str):
+            return self._replace_string_refs(node, rid_mapping)
+
         else:
-            return obj
+            return node
+
+    def _clone_ref_with_mapping(self, ref_obj: Ref, rid_mapping: Dict[str, str]) -> Ref:
+        """Clone a Ref object with updated RID if mapped."""
+        old_rid = ref_obj.ref
+        if old_rid not in rid_mapping:
+            return ref_obj
+
+        new_rid = rid_mapping[old_rid]
+
+        # Create new Ref with updated rid, preserving the ref format and type
+        new_ref = ref_obj.__class__(ref_obj.root)
+        if ref_obj.is_external_ref():
+            new_ref.root = f"$ref:{new_rid}"
+        else:
+            new_ref.root = new_rid
+
+        return new_ref
+
+    def _replace_string_refs(self, text: str, rid_mapping: Dict[str, str]) -> str:
+        """Replace reference patterns in a string."""
+        if not rid_mapping:
+            return text
+
+        result = text
+        for old_rid, new_rid in rid_mapping.items():
+            # Replace $ref: patterns
+            result = result.replace(f"$ref:{old_rid}", f"$ref:{new_rid}")
+            # Handle bare refs if they appear as full strings
+            if result == old_rid:
+                result = new_rid
+
+        return result
