@@ -59,8 +59,7 @@ service:
     port: 13456
   - name: ma-backend
     port: 8003
-  # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
-  type: LoadBalancer
+  type: ClusterIP
   # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
 
 debug: false
@@ -68,11 +67,14 @@ command: ["/bin/sh", "-c", "sleep infinity"]
 
 env:
   NGINX_PORT: "8080"
-  DATAPIPELINEHUB_PORT: "13456"
+  #DATAPIPELINEHUB_PORT: "13456"
   # DATAPIPELINEHUB_HOST: "unifai-dataflow-server"
-  MULTIAGENT_PORT: "8080"
+  #MULTIAGENT_PORT: "8080"
   # MULTIAGENT_HOST: "unifai-multiagent-be"
 
+globalConfigMapNames:
+- unifai-dataflow-config
+- multiagent-config 
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
   enabled: false

@@ -7,8 +7,20 @@ USER root
 #the line below is meant to add mongosh to the image (not the server though), this is for debugging option
 # NOTE: the version we use here is mongo 8 if building this part fails you might need to find the latest available mongo shell repo.
 RUN echo -e "[mongodb-org-8.0]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/8.0/\$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" > /etc/yum.repos.d/mongodb-org-8.0.repo
-RUN dnf update --nobest -y && dnf install -y vim less iputils nmap-ncat mongodb-mongosh && dnf clean all
+RUN dnf update --nobest -y && dnf install -y vim less iputils nmap-ncat mongodb-mongosh ca-certificates && dnf clean all
 
+RUN update-ca-trust enable
+
+ARG CERT_URL="https://certs.corp.redhat.com/certs/Current-IT-Root-CAs.pem"
+ARG CERT_NAME="Current-IT-Root-CAs.pem"
+
+# Download and add the certificate to the system trust store
+RUN curl -fSL "$CERT_URL" -o /etc/pki/ca-trust/source/anchors/$CERT_NAME && \
+    update-ca-trust extract
+
+# Set environment variable so apps use this CA bundle
+ENV SSL_CERT_FILE=/etc/pki/ca-trust/source/anchors/$CERT_NAME
+    
 # USER default
 # RUN ls -lia
 
