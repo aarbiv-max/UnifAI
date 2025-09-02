@@ -1,4 +1,3 @@
-
 # Use the specified Red Hat Universal Base Image 9 (UBI9)
 FROM registry.access.redhat.com/ubi9/python-311
 #ARG comp="multi-agent"
@@ -9,17 +8,22 @@ USER root
 RUN echo -e "[mongodb-org-8.0]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/8.0/\$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" > /etc/yum.repos.d/mongodb-org-8.0.repo
 RUN dnf update --nobest -y && dnf install -y vim less iputils nmap-ncat mongodb-mongosh ca-certificates && dnf clean all
 
-# RUN update-ca-trust enable
+RUN update-ca-trust enable
 
-# ARG CERT_URL="https://certs.corp.redhat.com/certs/Current-IT-Root-CAs.pem"
-# ARG CERT_NAME="Current-IT-Root-CAs.pem"
+ARG CERT_URL="https://certs.corp.redhat.com/certs/Current-IT-Root-CAs.pem"
+ARG CERT_NAME="Current-IT-Root-CAs.pem"
 
-# # Download and add the certificate to the system trust store
-# RUN curl -fSL "$CERT_URL" -o /etc/pki/ca-trust/source/anchors/$CERT_NAME && \
-#     update-ca-trust extract
+# Download and add the certificate to the system trust store
+RUN curl -fSL "$CERT_URL" -o /etc/pki/ca-trust/source/anchors/$CERT_NAME && \
+    update-ca-trust extract
 
-# # Set environment variable so apps use this CA bundle
-# ENV SSL_CERT_FILE=/etc/pki/ca-trust/source/anchors/$CERT_NAME
+# Ensure the CA bundle is readable by all users
+RUN chmod 644 /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+
+# Set environment variables to use the system bundle (which now includes your company CA + public CAs)
+ENV SSL_CERT_FILE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+ENV REQUESTS_CA_BUNDLE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+ENV CURL_CA_BUNDLE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
     
 # USER default
 # RUN ls -lia
