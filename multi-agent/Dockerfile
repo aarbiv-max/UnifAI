@@ -19,9 +19,8 @@ RUN curl -fSL "$CERT_URL" -o /etc/pki/ca-trust/source/anchors/$CERT_NAME && \
     update-ca-trust extract
 
 # Set environment variable so apps use this CA bundle
-#ENV SSL_CERT_FILE=/etc/pki/ca-trust/source/anchors/$CERT_NAME
-RUN chmod 644 /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
-   
+ENV SSL_CERT_FILE=/etc/pki/ca-trust/source/anchors/$CERT_NAME
+    
 # USER default
 # RUN ls -lia
 
