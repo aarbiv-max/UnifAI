@@ -9,11 +9,16 @@ USER root
 RUN echo -e "[mongodb-org-8.0]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/8.0/\$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" > /etc/yum.repos.d/mongodb-org-8.0.repo
 RUN dnf update --nobest -y && dnf install -y vim less iputils nmap-ncat mongodb-mongosh && dnf clean all
 
+# Enable dynamic CA trust management
+RUN update-ca-trust enable
+
+# Download the corporate cert to the trusted anchors directory
 ARG CERT_URL="https://certs.corp.redhat.com/certs/Current-IT-Root-CAs.pem"
 ARG CERT_NAME="Current-IT-Root-CAs.pem"
+RUN curl -fSL "$CERT_URL" -o /etc/pki/ca-trust/source/anchors/$CERT_NAME
 
-RUN curl -fSL "$CERT_URL" -o $HOME/$CERT_NAME 
-ENV SSL_CERT_FILE=$HOME/$CERT_NAME 
+# Update the CA trust store
+RUN update-ca-trust extract
 
 # USER default
 # RUN ls -lia
