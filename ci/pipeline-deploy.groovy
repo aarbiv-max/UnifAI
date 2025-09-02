@@ -11,7 +11,8 @@ properties([
         string(name: "DF_VERSION", defaultValue: "", description: "Image tag for dataflow"),
         string(name: "MA_VERSION", defaultValue: "", description: "Image tag for multi-agent"),
         string(name: "GUI_VERSION", defaultValue: "", description: "Image tag for UI"),
-        string(name: "MODULES_TO_DEPLOY", defaultValue: "", description: "Comma-separated list of modules to update (e.g. dataflow,multiagent,ui)"),
+        string(name: "SSO_VERSION", defaultValue: "", description: "Image tag for SSO"),
+        string(name: "MODULES_TO_DEPLOY", defaultValue: "", description: "Comma-separated list of modules to update (e.g. dataflow,multiagent,ui,sso)"),
         booleanParam(name: 'debug_mode', defaultValue: false, description: 'debug the pods'),
     ])
 ])
@@ -57,11 +58,10 @@ def updateGlobalConfigYaml(String filePath) {
 
     if (values?.env) {
         values.env.FRONTEND_URL = "http://unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
-        values.env.DATAPIPELINEHUB_HOST = "https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
-        values.env.MULTIAGENT_HOST = "http://unifai-multiagent-be-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
+        values.env.SSO_BACKEND_HOST = "https://unifai-sso-backend-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com"
     }
     writeYaml file: filePath, data: values, overwrite: true
-    echo "📄 successfully Updated values in ${filePath}:\n" + writeYaml(returnText: true, data: values)
+    echo "📄 successfully Updated routes values in ${filePath}:\n" + writeYaml(returnText: true, data: values)
     }
 }
 
@@ -115,7 +115,7 @@ def deployModules(module){
     echo "deploying modules: ${module}"
     sh("podman exec -t helmfile bash -lc 'helmfile -f ${module}.yaml.gotmpl apply'")
     echo("${module} successfully deployed")
-    sh("sleep 10")
+    sh("sleep 5")
 }
 
 def deleteRunningApplication(){
@@ -141,7 +141,7 @@ def deleteRunningApplication(){
 def cleanWorkspace() {
     sh """
         podman rm -f helmfile
-        sleep 10        
+        sleep 5        
     """
 }
 
@@ -237,6 +237,13 @@ pipeline {
                                     case 'shared-resources':
                                         updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/shared-resource-values.yaml", version)
                                         deployModules('shared-resources')
+                                        break
+
+                                    case 'sso':
+                                        def version = params.SSO_VERSION?.trim() ?: params.VERSION?.trim()
+                                        updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/shared-resources/sso/", version)
+                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/sso-values.yaml", version)
+                                        deployModules('sso')
                                         break
 
                                     case 'dataflow':

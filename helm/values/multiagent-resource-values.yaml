@@ -11,7 +11,7 @@ multiagent_server:
     tag: "latest"
   service:
     type: ClusterIP
-    port: "8080"
+    port: "8003"
   env:
     BACKEND_ENV: "production" #options - production development
     ROLE: "flask" # options are flask celery debug
