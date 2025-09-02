@@ -21,6 +21,10 @@ class BlueprintService:
         doc = self._repo.load(blueprint_id)
         return BlueprintDraft(**doc["spec_dict"])
 
+    def get_blueprint_draft_doc(self, blueprint_id: str) -> Mapping[str, Any]:
+        """Get blueprint document with metadata for sharing operations."""
+        return self._repo.load(blueprint_id)
+
     def update_draft(self, *, blueprint_id: str, draft_dict: dict) -> bool:  # NEW
         draft = BlueprintDraft(**draft_dict)
         rid_refs = list(RefWalker.external_rids(draft))
@@ -80,7 +84,7 @@ class BlueprintService:
         """
         docs = self._repo.list_docs(user_id=user_id, **pg)
         resolved_docs = []
-        
+
         for doc in docs:
             try:
                 # Create draft from spec_dict
@@ -89,7 +93,7 @@ class BlueprintService:
                 resolved_spec = self._resolver.resolve(draft)
                 # Convert resolved spec to dict
                 resolved_dict = resolved_spec.model_dump(mode="json")
-                
+
                 # Create new doc with resolved spec_dict
                 resolved_doc = dict(doc)  # Copy all fields from original doc
                 resolved_doc["spec_dict"] = resolved_dict  # Replace spec_dict with resolved version
@@ -97,7 +101,7 @@ class BlueprintService:
             except Exception as e:
                 # If resolution fails, skip this document
                 continue
-                
+
         return resolved_docs
 
     def count(self, *, user_id: str | None = None) -> int:

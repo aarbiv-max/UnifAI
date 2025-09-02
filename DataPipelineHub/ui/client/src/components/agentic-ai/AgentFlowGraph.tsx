@@ -37,7 +37,7 @@ export default function AgentFlowGraph({
           Agent Flow Visualization
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-0" style={{ height: "80vh" }}>
+      <CardContent className="p-0" style={{ height: "73.5vh" }}>
         <StreamingDataProvider>
           <ReactFlowProvider>
             <AvailableFlows
@@ -50,7 +50,7 @@ export default function AgentFlowGraph({
               height="100%"
               graphProps={{
                 showControls: true,
-                showMiniMap: true,
+                showMiniMap: false,
                 showBackground: true,
                 interactive: true,
                 isLiveRequest: false,

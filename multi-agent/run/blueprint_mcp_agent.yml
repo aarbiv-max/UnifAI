@@ -17,24 +17,8 @@ nodes:
     config:
       type: final_answer_node
 
-  - rid: mcp_agent_rid
-    name: mcp_agent
-    type: custom_agent_node
-    config:
-      type: custom_agent_node
-      llm: $ref:a9968c7061b84532818805b68f66a307
-      provider: $ref:b0424eabb34c4bf0ab4cf4bf7d57b055
-      system_message: |
-        you are a jira expert
+  - rid: $ref:9ffc6c27fed449c588f5dbfb5e39506a
 
-  - rid: review_agent_rid
-    name: review_agent
-    type: custom_agent_node
-    config:
-      type: custom_agent_node
-      llm: $ref:a9968c7061b84532818805b68f66a307
-      system_message: |
-        return only the names of the issues you get
 
 # ----------------------------
 # Plan Steps
@@ -49,22 +33,14 @@ plan:
 
   - uid: mcp_agent
     after: user_input
-    node: mcp_agent_rid
+    node: 9ffc6c27fed449c588f5dbfb5e39506a
     meta:
       display_name: MCP Agent
       description: |
         MCP Agent
 
-  - uid: review_agent
-    after: mcp_agent
-    node: review_agent_rid
-    meta:
-      display_name: Review Agent
-      description: |
-        Review Agent
-
   - uid: finalize
-    after: review_agent
+    after: mcp_agent
     node: final_answer_node_rid
     meta:
       display_name: Final Answer

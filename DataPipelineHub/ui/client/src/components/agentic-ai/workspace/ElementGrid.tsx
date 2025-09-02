@@ -11,8 +11,11 @@ import {
   LoaderCircle,
   FileText,
   Database,
-  Eye
+  Eye,
+  Users
 } from 'lucide-react';
+import SimpleTooltip from '@/components/shared/SimpleTooltip';
+import { useShared } from '@/contexts/SharedContext';
 import { ElementInstance, ElementType } from '../../../types/workspace';
 
 interface ElementGridProps {
@@ -32,10 +35,19 @@ export const ElementGrid: React.FC<ElementGridProps> = ({
 }) => {
   const [selectedElement, setSelectedElement] = useState<ElementInstance | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const { openShareForItem } = useShared();
 
   const handleViewDetails = (element: ElementInstance) => {
     setSelectedElement(element);
     setIsDetailsModalOpen(true);
+  };
+
+  const handleShareElement = (element: ElementInstance) => {
+    openShareForItem({
+      itemKind: 'resource',
+      itemId: element.rid,
+      itemName: element.name || `${elementType.name} Instance`,
+    });
   };
   if (isLoading) {
     return (
@@ -75,14 +87,28 @@ export const ElementGrid: React.FC<ElementGridProps> = ({
                     {element.name || `${elementType.name} Instance`}
                   </CardTitle>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-gray-400 hover:text-red-400"
-                  onClick={() => onDeleteElement(element.rid)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <SimpleTooltip content={<p>Share this resource</p>}>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-gray-400 hover:text-blue-400 hover:bg-blue-500/10"
+                      onClick={() => handleShareElement(element)}
+                    >
+                      <Users className="h-4 w-4" />
+                    </Button>
+                  </SimpleTooltip>
+                  <SimpleTooltip content={<p>Delete this resource</p>}>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-gray-400 hover:text-red-400"
+                      onClick={() => onDeleteElement(element.rid)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </SimpleTooltip>
+                </div>
               </div>
             </CardHeader>
             

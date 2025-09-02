@@ -9,6 +9,8 @@ import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { ProjectProvider } from '@/contexts/ProjectContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { NotificationProvider } from '@/contexts/NotificationContext';
+import { SharedProvider } from '@/contexts/SharedContext';
 import DocumentsPage from "./features/docs/DocumentsPage";
 import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
@@ -24,22 +26,26 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <ProjectProvider>
-          <ProtectedRoute>
-            <Switch>
-              <Route path="/" component={Dashboard} />
-              <Route path="/jira" component={JiraIntegration} />
-              <Route path="/slack" component={SlackIntegration} />
-              <Route path="/documents" component={DocumentsPage} />
-              <Route path="/inventory" component={AgentRepository} />
-              <Route path="/agentic-ai" component={AgenticAI} />
-              <Route path="/agentic-chats" component={AgenticChats} />
-              <Route path="/slack/add-source" component={SlackAddSourcePage} />
-              <Route path="/configuration" component={Configuration} />
-              <Route component={NotFound} />
-            </Switch>
-          </ProtectedRoute>
-        </ProjectProvider>
+        <NotificationProvider>
+          <SharedProvider>
+            <ProjectProvider>
+              <ProtectedRoute>
+                <Switch>
+                  <Route path="/" component={Dashboard} />
+                  <Route path="/jira" component={JiraIntegration} />
+                  <Route path="/slack" component={SlackIntegration} />
+                  <Route path="/documents" component={DocumentsPage} />
+                  <Route path="/inventory" component={AgentRepository} />
+                  <Route path="/agentic-ai" component={AgenticAI} />
+                  <Route path="/agentic-chats" component={AgenticChats} />
+                  <Route path="/slack/add-source" component={SlackAddSourcePage} />
+                  <Route path="/configuration" component={Configuration} />
+                  <Route component={NotFound} />
+                </Switch>
+              </ProtectedRoute>
+            </ProjectProvider>
+          </SharedProvider>
+        </NotificationProvider>
       </AuthProvider>
     </ThemeProvider>
   );

@@ -3,6 +3,7 @@ from global_utils.helpers.apiargs import from_body, from_query
 from webargs import fields
 import json
 from pydantic.json import pydantic_encoder
+from session.exceptions import BlueprintNotFoundError
 
 sessions_bp = Blueprint("sessions", __name__)
 
@@ -20,6 +21,12 @@ def create_user_session(blueprint_id, user_id, metadata):
                                      blueprint_id=blueprint_id,
                                      metadata=metadata)
         return jsonify(session.get_run_id()), 200
+    except BlueprintNotFoundError as e:
+        return jsonify({
+            "error": str(e), 
+            "error_type": "BLUEPRINT_NOT_FOUND",
+            "blueprint_id": e.blueprint_id
+        }), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -41,34 +48,45 @@ def execute_user_session(session_id, inputs, stream_mode, stream, scope, logged_
     """
     svc = current_app.container.session_service
 
-    if not stream:
-        # synchronous run
-        result = svc.execute(
-            session_id=session_id,
-            inputs=inputs,
-            stream=False,
-            scope=scope,
-            logged_in_user=logged_in_user
-        )
-        return jsonify(result), 200
-
-    # streaming run
-    def generate():
-        for chunk in svc.execute(
+    try:
+        if not stream:
+            # synchronous run
+            result = svc.execute(
                 session_id=session_id,
                 inputs=inputs,
-                stream=True,
-                stream_mode=stream_mode,
+                stream=False,
                 scope=scope,
                 logged_in_user=logged_in_user
-        ):
-            # each chunk may include Pydantic models; use pydantic_encoder
-            yield json.dumps(chunk, default=pydantic_encoder)
+            )
+            return jsonify(result), 200
 
-    return Response(
-        generate(),
-        mimetype="application/x-ndjson"
-    )
+        # streaming run
+        def generate():
+            for chunk in svc.execute(
+                    session_id=session_id,
+                    inputs=inputs,
+                    stream=True,
+                    stream_mode=stream_mode,
+                    scope=scope,
+                    logged_in_user=logged_in_user
+            ):
+                # each chunk may include Pydantic models; use pydantic_encoder
+                yield json.dumps(chunk, default=pydantic_encoder)
+
+        return Response(
+            generate(),
+            mimetype="application/x-ndjson"
+        )
+    
+    except BlueprintNotFoundError as e:
+        return jsonify({
+            "error": str(e), 
+            "error_type": "BLUEPRINT_DELETED",
+            "blueprint_id": e.blueprint_id,
+            "session_id": e.session_id
+        }), 410  # Gone
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @sessions_bp.route("/session.state.get", methods=["GET"])

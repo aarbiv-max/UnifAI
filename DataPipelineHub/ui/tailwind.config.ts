@@ -121,6 +121,16 @@ export default {
             'color': '#f9fafb !important',
           }
         },
+        '.input-dark-theme-text-white': {
+          '&:focus': {
+            'color': '#f9fafb !important',
+            '-webkit-text-fill-color': '#f9fafb !important',
+          },
+          '&:not(:placeholder-shown)': {
+            'color': '#f9fafb !important',
+            '-webkit-text-fill-color': '#f9fafb !important',
+          }
+        },
         '.select-dark-theme': {
           'color': '#f9fafb !important',
           'background-color': 'hsl(var(--background)) !important',

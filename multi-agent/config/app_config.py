@@ -6,6 +6,7 @@ class AppConfig(SharedConfig):
     blueprint_coll: str = "blueprints"
     resources_coll: str = "resources"
     session_coll: str = "workflow_sessions"
+    shares_coll: str = "shares"
     hostname: str = "0.0.0.0"
     port: str = "8002"
 

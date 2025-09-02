@@ -10,8 +10,10 @@ import {
   MessageSquare,
   BookOpen,
   Trash2,
+  Users,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useShared } from "@/contexts/SharedContext";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { GraphFlow, FlowObject } from "./graphs/interfaces";
 import ReactFlowGraph from "./graphs/ReactFlowGraph";
 import axios from "../../http/axiosAgentConfig";
@@ -91,7 +94,7 @@ export default function AvailableFlows({
   useResolvedEndpoint = false,
   graphProps = {
     showControls: true,
-    showMiniMap: true,
+    showMiniMap: false,
     showBackground: true,
     interactive: true,
     isLiveRequest: false,
@@ -106,6 +109,7 @@ export default function AvailableFlows({
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const { user } = useAuth();
+  const { openShareForItem } = useShared();
 
   // Fetch available flows from API
   const fetchAvailableFlows = async (): Promise<void> => {
@@ -180,6 +184,15 @@ export default function AvailableFlows({
     setShowDeleteModal(true);
   };
 
+  const handleShareClick = (flow: FlowObject, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent flow selection when clicking share
+    openShareForItem({
+      itemKind: 'blueprint',
+      itemId: flow.id,
+      itemName: flow.name,
+    });
+  };
+
   const handleDeleteConfirm = async () => {
     if (!flowToDelete) return;
 
@@ -247,11 +260,11 @@ export default function AvailableFlows({
     <>
       <div className={`flex h-full overflow-hidden ${className}`} style={{ height }}>
         {/* Available Flows Sidebar */}
-        <div className="w-1/3 border-r border-gray-800 bg-background-dark flex flex-col min-h-0">
+        <div className="w-1/3 border-r border-gray-800 bg-background-dark flex flex-col min-h-0 relative">
           <div className="py-3 px-4 border-b border-gray-800 bg-background-surface flex-shrink-0">
             <h3 className="text-sm font-medium">Available Flows ({graphFlows.length})</h3>
           </div>
-          <div className="flex-1 overflow-y-auto py-2 max-h-full">
+          <div className="flex-1 overflow-y-auto py-2 max-h-full relative">
             {graphFlows.length === 0 ? (
               <div className="flex items-center justify-center py-8">
                 <div className="text-gray-400">No flows available</div>
@@ -280,15 +293,27 @@ export default function AvailableFlows({
                           Active
                         </span>
                       )}
-                      {showDeleteButton && (
+                      <SimpleTooltip content={<p>Share this workflow</p>}>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0 hover:bg-red-500/20 hover:text-red-400"
-                          onClick={(e) => handleDeleteClick(flow, e)}
+                          className="h-6 w-6 p-0 hover:bg-blue-500/20 hover:text-blue-400"
+                          onClick={(e) => handleShareClick(flow, e)}
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Users className="h-3 w-3" />
                         </Button>
+                      </SimpleTooltip>
+                      {showDeleteButton && (
+                        <SimpleTooltip content={<p>Delete this workflow</p>}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-red-500/20 hover:text-red-400"
+                            onClick={(e) => handleDeleteClick(flow, e)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </SimpleTooltip>
                       )}
                     </div>
                   </div>

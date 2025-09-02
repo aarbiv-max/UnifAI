@@ -2,12 +2,17 @@ import React from "react";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { FaSearch, FaBell, FaQuestionCircle, FaPlus, FaBars, FaMoon, FaSun, FaSignOutAlt } from "react-icons/fa";
+import { FaSearch, FaBell, FaQuestionCircle, FaPlus, FaBars, FaMoon, FaSun, FaSignOutAlt, FaShare } from "react-icons/fa";
+import { FaShareNodes } from "react-icons/fa6";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
+import NotificationPanel from "@/components/shared/NotificationPanel";
+import SharedPanel from "@/components/shared/SharedPanel";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { useShared } from '@/contexts/SharedContext';
 
 interface HeaderProps {
   title: string;
@@ -15,10 +20,11 @@ interface HeaderProps {
 }
 
 export default function Header({ title, onToggleSidebar }: HeaderProps) {
-  const [hasNotifications] = useState(true);
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
-
   const { user, logout } = useAuth();
+  const { hasUnreadNotifications, pendingNotificationsCount } = useNotifications();
+  const { isSharedPanelOpen, openSharedPanel, closeSharedPanel } = useShared();
 
   const getInitials = (name: string): string => {
     return name
@@ -53,18 +59,46 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
           </button>
         </SimpleTooltip>
         
-        <SimpleTooltip content={<p>Notifications</p>}>
-          <button className="p-2 rounded-full hover:bg-background-card text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors relative">
-            <FaBell />
-            {hasNotifications && (
-              <motion.span 
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute top-1 right-1 w-2 h-2 rounded-full bg-accent"
-              />
-            )}
-          </button>
-        </SimpleTooltip>
+        <div className="relative">
+          <SimpleTooltip content={<p>Shared System</p>}>
+            <button 
+              onClick={() => openSharedPanel('list')}
+              className="p-2 rounded-full hover:bg-background-card text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors"
+            >
+              <FaShareNodes />
+            </button>
+          </SimpleTooltip>
+          
+          {/* Shared Panel */}
+          <SharedPanel 
+            isOpen={isSharedPanelOpen}
+            onClose={closeSharedPanel}
+          />
+        </div>
+        
+        <div className="relative">
+          <SimpleTooltip content={<p>Notifications{hasUnreadNotifications ? ` (${pendingNotificationsCount})` : ''}</p>}>
+            <button 
+              onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)}
+              className="p-2 rounded-full hover:bg-background-card text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors relative"
+            >
+              <FaBell />
+              {hasUnreadNotifications && (
+                <motion.span 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500"
+                />
+              )}
+            </button>
+          </SimpleTooltip>
+          
+          {/* Notification Panel */}
+          <NotificationPanel 
+            isOpen={isNotificationPanelOpen}
+            onClose={() => setIsNotificationPanelOpen(false)}
+          />
+        </div>
         
         <SimpleTooltip content={<p>Help</p>}>
           <button className="p-2 rounded-full hover:bg-background-card text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors">

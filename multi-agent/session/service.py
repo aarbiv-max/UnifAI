@@ -99,7 +99,17 @@ class SessionService:
         Get chat history for all sessions created by a user.
         """
         docs = self._manager.list_docs(user_id)
-        return [ChatHistoryItem.from_doc(d) for d in docs]
+        chat_items = []
+        
+        for doc in docs:
+            blueprint_id = doc.get("blueprint_id", "")
+            # Check if blueprint still exists
+            blueprint_exists = self._manager.blueprint_exists(blueprint_id) if blueprint_id else False
+            
+            chat_item = ChatHistoryItem.from_doc(doc, blueprint_exists=blueprint_exists)
+            chat_items.append(chat_item)
+        
+        return chat_items
 
     def get_user_blueprints(self, user_id) -> List[str]:
         """

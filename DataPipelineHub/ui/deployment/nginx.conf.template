@@ -73,7 +73,21 @@ http {
 #        }
 
         location / {
+            index index.html;
             try_files ${DOLLAR}uri /index.html;
+        }
+
+        # For static assets (JS/CSS/images/fonts) → cache long term
+        location ~* \.(?:ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg)$ {
+            root /usr/share/nginx/html;
+            access_log off;
+            add_header Cache-Control "public, max-age=31536000, immutable";
+        }
+
+        # For index.html → always fetch latest
+        location = /index.html {
+            root /usr/share/nginx/html;
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
         }
 
         location = /404.html {

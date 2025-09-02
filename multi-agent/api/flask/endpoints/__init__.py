@@ -6,6 +6,7 @@ from .graph import graph_bp
 from .graph_validation import graph_validation_bp
 from .actions import actions_bp
 from .health import health_bp
+from .shares import shares_bp
 
 
 def register_all_endpoints(app):
@@ -18,6 +19,7 @@ def register_all_endpoints(app):
         {"bp": graph_bp, "parent": 'graph', "route": ''},
         {"bp": graph_validation_bp, "parent": 'graph', "route": 'validation'},
         {"bp": actions_bp, "parent": 'actions', "route": ''},
+        {"bp": shares_bp, "parent": 'shares', "route": ''},
     ]
 
     # register all other blueprints in the app

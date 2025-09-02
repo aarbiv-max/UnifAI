@@ -874,7 +874,7 @@ export default function ReactFlowGraph({
             color: "#8A2BE2",
           },
         }}
-        attributionPosition="bottom-right"
+        proOptions={{ hideAttribution: true }}
       >
         {showControls && <Controls />}
         {showMiniMap && <MiniMap />}

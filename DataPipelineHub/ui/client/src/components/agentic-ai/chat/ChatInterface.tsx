@@ -32,12 +32,14 @@ interface ChatInterfaceProps {
   runId?: string;
   triggerExecution: (sessionPayload: SessionPayload) => Promise<string>;
   initialMessages?: BackendMessage[];
+  blueprintExists?: boolean;
 }
 
 export default function ChatInterface({
   runId,
   triggerExecution,
   initialMessages = [],
+  blueprintExists = true,
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
@@ -542,19 +544,32 @@ export default function ChatInterface({
           <div ref={messagesEndRef} />
         </div>
         <div className="p-4 border-t border-gray-800 flex-shrink-0">
+          {!blueprintExists && (
+            <div className="mb-4 p-3 bg-orange-900/20 border border-orange-500/50 rounded-lg">
+              <div className="flex items-center text-orange-200">
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium">
+                  Workflow Unavailable: The workflow associated with this chat has been deleted and can no longer be continued.
+                </span>
+              </div>
+            </div>
+          )}
           <div className="flex space-x-2 items-end">
             <Textarea
               ref={textareaRef}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask a question about your data..."
-              className="bg-background-dark min-h-[80px] resize-none"
+              placeholder={blueprintExists ? "Ask a question about your data..." : "This chat cannot be continued - workflow was deleted"}
+              className={`bg-background-dark min-h-[80px] resize-none ${!blueprintExists ? 'opacity-50 cursor-not-allowed' : ''}`}
               rows={3}
+              disabled={!blueprintExists}
             />
             <Button
               onClick={handleSendMessage}
-              disabled={inputMessage.trim() === "" || isTyping}
+              disabled={inputMessage.trim() === "" || isTyping || !blueprintExists}
               className="bg-primary hover:bg-[#7525c9] mb-0"
             >
               <Send className="h-4 w-4" />

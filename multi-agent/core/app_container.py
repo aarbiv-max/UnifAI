@@ -14,6 +14,9 @@ from resources.repository.mongo_repository import MongoResourceRepository
 from graph.service import GraphService
 from graph.validation.service import GraphValidationService
 from actions.service import ActionsService
+from sharing.repository.mongo_repository import MongoShareRepository
+from sharing.cloner import ShareCloner
+from sharing.service import ShareService
 from config.app_config import AppConfig
 from global_utils.utils.singleton import SingletonMeta
 
@@ -96,6 +99,21 @@ class AppContainer(metaclass=SingletonMeta):
         self.session_service = SessionService(
             manager=self.session_manager,
             executor=self.session_executor
+        )
+
+        # sharing service
+        self.share_repo = MongoShareRepository(
+            db_name=cfg.mongo_db,
+            coll_name=cfg.shares_coll
+        )
+        self.share_cloner = ShareCloner(
+            resources_registry=resource_registry,
+            blueprint_service=self.blueprint_service,
+            element_registry=self.element_registry
+        )
+        self.share_service = ShareService(
+            share_repository=self.share_repo,
+            cloner=self.share_cloner
         )
 
         self._initialized = True
