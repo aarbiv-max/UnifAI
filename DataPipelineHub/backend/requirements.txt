@@ -6,7 +6,7 @@ langchain
 numpy
 sentence-transformers
 qdrant-client
-docling
+# docling  # Now using docling endpoint instead of local library
 Authlib
 PyJWT
 python-dotenv
