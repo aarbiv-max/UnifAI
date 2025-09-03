@@ -85,7 +85,7 @@ storage:
     - ReadWriteOnce
   keepPvc: true
   annotations:
-      kubernetes.io/reclaimPolicy: Retain 
+    kubernetes.io/reclaimPolicy: Delete
   labels:
     paas.redhat.com/appcode: TAG-001
 
