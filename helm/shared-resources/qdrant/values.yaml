@@ -83,8 +83,8 @@ storage:
   className: aws-ebs
   accessModes:
     - ReadWriteOnce
-  annotations:
-    kubernetes.io/reclaimPolicy: Delete
+  keepPvc: true
+  annotations: {} 
   labels:
     paas.redhat.com/appcode: TAG-001
 
