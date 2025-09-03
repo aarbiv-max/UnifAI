@@ -124,13 +124,3 @@ export interface EnhancedNodeData extends NodeData {
   timestamp?: string;
   execution_data?: any;
 }
-
-export interface ReactFlowGraphProps {
-  blueprintId?: string;
-  height?: string;
-  showControls?: boolean;
-  showMiniMap?: boolean;
-  showBackground?: boolean;
-  interactive?: boolean;
-  isLiveRequest?: boolean;
-} 
