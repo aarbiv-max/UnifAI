@@ -13,9 +13,9 @@ data:
         log_level: INFO
         format: text
     storage:
-      storage_path: /tmp/storage
-      snapshots_path: /tmp/snapshots
-      temp_path: /tmp/temp
+      storage_path: /qdrant/storage
+      snapshots_path: /qdrant/storage/snapshots
+      temp_path: /qdrant/storage/temp
       on_disk_payload: true
       update_concurrency: null
       wal:
