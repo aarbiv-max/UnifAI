@@ -4,6 +4,7 @@ storage:
   className: aws-efs-tier-c1
   accessModes:
     - ReadWriteMany
+  keepPvc: true
   annotations:
     kubernetes.io/reclaimPolicy: Delete
   labels:

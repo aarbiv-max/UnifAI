@@ -9,11 +9,16 @@ metadata:
     {{- with .Values.storage.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
+  {{- if or .Values.storage.keepPvc .Values.storage.annotations }}
   annotations:
-    helm.sh/resource-policy: keep           # Helm will not delete the PVC
+  {{- if .Values.storage.keepPvc }}
+    "helm.sh/resource-policy": keep
+  {{- end }}
 spec:
+  {{- if .Values.storage.keepPvc }}
   finalizers:
-    - kubernetes.io/pvc-protection          # Prevents PVC deletion until finalizer removed
+    - kubernetes.io/pvc-protection          
+  {{- end }}
   {{- with .Values.storage }}
   accessModes:
     {{- toYaml .accessModes | nindent 4 }}
