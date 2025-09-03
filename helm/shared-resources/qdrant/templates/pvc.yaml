@@ -14,6 +14,10 @@ metadata:
   {{- if .Values.storage.keepPvc }}
     "helm.sh/resource-policy": keep
   {{- end }}
+  {{- with .Values.storage.annotations }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
 spec:
   {{- if .Values.storage.keepPvc }}
   finalizers:
