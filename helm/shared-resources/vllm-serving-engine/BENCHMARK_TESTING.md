@@ -34,13 +34,13 @@ The `benchmark.yaml` test provides comprehensive JSON API performance testing in
 ### **Primary Usage - Run Complete Benchmark** (~5-8 minutes):
 ```bash
 # Run the comprehensive JSON API benchmark suite
-helm test vllm-qwen3 --filter name=benchmark
+helm test vllm-serving-engine --filter name=benchmark
 ```
 
 ### **Alternative - Run All Tests** (~15-25 minutes):
 ```bash
 # Run all tests including basic API validation
-helm test vllm-qwen3
+helm test vllm-serving-engine
 ```
 
 ## 📊 **Sample Benchmark Results**
@@ -86,7 +86,7 @@ Based on real testing against vLLM Qwen/Qwen3-32B-FP8 deployment:
 🧪 Health Endpoint Test
    Duration: 10s, Threads: 1, Connections: 2
    ----------------------------------------
-Running 10s test @ http://vllm-qwen3-tag-ai--runtime-int.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/health
+Running 10s test @ http://vllm-serving-engine-tag-ai--runtime-int.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/health
   1 threads and 2 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
     Latency     1.86ms    4.35ms 105.87ms   99.19%
@@ -106,7 +106,7 @@ Transfer/sec:    239.29KB
 🧪 Models JSON API Test
    Duration: 8s, Threads: 1, Connections: 2
    ----------------------------------------
-Running 8s test @ http://vllm-qwen3-tag-ai--runtime-int.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/v1/models
+Running 8s test @ http://vllm-serving-engine-tag-ai--runtime-int.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/v1/models
   1 threads and 2 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
     Latency     4.54ms   18.62ms 211.43ms   97.82%
@@ -246,7 +246,7 @@ wget -q -O - --post-data='{"model":"model","prompt":"test","max_tokens":10}' \
 #### **JSON API Error Rates**
 ```bash
 # Monitor JSON API error patterns
-helm test vllm-qwen3 --filter name=benchmark | grep "failed"
+helm test vllm-serving-engine --filter name=benchmark | grep "failed"
 ```
 
 ## 🎉 **JSON API Performance Targets**
@@ -268,10 +268,10 @@ helm test vllm-qwen3 --filter name=benchmark | grep "failed"
 ### **Configurable Stress Testing:**
 ```bash
 # Skip stress testing for faster CI/CD
-helm test vllm-qwen3 --filter name=benchmark --set env.STRESS_TEST=false
+helm test vllm-serving-engine --filter name=benchmark --set env.STRESS_TEST=false
 
 # Run full stress testing (default)
-helm test vllm-qwen3 --filter name=benchmark --set env.STRESS_TEST=true
+helm test vllm-serving-engine --filter name=benchmark --set env.STRESS_TEST=true
 ```
 
 ### **Custom Test Phases:**

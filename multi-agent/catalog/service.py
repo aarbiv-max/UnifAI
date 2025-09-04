@@ -6,9 +6,7 @@ from catalog.dto import ElementSummaryDTO, ElementDetailDTO, CatalogListDTO
 
 class CatalogService:
     """
-    Enhanced catalog service that works with both new BaseElementSpec instances
-    and legacy ElementDefinition objects.
-    
+    Enhanced catalog service
     Converts registry information into JSON-serialisable shapes the UI likes.
     """
 

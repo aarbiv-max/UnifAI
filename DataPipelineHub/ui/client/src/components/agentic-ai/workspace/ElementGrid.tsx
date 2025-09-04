@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { motion } from 'framer-motion';
 import { 
   Settings, 
@@ -17,6 +16,7 @@ import {
 import SimpleTooltip from '@/components/shared/SimpleTooltip';
 import { useShared } from '@/contexts/SharedContext';
 import { ElementInstance, ElementType } from '../../../types/workspace';
+import { ElementData } from './ElementData';
 
 interface ElementGridProps {
   elements: ElementInstance[];
@@ -193,79 +193,13 @@ export const ElementGrid: React.FC<ElementGridProps> = ({
         </motion.div>
       ))}
       
-      {/* Details Modal */}
-      <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-        <DialogContent className="bg-background-card border-gray-800 text-foreground max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              {selectedElement?.name || `${elementType.name} Details`}
-            </DialogTitle>
-          </DialogHeader>
-          
-          {selectedElement && (
-            <div className="space-y-4">
-              {/* Basic Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-400">Resource ID</label>
-                  <p className="font-mono text-sm text-gray-300">{selectedElement.rid}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-400">Type</label>
-                  <p className="text-sm text-gray-300">{selectedElement.type}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-400">Version</label>
-                  <p className="text-sm text-gray-300">v{selectedElement.version || 1}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-400">Category</label>
-                  <p className="text-sm text-gray-300">{selectedElement.category}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-400">Created</label>
-                  <p className="text-sm text-gray-300">
-                    {selectedElement.created ? new Date(selectedElement.created).toLocaleString() : 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-400">Last Updated</label>
-                  <p className="text-sm text-gray-300">
-                    {selectedElement.updated ? new Date(selectedElement.updated).toLocaleString() : 'N/A'}
-                  </p>
-                </div>
-              </div>
-
-              {/* References */}
-              {selectedElement.nested_refs && selectedElement.nested_refs.length > 0 && (
-                <div>
-                  <label className="text-sm font-medium text-gray-400">Referenced Resources</label>
-                  <div className="mt-1 space-y-1">
-                    {selectedElement.nested_refs.map((ref, index) => (
-                      <Badge key={index} variant="outline" className="mr-2">
-                        {ref}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Configuration */}
-              {selectedElement.config && (
-                <div>
-                  <label className="text-sm font-medium text-gray-400">Full Configuration</label>
-                  <div className="mt-2 bg-gray-900 p-4 rounded-md">
-                    <pre className="text-xs text-gray-300 whitespace-pre-wrap overflow-x-auto">
-                      {JSON.stringify(selectedElement.config, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Element Details Modal */}
+      <ElementData
+        element={selectedElement}
+        elementType={elementType}
+        isOpen={isDetailsModalOpen}
+        onOpenChange={setIsDetailsModalOpen}
+      />
     </div>
   );
 };

@@ -11,16 +11,16 @@ class ResourceDoc(BaseModel):
     One persisted element in the user *Library*.
     – cfg_dict is **plain json**; we do NOT store the Pydantic instance.
     """
-    rid: str = Field(default_factory=lambda: uuid4().hex)  # public key
+    rid: str = Field(default_factory=lambda: uuid4().hex, json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())  # public key
     user_id: str = Field(default="admin", json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())  # tenant
-    category: ResourceCategory
-    type: str  # e.g. "openai"
+    category: ResourceCategory = Field(json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())
+    type: str = Field(json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())  # e.g. "openai"
     name: str  # user label (unique per user+cat+type)
-    version: int = 1
-    cfg_dict: Dict[str, Any]  # raw config
-    nested_refs: List[str] = Field(default_factory=list)
-    created: datetime = Field(default_factory=datetime.utcnow)
-    updated: datetime = Field(default_factory=datetime.utcnow)
+    version: int = Field(default=1, json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())
+    cfg_dict: Dict[str, Any] = Field(json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())  # raw config
+    nested_refs: List[str] = Field(default_factory=list, json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())
+    created: datetime = Field(default_factory=datetime.utcnow, json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())
+    updated: datetime = Field(default_factory=datetime.utcnow, json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())
 
 
 class ResourceQuery(BaseModel):

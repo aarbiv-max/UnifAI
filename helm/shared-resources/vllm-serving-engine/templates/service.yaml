@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "vllm-qwen3.fullname" . }}
+  name: {{ include "vllm-serving-engine.fullname" . }}
   labels:
-    {{- include "vllm-qwen3.labels" . | nindent 4 }}
+    {{- include "vllm-serving-engine.labels" . | nindent 4 }}
   {{- if .Values.namespace }}
   namespace: {{ .Values.namespace }}
   {{- end }}
@@ -15,4 +15,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "vllm-qwen3.selectorLabels" . | nindent 4 }} 
+    {{- include "vllm-serving-engine.selectorLabels" . | nindent 4 }} 

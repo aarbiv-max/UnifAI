@@ -1,0 +1,108 @@
+# Qwen3-32B-FP8 specific values file
+# This file inherits from values.yaml and overrides only Qwen3-specific parameters
+# Usage: helm install vllm-qwen3 ./helm/shared-resources/vllm-serving-engine -f values-qwen3-32b.yaml
+
+# Model configuration - Qwen3-8B specific
+model:
+  name: "Qwen/Qwen3-8B"
+  localModelPath: "/models/Qwen3-8B"
+  maxModelLen: "80000"
+  quantization: "fp8"  # commented out for 8B model
+  toolCallParser: "hermes"
+  ropeScaling:
+    rope_type: "yarn"
+    factor: 4.0
+    original_max_position_embeddings: 32768
+  # Custom arguments for vllm serve command
+  customArgs: []
+  # Custom environment variables for this model
+  env: {}
+
+# Qwen3-32B specific resource requirements (optimized for FP8)
+resources:
+  limits:
+    cpu: '8'
+    memory: 48Gi
+    nvidia.com/gpu: 4
+  requests:
+    cpu: '4'
+    memory: 24Gi
+    nvidia.com/gpu: 4
+
+# Qwen3-32B specific GPU configuration
+gpu:
+  count: 4
+  deviceIds: []
+
+vllm:
+  # General vLLM settings (no model-specific hardcoding)
+  tensorParallelSize: "4"
+  enableAutoToolChoice: true
+
+
+# Qwen3-32B specific health probe timing (longer for large model)
+healthProbes:
+  readinessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 180
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 30
+  livenessProbe:
+    enabled: true
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 240
+    periodSeconds: 20
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 15
+
+# Qwen3-32B specific environment variables
+env:
+  HOME: "/tmp"
+  HF_HOME: "/models/.cache"
+  TORCH_COMPILE_DISABLE: "1"
+  NCCL_DEBUG: "INFO"
+  NCCL_P2P_LEVEL: "LOC"
+  NCCL_SOCKET_IFNAME: "^docker,lo"
+  VLLM_RAY_START_UP_TIMEOUT_S: "900"
+  VLLM_WORKER_USE_RAY: "0"
+  VLLM_CONFIG_ROOT: "/models/.cache"
+  VLLM_CACHE_ROOT: "/models/.cache"
+  CUDA_LAUNCH_BLOCKING: "0"
+  TOKENIZERS_PARALLELISM: "true"
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  VLLM_WORKER_MULTIPROC_METHOD: "spawn"
+  VLLM_ENGINE_ITERATION_TIMEOUT_S: "600"
+
+# Qwen3-32B specific volume configuration
+volumes:
+  dshm:
+    enabled: true
+    medium: Memory
+    sizeLimit: "16Gi"
+  modelCache:
+    enabled: true
+    storageClass: "aws-ebs"
+    size: "200Gi"
+    accessMode: "ReadWriteOnce"
+    retainOnDelete: true
+  flashinferCache:
+    enabled: true
+
+# Node affinity to ensure Qwen3-32B runs on A100 GPUs
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: nvidia.com/gpu.product
+          operator: In
+          values:
+          - NVIDIA-A100-SXM4-40GB

@@ -1,6 +1,6 @@
 apiVersion: v2
-name: vllm-qwen3
-description: A Helm chart for vLLM Qwen3 deployment with GPU support
+name: vllm-serving-engine
+description: A Helm chart for vLLM serving engine with multi-model deployment and GPU support
 
 # A chart can be either an 'application' or a 'library' chart.
 #

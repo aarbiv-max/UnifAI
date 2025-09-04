@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "{{ include "vllm-qwen3.fullname" . }}-api-test"
+  name: "{{ include "vllm-serving-engine.fullname" . }}-api-test"
   labels:
-    {{- include "vllm-qwen3.labels" . | nindent 4 }}
+    {{- include "vllm-serving-engine.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
     "helm.sh/hook-weight": "1"
@@ -22,7 +22,7 @@ spec:
         
         # Use internal service endpoint for reliable testing
         echo "📍 Using internal service endpoint for testing"
-        BASE_URL="http://{{ include "vllm-qwen3.fullname" . }}.{{ .Values.namespace | default .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}"
+        BASE_URL="http://{{ include "vllm-serving-engine.fullname" . }}.{{ .Values.namespace | default .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}"
         
         echo "🎯 Testing vLLM API at: $BASE_URL"
         
@@ -37,11 +37,14 @@ spec:
           exit 1
         fi
         
+        {{/* Use the single model configuration */}}
+        {{- $model := .Values.model }}
+        
         # Test 2: Models Endpoint
         echo "🤖 Test 2: Models Endpoint"
         MODELS_RESPONSE=$(curl -s "$BASE_URL/v1/models")
-        if echo "$MODELS_RESPONSE" | grep -q "{{ .Values.vllm.localModelPath }}"; then
-          echo "✅ Models endpoint working - Found model: {{ .Values.vllm.localModelPath }}"
+        if echo "$MODELS_RESPONSE" | grep -q "{{ $model.localModelPath }}"; then
+          echo "✅ Models endpoint working - Found model: {{ $model.localModelPath }}"
         else
           echo "❌ Models endpoint failed - Model not found"
           echo "Response: $MODELS_RESPONSE"
@@ -53,16 +56,14 @@ spec:
         COMPLETION_RESPONSE=$(curl -s -X POST "$BASE_URL/v1/completions" \
           -H "Content-Type: application/json" \
           -d '{
-            "model": "{{ .Values.vllm.localModelPath }}",
+            "model": "{{ $model.localModelPath }}",
             "prompt": "The capital of France is",
             "max_tokens": 10,
             "temperature": 0.1
           }')
         
         # Check if response contains expected elements
-        if echo "$COMPLETION_RESPONSE" | grep -q '"text"' && \
-           echo "$COMPLETION_RESPONSE" | grep -q '"choices"' && \
-           echo "$COMPLETION_RESPONSE" | grep -q '"usage"'; then
+        if echo "$COMPLETION_RESPONSE" | grep -q '"text"' && echo "$COMPLETION_RESPONSE" | grep -q '"choices"' && echo "$COMPLETION_RESPONSE" | grep -q '"usage"'; then
           
           # Extract the generated text
           GENERATED_TEXT=$(echo "$COMPLETION_RESPONSE" | grep -o '"text":"[^"]*"' | cut -d'"' -f4)
@@ -116,4 +117,4 @@ spec:
         echo "  - Token Usage: ✅ PASS"
         echo "  - Response Time: ✅ PASS"
         echo ""
-        echo "🚀 vLLM {{ .Values.vllm.model }} is ready for production use!" 
+        echo "🚀 vLLM {{ .Values.model.name }} is ready for production use!" 
