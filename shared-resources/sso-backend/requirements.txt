@@ -4,5 +4,3 @@ requests
 Authlib
 PyJWT
 python-dotenv
-pydantic
-pydantic-settings
