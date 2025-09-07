@@ -64,14 +64,6 @@ http {
            proxy_cookie_path / /;
         }
 
-#        location ~ /api1/(.*)$ {
-#            return 307 ${DATAPIPELINEHUB_HOST}/api/${DOLLAR}1${DOLLAR}is_args${DOLLAR}args;
-#        }
-#
-#        location ~ /api2/(.*)$ {
-#            return 307 ${MULTIAGENT_HOST}/api/${DOLLAR}1${DOLLAR}is_args${DOLLAR}args;
-#        }
-
         location / {
             index index.html;
             try_files ${DOLLAR}uri /index.html;
