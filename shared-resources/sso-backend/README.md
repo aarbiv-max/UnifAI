@@ -1,7 +1,7 @@
 Below is the flowchart of the SSO flow.
 
 A few notes:
-1. 2 routes are being used, one for the main app and one fo rthe sso authmanager pod
+1. 2 routes are being used, one for the main app and one for the sso authmanager pod
 2. currently we only used directly a flask server with the auth manager.
 
 
