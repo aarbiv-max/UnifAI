@@ -4,6 +4,7 @@ from endpoints.docs import docs_bp
 from endpoints.health import health_bp
 from endpoints.protected_routes import protected_bp
 from endpoints.data_sources import data_sources_bp
+from endpoints.vector import vector_bp
 
 def register_all_endpoints(app):
     backend_blueprints = [
@@ -13,6 +14,7 @@ def register_all_endpoints(app):
         {"bp": docs_bp, "parent": 'docs', "route": ''},
         {"bp": protected_bp, "parent": 'protected', "route": ''},
         {"bp": data_sources_bp, "parent": 'data_sources', "route": ''},
+        {"bp": vector_bp, "parent": 'vector', "route": ''},
     ]
     
     # register all other blueprints in the app

@@ -668,7 +668,7 @@ export default function SlackIntegration() {
                         <div className="overflow-x-auto">
                           <Table>
                             <TableHeader>
-                              <TableRow>
+                              <TableRow className="border-b border-white">
                                 <TableHead>Channel</TableHead>
                                 <TableHead>Messages</TableHead>
                                 <TableHead>Last Sync</TableHead>
@@ -678,7 +678,7 @@ export default function SlackIntegration() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              <TableRow>
+                              <TableRow className="border-b border-white">
                                 <TableCell className="font-medium">
                                   #general
                                 </TableCell>
@@ -701,7 +701,7 @@ export default function SlackIntegration() {
                                   </div>
                                 </TableCell>
                               </TableRow>
-                              <TableRow>
+                              <TableRow className="border-b border-white">
                                 <TableCell className="font-medium">
                                   #engineering
                                 </TableCell>
@@ -724,7 +724,7 @@ export default function SlackIntegration() {
                                   </div>
                                 </TableCell>
                               </TableRow>
-                              <TableRow>
+                              <TableRow className="border-b border-white">
                                 <TableCell className="font-medium">
                                   #product
                                 </TableCell>
@@ -747,7 +747,7 @@ export default function SlackIntegration() {
                                   </div>
                                 </TableCell>
                               </TableRow>
-                              <TableRow>
+                              <TableRow className="border-b border-white">
                                 <TableCell className="font-medium">
                                   #design
                                 </TableCell>
@@ -770,7 +770,7 @@ export default function SlackIntegration() {
                                   </div>
                                 </TableCell>
                               </TableRow>
-                              <TableRow>
+                              <TableRow className="border-b border-white">
                                 <TableCell className="font-medium">
                                   #random
                                 </TableCell>
@@ -793,7 +793,7 @@ export default function SlackIntegration() {
                                   </div>
                                 </TableCell>
                               </TableRow>
-                              <TableRow>
+                              <TableRow className="border-b border-white">
                                 <TableCell className="font-medium">
                                   #announcements
                                 </TableCell>

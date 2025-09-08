@@ -12,15 +12,46 @@
   }
 
   body.dark-mode {
-    --background: 240 10% 8%;
-    --background-card: 240 10% 10%;
-    --background-dark: 240 10% 7%;
-    --background-surface: 240 10% 12%;
-    --foreground: 0 0% 98%;
-    --text-primary: 0 0% 98%;
-    --text-secondary: 240 5% 65%;
-    --border: 240 5% 20%;
-    --input: 240 5% 20%;
+    /* Dark palette based on provided Pinterest-like theme */
+    /* Page backgrounds */
+    --background: 215 28% 7%;           /* #0D1117 */
+    --background-dark: 214 22% 9%;      /* ~#121722 */
+    --background-surface: 214 21% 12%;  /* ~#161B22 */
+    /* Card surfaces */
+    --background-card: #5A6377;     /* ~#1C1F26 */
+    --card: 222 15% 14%;
+    --card-foreground: 0 0% 100%;
+    /* Typography */
+    --foreground: 0 0% 100%;            /* primary white */
+    --text-primary: 0 0% 100%;
+    --text-secondary: 216, 13%, 65%;      /* gray (approx Tailwind gray-400 #9CA3AF) */
+    /* Lines / inputs */
+    --border: 220 12% 21%;              /* ~#2A2F36 */
+    --input: 220 12% 21%;
+    /* Accents */
+    --primary: 267 95% 76%;             /* keep existing bright primary */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 216, 13%, 65%;           /* gray (approx Tailwind gray-400 #9CA3AF) */
+    --success: 95, 40%, 56%;              /* #63993d */
+    --info: 199 89% 55%;                /* blue */
+
+    /* Sidebar color tokens used by UI sidebar primitives */
+    --sidebar-background: 222 15% 14%;  /* align with card */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 220 13% 20%;      /* hover tint */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 12% 21%;
+    --sidebar-ring: var(--primary);
+
+    /* Frost gradient using provided palette */
+    /* Page gradient background */
+    background: #0D1117; /* fallback */
+    background: -webkit-linear-gradient(120deg, #0D1117 0%, #161B22 100%);
+    background: linear-gradient(120deg, #0D1117 0%, #161B22 100%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
 
   body.light-mode {
@@ -30,9 +61,14 @@
     --background-surface: 0 0% 98%;
     --foreground: 240 10% 3.9%;
     --text-primary: 240 10% 3.9%;
-    --text-secondary: 240 3.7% 30%;
+    --text-secondary: 216, 13%, 65%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
+    --primary: 267 95% 76%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 216, 13%, 65%;
+    --success: 92 44% 41%;
+    --info: 199 89% 45%;
   }
 
   /* Style for inputs, textareas, and selects across all components for better visibility */
@@ -121,4 +157,47 @@
 .edgebutton-foreignobject button:hover {
   opacity: 1 !important;
 }
+
+  /* Utility: hide scrollbars but keep scroll functionality */
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }
+
+  /* Glassmorphism helpers */
+  /* Deprecated glass utilities retained empty to avoid stale class effects */
+  .glass, .bg-glass, .glass-strong, .bg-glass-strong, .glass-edge, .glass-noise, .glass-hover { }
+}
+
+@layer components {
+  /* Elevation overlay utilities for dark surfaces */
+  .overlay-elevation { position: relative; }
+  .overlay-elevation::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    /* Darken surfaces slightly with a neutral black overlay instead of white */
+    background: rgba(0, 0, 0, var(--overlay-opacity, 0));
+  }
+  .overlay-0  { --overlay-opacity: 0; }
+  .overlay-02 { --overlay-opacity: 0.02; }
+  .overlay-04 { --overlay-opacity: 0.04; }
+  .overlay-06 { --overlay-opacity: 0.06; }
+  .overlay-08 { --overlay-opacity: 0.08; }
+  .overlay-10 { --overlay-opacity: 0.10; }
+  .overlay-12 { --overlay-opacity: 0.12; }
+  .overlay-14 { --overlay-opacity: 0.14; }
+  .overlay-16 { --overlay-opacity: 0.16; }
+
+  /* Slack-like status badge colors */
+  .badge-slack-green { background-color: rgba(46, 182, 125, 0.18); color: #2EB67D; }
+  .badge-slack-yellow { background-color: rgba(236, 178, 46, 0.18); color: #ECB22E; }
+  .badge-slack-red { background-color: rgba(224, 30, 90, 0.18); color: #E01E5A; }
+  .badge-slack-blue { background-color: rgba(54, 197, 240, 0.18); color: #36C5F0; }
+  .badge-slack-purple { background-color: rgba(97, 31, 105, 0.18); color: #611F69; }
 }

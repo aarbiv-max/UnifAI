@@ -35,7 +35,7 @@ export default function DataSourceStats({ totalVectors, stats }: DataSourceStats
   };
 
   return (
-    <Card className="bg-background-card shadow-card border-gray-800">
+    <Card className="bg-background-card shadow-card border-0">
       <CardContent className="p-5">
         <div className="relative h-48 mb-4">
           <svg className="w-full h-full" viewBox="0 0 100 100">

@@ -36,8 +36,8 @@ export function StatusBadge({
         };
       case "DONE":
         return {
-          bgColor: "bg-green-500/15",
-          textColor: "text-green-400",
+          bgColor: "bg-[hsl(var(--success))]/15",
+          textColor: "text-[hsl(var(--success))]",
           label: "Done",
           isActive: false,
         };

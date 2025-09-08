@@ -94,7 +94,12 @@ export function PaginatedChannelTable({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div
+            className="overflow-x-auto
+              [&_table]:border-collapse
+              [&_thead_tr]:!border-b-[0.5px] [&_thead_tr]:!border-gray-500/20
+              [&_tbody_tr]:!border-b-[0.5px] [&_tbody_tr]:!border-gray-500/15"
+          >
             <DataTable
               columns={getColumns(onSettingsClick, onDeleteClick, deletingChannelId, activeEmbeddingIds)}
               data={allChannels}

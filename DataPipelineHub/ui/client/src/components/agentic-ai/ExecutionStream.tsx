@@ -231,7 +231,7 @@ export default function ExecutionStream({
           </motion.div>
         );
       case 'success':
-        return <CheckCircle className="h-4 w-4 text-[#00E676]" />;
+        return <CheckCircle className="h-4 w-4" style={{ color: 'hsl(var(--success))' }} />;
       case 'error':
         return <AlertCircle className="h-4 w-4 text-[#FF1744]" />;
       default:
@@ -328,7 +328,7 @@ export default function ExecutionStream({
                             <span className={`ml-2 px-1.5 py-0.5 rounded text-xs flex-shrink-0 ${
                               log.status === 'info' ? 'bg-[#00B0FF] bg-opacity-20 text-[#00B0FF]' :
                               log.status === 'processing' ? 'bg-[#FFB300] bg-opacity-20 text-[#FFB300]' :
-                              log.status === 'success' ? 'bg-[#00E676] bg-opacity-20 text-[#00E676]' :
+                              log.status === 'success' ? 'bg-[hsl(var(--success))] bg-opacity-20 text-[hsl(var(--success))]' :
                               'bg-[#FF1744] bg-opacity-20 text-[#FF1744]'
                             }`}>
                               {log.agent}

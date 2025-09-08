@@ -495,9 +495,9 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
                 <div className="flex items-center">
                   <span className="text-gray-400 mr-2">{c.is_private ? <HiOutlineLockClosed className="inline" /> : '#'}</span>
                   <span>{c.channel_name}</span>
-                  {c.is_private && <Badge className="ml-2 bg-secondary bg-opacity-20 text-gray-400">Private</Badge>}
-                  {!c.is_private && <Badge className="ml-2 bg-secondary bg-opacity-20 text-gray-400">Public</Badge>}
-                  {isEmbedded && <Badge className="ml-2 bg-green-500/20 text-green-400 border border-green-400/30">Embedded</Badge>}
+                  {c.is_private && <Badge className="ml-2 bg-gray-700/40 text-gray-400 border border-gray-700/40">Private</Badge>}
+                  {!c.is_private && <Badge className="ml-2 bg-gray-700/40 text-gray-400 border border-gray-700/40">Public</Badge>}
+                  {isEmbedded && <Badge className="ml-2 bg-[hsl(var(--success))]/20 text-[hsl(var(--success))] border border-[hsl(var(--success))]/30">Embedded</Badge>}
                 </div>
                 <div 
                   onClick={(e) => e.stopPropagation()} 

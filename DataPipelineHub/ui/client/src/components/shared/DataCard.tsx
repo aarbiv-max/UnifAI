@@ -56,8 +56,9 @@ export const DataCard: React.FC<DataCardProps> = ({
   const [confirmLoading, setConfirmLoading] = useState(false);
 
   const cardClasses = `
-    bg-background-dark p-4 rounded-lg border 
-    ${selected ? "border-primary" : "border-gray-800"} 
+    bg-card text-card-foreground shadow-sm overlay-elevation overlay-08
+    p-4 rounded-lg border
+    ${selected ? "border-primary" : "border-gray-800"}
     ${hoverable ? "hover:border-primary transition-colors cursor-pointer" : ""}
     ${className}
   `;

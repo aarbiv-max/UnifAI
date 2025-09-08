@@ -31,7 +31,7 @@ export default function StatusCard({
   progressItems 
 }: StatusCardProps) {
   return (
-    <Card className="bg-background-card shadow-card hover:shadow-card-hover transition-all border-gray-800">
+    <Card className="bg-background-card shadow-card hover:shadow-card-hover transition-all border-0">
       <CardContent className="p-5">
         <div className="flex justify-between items-start mb-4">
           <div>

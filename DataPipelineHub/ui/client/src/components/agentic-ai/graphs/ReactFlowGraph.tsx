@@ -176,7 +176,7 @@ const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({
       };
     } else if (isDone) {
       return {
-        containerClass: `${data.style} border-2 border-green-500 border-opacity-60`,
+        containerClass: `${data.style} border-2 border-[hsl(var(--success))] border-opacity-60`,
         pulseEffect: false,
         borderGlow: "shadow-md shadow-green-500/15",
       };

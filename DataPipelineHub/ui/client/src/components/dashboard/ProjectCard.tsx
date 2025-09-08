@@ -41,7 +41,7 @@ export default function ProjectCard({
   };
   
   return (
-    <Card className={`bg-background-card shadow-card hover:shadow-card-hover transition-all border-gray-800 overflow-hidden group`}>
+    <Card className={`bg-background-card shadow-card hover:shadow-card-hover transition-all border-0 overflow-hidden group`}>
       <div className={`h-1 w-full bg-${color}`}></div>
       <div className="p-5">
         <div className="flex justify-between items-start mb-3">

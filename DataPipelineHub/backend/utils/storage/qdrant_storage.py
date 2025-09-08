@@ -222,7 +222,7 @@ class QdrantStorage(VectorStorage):
         
         return results
     
-    def count(self, filters: Optional[Dict[str, Any]] = None) -> int:
+    def count(self, filters: Optional[Dict[str, Any]] = None, exact: bool = False) -> int:
         """
         Count vectors in the Qdrant collection, optionally filtered.
         
@@ -240,7 +240,8 @@ class QdrantStorage(VectorStorage):
         # Get count
         count_result = self.client.count(
             collection_name=self.collection_name,
-            count_filter=qdrant_filter
+            count_filter=qdrant_filter,
+            exact=exact
         )
         
         return count_result.count

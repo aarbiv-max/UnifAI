@@ -2,6 +2,7 @@ import React from "react";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { FaSearch, FaBell, FaQuestionCircle, FaPlus, FaBars, FaMoon, FaSun, FaSignOutAlt, FaShare } from "react-icons/fa";
 import { FaShareNodes } from "react-icons/fa6";
 import { Badge } from "@/components/ui/badge";
@@ -21,10 +22,17 @@ interface HeaderProps {
 
 export default function Header({ title, onToggleSidebar }: HeaderProps) {
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, primaryHex, setPrimaryHex } = useTheme();
   const { user, logout } = useAuth();
   const { hasUnreadNotifications, pendingNotificationsCount } = useNotifications();
   const { isSharedPanelOpen, openSharedPanel, closeSharedPanel } = useShared();
+
+  const colorOptions = [
+    { hex: "#A60000", name: "Red" },
+    { hex: "#147878", name: "Teal" },
+    { hex: "#707070", name: "Gray" },
+    { hex: "#8A2BE2", name: "Purple" },
+  ];
 
   const getInitials = (name: string): string => {
     return name
@@ -59,6 +67,26 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
           </button>
         </SimpleTooltip>
         
+        {/* Color picker (dropdown) */}
+        <div className="mr-2 w-19">
+          <Select value={primaryHex} onValueChange={(value) => setPrimaryHex(value)}>
+            <SelectTrigger>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: primaryHex }} />
+              </div>
+            </SelectTrigger>
+            <SelectContent className="min-w-[var(--radix-select-trigger-width)] w-[var(--radix-select-trigger-width)]">
+              {colorOptions.map(({ hex }) => (
+                <SelectItem key={hex} value={hex}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: hex }} />
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="relative">
           <SimpleTooltip content={<p>Shared System</p>}>
             <button 
@@ -118,7 +146,10 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
         {/* User Profile */}
         <div className="px-4 py-3 border-l border-gray-800">
           <div className={`flex items-center space-x-3`}>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-accent to-primary flex items-center justify-center flex-shrink-0">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: `linear-gradient(90deg, #6B7280, ${primaryHex})` }}
+            >
               <span className="text-sm font-medium text-white">{getInitials(user?.name || '')}</span>
             </div>
             

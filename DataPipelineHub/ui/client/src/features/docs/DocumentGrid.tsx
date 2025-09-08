@@ -3,7 +3,7 @@ import { DataCard } from "@/components/shared/DataCard";
 import { fileByColors, getDataToDisplay, getFileIcon, isEmbeddingActivelyProcessing } from "@/features/helpers";
 import { InlineLoader } from "@/components/shared/InlineLoader";
 import { Document } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
+ 
 import { DocumentData } from "./DocumentData";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
 
@@ -72,8 +72,7 @@ const getActions = (
 export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry, footer}: DocumentGridProps) => {
   return (
     <>
-      <Card className="bg-background-card shadow-card border-gray-800">
-        <CardContent className="p-6">
+      <div className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {paginatedDocuments.map((doc) => (
               <DataCard
@@ -98,8 +97,7 @@ export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, delet
               {footer}
             </div>
           )}
-        </CardContent>
-      </Card>
+      </div>
 
       {activeDoc && (
         <div className="mt-6">
