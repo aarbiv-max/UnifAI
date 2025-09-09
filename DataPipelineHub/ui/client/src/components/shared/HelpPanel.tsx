@@ -15,8 +15,8 @@ export default function HelpPanel({ isOpen, onClose }: any) {
   const [modules, setModules] = useState([
     { name: "Dataflow", version: "n/a" },
     { name: "MultiAgent", version: "n/a" },
-    { name: "ui", version: uiVersion },
-    { name: "sso", version: "n/a" },
+    { name: "UI", version: uiVersion },
+    { name: "SSO", version: "n/a" },
   ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export default function HelpPanel({ isOpen, onClose }: any) {
                 res = await api.get("/health/version");
               } else if (module.name === "MultiAgent") {
                 res = await axios.get("/health/version");
-              } else if (module.name === "sso") {
+              } else if (module.name === "SSO") {
                 res = await api.get("/health/version");
               }
   
