@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useTheme } from "@/contexts/ThemeContext";
 import { api } from "@/http/queryClient";
+import { api as apiAuth } from '@/http/authClient';
 import axios from "@/http/axiosAgentConfig";
 
 export default function HelpPanel({ isOpen, onClose }: any) {
@@ -43,7 +44,7 @@ export default function HelpPanel({ isOpen, onClose }: any) {
             } else if (module.name === "MultiAgent") {
               res = await axios.get("/health/version");
             } else if (module.name === "SSO") {
-              res = await api.get("/health/version");
+              res = await apiAuth.get("/health/version");
             }
 
             if (res && res.data.module_version !== "unknown") {
