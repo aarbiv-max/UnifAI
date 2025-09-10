@@ -40,7 +40,6 @@ RUN chown default:root /opt/app-root/src/
 
 COPY --from=build /ui/build /usr/share/nginx/html
 RUN chown -R default:root /usr/share/nginx/html && chmod -R 775 /usr/share/nginx/html
-COPY deployment/version.js.template /usr/share/nginx/html/version.js.template
 COPY deployment/nginx.conf.template /etc/nginx/nginx.conf.template
 
 USER default
