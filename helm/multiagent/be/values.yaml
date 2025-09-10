@@ -115,7 +115,7 @@ livenessProbe:
     #this means changing the structure for the liveness probe in the deployment file
     port: 8003  # currently these are hardcoded to 8080, though we need to set this to be dependant on the port inserted at the top level values file, this means changing the structure for the liveness probe in the deployment file
   initialDelaySeconds: 10
-  periodSeconds: 3
+  periodSeconds: 60
 
 readinessProbe:
   httpGet:
@@ -124,7 +124,7 @@ readinessProbe:
     #this means changing the structure for the liveness probe in the deployment file
     port: 8003
   initialDelaySeconds: 10
-  periodSeconds: 3
+  periodSeconds: 60
 
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/

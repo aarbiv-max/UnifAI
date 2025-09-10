@@ -7,7 +7,7 @@ from mcp.types import Tool, CallToolResult, CreateMessageRequestParams, CreateMe
 import anyio
 
 from .transport_manager import TransportManager, McpConnectionError
-from .tool_registry import ToolRegistry, McpToolError
+from .tool_interface import ToolInterface
 
 logger = logging.getLogger(__name__)
 
@@ -19,44 +19,63 @@ class McpProxyToolError(Exception):
 
 class McpServerClient:
     """
-    A high‐level façade that ties together:
-      - TransportManager (open/close SSE + ClientSession)
-      - HealthChecker   (ping logic + automatic reconnect)
-      - ToolRegistry    (list/get/call tools + minimal JSON‐schema validation)
-
-    Now with internal locking and reference counting so that multiple
-    `async with same_client:` blocks can share one SSE connection.
+    MCP Server Client for direct server communication.
+    
+    Manages connections to MCP servers and provides a clean interface
+    for tool discovery and execution. Handles connection lifecycle,
+    reference counting for shared usage, and automatic reconnection.
+    
+    The client provides thread-safe connection sharing through context
+    manager usage, allowing multiple operations to share a single
+    connection efficiently.
+    
+    Attributes:
+        tools: ToolInterface for clean tool operations
+        transport: TransportManager for connection handling
+        sse_endpoint: Server endpoint URL
     """
 
-    def __init__(
-            self,
-            sse_endpoint: HttpUrl,
-    ):
-        base = URL(str(sse_endpoint))
-        self.sse_endpoint = str(base if base.path.endswith("/sse") else base / "sse")
+    def __init__(self, sse_endpoint: HttpUrl):
+        """
+        Initialize MCP server client.
+        
+        Sets up transport layer and tool interface for communication
+        with the specified MCP server endpoint. Configures connection
+        sharing and reference counting for efficient resource usage.
+        
+        Args:
+            sse_endpoint: HTTP(S) URL of the MCP server SSE endpoint
+        """
+        self.sse_endpoint = str(sse_endpoint)
 
-        # TransportManager handles the low‐level SSE + ClientSession.
+        # Initialize transport layer for server communication
         self.transport = TransportManager(
             self.sse_endpoint,
             sampling_callback=self._default_sampling_callback
         )
 
-        # ToolRegistry covers list/get/call operations, using the same transport & health.
-        self.tools = ToolRegistry(
-            transport=self.transport
-        )
-        # ─── New fields for reference counting & locking ───
-        # How many active “users” currently inside an async‐with block
-        self._refcount = 0
-        # Ensure that connect/disconnect and refcount adjustments are atomic
-        # Using anyio.Lock for cross-loop compatibility
-        self._lock = anyio.Lock()
+        # Initialize clean tool interface
+        self.tools = ToolInterface(self.transport)
+        
+        # Connection sharing state
+        self._refcount = 0  # Active context manager users
+        self._lock = anyio.Lock()  # Thread-safe operations
 
     async def _default_sampling_callback(
             self, message: CreateMessageRequestParams
     ) -> CreateMessageResult:
         """
-        Default fallback if MCP server ever requests a sampling callback.
+        Handle server sampling requests.
+        
+        Provides a default response when the MCP server requests
+        message sampling. This callback is used for server-initiated
+        interactions during tool execution.
+        
+        Args:
+            message: Sampling request parameters from server
+            
+        Returns:
+            Default message result for sampling requests
         """
         return CreateMessageResult(
             role="assistant",
@@ -67,46 +86,82 @@ class McpServerClient:
 
     @property
     def is_connected(self) -> bool:
-        """Shortcut to transport.is_connected."""
+        """
+        Check if client is currently connected to server.
+        
+        Returns:
+            True if transport connection is active, False otherwise
+        """
         return self.transport.is_connected
 
     async def connect(self) -> None:
         """
-        Explicitly open the transport & session. Normally you only need
-        to do this if you plan to call get_tools() or call_tool() immediately—
-        but each of those methods will auto‐connect via health.ensure_connected().
+        Establish connection to MCP server.
+        
+        Opens the underlying transport connection to the server.
+        This method is typically called automatically through
+        context manager usage, but can be used for explicit
+        connection management.
+        
+        Raises:
+            McpConnectionError: If connection establishment fails
         """
         try:
             await self.transport.connect()
         except McpConnectionError as e:
-            raise McpConnectionError(f"McpServerClient.connect() failed: {e}")
+            raise McpConnectionError(f"Failed to connect to server: {e}")
 
     async def disconnect(self) -> None:
         """
-        Explicitly disconnect the transport & session. Typically called only when
-        the last “user” exits. Use caution—if you call this manually while others
-        still expect the connection, they may be disrupted.
+        Close connection to MCP server.
+        
+        Terminates the underlying transport connection. This method
+        is typically called automatically when the last context
+        manager exits, but can be used for explicit disconnection.
+        
+        Raises:
+            McpConnectionError: If disconnection fails
         """
-        await self.transport.disconnect()
+        try:
+            await self.transport.disconnect()
+        except McpConnectionError as e:
+            raise McpConnectionError(f"Failed to disconnect from server: {e}")
 
     async def get_tools(self, refresh: bool = False) -> List[Tool]:
         """
-        Return a list of all available tools (possibly cached). If `refresh=True`,
-        forces a fresh fetch from the server.
+        Retrieve all available tools from the server.
+        
+        Fetches the complete list of tools supported by the connected
+        MCP server, including metadata such as descriptions and schemas.
+        
+        Args:
+            refresh: Included for API compatibility (ignored)
+            
+        Returns:
+            List of Tool objects with complete metadata
+            
+        Raises:
+            McpConnectionError: If server communication fails
         """
-        try:
-            return await self.tools.get_tools(refresh=refresh)
-        except McpToolError as e:
-            raise McpToolError(f"McpServerClient.get_tools() failed: {e}")
+        return await self.tools.get_tools(refresh=refresh)
 
     async def get_tool_by_name(self, name: str) -> Optional[Tool]:
         """
-        Return the Tool object for a given name, or None if not found.
+        Find a specific tool by name.
+        
+        Searches for a tool with the exact specified name among
+        all tools available on the server.
+        
+        Args:
+            name: Exact name of the tool to find
+            
+        Returns:
+            Tool object if found, None if no match exists
+            
+        Raises:
+            McpConnectionError: If server communication fails
         """
-        try:
-            return await self.tools.get_tool_by_name(name)
-        except McpToolError as e:
-            raise McpToolError(f"McpServerClient.get_tool_by_name() failed: {e}")
+        return await self.tools.get_tool_by_name(name)
 
     async def call_tool(
             self,
@@ -114,25 +169,34 @@ class McpServerClient:
             arguments: Dict[str, Any]
     ) -> CallToolResult:
         """
-        Proxy a call to the MCP server:
-          1) Ensure connected & healthy
-          2) Validate `required` fields
-          3) Invoke session.call_tool(...)
-          4) Return the raw CallToolResult
-        Raises McpToolError if something goes wrong.
+        Execute a tool on the MCP server.
+        
+        Sends a tool execution request with the specified arguments
+        and returns the results. The server processes the request
+        and may return text, images, or other content types.
+        
+        Args:
+            tool_name: Name of the tool to execute
+            arguments: Dictionary of parameters for tool execution
+            
+        Returns:
+            CallToolResult containing the execution results
+            
+        Raises:
+            McpConnectionError: If tool execution fails
         """
-        try:
-            return await self.tools.call_tool(tool_name, arguments)
-        except McpToolError as e:
-            raise McpToolError(f"McpServerClient.call_tool('{tool_name}') failed: {e}")
+        return await self.tools.call_tool(tool_name, arguments)
 
     async def __aenter__(self):
         """
-        When entering `async with client:`, we:
-          1) Acquire the lock
-          2) If this is the very first entry (refcount == 0), actually connect
-          3) Increment refcount
-          4) Release the lock
+        Enter the client context manager.
+        
+        Manages connection reference counting to allow multiple
+        concurrent context manager users to share a single connection.
+        Connects to the server only on the first entry.
+        
+        Returns:
+            Self for use in 'async with' statements
         """
         async with self._lock:
             if self._refcount == 0:
@@ -143,11 +207,16 @@ class McpServerClient:
 
     async def __aexit__(self, exc_type, exc, tb):
         """
-        When exiting an `async with client:` block, we:
-          1) Acquire the lock
-          2) Decrement refcount
-          3) If refcount has dropped to 0, disconnect
-          4) Release the lock
+        Exit the client context manager.
+        
+        Decrements the reference count and disconnects from the
+        server when the last context manager exits. Ensures clean
+        resource cleanup when all users are finished.
+        
+        Args:
+            exc_type: Exception type if an error occurred
+            exc: Exception instance if an error occurred  
+            tb: Traceback if an error occurred
         """
         async with self._lock:
             self._refcount -= 1
@@ -157,22 +226,15 @@ class McpServerClient:
 
     def clone(self) -> "McpServerClient":
         """
-        Create a new McpServerClient with the same configuration *and*
-        copy over any already‐fetched tool list (so clones start “warm”).
+        Create a new client instance with the same configuration.
+        
+        Returns a fresh client configured for the same server endpoint.
+        The new client will have its own connection state and reference
+        counting, independent of the original client.
+        
+        Returns:
+            New McpServerClient instance for the same endpoint
         """
-        new_client = McpServerClient(
+        return McpServerClient(
             sse_endpoint=self.sse_endpoint
         )
-
-        # Copy over the ToolRegistry cache, if any:
-        try:
-            new_client.tools._tools_cache = (
-                list(self.tools._tools_cache)
-                if self.tools._tools_cache is not None
-                else None
-            )
-        except AttributeError:
-            # If `_tools_cache` doesn’t exist or is None, ignore.
-            pass
-
-        return new_client

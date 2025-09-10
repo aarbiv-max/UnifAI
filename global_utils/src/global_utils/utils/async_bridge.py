@@ -63,7 +63,7 @@ class BridgeConfig:
 class PortalLifecycleManager:
     """
     Single Responsibility: Manage BlockingPortal lifecycle.
-    Handles thread-safe creation, reuse, and cleanup.
+    Handles thread-safe creation, reuse, and cleanup with reference counting.
     """
     
     def __init__(self, config: BridgeConfig):
@@ -72,12 +72,15 @@ class PortalLifecycleManager:
         self._portal_context = None
         self._portal: Optional[BlockingPortal] = None
         self._closed = False
+        self._ref_count = 0  # Reference counting for safe context manager usage
     
-    def get_portal(self) -> BlockingPortal:
-        """Get or create the shared portal."""
+    def acquire_portal(self) -> BlockingPortal:
+        """Get or create the shared portal and increment reference count."""
         with self._lock:
             if self._closed:
                 raise RuntimeError("AsyncBridge has been closed")
+            
+            self._ref_count += 1
             
             if self._portal is None:
                 # Create portal context manager and enter it
@@ -127,20 +130,37 @@ class PortalLifecycleManager:
             
             return self._portal
     
-    def close(self) -> None:
-        """Close the portal and mark as closed."""
+    def release_portal(self) -> None:
+        """Decrement reference count and close portal if no more references."""
+        with self._lock:
+            if self._ref_count > 0:
+                self._ref_count -= 1
+                logger.debug(f"Released portal reference, count now: {self._ref_count}")
+                
+            # Only close when no more references
+            if self._ref_count == 0 and self._portal is not None:
+                self._close_portal()
+    
+    def _close_portal(self) -> None:
+        """Internal method to actually close the portal."""
+        try:
+            # Exit the context manager properly
+            if self._portal_context is not None:
+                self._portal_context.__exit__(None, None, None)
+                logger.debug("Successfully closed portal context")
+        except Exception as e:
+            logger.warning(f"Error closing portal context: {e}")
+        
+        self._portal = None
+        self._portal_context = None
+    
+    def force_close(self) -> None:
+        """Force close the portal and mark as closed (for shutdown)."""
         with self._lock:
             if self._portal is not None:
-                try:
-                    # Exit the context manager properly
-                    if self._portal_context is not None:
-                        self._portal_context.__exit__(None, None, None)
-                except Exception as e:
-                    logger.warning(f"Error closing portal context: {e}")
-                
-                self._portal = None
-                self._portal_context = None
+                self._close_portal()
             self._closed = True
+            self._ref_count = 0
     
     @property
     def is_closed(self) -> bool:
@@ -254,7 +274,7 @@ class BlockingPortalAsyncRunner(AsyncRunner):
         self._execution_guard.validate_sync_execution()
         
         # Step 2: Get portal
-        portal = self._portal_manager.get_portal()
+        portal = self._portal_manager.acquire_portal()
         
         # Step 3: Resolve timeout
         effective_timeout = self._timeout_manager.resolve_timeout(timeout)
@@ -280,7 +300,7 @@ class BlockingPortalAsyncRunner(AsyncRunner):
             return []
         
         # Step 2: Get portal
-        portal = self._portal_manager.get_portal()
+        portal = self._portal_manager.acquire_portal()
         
         # Step 3: Resolve timeout
         effective_timeout = self._timeout_manager.resolve_timeout(timeout)
@@ -295,7 +315,7 @@ class BlockingPortalAsyncRunner(AsyncRunner):
     
     def close(self) -> None:
         """Clean up resources."""
-        self._portal_manager.close()
+        self._portal_manager.release_portal()
 
 
 class AsyncBridge(metaclass=SingletonMeta):
@@ -325,6 +345,10 @@ class AsyncBridge(metaclass=SingletonMeta):
         """Clean up resources."""
         self._runner.close()
     
+    def force_close(self) -> None:
+        """Force close all resources (for application shutdown)."""
+        self._runner._portal_manager.force_close()
+    
     def __enter__(self) -> 'AsyncBridge':
         """Context manager support."""
         return self
@@ -345,8 +369,8 @@ def run_async(awaitable: Awaitable[Any], timeout: Optional[float] = None) -> Any
     Convenience function for backward compatibility.
     Replaces the old run_async function with AsyncBridge.
     """
-    bridge = get_async_bridge()
-    return bridge.run(awaitable, timeout)
+    with get_async_bridge() as bridge:
+        return bridge.run(awaitable, timeout)
 
 
 def run_many_async(
@@ -357,5 +381,5 @@ def run_many_async(
     """
     Convenience function for running multiple awaitables.
     """
-    bridge = get_async_bridge()
-    return bridge.run_many(awaitables, timeout, limit)
+    with get_async_bridge() as bridge:
+        return bridge.run_many(awaitables, timeout, limit)

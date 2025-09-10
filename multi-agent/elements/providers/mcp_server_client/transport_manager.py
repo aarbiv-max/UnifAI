@@ -64,7 +64,8 @@ class TransportManager:
 
         # 2) Create the SSE generator context
         try:
-            print("TransportManager: Opening SSE transport to %s", self.sse_endpoint)
+            # TODO: Replace with proper logging when logging system is implemented
+            # print("TransportManager: Opening SSE transport to %s", self.sse_endpoint)
             self._transport_context = sse_client(url=self.sse_endpoint)
             self._read_stream, self._write_stream = await self._transport_context.__aenter__()
         except Exception as e:
@@ -91,7 +92,8 @@ class TransportManager:
             raise McpConnectionError(f"ClientSession initialization failed: {e}") from e
 
         self._is_connected = True
-        print("TransportManager: connected successfully to %s", self.sse_endpoint)
+        # TODO: Replace with proper logging when logging system is implemented
+        # print("TransportManager: connected successfully to %s", self.sse_endpoint)
 
     async def disconnect(self) -> None:
         """
@@ -109,12 +111,18 @@ class TransportManager:
             try:
                 await self._session.__aexit__(None, None, None)
             except RuntimeError as e:
-                # AnyIO’s SSE session may raise "cancel scope" if closed from a different task
-                print("TransportManager: RuntimeError SSE close error: %s", e)
+                # AnyIO's SSE session may raise "cancel scope" if closed from a different task
+                # TODO: Replace with proper logging when logging system is implemented
+                # print("TransportManager: RuntimeError SSE close error: %s", e)
+                pass
             except GeneratorExit:
-                print("TransportManager: Ignored ClientSession GeneratorExit during close")
+                # TODO: Replace with proper logging when logging system is implemented
+                # print("TransportManager: Ignored ClientSession GeneratorExit during close")
+                pass
             except Exception as e:
-                print("TransportManager: Unexpected error closing ClientSession: %s", e)
+                # TODO: Replace with proper logging when logging system is implemented
+                # print("TransportManager: Unexpected error closing ClientSession: %s", e)
+                pass
             finally:
                 self._session = None
 
@@ -123,18 +131,25 @@ class TransportManager:
             try:
                 await self._transport_context.__aexit__(None, None, None)
             except RuntimeError as e:
-                # Catch exactly AnyIO’s "cancel scope" error from exiting in wrong task
-                print("TransportManager: RuntimeError SSE close error: %s", e)
+                # Catch exactly AnyIO's "cancel scope" error from exiting in wrong task
+                # TODO: Replace with proper logging when logging system is implemented
+                # print("TransportManager: RuntimeError SSE close error: %s", e)
+                pass
             except GeneratorExit:
-                print("TransportManager: Ignored SSE GeneratorExit during close")
+                # TODO: Replace with proper logging when logging system is implemented
+                # print("TransportManager: Ignored SSE GeneratorExit during close")
+                pass
             except Exception as e:
-                print("TransportManager: SSE close raised: %s", e)
+                # TODO: Replace with proper logging when logging system is implemented
+                # print("TransportManager: SSE close raised: %s", e)
+                pass
             finally:
                 self._transport_context = None
                 self._read_stream = None
                 self._write_stream = None
 
-        print("TransportManager: disconnected from %s", self.sse_endpoint)
+        # TODO: Replace with proper logging when logging system is implemented
+        # print("TransportManager: disconnected from %s", self.sse_endpoint)
 
     async def _safe_cleanup(self) -> None:
         """

@@ -81,8 +81,8 @@ def run_async(awaitable: Any) -> Any:
     DEPRECATED: Use AsyncBridge directly for new code.
     """
     from .async_bridge import get_async_bridge
-    bridge = get_async_bridge()
-    return bridge.run(awaitable)
+    with get_async_bridge() as bridge:
+        return bridge.run(awaitable)
 
 
 def json_schema_model(

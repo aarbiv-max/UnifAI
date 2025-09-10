@@ -38,10 +38,12 @@ class ToolRegistry:
             session = self.transport._session  # type: ignore
             tool_list = await session.list_tools()
             self._tools_cache = tool_list.tools
-            print("ToolRegistry: retrieved %d tools", len(self._tools_cache))
+            # TODO: Replace with proper logging when logging system is implemented
+            # print("ToolRegistry: retrieved %d tools", len(self._tools_cache))
             return self._tools_cache
         except Exception as e:
-            print("ToolRegistry: list_tools failed: %s", e)
+            # TODO: Replace with proper logging when logging system is implemented
+            # print("ToolRegistry: list_tools failed: %s", e)
             self._tools_cache = None
             raise McpToolError(f"Failed to fetch tools: {e}")
 
@@ -77,10 +79,12 @@ class ToolRegistry:
         try:
             session = self.transport._session  # type: ignore
             result = await session.call_tool(tool_name, arguments)
-            print("ToolRegistry: called '%s' successfully", tool_name)
+            # TODO: Replace with proper logging when logging system is implemented
+            # print("ToolRegistry: called '%s' successfully", tool_name)
             return result
         except Exception as e:
-            print("ToolRegistry: call_tool('%s') failed: %s", tool_name, e)
+            # TODO: Replace with proper logging when logging system is implemented
+            # print("ToolRegistry: call_tool('%s') failed: %s", tool_name, e)
             # If the session broke, force a disconnect so that next call re‐connects
             await self.transport.disconnect()
             raise McpToolError(f"Failed to invoke tool '{tool_name}': {e}")

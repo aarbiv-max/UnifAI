@@ -65,8 +65,8 @@ class BaseAction(ABC):
 
         # If the result is a coroutine, run it using AsyncBridge
         if inspect.iscoroutine(result):
-            bridge = get_async_bridge()
-            return bridge.run(result)
+            with get_async_bridge() as bridge:
+                return bridge.run(result)
 
         # Otherwise, return the sync result
         return result
