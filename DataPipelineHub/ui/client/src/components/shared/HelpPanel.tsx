@@ -18,7 +18,7 @@ export default function HelpPanel({ isOpen, onClose }: any) {
   const panelRef = useRef<HTMLDivElement>(null);
   const { primaryHex } = useTheme();
 
-  const uiVersion = window.__MODULE_VERSION__ || "N/A";
+  const uiVersion = window.RUNTIME_CONFIG?.MODULE_VERSION || "N/A";
   const [modules, setModules] = useState([
     { name: "Dataflow", version: "n/a" },
     { name: "MultiAgent", version: "n/a" },
