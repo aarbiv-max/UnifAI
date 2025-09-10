@@ -47,7 +47,7 @@ def buildDockerImage(String component) {
         // Replace the placeholder __APP_VERSION__ with the VERSION from Jenkins
         sh """
             echo "Injecting VERSION=${VERSION} into HelpPanel.tsx..."
-            sed -i "s|%%VERSION%%|\\\"${VERSION}\\\"|g" ${context}/client/src/components/shared/HelpPanel.tsx
+            sed -i "s|%%VERSION%%|\"${VERSION}\"|g" ${context}/client/src/components/shared/HelpPanel.tsx
         """
 
     }
