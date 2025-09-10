@@ -18,7 +18,7 @@ export default function HelpPanel({ isOpen, onClose }: any) {
   const panelRef = useRef<HTMLDivElement>(null);
   const { primaryHex } = useTheme();
 
-  const uiVersion = __APP_VERSION__ || "N/A";
+  const uiVersion = "%%VERSION%%" || "N/A";
   const [modules, setModules] = useState([
     { name: "Dataflow", version: "n/a" },
     { name: "MultiAgent", version: "n/a" },
@@ -36,6 +36,7 @@ export default function HelpPanel({ isOpen, onClose }: any) {
     try {
       const updatedModules = await Promise.all(
         modules.map(async (module) => {
+          if (module.name === "UI") return module;
           try {
             let res;
 
