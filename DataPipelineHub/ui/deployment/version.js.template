@@ -1,0 +1,3 @@
+window.RUNTIME_CONFIG = {
+  MODULE_VERSION: "${MODULE_VERSION}"
+};
