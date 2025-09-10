@@ -44,6 +44,10 @@ def buildDockerImage(String component) {
     if (component == "DataPipelineHub/ui") {
         dockerfile = "deployment/Dockerfile"
         context = "${component}"
+        // Replace the placeholder __APP_VERSION__ with the VERSION from Jenkins
+        sh """
+            sed -i 's|__APP_VERSION__|"\${VERSION}"|g' ${context}/client/src/components/shared/HelpPanel.tsx
+        """
     }
 
     String logFile = "/tmp/${component.replace("/", "_")}_build.log"
