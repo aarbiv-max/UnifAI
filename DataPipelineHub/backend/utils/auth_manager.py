@@ -66,34 +66,24 @@ class AuthManager:
     
     def _register_auth_routes(self):
         """Register authentication routes"""
-
-        dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
-
+        
         @self.app.route('/api/auth/login')
         def login():
             """Initiate OAuth login flow"""
-            if dev_mode:
-                # 👇 Bypass SSO in development mode
-                session['user'] = {
-                    'username': 'dev_user',
-                    'email': 'dev_user@example.com',
-                    'name': 'Developer',
-                    'sub': '1234567890',
-                    'session_created_at': datetime.now().timestamp(),
-                    'session_expires_at': (datetime.now() + timedelta(hours=10)).timestamp(),
-                    'token_expires_at': datetime.now().timestamp() + 3600
-                }
-                session['access_token'] = 'dev_access_token'
-                session['refresh_token'] = 'dev_refresh_token'
-                return redirect(f"{config.frontend_url}?auth=success")
+            # Hardcode or use an env variable to set the externally reachable redirect URI
 
-            # Otherwise, continue with real SSO
+            # redirect_uri = config.get(
+            #     'redirect_url',
+            #     url_for('auth_callback', _external=True, _scheme='https')
+            # )
             redirect_uri = config.get(
                 'redirect_url',
                 url_for('auth_callback', _external=True, _scheme='https') 
                 if config.backend_env == "production" 
                 else f"http://{config.hostname_local}:{config.port}/api/auth/callback"
             )
+
+            logger.info(f"[LOGIN] session before redirect: {session.items()}")
             return self.keycloak_client.authorize_redirect(redirect_uri)
 
 
@@ -101,15 +91,16 @@ class AuthManager:
         @self.app.route('/api/auth/callback')
         def auth_callback():
             """Handle OAuth callback"""
-            if dev_mode:
-                return redirect(f"{config.frontend_url}?auth=success")
-
-            # 👇 Keep the existing code for real SSO users
             try:
+                logger.info(f"[CALLBACK] session when returning: {session.items()}")
                 token = self.keycloak_client.authorize_access_token()
                 userinfo = self.keycloak_client.userinfo()
+                
+                # Calculate session expiration (10 hours from now)
                 session_created_at = datetime.now()
                 session_expires_at = session_created_at + timedelta(hours=10)
+                
+                # Store user info in session
                 session.permanent = True
                 session['user'] = {
                     'username': userinfo.get('preferred_username'),
@@ -122,9 +113,18 @@ class AuthManager:
                 }
                 session['access_token'] = token.get('access_token')
                 session['refresh_token'] = token.get('refresh_token')
-                session['token_expires_at'] = token.get('expires_at', 0)
+                session['token_expires_at'] = token.get('expires_at', 0)  # Keep for token refresh logic
+                
+                logger.info(f"User {userinfo.get('preferred_username')} authenticated successfully")
+                logger.info(f"Session will expire at: {session_expires_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                # Redirect to frontend
+                frontend_url = config.get('frontend_url', 'http://localhost:5000')
                 return redirect(f"{config.frontend_url}?auth=success")
-            except Exception as e:
+                
+            except AuthlibBaseError as e:
+                logger.error(f"Authentication error: {str(e)}")
+                frontend_url = config.get('frontend_url', 'http://localhost:5000')
                 return redirect(f"{config.frontend_url}?auth=error")
 
         
@@ -248,18 +248,16 @@ def require_auth(f):
     """Decorator to require authentication for routes"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        dev_mode = os.getenv("DEV_MODE", "false").lower() == "true"
-        if dev_mode:
-            # Skip authentication in development mode
-            return f(*args, **kwargs)
-
         auth_manager = current_app.extensions.get('auth_manager')
         if not auth_manager or not auth_manager.is_authenticated():
             return jsonify({'error': 'Authentication required'}), 401
-
-        # Refresh token if needed
+        
+        # Check if access token needs refresh (but don't fail if session is still valid)
         if auth_manager._should_refresh_token():
-            auth_manager._refresh_access_token()
+            if not auth_manager._refresh_access_token():
+                logger.warning("Token refresh failed, but continuing with existing token")
+                # Don't return error here - request continue with existing token (token might still be valid for a short time)
+        
         return f(*args, **kwargs)
     return decorated_function
 
