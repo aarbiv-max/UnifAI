@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-import os
+from config.app_config import AppConfig
 
 health_bp = Blueprint("health", __name__)
 
@@ -9,5 +9,5 @@ def health_check():
 
 @health_bp.route("/version", methods=["GET"])
 def get_version():
-    module_version = os.getenv("MODULE_VERSION", "unknown")
-    return jsonify({"module_version": module_version}), 200
+    app_config = AppConfig.get_instance()
+    return jsonify({"module_version": app_config.module_version}), 200
