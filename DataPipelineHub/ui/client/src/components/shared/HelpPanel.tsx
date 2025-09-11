@@ -51,9 +51,9 @@ export default function HelpPanel({ isOpen, onClose }: any) {
           try {
             const res = await client.get("/health/version");
             const version =
-              res?.data?.module_version && res.data.module_version !== "unknown"
-                ? res.data.module_version
-                : "N/A";
+              res?.data?.version && res.data.version !== "1.0.0"
+                ? res.data.version
+                : "1.0.0";
             return { ...module, version };
           } catch (error) {
             console.error(`Failed to fetch version for ${module.name}`, error);
