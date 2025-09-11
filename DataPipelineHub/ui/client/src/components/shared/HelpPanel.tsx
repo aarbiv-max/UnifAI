@@ -30,36 +30,38 @@ export default function HelpPanel({ isOpen, onClose }: any) {
   const [error, setError] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-  // Fetch versions
+  const clientMap: Record<string, typeof api> = {
+    Dataflow: api,
+    MultiAgent: axios,
+    SSO: apiAuth,
+  };
+  
   const fetchVersions = async () => {
     setLoading(true);
     try {
       const updatedModules = await Promise.all(
         modules.map(async (module) => {
           if (module.name === "UI") return module;
-          try {
-            let res;
-
-            if (module.name === "Dataflow") {
-              res = await api.get("/health/version");
-            } else if (module.name === "MultiAgent") {
-              res = await axios.get("/health/version");
-            } else if (module.name === "SSO") {
-              res = await apiAuth.get("/health/version");
-            }
-
-            if (res && res.data.module_version !== "unknown") {
-              return { ...module, version: res.data.module_version };
-            }
-
+  
+          const client = clientMap[module.name];
+          if (!client) {
             return { ...module, version: "N/A" };
+          }
+  
+          try {
+            const res = await client.get("/health/version");
+            const version =
+              res?.data?.module_version && res.data.module_version !== "unknown"
+                ? res.data.module_version
+                : "N/A";
+            return { ...module, version };
           } catch (error) {
             console.error(`Failed to fetch version for ${module.name}`, error);
             return { ...module, version: "N/A" };
           }
         })
       );
-
+  
       setModules(updatedModules);
     } catch (err) {
       console.error(err);
