@@ -14,20 +14,18 @@ import { api } from "@/http/queryClient";
 import { api as apiAuth } from "@/http/authClient";
 import axios from "@/http/axiosAgentConfig";
 
+// 🔹 Fixed list of modules
+const MODULE_NAMES = ["Dataflow", "MultiAgent", "UI", "SSO"];
+
 export default function HelpPanel({ isOpen, onClose }: any) {
   const panelRef = useRef<HTMLDivElement>(null);
   const { primaryHex } = useTheme();
 
-  const [modules, setModules] = useState([
-    { name: "Dataflow", version: "n/a" },
-    { name: "MultiAgent", version: "n/a" },
-    { name: "UI", version: "n/a" },
-    { name: "SSO", version: "n/a" },
-  ]);
-
+  // 🔹 Only track versions in state
+  const [versions, setVersions] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedName, setCopiedName] = useState<string | null>(null);
 
   const clientMap: Record<string, typeof api> = {
     Dataflow: api,
@@ -38,44 +36,44 @@ export default function HelpPanel({ isOpen, onClose }: any) {
   const fetchVersions = async () => {
     setLoading(true);
     try {
-      const updatedModules = await Promise.all(
-        modules.map(async (module) => {
-          // Special case for UI -> read from config.json
-          if (module.name === "UI") {
+      const results: Record<string, string> = {};
+
+      await Promise.all(
+        MODULE_NAMES.map(async (name) => {
+          // UI version from config.json
+          if (name === "UI") {
             try {
               const res = await fetch("/config.json");
               const config = await res.json();
-              return {
-                ...module,
-                version: config?.version || "N/A",
-              };
+              results[name] = config?.version || "N/A";
             } catch (err) {
               console.error("Failed to fetch UI version", err);
-              return { ...module, version: "N/A" };
+              results[name] = "N/A";
             }
+            return;
           }
 
-          // Other services -> call their /health/version
-          const client = clientMap[module.name];
+          // Other services -> /health/version
+          const client = clientMap[name];
           if (!client) {
-            return { ...module, version: "N/A" };
+            results[name] = "N/A";
+            return;
           }
-  
+
           try {
             const res = await client.get("/health/version");
-            const version =
+            results[name] =
               res?.data?.version && res.data.version !== "1.0.0"
                 ? res.data.version
                 : "1.0.0";
-            return { ...module, version };
-          } catch (error) {
-            console.error(`Failed to fetch version for ${module.name}`, error);
-            return { ...module, version: "N/A" };
+          } catch (err) {
+            console.error(`Failed to fetch version for ${name}`, err);
+            results[name] = "N/A";
           }
         })
       );
-  
-      setModules(updatedModules);
+
+      setVersions(results);
     } catch (err) {
       console.error(err);
       setError("Failed to fetch module versions");
@@ -101,11 +99,11 @@ export default function HelpPanel({ isOpen, onClose }: any) {
   }, [isOpen]);
 
   // Copy version to clipboard
-  const handleCopy = async (version: string, index: number) => {
+  const handleCopy = async (name: string, version: string) => {
     try {
       await navigator.clipboard.writeText(version);
-      setCopiedIndex(index);
-      setTimeout(() => setCopiedIndex(null), 1500);
+      setCopiedName(name);
+      setTimeout(() => setCopiedName(null), 1500);
     } catch (err) {
       console.error("Failed to copy:", err);
     }
@@ -161,23 +159,23 @@ export default function HelpPanel({ isOpen, onClose }: any) {
             <div className="text-center text-gray-400">Loading...</div>
           ) : error ? (
             <div className="text-center text-red-500">{error}</div>
-          ) : modules.length === 0 ? (
-            <div className="text-center text-gray-400">No modules found</div>
           ) : (
             <div className="space-y-1.5">
-              {modules.map((module, index) => (
+              {MODULE_NAMES.map((name) => (
                 <div
-                  key={index}
+                  key={name}
                   className="flex items-center justify-between p-3 border rounded-lg"
                   style={{ backgroundColor: moduleBg, borderColor: "#2a3441" }}
                 >
                   <div className="flex items-center gap-3">
                     <FaCube className="text-white w-5 h-5" />
-                    <span className="text-white font-medium">{module.name}</span>
+                    <span className="text-white font-medium">{name}</span>
                   </div>
                   <Badge
                     variant="secondary"
-                    onClick={() => handleCopy(module.version, index)}
+                    onClick={() =>
+                      handleCopy(name, versions[name] ?? "n/a")
+                    }
                     className="flex items-center gap-1 cursor-pointer hover:scale-105 transition-transform shadow-sm"
                     style={{
                       backgroundColor: primaryHex || "#3b82f6",
@@ -189,14 +187,13 @@ export default function HelpPanel({ isOpen, onClose }: any) {
                     }}
                     title="Click to copy version"
                   >
-                    {copiedIndex === index ? (
+                    {copiedName === name ? (
                       <FaCheck className="w-3 h-3 text-green-300" />
                     ) : (
                       <FaCodeBranch className="w-3 h-3" />
                     )}
-                    {module.version}
+                    {versions[name] ?? "n/a"}
                   </Badge>
-
                 </div>
               ))}
             </div>
