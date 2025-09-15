@@ -6,7 +6,6 @@ import {
   FaCube,
   FaCodeBranch,
   FaSyncAlt,
-  FaCheck,
 } from "react-icons/fa";
 import { Badge } from "@/components/ui/badge";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -25,7 +24,6 @@ export default function HelpPanel({ isOpen, onClose }: any) {
   const [versions, setVersions] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copiedName, setCopiedName] = useState<string | null>(null);
 
   const clientMap: Record<string, typeof api> = {
     Dataflow: api,
@@ -98,17 +96,6 @@ export default function HelpPanel({ isOpen, onClose }: any) {
     };
   }, [isOpen]);
 
-  // Copy version to clipboard
-  const handleCopy = async (name: string, version: string) => {
-    try {
-      await navigator.clipboard.writeText(version);
-      setCopiedName(name);
-      setTimeout(() => setCopiedName(null), 1500);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -157,7 +144,7 @@ export default function HelpPanel({ isOpen, onClose }: any) {
               {MODULE_NAMES.map((name) => (
                 <div
                   key={name}
-                  className="flex items-center justify-between p-3 border border-border rounded-lg bg-card hover:bg-accent/50 transition-colors duration-200"
+                  className="flex items-center justify-between p-3 border border-border rounded-lg bg-card transition-colors duration-200"
                 >
                   <div className="flex items-center gap-3">
                     <FaCube className="text-card-foreground w-5 h-5" />
@@ -165,21 +152,13 @@ export default function HelpPanel({ isOpen, onClose }: any) {
                   </div>
                   <Badge
                     variant="secondary"
-                    onClick={() =>
-                      handleCopy(name, versions[name] ?? "n/a")
-                    }
-                    className="flex items-center gap-1 cursor-pointer hover:scale-105 transition-all duration-200 shadow-sm px-2.5 py-1 text-sm font-medium rounded-md"
+                    className="flex items-center gap-1 shadow-sm px-2.5 py-1 text-sm font-medium rounded-md"
                     style={{
                       backgroundColor: primaryHex || "hsl(var(--primary))",
                       color: "hsl(var(--primary-foreground))",
                     }}
-                    title="Click to copy version"
                   >
-                    {copiedName === name ? (
-                      <FaCheck className="w-3 h-3 text-success" />
-                    ) : (
-                      <FaCodeBranch className="w-3 h-3" />
-                    )}
+                    <FaCodeBranch className="w-3 h-3" />
                     {versions[name] ?? "n/a"}
                   </Badge>
                 </div>
