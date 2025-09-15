@@ -84,7 +84,7 @@ export default function HelpPanel({ isOpen, onClose }: any) {
 
   // Auto-refresh every 10 seconds **only when panel is open**
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let interval: number | null = null;
 
     if (isOpen) {
       fetchVersions();
@@ -111,9 +111,6 @@ export default function HelpPanel({ isOpen, onClose }: any) {
 
   if (!isOpen) return null;
 
-  const backgroundDark = "#121722"; // Panel background
-  const moduleBg = "#1a2332"; // Module card background
-
   return (
     <AnimatePresence>
       <motion.div
@@ -122,73 +119,64 @@ export default function HelpPanel({ isOpen, onClose }: any) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.2 }}
-        className="absolute top-full right-0 z-50 mt-2 w-96 border rounded-lg shadow-2xl overflow-hidden"
-        style={{ backgroundColor: backgroundDark, borderColor: "#2a3441" }}
+        className="absolute top-full right-0 z-50 mt-2 w-80 sm:w-96 bg-background-dark border border-border rounded-lg shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div
-          className="flex items-center justify-between p-3 border-b rounded-t-lg"
-          style={{ backgroundColor: backgroundDark, borderColor: "#2a3441" }}
-        >
+        <div className="flex items-center justify-between p-3 border-b border-border bg-background-dark rounded-t-lg">
           <div className="flex items-center gap-2">
-            <FaInfoCircle className="text-white w-5 h-5" />
-            <h2 className="text-lg font-semibold text-white">Module Version Overview</h2>
+            <FaInfoCircle className="text-foreground w-5 h-5" />
+            <h2 className="text-lg font-semibold text-foreground">Module Version Overview</h2>
           </div>
           <div className="flex items-center gap-2">
             {/* Refresh Button */}
             <button
               onClick={fetchVersions}
-              className="p-1 rounded-full hover:bg-white/20 text-white transition-colors"
+              className="p-1 rounded-full hover:bg-accent text-foreground transition-colors duration-200"
               title="Refresh"
             >
-              <FaSyncAlt className={loading ? "animate-spin" : ""} />
+              <FaSyncAlt className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             </button>
             <button
               onClick={onClose}
-              className="p-1 rounded-full hover:bg-white/20 text-white transition-colors"
+              className="p-1 rounded-full hover:bg-accent text-foreground transition-colors duration-200"
             >
-              <FaTimes />
+              <FaTimes className="w-4 h-4" />
             </button>
           </div>
         </div>
 
         {/* Content */}
-        <div className="p-4 max-h-80 overflow-y-auto">
+        <div className="p-4 max-h-80 overflow-y-auto no-scrollbar">
           {loading ? (
-            <div className="text-center text-gray-400">Loading...</div>
+            <div className="text-center text-muted-foreground">Loading...</div>
           ) : error ? (
-            <div className="text-center text-red-500">{error}</div>
+            <div className="text-center text-destructive">{error}</div>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {MODULE_NAMES.map((name) => (
                 <div
                   key={name}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                  style={{ backgroundColor: moduleBg, borderColor: "#2a3441" }}
+                  className="flex items-center justify-between p-3 border border-border rounded-lg bg-card hover:bg-accent/50 transition-colors duration-200"
                 >
                   <div className="flex items-center gap-3">
-                    <FaCube className="text-white w-5 h-5" />
-                    <span className="text-white font-medium">{name}</span>
+                    <FaCube className="text-card-foreground w-5 h-5" />
+                    <span className="text-card-foreground font-medium">{name}</span>
                   </div>
                   <Badge
                     variant="secondary"
                     onClick={() =>
                       handleCopy(name, versions[name] ?? "n/a")
                     }
-                    className="flex items-center gap-1 cursor-pointer hover:scale-105 transition-transform shadow-sm"
+                    className="flex items-center gap-1 cursor-pointer hover:scale-105 transition-all duration-200 shadow-sm px-2.5 py-1 text-sm font-medium rounded-md"
                     style={{
-                      backgroundColor: primaryHex || "#3b82f6",
-                      color: "#fff",
-                      borderRadius: "8px", // 🔹 Make it more square instead of round
-                      padding: "2px 10px", // 🔹 Slightly better spacing for text
-                      fontWeight: 500,
-                      fontSize: "0.85rem",
+                      backgroundColor: primaryHex || "hsl(var(--primary))",
+                      color: "hsl(var(--primary-foreground))",
                     }}
                     title="Click to copy version"
                   >
                     {copiedName === name ? (
-                      <FaCheck className="w-3 h-3 text-green-300" />
+                      <FaCheck className="w-3 h-3 text-success" />
                     ) : (
                       <FaCodeBranch className="w-3 h-3" />
                     )}
