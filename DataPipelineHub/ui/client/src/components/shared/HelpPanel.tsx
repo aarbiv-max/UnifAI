@@ -11,18 +11,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useTheme } from "@/contexts/ThemeContext";
 import { api } from "@/http/queryClient";
-import { api as apiAuth } from '@/http/authClient';
+import { api as apiAuth } from "@/http/authClient";
 import axios from "@/http/axiosAgentConfig";
 
 export default function HelpPanel({ isOpen, onClose }: any) {
   const panelRef = useRef<HTMLDivElement>(null);
   const { primaryHex } = useTheme();
 
-  const uiVersion = "VERSION" || "N/A";
   const [modules, setModules] = useState([
     { name: "Dataflow", version: "n/a" },
     { name: "MultiAgent", version: "n/a" },
-    { name: "UI", version: uiVersion },
+    { name: "UI", version: "n/a" },
     { name: "SSO", version: "n/a" },
   ]);
 
@@ -35,14 +34,28 @@ export default function HelpPanel({ isOpen, onClose }: any) {
     MultiAgent: axios,
     SSO: apiAuth,
   };
-  
+
   const fetchVersions = async () => {
     setLoading(true);
     try {
       const updatedModules = await Promise.all(
         modules.map(async (module) => {
-          if (module.name === "UI") return module;
-  
+          // Special case for UI -> read from config.json
+          if (module.name === "UI") {
+            try {
+              const res = await fetch("/config.json");
+              const config = await res.json();
+              return {
+                ...module,
+                version: config?.version || "N/A",
+              };
+            } catch (err) {
+              console.error("Failed to fetch UI version", err);
+              return { ...module, version: "N/A" };
+            }
+          }
+
+          // Other services -> call their /health/version
           const client = clientMap[module.name];
           if (!client) {
             return { ...module, version: "N/A" };
@@ -183,7 +196,6 @@ export default function HelpPanel({ isOpen, onClose }: any) {
                     )}
                     {module.version}
                   </Badge>
-
                 </div>
               ))}
             </div>
