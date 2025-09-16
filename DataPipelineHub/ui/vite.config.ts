@@ -43,6 +43,14 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api2/, '/api'), // This rewrites /api2 to nothing
         // secure: false, // Only needed if this target is HTTPS and you have SSL issues
       },
+      // Proxy for api3 → SSO backend
+      '/api3': {
+        target: 'http://127.0.0.1:13456',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api3/, '/api'), // This rewrites /api1 to /api
+        secure: false, // Set to true for production if target is HTTPS and has valid cert.
+                       // Set to false for dev if you're getting SSL errors with self-signed or invalid certs.
+      },
       // You can add more proxies here if needed
     }
   },
