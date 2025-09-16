@@ -41,7 +41,9 @@ export default function HelpPanel({ isOpen, onClose }: any) {
           // UI version from config.json
           if (name === "UI") {
             try {
-              results[name] = APP_VERSION || "N/A";
+              const res = await fetch("/config.json");
+              const config = await res.json();
+              results[name] = config?.version || "N/A";
             } catch (err) {
               console.error("Failed to fetch UI version", err);
               results[name] = "N/A";

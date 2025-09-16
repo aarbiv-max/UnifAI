@@ -4,12 +4,6 @@ import themePlugin from "@replit/vite-plugin-shadcn-theme-json";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { visualizer } from 'rollup-plugin-visualizer'; // Import the build analyzer plugin
-import { readFileSync } from "fs";
-
-// Resolve UI version from CI env (if provided) or fallback to package.json
-const envVersion = process.env.VERSION || process.env.BUILD_VERSION || process.env.UI_VERSION || process.env.VERSION;
-const packageJsonPath = path.resolve(import.meta.dirname, "package.json");
-const appVersion = envVersion ?? JSON.parse(readFileSync(packageJsonPath, "utf-8")).version;
 
 export default defineConfig({
   plugins: [
@@ -52,9 +46,7 @@ export default defineConfig({
       // You can add more proxies here if needed
     }
   },
-  define: {
-    APP_VERSION: JSON.stringify(appVersion),
-  },
+
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
