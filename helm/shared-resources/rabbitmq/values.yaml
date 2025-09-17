@@ -44,9 +44,13 @@ loadDefinition:
   existingSecret: load-definition
 extraConfiguration: |-
   tcp_listen_options.keepalive = true
-  heartbeat = 3600
-  consumer_timeout = 3600000
-
+  heartbeat = 60
+  consumer_timeout = 60000
+#
+#heartbeat=60 → both short and long tasks are safe if Celery sends frequent heartbeats.
+#consumer_timeout=60000 → RabbitMQ will disconnect only if worker really dies or stops sending heartbeats for 60s.
+#long tasks are okay as long as Celery heartbeats are sent frequently, even while the task is busy.
+#
 global:
   imageRegistry: ""
   ## E.g.

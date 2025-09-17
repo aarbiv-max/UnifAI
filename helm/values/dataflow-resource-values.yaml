@@ -38,6 +38,16 @@ unifai_dataflow_celery:
     SHARED_STORAGE: "/app/shared"
     CELERY_QUEUES: "slack_queue,document_queue,registration_queue"
     CELERY_WORKER: 1
+    CELERY_BROKER_HEARTBEAT_INTERVAL: 10
+    #########################################################
+    # already set in app_config.py but can be overridden here
+    #########################################################
+    #BROKER_HEARTBEAT: 60
+    #BROKER_TCP_USER_TIMEOUT: 600000
+    #BROKER_SOCKET_KEEPALIVE: true
+    #BROKER_TASK_ACKS_LATE: true
+    #BROKER_TASK_REJECT_ON_WORKER_LOST: true
+
   resources:
     limits:
       cpu: 4
