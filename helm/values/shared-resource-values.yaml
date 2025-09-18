@@ -46,11 +46,11 @@ storage:
     paas.redhat.com/appcode: TAG-001
 
 docling:
-  image:
-    registry: "images.paas.redhat.com/genie"
-    repository: "docling"
-    pullPolicy: IfNotPresent
-    tag: "latest"
+  #image:
+  #  registry: "images.paas.redhat.com/genie"
+  #  repository: "docling"
+  #  pullPolicy: IfNotPresent
+  #  tag: "latest"
   service:
     type: LoadBalancer
     port: 5001
@@ -61,10 +61,10 @@ docling:
     requests:
       cpu: 2
       memory: 4Gi
-  healthCheck:
-    enabled: true
-    path: "/health"
-    port: 5001
-  api:
-    version: "v1alpha"
-    timeout: 300
+        #healthCheck:
+        #enabled: true
+        #path: "/health"
+        #port: 5001
+        #api:
+        #version: "v1alpha"
+        #timeout: 300
