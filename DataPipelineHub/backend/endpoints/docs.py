@@ -43,7 +43,7 @@ def embed_docs(docs):
     try:
         send_task(
             task_name="celery_app.tasks.pipeline_tasks.execute_pipeline_task",
-            celery_queue="docs_queue",
+            celery_queue="document_queue",
             source_type="DOCUMENT",
             source_data=docs
         )
