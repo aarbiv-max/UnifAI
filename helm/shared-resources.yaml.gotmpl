@@ -113,15 +113,15 @@ releases:
               MONGODB_ADDR=$(wait_for_ext_ip mongodb)
               QDRANT_ADDR=$(wait_for_ext_ip qdrant)
               RABBITMQ_ADDR=$(wait_for_ext_ip rabbitmq)
-              DOCLING_ADDR=$(wait_for_ext_ip docling-service)
+              DOCLING_ADDR=$(wait_for_ext_ip docling-serve)
               
               MONGO_PORT=$(wait_for_port mongodb)
               RMQ_PORT=$(wait_for_port rabbitmq)
-              DOCLING_PORT=$(wait_for_port docling-service)
+              DOCLING_PORT=$(wait_for_port docling-serve)
 
               MONGO_IP=$(wait_for_service_name mongodb)
               RMQ_IP=$(wait_for_service_name rabbitmq)
-              DOCLING_IP=$(wait_for_service_name docling-service)
+              DOCLING_IP=$(wait_for_service_name docling-serve)
               
 
               kubectl delete configmap shared-config
