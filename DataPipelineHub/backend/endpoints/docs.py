@@ -1,3 +1,4 @@
+
 import os
 from urllib import request
 from config.constants import DataSource
@@ -45,10 +46,13 @@ def embed_docs(docs):
         # Transform docs to match pipeline service expectations
         transformed_docs = []
         for doc in docs:
+            # Handle different UI input formats (UI sends source_name, not filename)
+            source_name = doc.get("source_name", doc.get("filename", ""))
+            
             transformed_doc = {
-                "source_name": doc.get("filename", ""),
+                "source_name": source_name,
                 "id": doc.get("id", ""),
-                "doc_path": doc.get("path", "")  # Pass the actual file path
+                "doc_path": doc.get("path", "")  # Let registration task handle path construction
             }
             transformed_docs.append(transformed_doc)
         
