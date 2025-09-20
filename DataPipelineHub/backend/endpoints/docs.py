@@ -8,6 +8,7 @@ from shared.logger import logger
 from global_utils.helpers.apiargs import from_query, from_body
 from global_utils.celery_app.helpers import send_task
 from providers.docs import get_best_match_results, upload_docs
+from pipeline.pipeline_service import PipelineService
 
 docs_bp = Blueprint("docs", __name__)
 
@@ -41,13 +42,24 @@ def available_doc_list():
 })
 def embed_docs(docs):
     try:
-        send_task(
-            task_name="celery_app.tasks.pipeline_tasks.execute_pipeline_task",
-            celery_queue="document_queue",
+        # Transform docs to match pipeline service expectations
+        transformed_docs = []
+        for doc in docs:
+            transformed_doc = {
+                "source_name": doc.get("filename", ""),
+                "id": doc.get("id", ""),
+                "path": doc.get("path", "")
+            }
+            transformed_docs.append(transformed_doc)
+        
+        # Use the complete pipeline service workflow
+        pipeline_service = PipelineService()
+        result, status_code = pipeline_service.execute_pipeline_with_registration(
+            data=transformed_docs,
             source_type="DOCUMENT",
-            source_data=docs
+            current_user="default"
         )
-        return jsonify({"status": "task submitted"}), 202
+        return jsonify(result), status_code
     except Exception as e:
         logger.error(f"Failed to submit docs embedding task: {str(e)}")
         return jsonify({"error": str(e)}), 500
