@@ -51,9 +51,14 @@ def embed_docs(docs):
             
             transformed_doc = {
                 "source_name": source_name,
-                "id": doc.get("id", ""),
-                "doc_path": doc.get("path", "")  # Let registration task handle path construction
+                "id": doc.get("id", "")
             }
+            
+            # Only include doc_path if it's provided and not empty
+            doc_path = doc.get("path", "")
+            if doc_path:
+                transformed_doc["doc_path"] = doc_path
+                
             transformed_docs.append(transformed_doc)
         
         # Use the complete pipeline service workflow
