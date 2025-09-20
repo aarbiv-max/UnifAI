@@ -279,8 +279,24 @@ class DocumentConnector(DataConnector):
             "status": "success"
         }
         
-        # Extract markdown content (priority field for localhost compatibility)
-        if 'md_content' in response:
+        # Handle different response structures from docling API
+        # Check for nested 'document' structure first
+        if 'document' in response and isinstance(response['document'], dict):
+            doc = response['document']
+            if 'md_content' in doc and doc['md_content']:
+                normalized['md_content'] = doc['md_content']
+            elif 'text_content' in doc and doc['text_content']:
+                normalized['md_content'] = f"# Document Content\n\n{doc['text_content']}"
+            elif 'html_content' in doc and doc['html_content']:
+                # Simple HTML to text conversion for fallback
+                html_content = doc['html_content']
+                # Basic HTML tag removal (simple approach)
+                import re
+                text_content = re.sub('<[^<]+?>', '', html_content)
+                normalized['md_content'] = f"# Document Content\n\n{text_content.strip()}"
+        
+        # Fallback to direct field access
+        elif 'md_content' in response and response['md_content']:
             normalized['md_content'] = response['md_content']
         elif 'markdown' in response:
             normalized['md_content'] = response['markdown']
