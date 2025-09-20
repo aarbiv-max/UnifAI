@@ -8,7 +8,7 @@ from shared.logger import logger
 from global_utils.helpers.apiargs import from_query, from_body
 from global_utils.celery_app.helpers import send_task
 from providers.docs import get_best_match_results, upload_docs
-from pipeline.pipeline_service import PipelineService
+from pipeline.pipeline_service import PipelineCeleryService
 
 docs_bp = Blueprint("docs", __name__)
 
@@ -53,11 +53,10 @@ def embed_docs(docs):
             transformed_docs.append(transformed_doc)
         
         # Use the complete pipeline service workflow
-        pipeline_service = PipelineService()
-        result, status_code = pipeline_service.execute_pipeline_with_registration(
+        pipeline_service = PipelineCeleryService()
+        result, status_code = pipeline_service.execute_pipeline_workflow_with_registration(
             data=transformed_docs,
-            source_type="DOCUMENT",
-            current_user="default"
+            source_type="DOCUMENT"
         )
         return jsonify(result), status_code
     except Exception as e:
