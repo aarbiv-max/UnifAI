@@ -48,7 +48,7 @@ def embed_docs(docs):
             transformed_doc = {
                 "source_name": doc.get("filename", ""),
                 "id": doc.get("id", ""),
-                "path": doc.get("path", "")
+                "doc_path": doc.get("path", "")  # Pass the actual file path
             }
             transformed_docs.append(transformed_doc)
         

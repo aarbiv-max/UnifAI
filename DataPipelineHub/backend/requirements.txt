@@ -11,7 +11,7 @@ qdrant-client
 pymongo
 webargs
 marshmallow
-# docling  # Now using docling endpoint instead of local library
+docling
 pydantic-settings
 Authlib
 PyJWT
