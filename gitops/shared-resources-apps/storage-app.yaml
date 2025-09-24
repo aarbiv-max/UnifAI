@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: unifai-shared-storage
+  namespace: tag-ai--runtime-int
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app.kubernetes.io/name: unifai-shared-storage
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/part-of: unifai-shared-resources
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+    targetRevision: HEAD
+    path: helm/shared-resources/unifai-dataflow-shared-storage
+    helm:
+      valueFiles:
+        - ../../values/shared-resource-values.yaml
+      parameters:
+        - name: volumeName
+          value: "unifai-dataflow-shared-storage"
+        - name: requestedSize
+          value: "100Gi"
+        - name: className
+          value: "aws-efs-tier-c1"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tag-ai--runtime-int
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

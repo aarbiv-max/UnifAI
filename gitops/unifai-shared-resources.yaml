@@ -1,0 +1,65 @@
+# Repository Secret - Must come first so ArgoCD can access the repository
+apiVersion: v1
+kind: Secret
+metadata:
+  name: unifai-gitlab-repo
+  namespace: tag-ai--runtime-int
+  labels:
+    argocd.argoproj.io/secret-type: repository
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"  # Deploy before application
+type: Opaque
+stringData:
+  type: git
+  url: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+  insecure: "true"
+  username: oauth2  # Standard for GitLab token auth
+  password: adK_tdzvTZzLCoqNyFj5  # Replace with your GitLab token
+---
+# ArgoCD Application for UnifAI Shared Resources
+# This deploys MongoDB, RabbitMQ, Qdrant, Docling, and shared configuration
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: unifai-shared-resources
+  namespace: tag-ai--runtime-int  # ArgoCD namespace
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"  # Deploy infrastructure first
+  labels:
+    app.kubernetes.io/name: unifai-shared-resources
+    app.kubernetes.io/component: infrastructure
+    environment: tenant
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+    targetRevision: HEAD
+    path: gitops/shared-resources-apps  # Path to your shared resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tag-ai--runtime-int  # Deploy to tenant namespace
+  syncPolicy:
+    automated:
+      prune: false  # Don't auto-delete resources (databases are persistent)
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=false  # Namespace already exists
+    - RespectIgnoreDifferences=true
+    - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+  - group: ""
+    kind: PersistentVolumeClaim
+    jsonPointers:
+    - /spec/resources/requests/storage  # Ignore PVC size changes
+  - group: apps
+    kind: StatefulSet
+    jsonPointers:
+    - /spec/replicas  # Ignore HPA-controlled replicas

@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: unifai-docling-service
+  namespace: tag-ai--runtime-int
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: unifai-docling-service
+    app.kubernetes.io/component: document-processing
+    app.kubernetes.io/part-of: unifai-shared-resources
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+    targetRevision: HEAD
+    path: helm/shared-resources/docling
+    helm:
+      valueFiles:
+        - ../../values/shared-resource-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tag-ai--runtime-int
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

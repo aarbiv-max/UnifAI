@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: unifai-qdrant
+  namespace: tag-ai--runtime-int
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  labels:
+    app.kubernetes.io/name: unifai-qdrant
+    app.kubernetes.io/component: vector-database
+    app.kubernetes.io/part-of: unifai-shared-resources
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+    targetRevision: HEAD
+    path: helm/shared-resources/qdrant
+    helm:
+      valueFiles:
+        - ../../values/shared-resource-values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tag-ai--runtime-int
+  syncPolicy:
+    automated:
+      prune: false  # Don't auto-delete vector database
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: ""
+      kind: PersistentVolumeClaim
+      jsonPointers:
+        - /spec/resources/requests/storage
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
