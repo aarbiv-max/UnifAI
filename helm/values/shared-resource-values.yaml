@@ -6,6 +6,7 @@ mongodb:
   service:
     type: LoadBalancer
     port: 27017
+  env: []  # Explicit empty array to prevent marshaling error
 
 qdrant:
   replicaCount: 1

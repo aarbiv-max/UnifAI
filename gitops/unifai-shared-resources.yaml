@@ -35,7 +35,7 @@ spec:
   project: default
   source:
     repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-    targetRevision: HEAD
+    targetRevision: GENIE-727/story/gitops-unifai #HEAD
     path: gitops/shared-resources-apps  # Path to your shared resources
   destination:
     server: https://kubernetes.default.svc
