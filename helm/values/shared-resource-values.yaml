@@ -8,6 +8,14 @@ mongodb:
     port: 27017
   env: []  # Explicit empty array to prevent marshaling error
 
+# Global env override - ensure MongoDB uses array format
+global:
+  mongodb:
+    env: []
+
+# Root level env override to prevent global-config.yaml from breaking MongoDB
+env: []
+
 qdrant:
   replicaCount: 1
   image:
