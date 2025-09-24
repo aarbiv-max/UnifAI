@@ -15,7 +15,7 @@ spec:
   project: default
   source:
     repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-    targetRevision: HEAD
+    targetRevision: GENIE-727/story/gitops-unifai #HEAD
     path: helm/shared-resources/qdrant
     helm:
       valueFiles:
