@@ -33,42 +33,57 @@ multiagent:
 ui:
   enabled: true
 
-# Import values from existing value files
-unifai-dataflow-shared-storage:
-  # Storage configuration will be imported from shared-resource-values.yaml
+# Component Configuration
+# These values will be merged with external value files
 
+# Infrastructure Components
 mongodb:
-  # MongoDB configuration will be imported from shared-resource-values.yaml
-  
+  image: mongo:7.0
+  auth:
+    enabled: true
+    username: admin
+    password: password
+    database: unifai
+  persistence:
+    size: 20Gi
+    storageClass: gp3-csi
+
 qdrant:
-  # Qdrant configuration will be imported from shared-resource-values.yaml
-  
+  image: qdrant/qdrant:v1.7.4
+  persistence:
+    size: 10Gi
+    storageClass: gp3-csi
+
 rabbitmq:
-  # RabbitMQ configuration will be imported from shared-resource-values.yaml
+  image: rabbitmq:3.12-management
+  auth:
+    username: admin
+    password: password
+  persistence:
+    size: 8Gi
+    storageClass: gp3-csi
 
 docling:
-  # Docling configuration will be imported from shared-resource-values.yaml
+  enabled: true
   
-shared-config:
-  # Shared config configuration will be imported from shared-resource-values.yaml
+# Application Components  
+dataflow:
+  server:
+    image: unifai-dataflow-server
+    replicas: 1
+  celery:
+    image: unifai-dataflow-celery  
+    replicas: 1
+
+multiagent:
+  backend:
+    image: unifai-multiagent-be
+    replicas: 1
+
+ui:
+  image: unifai-ui
+  replicas: 1
   
 sso:
-  # SSO configuration will be imported from sso-values.yaml
-  
-unifai-dataflow-server:
-  # Dataflow server configuration will be imported from dataflow-resource-values.yaml
-  
-unifai-dataflow-celery:
-  # Dataflow celery configuration will be imported from dataflow-resource-values.yaml
-  
-unifai-dataflow-config:
-  # Dataflow config configuration will be imported from global-config.yaml
-  
-multiagent-be:
-  # MultiAgent configuration will be imported from multiagent-resource-values.yaml
-  
-multiagent-config:
-  # MultiAgent config configuration will be imported from global-config.yaml
-  
-ui:
-  # UI configuration will be imported from ui-values.yaml
+  image: unifai-sso
+  replicas: 1

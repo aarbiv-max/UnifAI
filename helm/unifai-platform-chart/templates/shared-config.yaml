@@ -1,0 +1,24 @@
+{{- if .Values.sharedConfig.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shared-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "unifai-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config
+data:
+  MONGO_EXT_ADDR: "mongodb.{{ .Values.global.namespace }}.svc.cluster.local"
+  RABBITMQ_EXT_ADDR: "rabbitmq.{{ .Values.global.namespace }}.svc.cluster.local"
+  QDRANT_EXT_ADDR: "qdrant.{{ .Values.global.namespace }}.svc.cluster.local"
+  DOCLING_EXT_ADDR: "docling-serve.{{ .Values.global.namespace }}.svc.cluster.local"
+  MONGODB_PORT: "27017"
+  RABBITMQ_PORT: "5672"
+  QDRANT_PORT: "6333"
+  DOCLING_PORT: "80"
+  MONGODB_IP: "mongodb"
+  RABBITMQ_IP: "rabbitmq"
+  QDRANT_IP: "qdrant"
+  DOCLING_IP: "docling-serve"
+{{- end }}
