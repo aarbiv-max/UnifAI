@@ -1,0 +1,74 @@
+# Global configuration
+global:
+  namespace: tag-ai--runtime-int
+
+# Component enablement flags
+storage:
+  enabled: true
+
+mongodb:
+  enabled: true
+
+qdrant:
+  enabled: true
+  
+rabbitmq:
+  enabled: true
+
+docling:
+  enabled: true
+  
+sharedConfig:
+  enabled: true
+  
+sso:
+  enabled: true
+
+dataflow:
+  enabled: true
+  
+multiagent:
+  enabled: true
+  
+ui:
+  enabled: true
+
+# Import values from existing value files
+unifai-dataflow-shared-storage:
+  # Storage configuration will be imported from shared-resource-values.yaml
+
+mongodb:
+  # MongoDB configuration will be imported from shared-resource-values.yaml
+  
+qdrant:
+  # Qdrant configuration will be imported from shared-resource-values.yaml
+  
+rabbitmq:
+  # RabbitMQ configuration will be imported from shared-resource-values.yaml
+
+docling:
+  # Docling configuration will be imported from shared-resource-values.yaml
+  
+shared-config:
+  # Shared config configuration will be imported from shared-resource-values.yaml
+  
+sso:
+  # SSO configuration will be imported from sso-values.yaml
+  
+unifai-dataflow-server:
+  # Dataflow server configuration will be imported from dataflow-resource-values.yaml
+  
+unifai-dataflow-celery:
+  # Dataflow celery configuration will be imported from dataflow-resource-values.yaml
+  
+unifai-dataflow-config:
+  # Dataflow config configuration will be imported from global-config.yaml
+  
+multiagent-be:
+  # MultiAgent configuration will be imported from multiagent-resource-values.yaml
+  
+multiagent-config:
+  # MultiAgent config configuration will be imported from global-config.yaml
+  
+ui:
+  # UI configuration will be imported from ui-values.yaml

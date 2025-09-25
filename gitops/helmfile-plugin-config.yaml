@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: helmfile-plugin
+  namespace: tag-ai--runtime-int
+data:
+  plugin.yaml: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: ConfigManagementPlugin
+    metadata:
+      name: helmfile
+    spec:
+      version: v1.0
+      init:
+        command: [sh, -c]
+        args: ["helm dependency update"]
+      generate:
+        command: [sh, -c]
+        args: ["helmfile template --include-crds"]
+      discover:
+        find:
+          glob: "helmfile.yaml"
+        find:
+          glob: "**/helmfile.yaml"
+        find:
+          glob: "*.gotmpl"
+        find:
+          glob: "**/*.gotmpl"
