@@ -20,13 +20,6 @@ spec:
     helm:
       valueFiles:
         - ../../values/shared-resource-values.yaml
-      parameters:
-        - name: volumeName
-          value: "unifai-dataflow-shared-storage"
-        - name: requestedSize
-          value: "100Gi"
-        - name: className
-          value: "aws-efs-tier-c1"
   destination:
     server: https://kubernetes.default.svc
     namespace: tag-ai--runtime-int
