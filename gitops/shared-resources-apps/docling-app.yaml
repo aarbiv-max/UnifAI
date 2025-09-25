@@ -19,7 +19,7 @@ spec:
     path: helm/shared-resources/docling
     helm:
       valueFiles:
-        - ../../values/shared-resource-values.yaml
+        - ../../values/docling-extract.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: tag-ai--runtime-int

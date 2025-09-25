@@ -1,0 +1,22 @@
+# Qdrant extracted values - manually synced from shared-resource-values.yaml qdrant section
+# Keep this in sync by running: yq '.qdrant' shared-resource-values.yaml > qdrant-extract.yaml
+
+replicaCount: 1
+
+image:
+  registry: "images.paas.redhat.com/genie"
+  repository: "qdrant"
+  pullPolicy: IfNotPresent
+  tag: "stable"
+
+service:
+  type: LoadBalancer
+  port: 6333
+
+resources:
+  limits:
+    cpu: 8
+    memory: 16Gi
+  requests:
+    cpu: 4
+    memory: 12Gi

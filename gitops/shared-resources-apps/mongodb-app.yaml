@@ -19,7 +19,7 @@ spec:
     path: helm/shared-resources/mongodb
     helm:
       valueFiles:
-        - ../../values/shared-resource-values.yaml
+        - ../../values/mongodb-extract.yaml
         - ../../values/global-config.yaml
   destination:
     server: https://kubernetes.default.svc

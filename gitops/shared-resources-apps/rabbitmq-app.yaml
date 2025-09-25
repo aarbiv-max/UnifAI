@@ -19,7 +19,7 @@ spec:
     path: helm/shared-resources/rabbitmq
     helm:
       valueFiles:
-        - ../../values/shared-resource-values.yaml
+        - ../../values/rabbitmq-extract.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: tag-ai--runtime-int

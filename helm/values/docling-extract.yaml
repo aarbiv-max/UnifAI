@@ -1,0 +1,14 @@
+# Docling extracted values - manually synced from shared-resource-values.yaml docling section  
+# Keep this in sync by running: yq '.docling' shared-resource-values.yaml > docling-extract.yaml
+
+service:
+  type: LoadBalancer
+  port: 5001
+
+resources:
+  limits:
+    cpu: 4
+    memory: 8Gi
+  requests:
+    cpu: 2
+    memory: 4Gi

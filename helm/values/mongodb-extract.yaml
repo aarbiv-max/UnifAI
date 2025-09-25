@@ -1,0 +1,14 @@
+# MongoDB extracted values - manually synced from shared-resource-values.yaml mongodb section
+# Keep this in sync by running: yq '.mongodb' shared-resource-values.yaml > mongodb-extract.yaml
+
+image:
+  registry: "images.paas.redhat.com/genie"
+  repository: "mongo"
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 27017
+
+# Explicit empty array to prevent marshaling error
+env: []

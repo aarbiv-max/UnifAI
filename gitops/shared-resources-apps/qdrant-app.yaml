@@ -19,7 +19,7 @@ spec:
     path: helm/shared-resources/qdrant
     helm:
       valueFiles:
-        - ../../values/shared-resource-values.yaml
+        - ../../values/qdrant-extract.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: tag-ai--runtime-int
