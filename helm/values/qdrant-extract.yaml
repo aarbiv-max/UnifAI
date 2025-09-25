@@ -1,6 +1,12 @@
-# Qdrant extracted values - manually synced from shared-resource-values.yaml qdrant section
-# Keep this in sync by running: yq '.qdrant' shared-resource-values.yaml > qdrant-extract.yaml
+# Qdrant Configuration for ArgoCD
+# 
+# ⚠️  IMPORTANT: This file is derived from shared-resource-values.yaml qdrant section
+# 🔗  Source: shared-resource-values.yaml > qdrant: {...}
+# 🔄  To sync: Copy values from shared-resource-values.yaml qdrant section (converted to root level)
+#
+# This file contains values from shared-resource-values.yaml qdrant section converted to root level
 
+# === FROM shared-resource-values.yaml qdrant section ===
 replicaCount: 1
 
 image:
@@ -20,3 +26,19 @@ resources:
   requests:
     cpu: 4
     memory: 12Gi
+
+# === ADDITIONAL FIELDS REQUIRED BY QDRANT CHART ===
+fullnameOverride: "qdrant"
+
+# Storage configuration (required by chart)
+storage:
+  volumeName: "unifai-qdrant-volume"
+  requestedSize: 100Gi
+  className: aws-efs-tier-c1
+  accessModes:
+    - ReadWriteMany
+  keepPvc: true
+  annotations:
+    kubernetes.io/reclaimPolicy: Delete
+  labels:
+    paas.redhat.com/appcode: TAG-001

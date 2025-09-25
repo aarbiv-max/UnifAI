@@ -1,6 +1,12 @@
-# RabbitMQ extracted values - manually synced from shared-resource-values.yaml rabbitmq section
-# Keep this in sync by running: yq '.rabbitmq' shared-resource-values.yaml > rabbitmq-extract.yaml
+# RabbitMQ Configuration for ArgoCD
+# 
+# ⚠️  IMPORTANT: This file is derived from shared-resource-values.yaml rabbitmq section
+# 🔗  Source: shared-resource-values.yaml > rabbitmq: {...}
+# 🔄  To sync: Copy values from shared-resource-values.yaml rabbitmq section (converted to root level)
+#
+# This file contains values from shared-resource-values.yaml rabbitmq section converted to root level
 
+# === FROM shared-resource-values.yaml rabbitmq section ===
 image:
   registry: images.paas.redhat.com/genie
   repository: rabbitmq
@@ -9,3 +15,38 @@ image:
 
 service:
   type: LoadBalancer
+
+# === ADDITIONAL FIELDS REQUIRED BY RABBITMQ CHART ===
+fullnameOverride: "rabbitmq"
+
+# Authentication (required by Bitnami RabbitMQ chart)
+auth:
+  username: admin
+  password: changeme123
+  secretName: ""  # Use generated password
+  existingPasswordSecret: ""
+  existingSecretPasswordKey: ""
+  erlangCookie: ""
+  existingErlangSecret: ""
+  existingSecretErlangKey: ""
+
+# Persistence configuration
+persistence:
+  enabled: true
+  storageClass: aws-efs-tier-c1
+  accessModes:
+    - ReadWriteMany
+  size: 50Gi
+  annotations:
+    kubernetes.io/reclaimPolicy: Delete
+  labels:
+    paas.redhat.com/appcode: TAG-001
+
+# Resource configuration
+resources:
+  limits:
+    cpu: 2
+    memory: 2Gi
+  requests:
+    cpu: 1
+    memory: 1Gi

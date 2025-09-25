@@ -1,6 +1,12 @@
-# Docling extracted values - manually synced from shared-resource-values.yaml docling section  
-# Keep this in sync by running: yq '.docling' shared-resource-values.yaml > docling-extract.yaml
+# Docling Configuration for ArgoCD
+# 
+# ⚠️  IMPORTANT: This file is derived from shared-resource-values.yaml docling section
+# 🔗  Source: shared-resource-values.yaml > docling: {...}
+# 🔄  To sync: Copy values from shared-resource-values.yaml docling section (converted to root level)
+#
+# This file contains values from shared-resource-values.yaml docling section converted to root level
 
+# === FROM shared-resource-values.yaml docling section ===
 service:
   type: LoadBalancer
   port: 5001
@@ -12,3 +18,19 @@ resources:
   requests:
     cpu: 2
     memory: 4Gi
+
+# === ADDITIONAL FIELDS REQUIRED BY DOCLING CHART ===
+fullnameOverride: "docling-serve"
+
+# Storage configuration (required for document processing)
+storage:
+  volumeName: "unifai-docling-volume"
+  requestedSize: 20Gi
+  className: aws-efs-tier-c1
+  accessModes:
+    - ReadWriteMany
+  keepPvc: true
+  annotations:
+    kubernetes.io/reclaimPolicy: Delete
+  labels:
+    paas.redhat.com/appcode: TAG-001
