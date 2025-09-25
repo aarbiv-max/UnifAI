@@ -40,5 +40,7 @@ storage:
   keepPvc: true
   annotations:
     kubernetes.io/reclaimPolicy: Delete
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+    argocd.argoproj.io/sync-options: Prune=false
   labels:
     paas.redhat.com/appcode: TAG-001

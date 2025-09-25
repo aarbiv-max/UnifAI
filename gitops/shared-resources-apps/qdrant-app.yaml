@@ -26,11 +26,12 @@ spec:
   syncPolicy:
     automated:
       prune: false  # Don't auto-delete vector database
-      selfHeal: true
+      selfHeal: false  # Disable selfHeal to prevent sync conflicts
     syncOptions:
       - CreateNamespace=false
       - RespectIgnoreDifferences=true
       - SkipDryRunOnMissingResource=true
+      - PrunePropagationPolicy=background
     retry:
       limit: 5
       backoff:
@@ -40,13 +41,9 @@ spec:
   ignoreDifferences:
     - group: ""
       kind: PersistentVolumeClaim
-      name: qdrant
-      jsonPointers:
-        - /metadata/finalizers
-    - group: ""
-      kind: PersistentVolumeClaim
       jsonPointers:
         - /spec/resources/requests/storage
+        - /metadata/finalizers
     - group: apps
       kind: Deployment
       jsonPointers:
