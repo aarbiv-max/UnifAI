@@ -30,13 +30,13 @@ resources:
 # === ADDITIONAL FIELDS REQUIRED BY QDRANT CHART ===
 fullnameOverride: "qdrant"
 
-# Storage configuration (required by chart)
+# Storage configuration (consistent with chart defaults)
 storage:
   volumeName: "unifai-qdrant-volume"
   requestedSize: 100Gi
-  className: aws-efs-tier-c1
+  className: aws-ebs  # Match chart default
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce  # Match chart default
   keepPvc: true
   annotations:
     kubernetes.io/reclaimPolicy: Delete

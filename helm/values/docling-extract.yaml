@@ -22,13 +22,13 @@ resources:
 # === ADDITIONAL FIELDS REQUIRED BY DOCLING CHART ===
 fullnameOverride: "docling-serve"
 
-# Storage configuration (required for document processing)
+# Storage configuration (consistent with chart defaults)
 storage:
   volumeName: "unifai-docling-volume"
   requestedSize: 20Gi
-  className: aws-efs-tier-c1
+  className: aws-ebs  # Match chart default
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce  # Match chart default
   keepPvc: true
   annotations:
     kubernetes.io/reclaimPolicy: Delete

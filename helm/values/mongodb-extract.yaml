@@ -36,9 +36,9 @@ storage:
   persistentVolumeClaimName:  # Empty - will create dynamic PVC
   volumeName: "mongodb-volume"
   requestedSize: 100Gi
-  className: aws-efs-tier-c1
+  className: aws-ebs  # Use EBS for MongoDB - WiredTiger requires exclusive file access
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce  # EBS is single-node access
   keepPvc: true
   annotations:
     kubernetes.io/reclaimPolicy: Delete
@@ -53,3 +53,18 @@ resources:
   limits:
     memory: "2Gi"
     cpu: "2"
+
+# Security context to ensure proper file permissions for MongoDB
+podSecurityContext:
+  fsGroup: 999  # MongoDB group ID
+  supplementalGroups:
+    - 999
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 999  # MongoDB user ID
+  runAsGroup: 999
+  capabilities:
+    drop:
+      - ALL

@@ -30,13 +30,13 @@ auth:
   existingErlangSecret: ""
   existingSecretErlangKey: ""
 
-# Persistence configuration
+# Persistence configuration (consistent with chart defaults)
 persistence:
   enabled: true
-  storageClass: aws-efs-tier-c1
+  storageClass: aws-ebs  # Match chart default
   accessModes:
-    - ReadWriteMany
-  size: 50Gi
+    - ReadWriteOnce  # Match chart default
+  size: 28Gi  # Match chart default
   annotations:
     kubernetes.io/reclaimPolicy: Delete
   labels:
