@@ -20,7 +20,6 @@ spec:
     helm:
       valueFiles:
         - ../../values/mongodb-extract.yaml         # Complete MongoDB config (derived from shared-resource-values.yaml)
-        - ../../values/global-config.yaml           # Environment variables
   destination:
     server: https://kubernetes.default.svc
     namespace: tag-ai--runtime-int
