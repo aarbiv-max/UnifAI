@@ -30,6 +30,7 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - RespectIgnoreDifferences=true
+      - SkipDryRunOnMissingResource=true
     retry:
       limit: 5
       backoff:
@@ -39,9 +40,13 @@ spec:
   ignoreDifferences:
     - group: ""
       kind: PersistentVolumeClaim
+      name: qdrant
+      jsonPointers:
+        - /metadata/finalizers
+    - group: ""
+      kind: PersistentVolumeClaim
       jsonPointers:
         - /spec/resources/requests/storage
-        - /metadata/finalizers  # Ignore finalizers - Kubernetes manages these automatically
     - group: apps
       kind: Deployment
       jsonPointers:
