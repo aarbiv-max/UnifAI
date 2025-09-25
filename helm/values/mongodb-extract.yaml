@@ -54,17 +54,7 @@ resources:
     memory: "2Gi"
     cpu: "2"
 
-# Security context to ensure proper file permissions for MongoDB
-podSecurityContext:
-  fsGroup: 999  # MongoDB group ID
-  supplementalGroups:
-    - 999
+# Security context (use chart defaults - empty to let OpenShift assign compliant values)
+podSecurityContext: {}
 
-securityContext:
-  allowPrivilegeEscalation: false
-  runAsNonRoot: true
-  runAsUser: 999  # MongoDB user ID
-  runAsGroup: 999
-  capabilities:
-    drop:
-      - ALL
+securityContext: {}
