@@ -16,33 +16,77 @@ stringData:
   username: oauth2  # Standard for GitLab token auth
   password: adK_tdzvTZzLCoqNyFj5  # Replace with your GitLab token
 ---
-# ArgoCD Application for UnifAI Shared Resources
-# This deploys MongoDB, RabbitMQ, Qdrant, Docling, and shared configuration
+# ArgoCD Multi-Source Application for Complete UnifAI Platform
+# This deploys all shared resources directly using multiple sources
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: unifai-shared-resources
   namespace: tag-ai--runtime-int  # ArgoCD namespace
   annotations:
-    argocd.argoproj.io/sync-wave: "0"  # Deploy infrastructure first
+    argocd.argoproj.io/sync-wave: "0"  # Deploy first
   labels:
     app.kubernetes.io/name: unifai-shared-resources
-    app.kubernetes.io/component: infrastructure
+    app.kubernetes.io/component: platform
+    app.kubernetes.io/part-of: unifai-platform
     environment: tenant
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  source:
-    repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-    targetRevision: GENIE-727/story/gitops-unifai #GENIE-727/story/gitops-unifai #HEAD
-    path: gitops/shared-resources-apps  # Path to your shared resources
+  sources:
+    # Wave 1: Storage - Deploy first
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai #HEAD
+      path: helm/shared-resources/storage
+      helm:
+        valueFiles:
+          - ../../values/storage-extract.yaml
+    
+    # Wave 2: Core Services - Deploy in parallel
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai #HEAD
+      path: helm/shared-resources/mongodb
+      helm:
+        valueFiles:
+          - ../../values/mongodb-extract.yaml
+    
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai #HEAD
+      path: helm/shared-resources/qdrant
+      helm:
+        valueFiles:
+          - ../../values/qdrant-extract.yaml
+    
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai #HEAD
+      path: helm/shared-resources/rabbitmq
+      helm:
+        valueFiles:
+          - ../../values/rabbitmq-extract.yaml
+    
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai #HEAD
+      path: helm/shared-resources/docling
+      helm:
+        valueFiles:
+          - ../../values/docling-extract.yaml
+    
+    # Wave 3: Configuration - Deploy last
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai #HEAD
+      path: helm/shared-resources/shared-config
+      helm:
+        valueFiles:
+          - ../../values/shared-config-extract.yaml
+  
   destination:
     server: https://kubernetes.default.svc
     namespace: tag-ai--runtime-int  # Deploy to tenant namespace
+  
   syncPolicy:
     automated:
-      prune: false  # Don't auto-delete resources (databases are persistent)
+      prune: false  # Don't auto-delete shared resources
       selfHeal: true
     syncOptions:
     - CreateNamespace=false  # Namespace already exists
@@ -54,11 +98,13 @@ spec:
         duration: 15s
         factor: 2
         maxDuration: 5m
+  
   ignoreDifferences:
   - group: ""
     kind: PersistentVolumeClaim
     jsonPointers:
     - /spec/resources/requests/storage  # Ignore PVC size changes
+    - /metadata/finalizers  # Ignore finalizers - Kubernetes manages these automatically
   - group: apps
     kind: StatefulSet
     jsonPointers:
