@@ -21,7 +21,7 @@ spec:
         {{- include "shared-config.labels" . | nindent 8 }}
         job-type: service-discovery
     spec:
-      serviceAccountName: {{ .Values.serviceDiscovery.serviceAccount.name }}
+      serviceAccountName: {{ .Values.serviceDiscovery.rbac.serviceAccount.name }}
       restartPolicy: {{ .Values.serviceDiscovery.job.restartPolicy }}
       containers:
       - name: service-discovery

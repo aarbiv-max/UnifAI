@@ -27,10 +27,12 @@ serviceDiscovery:
     backoffLimit: 3
     ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
     
-  # RBAC
-  serviceAccount:
+  # RBAC - namespace-scoped permissions (no cluster-admin required)
+  rbac:
     create: true
-    name: "shared-config-discovery"
+    serviceAccount:
+      create: true
+      name: "shared-config-discovery"
     
   # ConfigMap name to create
   configMapName: "shared-config"

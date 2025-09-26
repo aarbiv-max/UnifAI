@@ -1,10 +1,9 @@
-{{- if .Values.serviceDiscovery.enabled }}
-{{- if .Values.serviceDiscovery.serviceAccount.create }}
+{{- if and .Values.serviceDiscovery.enabled .Values.serviceDiscovery.rbac.create }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ .Values.serviceDiscovery.serviceAccount.name }}-role
+  name: shared-config-discovery-role
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "shared-config.labels" . | nindent 4 }}
@@ -15,9 +14,11 @@ metadata:
     argocd.argoproj.io/sync-wave: "3"
     {{- end }}
 rules:
+# Read services to get their IPs and ports
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["get", "list", "watch"]
+# Manage the shared-config ConfigMap
 - apiGroups: [""]
   resources: ["configmaps"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
@@ -26,7 +27,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ .Values.serviceDiscovery.serviceAccount.name }}-binding
+  name: shared-config-discovery-binding
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "shared-config.labels" . | nindent 4 }}
@@ -38,11 +39,10 @@ metadata:
     {{- end }}
 subjects:
 - kind: ServiceAccount
-  name: {{ .Values.serviceDiscovery.serviceAccount.name }}
+  name: {{ .Values.serviceDiscovery.rbac.serviceAccount.name }}
   namespace: {{ .Release.Namespace }}
 roleRef:
   kind: Role
-  name: {{ .Values.serviceDiscovery.serviceAccount.name }}-role
+  name: shared-config-discovery-role
   apiGroup: rbac.authorization.k8s.io
-{{- end }}
 {{- end }}
