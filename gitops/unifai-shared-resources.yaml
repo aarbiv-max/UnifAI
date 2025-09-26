@@ -38,10 +38,13 @@ spec:
     # Wave 1: Storage - Deploy first
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai #HEAD
-      path: helm/shared-resources/storage
+      path: helm/shared-resources/unifai-dataflow-shared-storage
       helm:
         valueFiles:
-          - ../../values/storage-extract.yaml
+          - ../../values/shared-resource-values.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "1"
     
     # Wave 2: Core Services - Deploy in parallel
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
@@ -50,6 +53,9 @@ spec:
       helm:
         valueFiles:
           - ../../values/mongodb-extract.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "2"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai #HEAD
@@ -57,6 +63,9 @@ spec:
       helm:
         valueFiles:
           - ../../values/qdrant-extract.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "2"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai #HEAD
@@ -64,6 +73,9 @@ spec:
       helm:
         valueFiles:
           - ../../values/rabbitmq-extract.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "2"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai #HEAD
@@ -71,6 +83,9 @@ spec:
       helm:
         valueFiles:
           - ../../values/docling-extract.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "2"
     
     # Wave 3: Configuration - Deploy last
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
@@ -78,7 +93,10 @@ spec:
       path: helm/shared-resources/shared-config
       helm:
         valueFiles:
-          - ../../values/shared-config-extract.yaml
+          - ../../values/global-config.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "3"
   
   destination:
     server: https://kubernetes.default.svc
