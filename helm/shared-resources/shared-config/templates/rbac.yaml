@@ -1,0 +1,48 @@
+{{- if .Values.serviceDiscovery.enabled }}
+{{- if .Values.serviceDiscovery.serviceAccount.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.serviceDiscovery.serviceAccount.name }}-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "shared-config.labels" . | nindent 4 }}
+  annotations:
+    {{- if hasKey .Values.global "syncWave" }}
+    argocd.argoproj.io/sync-wave: {{ .Values.global.syncWave | quote }}
+    {{- else }}
+    argocd.argoproj.io/sync-wave: "3"
+    {{- end }}
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.serviceDiscovery.serviceAccount.name }}-binding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "shared-config.labels" . | nindent 4 }}
+  annotations:
+    {{- if hasKey .Values.global "syncWave" }}
+    argocd.argoproj.io/sync-wave: {{ .Values.global.syncWave | quote }}
+    {{- else }}
+    argocd.argoproj.io/sync-wave: "3"
+    {{- end }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.serviceDiscovery.serviceAccount.name }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ .Values.serviceDiscovery.serviceAccount.name }}-role
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end }}

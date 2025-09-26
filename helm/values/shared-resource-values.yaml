@@ -13,9 +13,6 @@ global:
   mongodb:
     env: []
 
-# Root level env override to prevent global-config.yaml from breaking MongoDB
-env: []
-
 qdrant:
   replicaCount: 1
   image:
