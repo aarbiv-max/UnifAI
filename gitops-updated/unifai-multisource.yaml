@@ -1,0 +1,241 @@
+# Repository Secret for main code repo
+apiVersion: v1
+kind: Secret
+metadata:
+  name: unifai-gitlab-repo
+  namespace: tag-ai--runtime-int
+  labels:
+    argocd.argoproj.io/secret-type: repository
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  type: git
+  url: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+  insecure: "true"
+  username: oauth2
+  password: adK_tdzvTZzLCoqNyFj5
+
+---
+# Repository Secret for private config repo - SSH VERSION
+apiVersion: v1
+kind: Secret
+metadata:
+  name: unifai-config-private-repo
+  namespace: tag-ai--runtime-int
+  labels:
+    argocd.argoproj.io/secret-type: repository
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  type: git
+  url: https://gitlab.cee.redhat.com/gzhou/unifai-gitops-priv.git
+  insecure: "true"
+  username: oauth2
+  password: adK_tdzvTZzLCoqNyFj5
+    #  sshPrivateKey: |
+    #-----BEGIN OPENSSH PRIVATE KEY-----
+    # ADD YOUR SSH PRIVATE KEY HERE
+    # This key should have access to gzhou/unifai-gitops-priv.git
+    #-----END OPENSSH PRIVATE KEY-----
+
+# ALTERNATIVE: HTTPS VERSION (uncomment if you prefer token auth)
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: unifai-config-private-repo
+#   namespace: tag-ai--runtime-int
+#   labels:
+#     argocd.argoproj.io/secret-type: repository
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "-1"
+# type: Opaque
+# stringData:
+#   type: git
+#   url: https://gitlab.cee.redhat.com/gzhou/unifai-gitops-priv.git
+#   insecure: "true"  
+#   username: oauth2
+#   password: YOUR_GITLAB_TOKEN_HERE
+
+---
+# Multi-source ArgoCD Application
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: unifai-platform
+  namespace: tag-ai--runtime-int
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/name: unifai-platform
+    app.kubernetes.io/component: platform
+    environment: ${UNIFAI_ENVIRONMENT}  # dev/staging/prod
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  
+  # Multi-source configuration - pulls from both repos
+  sources:
+    # Source 1: Private configuration repo (loaded first)  
+    - repoURL: https://gitlab.cee.redhat.com/gzhou/unifai-gitops-priv.git
+      targetRevision: HEAD
+      path: environments/${UNIFAI_ENVIRONMENT}  # dev/staging/prod
+      
+    # Source 2: Main code repo with all the helm charts
+    
+    # Wave 1: Storage - Deploy first  
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: ${CODE_BRANCH}  # From private config
+      path: helm/shared-resources/unifai-dataflow-shared-storage
+      helm:
+        valueFiles:
+          - $values/sensitive-values.yaml       # From private repo
+          - $values/site-config.yaml            # From private repo  
+          - ../../values/shared-resource-values.yaml  # From main repo
+          - ../../values/global-config-clean.yaml     # Cleaned version
+        parameters:
+          - name: "global.syncWave"
+            value: "1"
+          - name: "fullnameOverride"
+            value: "unifai-dataflow-shared-storage"
+    
+    # Wave 2: Core Services - Deploy in parallel
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: ${CODE_BRANCH}
+      path: helm/shared-resources/mongodb
+      helm:
+        valueFiles:
+          - $values/sensitive-values.yaml       # Passwords, etc.
+          - $values/site-config.yaml            # Resources, infrastructure
+          - ../../values/mongodb-extract-clean.yaml  # Clean template
+        parameters:
+          - name: "global.syncWave"
+            value: "2"
+    
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: ${CODE_BRANCH}
+      path: helm/shared-resources/qdrant
+      helm:
+        valueFiles:
+          - $values/sensitive-values.yaml
+          - $values/site-config.yaml
+          - ../../values/qdrant-extract-clean.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "2"
+    
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: ${CODE_BRANCH}
+      path: helm/shared-resources/rabbitmq
+      helm:
+        valueFiles:
+          - $values/sensitive-values.yaml
+          - $values/site-config.yaml
+          - ../../values/rabbitmq-extract-clean.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "2"
+    
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: ${CODE_BRANCH}
+      path: helm/shared-resources/docling
+      helm:
+        valueFiles:
+          - $values/sensitive-values.yaml
+          - $values/site-config.yaml
+          - ../../values/docling-extract-clean.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "2"
+    
+    # Wave 3: Shared Infrastructure Configuration
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: ${CODE_BRANCH}
+      path: helm/shared-resources/shared-config
+      helm:
+        valueFiles:
+          - $values/sensitive-values.yaml       # RabbitMQ credentials
+          - $values/site-config.yaml            # Infrastructure settings
+          - ../../values/shared-config-extract-clean.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "3"
+    
+    # Wave 4: Application Layer - Deploy after infrastructure is ready
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: ${CODE_BRANCH}
+      path: helm/dataflow/unifai-dataflow-server
+      helm:
+        valueFiles:
+          - $values/sensitive-values.yaml
+          - $values/site-config.yaml
+          - ../../values/dataflow-resource-values-clean.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "4"
+          - name: "image.tag"
+            value: "${BACKEND_IMAGE_TAG}"  # From private config
+    
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: ${CODE_BRANCH}
+      path: helm/dataflow/unifai-dataflow-celery  
+      helm:
+        valueFiles:
+          - $values/sensitive-values.yaml
+          - $values/site-config.yaml
+          - ../../values/dataflow-resource-values-clean.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "4"
+          - name: "image.tag"
+            value: "${BACKEND_IMAGE_TAG}"
+    
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: ${CODE_BRANCH}
+      path: helm/shared-resources/sso
+      helm:
+        valueFiles:
+          - $values/sensitive-values.yaml       # SSO secrets
+          - $values/site-config.yaml
+          - ../../values/sso-values-clean.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "4"
+          - name: "backend.image.tag"
+            value: "${SSO_IMAGE_TAG}"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${TARGET_NAMESPACE}  # From private config
+
+  syncPolicy:
+    automated:
+      prune: false  # Don't auto-delete resources  
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=false
+    - RespectIgnoreDifferences=true
+    - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+  - group: ""
+    kind: PersistentVolumeClaim
+    jsonPointers:
+    - /spec/resources/requests/storage
+    - /metadata/finalizers
+  - group: apps
+    kind: StatefulSet
+    jsonPointers:
+    - /spec/replicas
+  - group: apps
+    kind: Deployment
+    jsonPointers:
+    - /spec/replicas

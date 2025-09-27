@@ -1,0 +1,17 @@
+# Clean global configuration - no sensitive data
+# Sensitive data moved to private repo
+
+env:
+  # Application service discovery (internal)
+  DATAPIPELINEHUB_HOST: "unifai-dataflow-server"
+  DATAPIPELINEHUB_PORT: "13456"
+  MULTIAGENT_HOST: "unifai-multiagent-be"
+  MULTIAGENT_PORT: "8003"
+  
+  # These values come from private repo sensitive-values.yaml:
+  # FRONTEND_URL: set from private config
+  # SSO_BACKEND_HOST: set from private config
+  
+  # TODO: Remove these hardcoded values - moved to private config
+  # FRONTEND_URL: "http://unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
+  # SSO_BACKEND_HOST: "https://unifai-sso-backend-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
