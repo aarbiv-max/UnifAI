@@ -153,18 +153,18 @@ spec:
           - name: "backend.image.tag"
             value: "2025.09.25.1425"
     
-    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: GENIE-727/story/gitops-unifai #HEAD
-      path: helm/multiagent/be
-      helm:
-        valueFiles:
-          - ../../values/global-config.yaml
-          - ../../values/multiagent-resource-values.yaml
-        parameters:
-          - name: "global.syncWave"
-            value: "4"
-          - name: "image.tag"
-            value: "2025.09.25.1425"
+    #- repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+    # targetRevision: GENIE-727/story/gitops-unifai #HEAD
+    # path: helm/multiagent/be
+    # helm:
+    #   valueFiles:
+    #     - ../../values/global-config.yaml
+    #     - ../../values/multiagent-resource-values.yaml
+    #   parameters:
+    #     - name: "global.syncWave"
+    #       value: "4"
+    #     - name: "image.tag"
+    #       value: "2025.09.25.1425"
     
               #- repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
               #targetRevision: GENIE-727/story/gitops-unifai #HEAD
