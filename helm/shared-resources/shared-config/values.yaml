@@ -1,4 +1,5 @@
 # shared-config chart values
+# Default values - can be overridden by global-config.yaml
 serviceDiscovery:
   enabled: true
   image:

@@ -95,6 +95,7 @@ spec:
       path: helm/shared-resources/shared-config
       helm:
         valueFiles:
+          - ../../values/shared-config-extract.yaml
           - ../../values/global-config.yaml
         parameters:
           - name: "global.syncWave"
@@ -116,9 +117,9 @@ spec:
           - name: "resources.requests.cpu"
             value: "2"
           - name: "resources.requests.memory"
-            value: "2Gi"
-          - name: "resources.limits.memory"
             value: "4Gi"
+          - name: "resources.limits.memory"
+            value: "8Gi"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai #HEAD
@@ -135,9 +136,9 @@ spec:
           - name: "resources.requests.cpu"
             value: "2"
           - name: "resources.requests.memory"
-            value: "2Gi"
+            value: "4Gi"
           - name: "resources.limits.memory"
-            value: "2Gi"
+            value: "8Gi"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai #HEAD
@@ -152,33 +153,33 @@ spec:
           - name: "backend.image.tag"
             value: "2025.09.25.1425"
     
-              #- repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-              #targetRevision: GENIE-727/story/gitops-unifai #HEAD
-              #path: helm/multiagent/be
-              #helm:
-              #valueFiles:
-              #- ../../values/global-config.yaml
-              #- ../../values/multiagent-resource-values.yaml
-              #parameters:
-              #- name: "global.syncWave"
-              #value: "4"
-              #- name: "image.tag"
-              #value: "2025.09.25.1425"
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai #HEAD
+      path: helm/multiagent/be
+      helm:
+        valueFiles:
+          - ../../values/global-config.yaml
+          - ../../values/multiagent-resource-values.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "4"
+          - name: "image.tag"
+            value: "2025.09.25.1425"
     
-              #- repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-              #targetRevision: GENIE-727/story/gitops-unifai #HEAD
-              #path: helm/ui
-              #helm:
-              #valueFiles:
-              #- ../values/ui-values.yaml
-              #- ../values/global-config.yaml
-              #parameters:
-              #- name: "global.syncWave"
-              #value: "4"
-              #- name: "image.repository"
-              #value: "images.paas.redhat.com/unifai/datapipelinehub/ui"
-              #- name: "image.tag"
-              #value: "2025.09.25.1425"
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai #HEAD
+      path: helm/ui
+      helm:
+        valueFiles:
+          - ../values/ui-values.yaml
+          - ../values/global-config.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "4"
+          - name: "image.repository"
+            value: "images.paas.redhat.com/unifai/datapipelinehub/ui"
+          - name: "image.tag"
+            value: "2025.09.25.1425"
     
     # Wave 5: Application Configuration - Deploy last after all services are up
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
@@ -191,15 +192,15 @@ spec:
           - name: "global.syncWave"
             value: "5"
     
-              #- repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-              #targetRevision: GENIE-727/story/gitops-unifai #HEAD
-              #path: helm/multiagent/multiagent-config
-              #helm:
-              #valueFiles:
-              #- ../../values/global-config.yaml
-              #parameters:
-              #- name: "global.syncWave"
-              #value: "5"
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai #HEAD
+      path: helm/multiagent/multiagent-config
+      helm:
+        valueFiles:
+          - ../../values/global-config.yaml
+        parameters:
+          - name: "global.syncWave"
+            value: "5"
   
   destination:
     server: https://kubernetes.default.svc
