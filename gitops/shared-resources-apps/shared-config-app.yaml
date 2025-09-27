@@ -19,6 +19,7 @@ spec:
     path: helm/shared-resources/shared-config
     helm:
       valueFiles:
+        - ../../values/shared-config-extract.yaml
         - ../../values/global-config.yaml
   destination:
     server: https://kubernetes.default.svc
