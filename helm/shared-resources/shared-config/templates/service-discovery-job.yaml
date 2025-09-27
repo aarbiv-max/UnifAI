@@ -112,6 +112,11 @@ spec:
             echo "Docling - ADDR: $DOCLING_ADDR, PORT: $DOCLING_PORT, IP: $DOCLING_IP"
             {{- end }}
 
+            echo "=== Discovering RabbitMQ Credentials ==="
+            RABBITMQ_PASSWORD=$(kubectl get secret rabbitmq -o jsonpath='{.data.rabbitmq-password}' | base64 -d || echo "changeme123")
+            RABBITMQ_USER="admin"  # Default RabbitMQ username from chart
+            echo "RabbitMQ - USER: $RABBITMQ_USER, PASSWORD: [REDACTED]"
+
             echo "=== Creating shared-config ConfigMap ==="
             kubectl delete configmap {{ .Values.serviceDiscovery.configMapName }} --ignore-not-found=true
 
@@ -125,6 +130,8 @@ spec:
               --from-literal=RABBITMQ_EXT_ADDR="$RABBITMQ_ADDR" \
               --from-literal=RABBITMQ_PORT="$RMQ_PORT" \
               --from-literal=RABBITMQ_IP="$RMQ_IP" \
+              --from-literal=RABBITMQ_USER="$RABBITMQ_USER" \
+              --from-literal=RABBITMQ_PASSWORD="$RABBITMQ_PASSWORD" \
               {{- end }}
               {{- if .Values.serviceDiscovery.services.qdrant.enabled }}
               --from-literal=QDRANT_EXT_ADDR="$QDRANT_ADDR" \

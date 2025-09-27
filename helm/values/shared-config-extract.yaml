@@ -5,9 +5,10 @@
 # 🔄  Purpose: Discovers and creates ConfigMap with all service endpoints after deployment
 #
 # This file contains:
-# 1. Service discovery job configuration
+# 1. Service discovery job configuration  
 # 2. RBAC settings for namespace-scoped permissions
 # 3. Service endpoint discovery settings
+# 4. RabbitMQ credential discovery from secrets
 
 # === SERVICE DISCOVERY CONFIGURATION ===
 serviceDiscovery:
