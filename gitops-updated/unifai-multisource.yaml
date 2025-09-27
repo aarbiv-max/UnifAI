@@ -17,7 +17,7 @@ stringData:
   password: adK_tdzvTZzLCoqNyFj5
 
 ---
-# Repository Secret for private config repo - SSH VERSION
+# Repository Secret for private config repo - TOKEN VERSION
 apiVersion: v1
 kind: Secret
 metadata:
@@ -31,16 +31,11 @@ type: Opaque
 stringData:
   type: git
   url: https://gitlab.cee.redhat.com/gzhou/unifai-gitops-priv.git
-  insecure: "true"
+  insecure: "true"  
   username: oauth2
-  password: adK_tdzvTZzLCoqNyFj5
-    #  sshPrivateKey: |
-    #-----BEGIN OPENSSH PRIVATE KEY-----
-    # ADD YOUR SSH PRIVATE KEY HERE
-    # This key should have access to gzhou/unifai-gitops-priv.git
-    #-----END OPENSSH PRIVATE KEY-----
+  password: adK_tdzvTZzLCoqNyFj5  # Using same token as main repo
 
-# ALTERNATIVE: HTTPS VERSION (uncomment if you prefer token auth)
+# SSH VERSION (commented out in favor of token auth)
 # apiVersion: v1
 # kind: Secret
 # metadata:
@@ -54,9 +49,10 @@ stringData:
 # stringData:
 #   type: git
 #   url: https://gitlab.cee.redhat.com/gzhou/unifai-gitops-priv.git
-#   insecure: "true"  
-#   username: oauth2
-#   password: YOUR_GITLAB_TOKEN_HERE
+#   sshPrivateKey: |
+#     -----BEGIN OPENSSH PRIVATE KEY-----
+#     # ADD YOUR SSH PRIVATE KEY HERE
+#     -----END OPENSSH PRIVATE KEY-----
 
 ---
 # Multi-source ArgoCD Application
@@ -70,7 +66,7 @@ metadata:
   labels:
     app.kubernetes.io/name: unifai-platform
     app.kubernetes.io/component: platform
-    environment: ${UNIFAI_ENVIRONMENT}  # dev/staging/prod
+    environment: dev
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -81,18 +77,18 @@ spec:
     # Source 1: Private configuration repo (loaded first)  
     - repoURL: https://gitlab.cee.redhat.com/gzhou/unifai-gitops-priv.git
       targetRevision: HEAD
-      path: environments/${UNIFAI_ENVIRONMENT}  # dev/staging/prod
+      ref: values  # This allows other sources to reference files as $values/path/filename.yaml
       
     # Source 2: Main code repo with all the helm charts
     
     # Wave 1: Storage - Deploy first  
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: ${CODE_BRANCH}  # From private config
+      targetRevision: GENIE-727/story/gitops-unifai  # Current branch
       path: helm/shared-resources/unifai-dataflow-shared-storage
       helm:
         valueFiles:
-          - $values/sensitive-values.yaml       # From private repo
-          - $values/site-config.yaml            # From private repo  
+          - $values/environments/dev/sensitive-values.yaml       # From private repo
+          - $values/environments/dev/site-config.yaml            # From private repo  
           - ../../values/shared-resource-values.yaml  # From main repo
           - ../../values/global-config-clean.yaml     # Cleaned version
         parameters:
@@ -103,48 +99,48 @@ spec:
     
     # Wave 2: Core Services - Deploy in parallel
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: ${CODE_BRANCH}
+      targetRevision: GENIE-727/story/gitops-unifai
       path: helm/shared-resources/mongodb
       helm:
         valueFiles:
-          - $values/sensitive-values.yaml       # Passwords, etc.
-          - $values/site-config.yaml            # Resources, infrastructure
+          - $values/environments/dev/sensitive-values.yaml       # Passwords, etc.
+          - $values/environments/dev/site-config.yaml            # Resources, infrastructure
           - ../../values/mongodb-extract-clean.yaml  # Clean template
         parameters:
           - name: "global.syncWave"
             value: "2"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: ${CODE_BRANCH}
+      targetRevision: GENIE-727/story/gitops-unifai
       path: helm/shared-resources/qdrant
       helm:
         valueFiles:
-          - $values/sensitive-values.yaml
-          - $values/site-config.yaml
+          - $values/environments/dev/sensitive-values.yaml
+          - $values/environments/dev/site-config.yaml
           - ../../values/qdrant-extract-clean.yaml
         parameters:
           - name: "global.syncWave"
             value: "2"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: ${CODE_BRANCH}
+      targetRevision: GENIE-727/story/gitops-unifai
       path: helm/shared-resources/rabbitmq
       helm:
         valueFiles:
-          - $values/sensitive-values.yaml
-          - $values/site-config.yaml
+          - $values/environments/dev/sensitive-values.yaml
+          - $values/environments/dev/site-config.yaml
           - ../../values/rabbitmq-extract-clean.yaml
         parameters:
           - name: "global.syncWave"
             value: "2"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: ${CODE_BRANCH}
+      targetRevision: GENIE-727/story/gitops-unifai
       path: helm/shared-resources/docling
       helm:
         valueFiles:
-          - $values/sensitive-values.yaml
-          - $values/site-config.yaml
+          - $values/environments/dev/sensitive-values.yaml
+          - $values/environments/dev/site-config.yaml
           - ../../values/docling-extract-clean.yaml
         parameters:
           - name: "global.syncWave"
@@ -152,12 +148,12 @@ spec:
     
     # Wave 3: Shared Infrastructure Configuration
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: ${CODE_BRANCH}
+      targetRevision: GENIE-727/story/gitops-unifai
       path: helm/shared-resources/shared-config
       helm:
         valueFiles:
-          - $values/sensitive-values.yaml       # RabbitMQ credentials
-          - $values/site-config.yaml            # Infrastructure settings
+          - $values/environments/dev/sensitive-values.yaml       # RabbitMQ credentials
+          - $values/environments/dev/site-config.yaml            # Infrastructure settings
           - ../../values/shared-config-extract-clean.yaml
         parameters:
           - name: "global.syncWave"
@@ -165,50 +161,50 @@ spec:
     
     # Wave 4: Application Layer - Deploy after infrastructure is ready
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: ${CODE_BRANCH}
+      targetRevision: GENIE-727/story/gitops-unifai
       path: helm/dataflow/unifai-dataflow-server
       helm:
         valueFiles:
-          - $values/sensitive-values.yaml
-          - $values/site-config.yaml
+          - $values/environments/dev/sensitive-values.yaml
+          - $values/environments/dev/site-config.yaml
           - ../../values/dataflow-resource-values-clean.yaml
         parameters:
           - name: "global.syncWave"
             value: "4"
           - name: "image.tag"
-            value: "${BACKEND_IMAGE_TAG}"  # From private config
+            value: "latest"  # Backend image tag
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: ${CODE_BRANCH}
+      targetRevision: GENIE-727/story/gitops-unifai
       path: helm/dataflow/unifai-dataflow-celery  
       helm:
         valueFiles:
-          - $values/sensitive-values.yaml
-          - $values/site-config.yaml
+          - $values/environments/dev/sensitive-values.yaml
+          - $values/environments/dev/site-config.yaml
           - ../../values/dataflow-resource-values-clean.yaml
         parameters:
           - name: "global.syncWave"
             value: "4"
           - name: "image.tag"
-            value: "${BACKEND_IMAGE_TAG}"
+            value: "latest"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: ${CODE_BRANCH}
+      targetRevision: GENIE-727/story/gitops-unifai
       path: helm/shared-resources/sso
       helm:
         valueFiles:
-          - $values/sensitive-values.yaml       # SSO secrets
-          - $values/site-config.yaml
+          - $values/environments/dev/sensitive-values.yaml       # SSO secrets
+          - $values/environments/dev/site-config.yaml
           - ../../values/sso-values-clean.yaml
         parameters:
           - name: "global.syncWave"
             value: "4"
           - name: "backend.image.tag"
-            value: "${SSO_IMAGE_TAG}"
+            value: "latest"
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: ${TARGET_NAMESPACE}  # From private config
+    namespace: tag-ai--runtime-int  # Current development namespace
 
   syncPolicy:
     automated:

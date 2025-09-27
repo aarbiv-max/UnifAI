@@ -1,0 +1,60 @@
+# MongoDB Configuration for ArgoCD
+# 
+# ⚠️  IMPORTANT: This file is derived from shared-resource-values.yaml mongodb section
+# 🔗  Source: shared-resource-values.yaml > mongodb: {...}
+# 🔄  To sync: Copy values from shared-resource-values.yaml mongodb section and add required fields below
+#
+# This file contains:
+# 1. Values from shared-resource-values.yaml mongodb section (converted to root level)
+# 2. Additional required fields needed by the MongoDB Helm chart
+
+# === FROM shared-resource-values.yaml mongodb section ===
+image:
+  registry: "images.paas.redhat.com/genie"
+  repository: "mongo"
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 27017
+  headlessServiceSuffix: internal  # Additional field required by chart
+
+env: []  # Explicit empty array to prevent marshaling error
+
+# === ADDITIONAL FIELDS REQUIRED BY MONGODB CHART ===
+fullnameOverride: "mongodb"
+
+# ReplicaSet configuration (required by chart)
+replicaSet:
+  enabled: false  # Single instance mode
+
+# Deployment mode when not using replicaSet (required by chart)
+useDeploymentWhenNonHA: false  # Use StatefulSet even for single instance
+
+# Storage configuration (required for StatefulSet)
+storage:
+  persistentVolumeClaimName:  # Empty - will create dynamic PVC
+  volumeName: "mongodb-volume"
+  requestedSize: 100Gi
+  className: aws-ebs  # Use EBS for MongoDB - WiredTiger requires exclusive file access
+  accessModes:
+    - ReadWriteOnce  # EBS is single-node access
+  keepPvc: true
+  annotations:
+    kubernetes.io/reclaimPolicy: Delete
+  labels:
+    paas.redhat.com/appcode: TAG-001
+
+# Resource limits
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "1"
+  limits:
+    memory: "2Gi"
+    cpu: "2"
+
+# Security context (use chart defaults - empty to let OpenShift assign compliant values)
+podSecurityContext: {}
+
+securityContext: {}

@@ -1,0 +1,46 @@
+# Qdrant Configuration for ArgoCD
+# 
+# ⚠️  IMPORTANT: This file is derived from shared-resource-values.yaml qdrant section
+# 🔗  Source: shared-resource-values.yaml > qdrant: {...}
+# 🔄  To sync: Copy values from shared-resource-values.yaml qdrant section (converted to root level)
+#
+# This file contains values from shared-resource-values.yaml qdrant section converted to root level
+
+# === FROM shared-resource-values.yaml qdrant section ===
+replicaCount: 1
+
+image:
+  registry: "images.paas.redhat.com/genie"
+  repository: "qdrant"
+  pullPolicy: IfNotPresent
+  tag: "stable"
+
+service:
+  type: LoadBalancer
+  port: 6333
+
+resources:
+  limits:
+    cpu: 8
+    memory: 16Gi
+  requests:
+    cpu: 4
+    memory: 12Gi
+
+# === ADDITIONAL FIELDS REQUIRED BY QDRANT CHART ===
+fullnameOverride: "qdrant"
+
+# Storage configuration (consistent with chart defaults)
+storage:
+  volumeName: "unifai-qdrant-volume"
+  requestedSize: 100Gi
+  className: aws-ebs  # Match chart default
+  accessModes:
+    - ReadWriteOnce  # Match chart default
+  keepPvc: true
+  annotations:
+    kubernetes.io/reclaimPolicy: Delete
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+    argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    paas.redhat.com/appcode: TAG-001
