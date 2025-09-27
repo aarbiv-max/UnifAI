@@ -1,17 +1,11 @@
 from global_utils.config.config import SharedConfig
-from pydantic import Field
-from pydantic_settings import SettingsConfigDict
 
 
 class AppConfig(SharedConfig):
     rabbitmq_port: str = "5672"
     rabbitmq_ip: str = "0.0.0.0"
-    # RabbitMQ credentials - mapped to RABBITMQ_USER and RABBITMQ_PASSWORD env vars
-    broker_user_name: str = Field(default="guest", alias="RABBITMQ_USER")
-    broker_password: str = Field(default="guest", alias="RABBITMQ_PASSWORD")
-    
-    # Allow populating fields by alias (environment variable names)
-    model_config = SettingsConfigDict(populate_by_name=True)
+    broker_user_name: str = "guest"
+    broker_password: str = "guest"
 
     mongodb_port: str = "27017"
     mongodb_ip: str = "0.0.0.0"
