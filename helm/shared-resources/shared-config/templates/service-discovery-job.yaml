@@ -113,8 +113,8 @@ spec:
             {{- end }}
 
             echo "=== Discovering RabbitMQ Credentials ==="
-            RABBITMQ_PASSWORD=$(kubectl get secret rabbitmq -o jsonpath='{.data.rabbitmq-password}' | base64 -d || echo "changeme123")
-            RABBITMQ_USER="admin"  # Default RabbitMQ username from chart
+            RABBITMQ_PASSWORD=$(kubectl get secret rabbitmq -o jsonpath='{.data.rabbitmq-password}' | base64 -d || echo "guest")
+            RABBITMQ_USER="guest"  # Standard RabbitMQ guest username
             echo "RabbitMQ - USER: $RABBITMQ_USER, PASSWORD: [REDACTED]"
 
             echo "=== Creating shared-config ConfigMap ==="

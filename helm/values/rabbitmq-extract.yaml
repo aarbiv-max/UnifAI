@@ -21,8 +21,8 @@ fullnameOverride: "rabbitmq"
 
 # Authentication (required by Bitnami RabbitMQ chart)
 auth:
-  username: admin
-  password: changeme123
+  username: guest
+  password: guest
   secretName: ""  # Use generated password
   existingPasswordSecret: ""
   existingSecretPasswordKey: ""
