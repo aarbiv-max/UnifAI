@@ -1,0 +1,10 @@
+# Force test - no conditionals
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shared-config-force-test
+  namespace: {{ .Release.Namespace }}
+  labels:
+    test: force-creation
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"

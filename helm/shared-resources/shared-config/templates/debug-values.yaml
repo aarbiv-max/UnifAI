@@ -1,0 +1,23 @@
+# DEBUG: This file helps debug what values are being passed to templates
+# Remove this file after debugging
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-debug-values
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "shared-config.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+data:
+  # Debug what values are being passed
+  serviceDiscovery-enabled: "{{ .Values.serviceDiscovery.enabled | default "NOT_SET" }}"
+  serviceDiscovery-image-repository: "{{ .Values.serviceDiscovery.image.repository | default "NOT_SET" }}"
+  serviceDiscovery-rbac-create: "{{ .Values.serviceDiscovery.rbac.create | default "NOT_SET" }}"
+  serviceDiscovery-rbac-serviceAccount-create: "{{ .Values.serviceDiscovery.rbac.serviceAccount.create | default "NOT_SET" }}"
+  serviceDiscovery-rbac-serviceAccount-name: "{{ .Values.serviceDiscovery.rbac.serviceAccount.name | default "NOT_SET" }}"
+  global-syncWave: "{{ .Values.global.syncWave | default "NOT_SET" }}"
+  release-name: "{{ .Release.Name }}"
+  release-namespace: "{{ .Release.Namespace }}"
+  # Show if conditional would evaluate to true
+  conditional-check: "{{ if .Values.serviceDiscovery.enabled }}TRUE{{ else }}FALSE{{ end }}"

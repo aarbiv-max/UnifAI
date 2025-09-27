@@ -1,0 +1,47 @@
+# Simplified Job for debugging
+{{- if .Values.serviceDiscovery.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-simple-discovery
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: shared-config
+    component: service-discovery
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/hook: PostSync
+spec:
+  template:
+    metadata:
+      labels:
+        app: shared-config
+        component: service-discovery
+    spec:
+      serviceAccountName: shared-config-discovery-simple
+      restartPolicy: OnFailure
+      containers:
+      - name: service-discovery
+        image: bitnami/kubectl:latest
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            echo "=== Simple Service Discovery Test ==="
+            echo "Release Name: {{ .Release.Name }}"
+            echo "Release Namespace: {{ .Release.Namespace }}"
+            
+            # Simple test - just list services
+            echo "=== Available Services ==="
+            kubectl get services
+            
+            echo "=== Creating test ConfigMap ==="
+            kubectl create configmap shared-config-simple \
+              --from-literal=test="service-discovery-working" \
+              --from-literal=timestamp="$(date)" \
+              --dry-run=client -o yaml | kubectl apply -f -
+            
+            echo "=== ConfigMap Created ==="
+            kubectl get configmap shared-config-simple -o yaml
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+{{- end }}
