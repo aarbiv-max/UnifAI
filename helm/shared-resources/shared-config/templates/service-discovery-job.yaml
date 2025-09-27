@@ -13,7 +13,6 @@ metadata:
     {{- else }}
     argocd.argoproj.io/sync-wave: "3"
     {{- end }}
-    argocd.argoproj.io/hook: PostSync
 spec:
   template:
     metadata:

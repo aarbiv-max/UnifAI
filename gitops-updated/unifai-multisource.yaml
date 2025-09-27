@@ -172,7 +172,7 @@ spec:
           - name: "global.syncWave"
             value: "4"
           - name: "image.tag"
-            value: "latest"  # Backend image tag
+            value: "2025.09.25.1425"  # Working dataflow backend image tag
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai
@@ -186,7 +186,7 @@ spec:
           - name: "global.syncWave"
             value: "4"
           - name: "image.tag"
-            value: "latest"
+            value: "2025.09.25.1425"  # Working dataflow celery image tag
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai
@@ -200,7 +200,7 @@ spec:
           - name: "global.syncWave"
             value: "4"
           - name: "backend.image.tag"
-            value: "latest"
+            value: "2025.09.25.1425"  # Working SSO backend image tag
 
   destination:
     server: https://kubernetes.default.svc
