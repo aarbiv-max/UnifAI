@@ -133,6 +133,14 @@ spec:
         parameters:
           - name: "global.syncWave"
             value: "2"
+          - name: "auth.existingPasswordSecret"
+            value: "rabbitmq-static-creds"
+          - name: "auth.existingSecretPasswordKey" 
+            value: "rabbitmq-password"
+          - name: "auth.existingErlangSecret"
+            value: "rabbitmq-static-creds"
+          - name: "auth.existingSecretErlangKey"
+            value: "rabbitmq-erlang-cookie"
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai

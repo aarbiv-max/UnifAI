@@ -20,13 +20,14 @@ service:
 fullnameOverride: "rabbitmq"
 
 # Authentication (required by Bitnami RabbitMQ chart)
+# Note: Actual auth values come from private repository (sensitive-values.yaml)
 auth:
   username: guest
   password: guest
   secretName: ""  # Use generated password
   existingPasswordSecret: ""
   existingSecretPasswordKey: ""
-  erlangCookie: ""
+  # erlangCookie: ""  # Removed to avoid overriding private repo values
   existingErlangSecret: ""
   existingSecretErlangKey: ""
 

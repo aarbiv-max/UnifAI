@@ -26,7 +26,7 @@ serviceDiscovery:
   job:
     restartPolicy: OnFailure
     backoffLimit: 3
-    ttlSecondsAfterFinished: 300  # Clean up job after 5 minutes
+    ttlSecondsAfterFinished: null  # Disabled: Prevents ArgoCD recreation loop
     
   # RBAC - namespace-scoped permissions (no cluster-admin required)
   rbac:

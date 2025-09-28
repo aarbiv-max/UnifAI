@@ -147,5 +147,7 @@ spec:
             
             echo "Service discovery completed!"
   backoffLimit: {{ .Values.serviceDiscovery.job.backoffLimit }}
+  {{- if .Values.serviceDiscovery.job.ttlSecondsAfterFinished }}
   ttlSecondsAfterFinished: {{ .Values.serviceDiscovery.job.ttlSecondsAfterFinished }}
+  {{- end }}
 {{- end }}
