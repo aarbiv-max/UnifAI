@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-service-discovery
+  name: {{ include "shared-config.fullname" . }}-service-discovery
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "shared-config.labels" . | nindent 4 }}
