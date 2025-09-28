@@ -135,7 +135,6 @@ spec:
                 name: {{ include "shared-config.fullname" . }}-service-discovery
                 uid: $JOB_UID
                 controller: true
-                blockOwnerDeletion: true
             data:
               {{- if .Values.serviceDiscovery.services.mongodb.enabled }}
               MONGO_EXT_ADDR: "$MONGODB_ADDR"
