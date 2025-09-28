@@ -22,7 +22,7 @@ spec:
         job-type: cleanup
     spec:
       restartPolicy: OnFailure
-      serviceAccountName: {{ include "shared-config.serviceAccountName" . }}
+      serviceAccountName: {{ .Values.serviceDiscovery.rbac.serviceAccount.name }}
       containers:
         - name: cleanup
           image: bitnami/kubectl:latest
