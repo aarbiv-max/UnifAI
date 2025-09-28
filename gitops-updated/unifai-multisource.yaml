@@ -152,8 +152,6 @@ spec:
       path: helm/shared-resources/shared-config
       helm:
         valueFiles:
-          - $values/environments/dev/sensitive-values.yaml       # RabbitMQ credentials
-          - $values/environments/dev/site-config.yaml            # Infrastructure settings
           - ../../values/shared-config-extract-clean.yaml
         parameters:
           - name: "global.syncWave"
