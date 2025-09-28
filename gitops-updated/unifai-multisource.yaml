@@ -214,12 +214,14 @@ spec:
 
   syncPolicy:
     automated:
-      prune: false  # Don't auto-delete resources  
+      prune: true  # Enable automatic pruning of orphaned resources
       selfHeal: true
     syncOptions:
     - CreateNamespace=false
     - RespectIgnoreDifferences=true
     - ApplyOutOfSyncOnly=true
+    - PrunePropagationPolicy=foreground  # Ensure proper deletion order
+    - PruneLast=true  # Prune after all other resources are synced
     retry:
       limit: 5
       backoff:

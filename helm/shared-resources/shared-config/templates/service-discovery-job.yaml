@@ -116,31 +116,48 @@ spec:
             RABBITMQ_USER="guest"  # Standard RabbitMQ guest username
             echo "RabbitMQ - USER: $RABBITMQ_USER, PASSWORD: [REDACTED]"
 
-            echo "=== Creating shared-config ConfigMap ==="
+            echo "=== Creating shared-config ConfigMap with Owner Reference ==="
             kubectl delete configmap {{ .Values.serviceDiscovery.configMapName }} --ignore-not-found=true
+            
+            # Get current job UID for owner reference
+            JOB_UID=$(kubectl get job {{ include "shared-config.fullname" . }}-service-discovery -o jsonpath='{.metadata.uid}')
 
-            kubectl create configmap {{ .Values.serviceDiscovery.configMapName }} \
+            # Create ConfigMap YAML with owner reference
+            cat <<EOF | kubectl apply -f -
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: {{ .Values.serviceDiscovery.configMapName }}
+              namespace: {{ .Release.Namespace }}
+              ownerReferences:
+              - apiVersion: batch/v1
+                kind: Job
+                name: {{ include "shared-config.fullname" . }}-service-discovery
+                uid: $JOB_UID
+                controller: true
+                blockOwnerDeletion: true
+            data:
               {{- if .Values.serviceDiscovery.services.mongodb.enabled }}
-              --from-literal=MONGO_EXT_ADDR="$MONGODB_ADDR" \
-              --from-literal=MONGODB_PORT="$MONGO_PORT" \
-              --from-literal=MONGODB_IP="$MONGO_IP" \
+              MONGO_EXT_ADDR: "$MONGODB_ADDR"
+              MONGODB_PORT: "$MONGO_PORT"
+              MONGODB_IP: "$MONGO_IP"
               {{- end }}
               {{- if .Values.serviceDiscovery.services.rabbitmq.enabled }}
-              --from-literal=RABBITMQ_EXT_ADDR="$RABBITMQ_ADDR" \
-              --from-literal=RABBITMQ_PORT="$RMQ_PORT" \
-              --from-literal=RABBITMQ_IP="$RMQ_IP" \
-              --from-literal=RABBITMQ_USER="$RABBITMQ_USER" \
-              --from-literal=RABBITMQ_PASSWORD="$RABBITMQ_PASSWORD" \
+              RABBITMQ_EXT_ADDR: "$RABBITMQ_ADDR"
+              RABBITMQ_PORT: "$RMQ_PORT"
+              RABBITMQ_IP: "$RMQ_IP"
+              RABBITMQ_USER: "$RABBITMQ_USER"
+              RABBITMQ_PASSWORD: "$RABBITMQ_PASSWORD"
               {{- end }}
               {{- if .Values.serviceDiscovery.services.qdrant.enabled }}
-              --from-literal=QDRANT_EXT_ADDR="$QDRANT_ADDR" \
+              QDRANT_EXT_ADDR: "$QDRANT_ADDR"
               {{- end }}
               {{- if .Values.serviceDiscovery.services.docling.enabled }}
-              --from-literal=DOCLING_EXT_ADDR="$DOCLING_ADDR" \
-              --from-literal=DOCLING_PORT="$DOCLING_PORT" \
-              --from-literal=DOCLING_IP="$DOCLING_IP" \
+              DOCLING_EXT_ADDR: "$DOCLING_ADDR"
+              DOCLING_PORT: "$DOCLING_PORT"
+              DOCLING_IP: "$DOCLING_IP"
               {{- end }}
-              --dry-run=client -o yaml | kubectl apply -f -
+            EOF
 
             echo "=== ConfigMap created successfully ==="
             kubectl get configmap {{ .Values.serviceDiscovery.configMapName }} -o yaml

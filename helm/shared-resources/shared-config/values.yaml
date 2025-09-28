@@ -40,3 +40,9 @@ serviceDiscovery:
   
   # Wait timeout (in seconds) for services to be ready  
   waitTimeout: 600
+
+# Cleanup configuration - ensures proper resource lifecycle management
+cleanup:
+  enabled: true
+  job:
+    backoffLimit: 3
