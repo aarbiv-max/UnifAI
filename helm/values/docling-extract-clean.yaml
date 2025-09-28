@@ -26,9 +26,9 @@ fullnameOverride: "docling-serve"
 storage:
   volumeName: "unifai-docling-volume"
   requestedSize: 20Gi
-  className: aws-ebs  # Match chart default
+  className: aws-efs-tier-c1  # Changed to fix WaitForFirstConsumer issue
   accessModes:
-    - ReadWriteOnce  # Match chart default
+    - ReadWriteMany  # EFS compatibility
   keepPvc: true
   annotations:
     kubernetes.io/reclaimPolicy: Delete
