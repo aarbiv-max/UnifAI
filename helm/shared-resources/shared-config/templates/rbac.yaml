@@ -15,6 +15,10 @@ metadata:
     {{- end }}
 rules:
 # Read services to get their IPs and ports
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list"]
+
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["get", "list", "watch"]
