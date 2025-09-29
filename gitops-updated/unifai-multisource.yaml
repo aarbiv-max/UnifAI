@@ -147,9 +147,9 @@ spec:
       path: helm/shared-resources/docling
       helm:
         valueFiles:
+          - ../../values/docling-extract-clean.yaml
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
-          - ../../values/docling-extract-clean.yaml
         parameters:
           - name: "global.syncWave"
             value: "2"
@@ -171,9 +171,9 @@ spec:
       path: helm/dataflow/unifai-dataflow-server
       helm:
         valueFiles:
+          - ../../values/dataflow-resource-values-clean.yaml
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
-          - ../../values/dataflow-resource-values-clean.yaml
         parameters:
           - name: "global.syncWave"
             value: "4"
@@ -185,9 +185,9 @@ spec:
       path: helm/dataflow/unifai-dataflow-celery  
       helm:
         valueFiles:
+          - ../../values/dataflow-resource-values-clean.yaml
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
-          - ../../values/dataflow-resource-values-clean.yaml
         parameters:
           - name: "global.syncWave"
             value: "4"
