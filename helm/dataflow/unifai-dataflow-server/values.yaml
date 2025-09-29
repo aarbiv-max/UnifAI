@@ -105,12 +105,16 @@ livenessProbe:
   httpGet:
     path: /api/health/
     port: 13456
-    periodSeconds: 60
+  periodSeconds: 60  # ✅ FIXED: Moved periodSeconds to probe level (not inside httpGet)
+  timeoutSeconds: 5
+  failureThreshold: 3
 readinessProbe:
   httpGet:
     path: /api/health/
     port: 13456
-    periodSeconds: 60
+  periodSeconds: 60  # ✅ FIXED: Moved periodSeconds to probe level (not inside httpGet)
+  timeoutSeconds: 5
+  failureThreshold: 3
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
