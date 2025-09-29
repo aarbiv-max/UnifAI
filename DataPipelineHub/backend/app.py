@@ -23,7 +23,7 @@ config = AppConfig.get_instance()
 app.secret_key = config.get('secret_key', os.urandom(24))
 
 # Configure CORS to allow credentials
-CORS(app, supports_credentials=True, origins=os.environ.get("FRONTEND_URL", "http://localhost:5000"))
+CORS(app, supports_credentials=True, origins=os.environ.get("FRONTEND_URL", "http://127.0.0.1:5000"))
 
 # init_flask_logger('access.log')
 # app.config['result_backend'] = config_params.MONGODB_URL

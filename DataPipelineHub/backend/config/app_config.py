@@ -10,7 +10,7 @@ class AppConfig(SharedConfig):
     mongodb_port: str = "27017"
     mongodb_ip: str = "0.0.0.0"
 
-    hostname_local: str = "0.0.0.0"
+    hostname_local: str = "127.0.0.1"
     port: str = "13456"
 
     qdrant_ip: str = "0.0.0.0"
@@ -29,7 +29,7 @@ class AppConfig(SharedConfig):
     # Flask Configuration
     # secret_key=your-super-secret-key-change-this-in-production
 
-    frontend_url: str = "http://localhost:5000"
+    frontend_url: str = "http://127.0.0.1:5000"
     upload_folder: str = "/app/shared"
     # session_cookie_secure=True
     backend_env: str = "development"
