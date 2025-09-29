@@ -83,14 +83,14 @@ spec:
     
     # Wave 1: Storage - Deploy first  
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-      targetRevision: GENIE-727/story/gitops-unifai  # Current branch
+      targetRevision: GENIE-727/story/gitops-unifai  # NOTE: Could be made dynamic via ApplicationSet
       path: helm/shared-resources/unifai-dataflow-shared-storage
       helm:
         valueFiles:
           - $values/environments/dev/sensitive-values.yaml       # From private repo
           - $values/environments/dev/site-config.yaml            # From private repo  
-          - ../../values/shared-resource-values.yaml  # From main repo
-          - ../../values/global-config-clean.yaml     # Cleaned version
+          - $values/environments/dev/values/shared-resources.values.yaml  # From private repo
+          - $values/environments/dev/values/global.values.yaml     # From private repo
         parameters:
           - name: "global.syncWave"
             value: "1"
@@ -105,7 +105,7 @@ spec:
         valueFiles:
           - $values/environments/dev/sensitive-values.yaml       # Passwords, etc.
           - $values/environments/dev/site-config.yaml            # Resources, infrastructure
-          - ../../values/mongodb-extract-clean.yaml  # Clean template
+          - $values/environments/dev/values/mongodb.values.yaml  # From private repo
         parameters:
           - name: "global.syncWave"
             value: "2"
@@ -117,7 +117,7 @@ spec:
         valueFiles:
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
-          - ../../values/qdrant-extract-clean.yaml
+          - $values/environments/dev/values/qdrant.values.yaml
         parameters:
           - name: "global.syncWave"
             value: "2"
@@ -129,25 +129,18 @@ spec:
         valueFiles:
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
-          - ../../values/rabbitmq-extract-clean.yaml
+          - $values/environments/dev/values/rabbitmq.values.yaml
         parameters:
           - name: "global.syncWave"
             value: "2"
-          - name: "auth.existingPasswordSecret"
-            value: "rabbitmq-static-creds"
-          - name: "auth.existingSecretPasswordKey" 
-            value: "rabbitmq-password"
-          - name: "auth.existingErlangSecret"
-            value: "rabbitmq-static-creds"
-          - name: "auth.existingSecretErlangKey"
-            value: "rabbitmq-erlang-cookie"
+          # RabbitMQ auth parameters now come from private repo auth section
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai
       path: helm/shared-resources/docling
       helm:
         valueFiles:
-          - ../../values/docling-extract-clean.yaml
+          - $values/environments/dev/values/docling.values.yaml
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
         parameters:
@@ -160,7 +153,7 @@ spec:
       path: helm/shared-resources/shared-config
       helm:
         valueFiles:
-          - ../../values/shared-config-extract-clean.yaml
+          - $values/environments/dev/values/shared-config.values.yaml
         parameters:
           - name: "global.syncWave"
             value: "3"
@@ -171,28 +164,26 @@ spec:
       path: helm/dataflow/unifai-dataflow-server
       helm:
         valueFiles:
-          - ../../values/dataflow-resource-values-clean.yaml
+          - $values/environments/dev/values/dataflow.values.yaml
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
         parameters:
           - name: "global.syncWave"
             value: "4"
-          - name: "image.tag"
-            value: "2025.09.25.1425"  # Working dataflow backend image tag
+          # image.tag now comes from deployment.images.backend in private repo site-config.yaml
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai
       path: helm/dataflow/unifai-dataflow-celery  
       helm:
         valueFiles:
-          - ../../values/dataflow-resource-values-clean.yaml
+          - $values/environments/dev/values/dataflow.values.yaml
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
         parameters:
           - name: "global.syncWave"
             value: "4"
-          - name: "image.tag"
-            value: "2025.09.25.1425"  # Working dataflow celery image tag
+          # image.tag now comes from deployment.images.backend in private repo site-config.yaml
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai
@@ -201,12 +192,11 @@ spec:
         valueFiles:
           - $values/environments/dev/sensitive-values.yaml       # SSO secrets
           - $values/environments/dev/site-config.yaml
-          - ../../values/sso-values-clean.yaml
+          - $values/environments/dev/values/sso.values.yaml
         parameters:
           - name: "global.syncWave"
             value: "4"
-          - name: "backend.image.tag"
-            value: "2025.09.25.1425"  # Working SSO backend image tag
+          # backend.image.tag now comes from deployment.images.sso in private repo site-config.yaml
 
   destination:
     server: https://kubernetes.default.svc
