@@ -55,7 +55,7 @@ stringData:
 #     -----END OPENSSH PRIVATE KEY-----
 
 ---
-# Multi-source ArgoCD Application
+# Multi-source ArgoCD Application - DEVELOPMENT
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -88,7 +88,7 @@ spec:
       helm:
         valueFiles:
           - $values/environments/dev/sensitive-values.yaml       # From private repo
-          - $values/environments/dev/site-config.yaml            # From private repo  
+          - $values/environments/dev/site-config.yaml            # From private repo (only referenced data)  
           - $values/environments/dev/values/shared-resources.values.yaml  # From private repo
           - $values/environments/dev/values/global.values.yaml     # From private repo
         parameters:
@@ -164,7 +164,7 @@ spec:
       path: helm/dataflow/unifai-dataflow-server
       helm:
         valueFiles:
-          - $values/environments/dev/values/dataflow.values.yaml
+          - $values/environments/dev/values/dataflow.backend.values.yaml  # ✅ FIXED: Use backend-specific file
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
         parameters:
@@ -177,7 +177,7 @@ spec:
       path: helm/dataflow/unifai-dataflow-celery  
       helm:
         valueFiles:
-          - $values/environments/dev/values/dataflow.values.yaml
+          - $values/environments/dev/values/dataflow.celery.values.yaml  # ✅ FIXED: Use celery-specific file
           - $values/environments/dev/sensitive-values.yaml
           - $values/environments/dev/site-config.yaml
         parameters:
@@ -204,20 +204,19 @@ spec:
 
   syncPolicy:
     automated:
-      prune: true  # Enable automatic pruning of orphaned resources
-      selfHeal: true
+      prune: false  # ✅ Safe pruning
+      selfHeal: true   # ✅ Re-enable now that service discovery is disabled
     syncOptions:
     - CreateNamespace=false
     - RespectIgnoreDifferences=true
     - ApplyOutOfSyncOnly=true
-    - PrunePropagationPolicy=foreground  # Ensure proper deletion order
-    - PruneLast=true  # Prune after all other resources are synced
+    - ServerSideApply=true  # ✅ FIXED: Add server-side apply for better conflict resolution
     retry:
-      limit: 5
+      limit: 2  # ✅ FIXED: Reduce retries to prevent multiple sync appearance
       backoff:
-        duration: 15s
+        duration: 30s  # ✅ FIXED: Longer delays to prevent sync conflicts
         factor: 2
-        maxDuration: 5m
+        maxDuration: 10m  # ✅ FIXED: Longer max duration
 
   ignoreDifferences:
   - group: ""
@@ -225,6 +224,7 @@ spec:
     jsonPointers:
     - /spec/resources/requests/storage
     - /metadata/finalizers
+    - /spec/finalizers  # ✅ FIXED: Ignore spec.finalizers field causing schema conflicts
   - group: apps
     kind: StatefulSet
     jsonPointers:
@@ -233,3 +233,11 @@ spec:
     kind: Deployment
     jsonPointers:
     - /spec/replicas
+    - /spec/template/spec/containers/*/readinessProbe/httpGet/periodSeconds  # ✅ FIXED: Ignore probe schema issues
+    - /spec/template/spec/containers/*/livenessProbe/httpGet/periodSeconds   # ✅ FIXED: Ignore probe schema issues
+  - group: batch
+    kind: Job
+    jsonPointers:
+    - /status  # ✅ FIXED: Ignore job status changes to prevent sync loops
+    - /spec/activeDeadlineSeconds
+    - /spec/backoffLimit
