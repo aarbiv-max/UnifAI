@@ -170,7 +170,6 @@ spec:
         parameters:
           - name: "global.syncWave"
             value: "4"
-          # image.tag now comes from deployment.images.backend in private repo site-config.yaml
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai
@@ -183,14 +182,13 @@ spec:
         parameters:
           - name: "global.syncWave"
             value: "4"
-          # image.tag now comes from deployment.images.backend in private repo site-config.yaml
     
     - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
       targetRevision: GENIE-727/story/gitops-unifai
       path: helm/shared-resources/sso
       helm:
         valueFiles:
-          - $values/environments/dev/sensitive-values.yaml       # SSO secrets
+          - $values/environments/dev/sensitive-values.yaml       
           - $values/environments/dev/site-config.yaml
           - $values/environments/dev/values/sso.values.yaml
         parameters:
@@ -202,7 +200,7 @@ spec:
       path: helm/multiagent/be
       helm:
         valueFiles:
-          - $values/environments/dev/sensitive-values.yaml       # SSO secrets
+          - $values/environments/dev/sensitive-values.yaml       
           - $values/environments/dev/site-config.yaml
           - $values/environments/dev/values/multiagent.values.yaml
         parameters:
@@ -220,30 +218,17 @@ spec:
           - name: "global.syncWave"
             value: "5"
     
-              #- repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-              #targetRevision: GENIE-727/story/gitops-unifai
-              #path: helm/multiagent/be
-              #helm:
-              #valueFiles:
-          #- $values/environments/dev/sensitive-values.yaml       # SSO secrets
-          #- $values/environments/dev/site-config.yaml
-          #- $values/environments/dev/values/multiagent.values.yaml
-          #parameters:
-          #- name: "global.syncWave"
-          #value: "4"
-    
-              #- repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
-              #targetRevision: GENIE-727/story/gitops-unifai
-              ##path: helm/ui
-              #helm:
-              #valueFiles:
-              #- $values/environments/dev/sensitive-values.yaml       # SSO secrets
-              #- $values/environments/dev/site-config.yaml
-              #- $values/environments/dev/values/ui.values.yaml
-              #parameters:
-              #- name: "global.syncWave"
-              #value: "5"
-          # backend.image.tag now comes from deployment.images.sso in private repo site-config.yaml
+    - repoURL: https://gitlab.cee.redhat.com/ai_tools/unifai.git
+      targetRevision: GENIE-727/story/gitops-unifai
+      path: helm/ui
+      helm:
+        valueFiles:
+           - $values/environments/dev/sensitive-values.yaml       # SSO secrets
+           - $values/environments/dev/site-config.yaml
+           - $values/environments/dev/values/ui.values.yaml
+        parameters:
+           - name: "global.syncWave"
+             value: "6"
 
   destination:
     server: https://kubernetes.default.svc
