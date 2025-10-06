@@ -6,9 +6,9 @@
 model:
   name: "ibm-granite/granite-4.0-h-small"
   localModelPath: "/models/.cache/models--ibm-granite-granite-4.0-h-small"
-  maxModelLen: "64000"  # Increased context with 2x GPU memory (80GB total)
+  maxModelLen: "64000"  # Conservative context length for stable performance on 2x A100-40GB
   quantization: ""  # No quantization - not compatible with tensor parallelism
-  toolCallParser: "granite"  # Granite has enhanced tool calling capabilities
+  toolCallParser: "hermes"  # Use hermes parser (works well with many models)
   # Force download in initContainer to ensure model is cached
   forceDownload: true
   # Custom arguments optimized for Granite 4.0 H Small MoE architecture on 2-GPU setup
@@ -17,7 +17,7 @@ model:
     - "--disable-log-stats"  # Reduce logging overhead
     - "--enforce-eager"  # Disable CUDA graphs for compatibility
     - "--enable-chunked-prefill"  # Optimize for long context processing
-    - "--max-num-seqs=8"  # Higher concurrency with 2x GPU memory
+    - "--max-num-seqs=6"  # Balanced concurrency for 64K context
 
 # Granite 4.0 H Small specific resource requirements  
 # 32B total params but 9B active due to MoE - optimized for 2x 40GB GPUs
@@ -37,7 +37,7 @@ gpu:
 
 vllm:
   # vLLM settings optimized for Granite 4.0 H Small MoE architecture on 2x 40GB GPUs
-  gpuMemoryUtilization: "0.85"  # Conservative utilization without quantization
+  gpuMemoryUtilization: "0.85"  # Conservative utilization for 64K context
   tensorParallelSize: "2"  # 2-way tensor parallelism across 2 GPUs
   enableAutoToolChoice: true  # Granite has enhanced tool calling
   disableLogRequests: false  # Keep logging for debugging initially
@@ -75,7 +75,7 @@ env:
 # Volume configuration - only overrides for Granite model storage
 volumes:
   modelCache:
-    size: "100Gi"  # Large storage for 32B model and cache
+    size: "150Gi"  # Extra large storage for 32B model and cache
 
 # Node affinity to ensure deployment on appropriate GPU nodes
 affinity:
@@ -100,8 +100,27 @@ affinity:
           - p4de.24xlarge # AWS instance with 8x A100 80GB
           - p5.48xlarge   # H100 instances
 
-# Additional tolerations for high-memory GPU configurations  
+# Tolerations required for GPU tenant access
 tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+  - key: tenant
+    operator: Equal
+    value: rh-jarvis-ai-a100
+    effect: NoSchedule
+  - key: tenant
+    operator: Equal
+    value: llmaas-a100
+    effect: NoSchedule
+  - key: tenant
+    operator: Equal
+    value: rh-jarvis-ai
+    effect: NoSchedule
+  - key: tenant
+    operator: Equal
+    value: llmaas
+    effect: NoSchedule
   - key: high-memory-gpu
     operator: Equal
     value: "true"

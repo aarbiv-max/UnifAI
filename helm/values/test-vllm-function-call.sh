@@ -259,7 +259,7 @@ EOF
         echo "$content"
         
         # Extract function details from Granite's format
-        if echo "$content" | grep -q '"name".*"get_current_weather"'; then
+       if echo "$content" | grep -q '"name".*"get_current_weather"'; then
             log_success "🔧 Weather function call detected in Granite format"
         fi
         if echo "$content" | grep -q '"city".*"Boston"'; then
