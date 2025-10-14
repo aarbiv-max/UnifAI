@@ -111,6 +111,13 @@ spec:
             echo "Docling - ADDR: $DOCLING_ADDR, PORT: $DOCLING_PORT, IP: $DOCLING_IP"
             {{- end }}
 
+            {{- if .Values.serviceDiscovery.services.dataflow.enabled }}
+            echo "Discovering Dataflow service info..."
+            DATAFLOW_PORT=$(wait_for_port {{ .Values.serviceDiscovery.services.dataflow.serviceName }})
+            DATAFLOW_IP=$(wait_for_service_name {{ .Values.serviceDiscovery.services.dataflow.serviceName }})
+            echo "Dataflow - PORT: $DATAFLOW_PORT, IP: $DATAFLOW_IP"
+            {{- end }}
+
             echo "=== Discovering RabbitMQ Credentials ==="
             RABBITMQ_PASSWORD=$(kubectl get secret rabbitmq -o jsonpath='{.data.rabbitmq-password}' | base64 -d || echo "guest")
             RABBITMQ_USER="guest"  # Standard RabbitMQ guest username
@@ -155,6 +162,10 @@ spec:
               DOCLING_EXT_ADDR: "$DOCLING_ADDR"
               DOCLING_PORT: "$DOCLING_PORT"
               DOCLING_IP: "$DOCLING_IP"
+              {{- end }}
+              {{- if .Values.serviceDiscovery.services.dataflow.enabled }}
+              DATAFLOW_PORT: "$DATAFLOW_PORT"
+              DATAFLOW_IP: "$DATAFLOW_IP"
               {{- end }}
             EOF
 
