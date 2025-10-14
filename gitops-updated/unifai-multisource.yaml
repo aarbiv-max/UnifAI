@@ -256,7 +256,6 @@ spec:
     jsonPointers:
     - /spec/resources/requests/storage
     - /metadata/finalizers
-    - /spec/finalizers  # ✅ FIXED: Ignore spec.finalizers field causing schema conflicts
   - group: apps
     kind: StatefulSet
     jsonPointers:

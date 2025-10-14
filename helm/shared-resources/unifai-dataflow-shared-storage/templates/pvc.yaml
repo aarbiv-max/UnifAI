@@ -20,10 +20,6 @@ metadata:
       {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  {{- if .Values.storage.keepPvc }}
-  finalizers:
-    - kubernetes.io/pvc-protection          
-  {{- end }}
   {{- with .Values.storage }}
   accessModes:
     {{- toYaml .accessModes | nindent 4 }}
