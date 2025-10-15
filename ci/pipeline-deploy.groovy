@@ -84,6 +84,10 @@ def updateValuesYaml(String filePath , String version) {
                 sectionData.image.tag = version
                 echo "🏷 Updated image tag : ${sectionData.image.tag}"
             }
+            if (sectionData.env?.VERSION == '') {
+                sectionData.env.VERSION = version
+                echo "🏷 Updated VERSION: ${sectionData.env.VERSION}"
+            }
 
             if (params.deploy_location == 'PRODUCTION') {
 

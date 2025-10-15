@@ -3,13 +3,13 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { FaSearch, FaBell, FaQuestionCircle, FaPlus, FaBars, FaMoon, FaSun, FaSignOutAlt, FaShare } from "react-icons/fa";
+import { FaSearch, FaBell, FaInfoCircle, FaPlus, FaBars, FaMoon, FaSun, FaSignOutAlt, FaShare } from "react-icons/fa";
 import { FaShareNodes } from "react-icons/fa6";
-import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import NotificationPanel from "@/components/shared/NotificationPanel";
 import SharedPanel from "@/components/shared/SharedPanel";
+import HelpPanel from "@/components/shared/HelpPanel";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -22,6 +22,7 @@ interface HeaderProps {
 
 export default function Header({ title, onToggleSidebar }: HeaderProps) {
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
+  const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
   const { theme, toggleTheme, primaryHex, setPrimaryHex } = useTheme();
   const { user, logout } = useAuth();
   const { hasUnreadNotifications, pendingNotificationsCount } = useNotifications();
@@ -45,13 +46,13 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
   return (
     <header className="h-16 bg-background-surface border-b border-gray-800 flex items-center justify-between px-6 py-2">
       <div className="flex items-center">
-        <button 
+        <button
           onClick={onToggleSidebar}
           className="mr-4 md:hidden text-gray-400 hover:text-gray-800 dark:hover:text-white"
         >
           <FaBars size={18} />
         </button>
-        <motion.h1 
+        <motion.h1
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -66,7 +67,7 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
             <FaSearch />
           </button>
         </SimpleTooltip>
-        
+
         {/* Color picker (dropdown) */}
         <div className="mr-2 w-19">
           <Select value={primaryHex} onValueChange={(value) => setPrimaryHex(value)}>
@@ -89,7 +90,7 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
 
         <div className="relative">
           <SimpleTooltip content={<p>Shared System</p>}>
-            <button 
+            <button
               onClick={() => openSharedPanel('list')}
               className="p-2 rounded-full hover:bg-background-card text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors"
             >
@@ -103,16 +104,16 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
             onClose={closeSharedPanel}
           />
         </div>
-        
+
         <div className="relative">
           <SimpleTooltip content={<p>Notifications{hasUnreadNotifications ? ` (${pendingNotificationsCount})` : ''}</p>}>
-            <button 
+            <button
               onClick={() => setIsNotificationPanelOpen(!isNotificationPanelOpen)}
               className="p-2 rounded-full hover:bg-background-card text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors relative"
             >
               <FaBell />
               {hasUnreadNotifications && (
-                <motion.span 
+                <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500"
@@ -122,20 +123,37 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
           </SimpleTooltip>
           
           {/* Notification Panel */}
-          <NotificationPanel 
+          <NotificationPanel
             isOpen={isNotificationPanelOpen}
             onClose={() => setIsNotificationPanelOpen(false)}
           />
         </div>
-        
-        <SimpleTooltip content={<p>Help</p>}>
-          <button className="p-2 rounded-full hover:bg-background-card text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors">
-            <FaQuestionCircle />
-          </button>
-        </SimpleTooltip>
-        
-        <SimpleTooltip content={<p>{theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}</p>}>
-          <button 
+
+        {/* Help Button */}
+        <div className="relative">
+          <SimpleTooltip content={<p>Help</p>}>
+            <button
+              onClick={() => setIsHelpPanelOpen(!isHelpPanelOpen)}
+              className="p-2 rounded-full hover:bg-background-card text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors"
+            >
+              <FaInfoCircle />
+            </button>
+          </SimpleTooltip>
+          <HelpPanel
+            isOpen={isHelpPanelOpen}
+            onClose={() => setIsHelpPanelOpen(false)}
+          />
+        </div>
+
+        {/* Theme Switch */}
+        <SimpleTooltip
+          content={
+            <p>
+              {theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            </p>
+          }
+        >
+          <button
             onClick={toggleTheme}
             className="p-2 rounded-full hover:bg-background-card text-gray-400 hover:text-gray-800 dark:hover:text-white transition-colors"
           >
@@ -153,26 +171,26 @@ export default function Header({ title, onToggleSidebar }: HeaderProps) {
               <span className="text-sm font-medium text-white">{getInitials(user?.name || '')}</span>
             </div>
             
-              <motion.div 
-                initial={false}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2 }}
-                className="flex-grow"
-              >
-                <h4 className="text-sm font-medium">{user?.name}</h4>
-              </motion.div>
+            <motion.div
+              initial={false}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
+              className="flex-grow"
+            >
+              <h4 className="text-sm font-medium">{user?.name}</h4>
+            </motion.div>
             
-              <motion.div
-                initial={false}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2 }}
-              >
-                <SimpleTooltip content={<p>Sign out</p>}>
-                  <button className="mt-2 text-gray-400 hover:text-white">
-                    <FaSignOutAlt />
-                  </button>
-                </SimpleTooltip>
-              </motion.div>
+            <motion.div
+              initial={false}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
+            >
+              <SimpleTooltip content={<p>Sign out</p>}>
+                <button className="mt-2 text-gray-400 hover:text-white">
+                  <FaSignOutAlt />
+                </button>
+              </SimpleTooltip>
+            </motion.div>
             
           </div>
         </div>

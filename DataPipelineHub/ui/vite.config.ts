@@ -46,6 +46,7 @@ export default defineConfig({
       // You can add more proxies here if needed
     }
   },
+
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),

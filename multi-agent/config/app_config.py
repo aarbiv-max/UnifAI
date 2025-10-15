@@ -9,6 +9,7 @@ class AppConfig(SharedConfig):
     shares_coll: str = "shares"
     hostname: str = "0.0.0.0"
     port: str = "8002"
+    version: str = "1.0.0"
 
     # Engine
     engine_name: str = "langgraph"
