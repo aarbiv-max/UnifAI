@@ -9,13 +9,14 @@ import { useTheme } from "@/contexts/ThemeContext";
 interface PipelineInfoCardsProps {
   metrics?: PipelineMetrics;
   activePipelines?: ActivePipeline[];
+  pendingCount?: number;
   showProcessing?: boolean;
   showConnected?: boolean;
   showActive?: boolean;
   showLastSync?: boolean;
 }
 
-export function PipelineInfoCards({ metrics, activePipelines = [], showProcessing = true, showConnected = true, showActive = true, showLastSync = false }: PipelineInfoCardsProps) {
+export function PipelineInfoCards({ metrics, activePipelines = [], pendingCount = 0, showProcessing = true, showConnected = true, showActive = true, showLastSync = false }: PipelineInfoCardsProps) {
   const ProcessingStatsCard = () => (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
       <Card className="rounded-xl border-0">
@@ -37,6 +38,10 @@ export function PipelineInfoCards({ metrics, activePipelines = [], showProcessin
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide">Active Pipelines</p>
               <p className="text-xl font-bold text-white">{metrics?.activePipelines || 0}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">Pending Pipelines</p>
+              <p className="text-xl font-bold text-white">{pendingCount || 0}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wide">Total Pipelines</p>

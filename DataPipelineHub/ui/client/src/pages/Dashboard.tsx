@@ -17,7 +17,7 @@ import DataSourceStats from "@/components/dashboard/DataSourceStats";
 import { PipelineInfoCards } from "@/components/dashboard/PipelineInfoCards";
 import GlassPanel from "@/components/ui/GlassPanel";
 import { useQuery } from "@tanstack/react-query";
-import { fetchActivePipelines, fetchPipelineMetrics, fetchConnectedSources, fetchQdrantChunksCounts } from "@/api/pipelines";
+import { fetchActivePipelines, fetchPipelineMetrics, fetchConnectedSources, fetchQdrantChunksCounts, fetchPendingPipelinesCount } from "@/api/pipelines";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
 import { PieChart, Pie, Cell } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,6 +80,14 @@ export default function Dashboard() {
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
   });
+
+  const { data: pendingCount } = useQuery({
+    queryKey: ['pendingPipelinesCount'],
+    queryFn: fetchPendingPipelinesCount,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+  });
+  
   const qSlack = chunkCounts?.slack ?? 0;
   const qDocs = chunkCounts?.document ?? 0;
   const qTotal = Math.max(qSlack + qDocs, 1);
@@ -119,7 +127,7 @@ export default function Dashboard() {
             className="mb-6 grid grid-cols-1 xl:grid-cols-3 gap-6"
           >
             <GlassPanel className="h-full">
-              <PipelineInfoCards metrics={metrics} activePipelines={activePipelines} showProcessing showConnected={false} showActive={false} />
+              <PipelineInfoCards metrics={metrics} activePipelines={activePipelines} pendingCount={pendingCount?.pending_count} showProcessing showConnected={false} showActive={false} />
             </GlassPanel>
             <GlassPanel className="h-full">
               <PipelineInfoCards metrics={metrics} activePipelines={activePipelines} showProcessing={false} showConnected showActive={false} />

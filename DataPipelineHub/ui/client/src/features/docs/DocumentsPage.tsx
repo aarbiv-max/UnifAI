@@ -12,6 +12,8 @@ import { DocumentTable } from "./DocumentsTable";
 import { PageLoader } from "@/components/shared/PageLoader";
 import { DocumentGrid } from "./DocumentGrid";
 import { deleteDoc, fetchDocuments } from "@/api/docs";
+import { QueuePositionBanner } from "@/components/shared/QueuePositionBanner";
+
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);

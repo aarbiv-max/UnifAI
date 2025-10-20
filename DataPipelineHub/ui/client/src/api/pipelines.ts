@@ -38,6 +38,16 @@ export interface QdrantChunksCounts {
   document: number;
 }
 
+export interface PendingPipelinesCount {
+  pending_count: number;
+}
+
+export interface UserQueuePosition {
+  user_position: number | null;
+  total_pending: number;
+  has_pending: boolean;
+}
+
 // Get active pipelines from all sources
 export async function fetchActivePipelines(): Promise<ActivePipeline[]> {
   try {
@@ -148,5 +158,28 @@ export async function fetchQdrantChunksCounts(): Promise<QdrantChunksCounts> {
   } catch (error) {
     console.error('Failed to fetch Qdrant chunks counts:', error);
     return { total: 0, slack: 0, document: 0 };
+  }
+}
+
+
+export async function fetchPendingPipelinesCount(): Promise<PendingPipelinesCount> {
+  try {
+    const res = await api.get<PendingPipelinesCount>("pipelines/queue/pending-count");
+    return res.data;
+  } catch (error) {
+    console.error('Failed to fetch pending pipelines count:', error);
+    return { pending_count: 0 };
+  }
+}
+
+export async function fetchUserQueuePosition(sourceType: 'slack' | 'document'): Promise<UserQueuePosition> {
+  try {
+    const res = await api.get<UserQueuePosition>("pipelines/queue/user-position", {
+      params: { source_type: sourceType }
+    });
+    return res.data;
+  } catch (error) {
+    console.error('Failed to fetch user queue position:', error);
+    return { user_position: null, total_pending: 0, has_pending: false };
   }
 }

@@ -24,6 +24,8 @@ import { StatsCard, StatsCardProps } from "./StatsCard";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
 import { EmbedChannel } from "@/types";
 import { formatNumber, getLastSyncTime } from "@/utils";
+import { QueuePositionBanner } from "@/components/shared/QueuePositionBanner";
+
 
 export interface SlackTypeData {
   message_count: number;
