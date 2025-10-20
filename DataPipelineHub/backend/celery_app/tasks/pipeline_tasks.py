@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import uuid
 from pipeline.pipeline_repository import PipelineRepository
@@ -112,6 +113,37 @@ def register_sources_task(self, data_list: list, source_type: str, upload_by: st
                 upload_by=upload_by,
                 pipeline_id=pipeline_id,
                 type_data=type_data
+            )
+            
+            # Also create pipeline entry in pipelines collection for queue tracking
+            pipeline_repo = PipelineRepository()
+            now = datetime.now()
+            pipeline_repo.pipelines_collection.update_one(
+                {"pipeline_id": pipeline_id},
+                {
+                    "$setOnInsert": {
+                        "pipeline_id": pipeline_id,
+                        "source_type": source_type.upper(),
+                        "status": PipelineStatus.PENDING.value,
+                        "created_at": now,
+                        "stats": {
+                            "documents_retrieved": 0,
+                            "chunks_generated": 0,
+                            "embeddings_created": 0,
+                            "api_calls": 0,
+                            "processing_time": 0,
+                        },
+                        "metadata": {
+                            "upload_by": upload_by,
+                            "source_id": source_id,
+                            "source_name": source_name
+                        }
+                    },
+                    "$set": {
+                        "last_updated": now
+                    }
+                },
+                upsert=True
             )
             
             # Return only essential data needed for pipeline execution

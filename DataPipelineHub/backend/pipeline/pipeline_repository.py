@@ -48,6 +48,17 @@ class PipelineRepository:
             "api_calls":           0,
             "processing_time":     0,
         }
+        
+        # Extract user information from pipeline metadata
+        pipeline_metadata = {}
+        if hasattr(pipeline, 'metadata') and pipeline.metadata:
+            if hasattr(pipeline.metadata, 'upload_by'):
+                pipeline_metadata['upload_by'] = pipeline.metadata.upload_by
+            if hasattr(pipeline.metadata, 'user_id'):
+                pipeline_metadata['user_id'] = pipeline.metadata.user_id
+            if hasattr(pipeline.metadata, 'username'):
+                pipeline_metadata['username'] = pipeline.metadata.username
+                
         result = self.pipelines_collection.update_one(
             {"pipeline_id": pipeline.get_pipeline_id()},
             {
@@ -57,7 +68,7 @@ class PipelineRepository:
                     "status":      PipelineStatus.PENDING.value,
                     "created_at":  now,
                     "stats":       default_stats,
-                    "metadata":    {}
+                    "metadata":    pipeline_metadata
                 },
                 "$set": {
                     "last_updated": now
