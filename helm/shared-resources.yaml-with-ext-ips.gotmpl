@@ -86,6 +86,25 @@ releases:
                 done
                 echo "pending"
               }
+
+              wait_for_ext_ip() {
+                local svc=$1
+                local ip=""
+                for i in {1..60}; do
+                  ip=$(kubectl get svc "$svc" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
+                  if [[ -n "$ip" ]]; then
+                    echo "$ip"
+                    return
+                  fi
+                  echo "Waiting for $svc LoadBalancer IP..."
+                  sleep 10
+                done
+                echo "pending"
+              }
+
+              MONGODB_ADDR=$(wait_for_ext_ip mongodb)
+              QDRANT_ADDR=$(wait_for_ext_ip qdrant)
+              RABBITMQ_ADDR=$(wait_for_ext_ip rabbitmq)
               
               MONGO_PORT=$(wait_for_port mongodb)
               RMQ_PORT=$(wait_for_port rabbitmq)
@@ -96,6 +115,9 @@ releases:
 
               kubectl delete configmap shared-config
               kubectl create configmap shared-config \
+                --from-literal=MONGO_EXT_ADDR="$MONGODB_ADDR" \
+                --from-literal=RABBITMQ_EXT_ADDR="$RABBITMQ_ADDR" \
+                --from-literal=QDRANT_EXT_ADDR="$QDRANT_ADDR" \
                 --from-literal=MONGODB_PORT="$MONGO_PORT" \
                 --from-literal=RABBITMQ_PORT="$RMQ_PORT" \
                 --from-literal=MONGODB_IP="$MONGO_IP" \
