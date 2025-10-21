@@ -1,4 +1,5 @@
-import { api } from '@/http/authClient';
+import { api as apiAuth } from '@/http/authClient';
+import { api as apiQuery } from '@/http/queryClient';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
 export interface User {
@@ -32,7 +33,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check authentication status
   const checkAuthStatus = async () => {
     try {
-      const response = await api.get('/auth/user');
+      // Use regular backend for user data retrieval
+      const response = await apiQuery.get('/sso/auth/user');
       if (response.data.authenticated && response.data.user) {
         setUser(response.data.user);
         setIsAuthenticated(true);
@@ -51,13 +53,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Initiate login by redirecting to backend auth endpoint
   const login = () => {
-    window.location.href = `${api.defaults.baseURL}/auth/login`;
+    window.location.href = `${apiAuth.defaults.baseURL}/auth/login`;
   };
 
   // Logout user
   const logout = async () => {
     try {
-      await api.post('/auth/logout');
+      await apiAuth.post('/auth/logout');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -106,7 +108,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const refreshToken = async () => {
       try {
-        await api.post('/auth/refresh');
+        // Use regular backend for token refresh
+        await apiQuery.post('/sso/auth/refresh');
         // Recheck auth status to get updated token info
         await checkAuthStatus();
       } catch (error) {
