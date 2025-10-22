@@ -5,6 +5,9 @@ import { FaFileAlt, FaUpload, FaTimes } from "react-icons/fa";
 import { Progress } from "@/components/ui/progress";
 import { ProcessingOptions } from "./ProcessingOptions";
 import { embedDocs, uploadDocs } from "@/api/docs";
+import { useAuth } from "@/contexts/AuthContext"; // for user id
+
+const { user } = useAuth();
 
 interface UploadTabProps {
     setShowUploadModal: (showUploadModal: boolean) => void;
@@ -192,7 +195,10 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                 </CardContent>
                 {selectedFiles.length > 0 && !isUploading && (
                     <div className="flex justify-end p-4">
-                        <Button disabled={selectedFiles.length === 0} onClick={handleSubmit}>
+                        <Button disabled={selectedFiles.length === 0} 
+                                onClick={handleSubmit} 
+                                data-umami-event="document-upload-submit-button" 
+                                data-umami-event-user-id={user?.name}>
                             Submit
                         </Button>
                     </div>

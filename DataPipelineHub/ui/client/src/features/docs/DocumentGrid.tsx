@@ -6,6 +6,7 @@ import { Document } from "@/types";
  
 import { DocumentData } from "./DocumentData";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
+import { useAuth } from "@/contexts/AuthContext"; // for user id
 
 interface DocumentGridProps {
   paginatedDocuments: Document[];
@@ -17,6 +18,7 @@ interface DocumentGridProps {
   handleRetry: (id: string) => void;
   footer?: React.ReactNode;
 }
+const { user } = useAuth();
 
 const getFooterText = (doc: Document) => {
   if (isEmbeddingActivelyProcessing(doc)) return <InlineLoader />;
@@ -53,11 +55,11 @@ const getActions = (
   onDeleteConfirmed: (id: string) => void
 ) => [
   {
-    icon: <FaEye />,
+    icon: <FaEye data-umami-event="document-view-button" data-umami-event-user-id={user?.name}/>,
     onClick: () => setActiveDoc(doc === activeDoc ? null : doc),
   },
   {
-    icon: <FaTrash className="h-3 w-3" />,
+    icon: <FaTrash className="h-3 w-3" data-umami-event="document-delete-button" data-umami-event-user-id={user?.name}/>,
     onClick: () => {},
     confirm: {
       title: "Delete Document",

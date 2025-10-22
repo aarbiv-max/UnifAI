@@ -3,6 +3,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FaSearch } from "react-icons/fa";
+import { useAuth } from "@/contexts/AuthContext"; // for user id
+
+const { user } = useAuth();
 
 interface DocumentFiltersProps {
   fileTypeFilter: string;
@@ -33,6 +36,7 @@ export function DocumentFilters({fileTypeFilter, setFileTypeFilter, searchQuery,
         className="w-64 bg-background-dark"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
+        data-umami-event="document-filter-input" data-umami-event-user-id={user?.name}
       />
     </div>
   );
