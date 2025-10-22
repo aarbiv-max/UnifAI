@@ -55,11 +55,11 @@ const getActions = (
   onDeleteConfirmed: (id: string) => void
 ) => [
   {
-    icon: <FaEye data-umami-event="document-view-button" data-umami-event-user-id={user?.name}/>,
+    icon: <FaEye data-umami-event="document-view-button"/>,
     onClick: () => setActiveDoc(doc === activeDoc ? null : doc),
   },
   {
-    icon: <FaTrash className="h-3 w-3" data-umami-event="document-delete-button" data-umami-event-user-id={user?.name}/>,
+    icon: <FaTrash className="h-3 w-3" data-umami-event="document-delete-button"/>,
     onClick: () => {},
     confirm: {
       title: "Delete Document",
