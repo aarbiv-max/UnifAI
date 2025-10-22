@@ -82,3 +82,31 @@ class SSOService:
     def get_user_profile(self):
         """Get user profile from protected routes"""
         return self.forward_auth_request('/protected/user.profile')
+    
+    def get_current_username(self) -> str:
+        """
+        Get current username from SSO backend.
+        
+        Returns:
+            Username of the current user from SSO backend
+            
+        Raises:
+            Exception: If SSO backend call fails or user is not authenticated
+        """
+        try:
+            response = self.get_user_info()
+            
+            if response.status_code == 200:
+                user_data = response.json()
+                if user_data.get('authenticated') and user_data.get('user'):
+                    username = user_data['user'].get('username', 'default')
+                    logger.info(f"Successfully retrieved username from SSO: {username}")
+                    return username
+                else:
+                    raise ValueError("User not authenticated in SSO backend")
+            else:
+                raise ValueError(f"SSO backend returned status {response.status_code}")
+                
+        except Exception as e:
+            logger.error(f"Failed to get username from SSO backend: {str(e)}")
+            raise e

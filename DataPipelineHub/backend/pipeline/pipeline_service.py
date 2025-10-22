@@ -1,8 +1,8 @@
 from typing import List, Dict, Any, Tuple
-from flask import session
 from shared.logger import logger
 from global_utils.celery_app.helpers import send_task
 from global_utils.celery_app import CeleryApp
+from services.sso_service import SSOService
 
 class PipelineCeleryService:
     """
@@ -13,6 +13,7 @@ class PipelineCeleryService:
     
     def __init__(self):
         self.celery_app = CeleryApp().app
+        self.sso_service = SSOService()
     
     def execute_pipeline_workflow_with_registration(self, data: List[Dict[str, Any]], source_type: str) -> Tuple[Dict[str, Any], int]:
         """
@@ -31,7 +32,7 @@ class PipelineCeleryService:
             Exception: If Celery task registration or worker task submission fails
         """
         try:
-            current_user = session.get('user', {}).get('username', 'default')
+            current_user = self.sso_service.get_current_username()
             registered_sources = self._execute_registration_tasks_sync(data, source_type, current_user)
             pipeline_worker_tasks_submitted = self._dispatch_pipeline_worker_tasks(registered_sources, source_type)
             
