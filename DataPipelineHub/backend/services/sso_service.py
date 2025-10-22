@@ -4,44 +4,24 @@ Handles communication between the regular backend and SSO backend
 """
 import os
 import requests
-from flask import request, session
+from flask import request
 from shared.logger import logger
-from config.app_config import AppConfig
-
-config = AppConfig.get_instance()
 
 class SSOService:
     def __init__(self):
         self.sso_backend_url = os.environ.get('SSO_BACKEND_HOST', 'http://127.0.0.1:13456')
-        if not self.sso_backend_url.endswith('/'):
-            self.sso_backend_url += '/'
     
-    def _forward_request(self, method, endpoint, **kwargs):
+    def _forward_request(self, method, endpoint):
         """Forward a request to the SSO backend"""
         try:
-            # Construct the full URL
-            url = f"{self.sso_backend_url}api{endpoint}"
+            url = f"{self.sso_backend_url}/api{endpoint}"
             
-            # Prepare headers - forward relevant headers from the original request
-            headers = {}
-            if 'headers' in kwargs:
-                headers.update(kwargs['headers'])
-            
-            # Forward important headers from the original request
-            important_headers = ['User-Agent', 'Accept', 'Accept-Language', 'Accept-Encoding']
-            for header in important_headers:
-                if header in request.headers:
-                    headers[header] = request.headers[header]
-            
-            # Forward cookies from the original request
-            cookie_header = request.headers.get('Cookie', '')
-            if cookie_header:
-                headers['Cookie'] = cookie_header
-            
-            # Forward credentials
-            kwargs['headers'] = headers
-            kwargs['cookies'] = request.cookies
-            kwargs['timeout'] = 30  # Add timeout
+            # Forward essential headers and cookies
+            headers = {
+                'Cookie': request.headers.get('Cookie', ''),
+                'User-Agent': request.headers.get('User-Agent', ''),
+                'Accept': request.headers.get('Accept', 'application/json'),
+            }
             
             logger.info(f"Forwarding {method} request to SSO backend: {url}")
             
@@ -49,7 +29,9 @@ class SSOService:
             response = requests.request(
                 method=method,
                 url=url,
-                **kwargs
+                headers=headers,
+                cookies=request.cookies,
+                timeout=30
             )
             
             logger.info(f"SSO backend response: {response.status_code}")
@@ -59,9 +41,9 @@ class SSOService:
             logger.error(f"Error forwarding request to SSO backend: {str(e)}")
             raise Exception(f"Failed to communicate with SSO backend: {str(e)}")
     
-    def forward_auth_request(self, endpoint, method='GET', **kwargs):
+    def forward_auth_request(self, endpoint, method='GET'):
         """Forward authentication-related requests to SSO backend"""
-        return self._forward_request(method, endpoint, **kwargs)
+        return self._forward_request(method, endpoint)
     
     def get_user_info(self):
         """Get current user information from SSO backend"""
