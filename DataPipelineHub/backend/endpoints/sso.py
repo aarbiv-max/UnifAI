@@ -3,8 +3,6 @@ from shared.logger import logger
 from services.sso_service import SSOService
 
 sso_bp = Blueprint('sso', __name__)
-
-# Initialize SSO service
 sso_service = SSOService()
 
 @sso_bp.route('/auth/user')

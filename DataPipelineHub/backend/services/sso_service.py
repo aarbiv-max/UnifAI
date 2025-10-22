@@ -34,14 +34,6 @@ class SSOService:
         """Get current user information from SSO backend"""
         return self.forward_auth_request('/auth/user')
     
-    def login_user(self):
-        """Initiate login flow"""
-        return self.forward_auth_request('/auth/login')
-    
-    def logout_user(self):
-        """Logout user"""
-        return self.forward_auth_request('/auth/logout', method='POST')
-    
     def refresh_token(self):
         """Refresh user token"""
         return self.forward_auth_request('/auth/refresh', method='POST')
@@ -56,9 +48,6 @@ class SSOService:
         
         Returns:
             Username of the current user from SSO backend
-            
-        Raises:
-            Exception: If SSO backend call fails or user is not authenticated
         """
         try:
             response = self.get_user_info()
