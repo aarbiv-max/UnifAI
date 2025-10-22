@@ -1,7 +1,3 @@
-"""
-SSO Service
-Handles communication between the regular backend and SSO backend
-"""
 import os
 import requests
 from flask import request
