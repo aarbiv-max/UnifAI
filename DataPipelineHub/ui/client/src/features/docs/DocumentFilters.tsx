@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FaSearch } from "react-icons/fa";
 import { useAuth } from "@/contexts/AuthContext"; // for user id
 
-const { user } = useAuth();
+
 
 interface DocumentFiltersProps {
   fileTypeFilter: string;
@@ -15,6 +15,9 @@ interface DocumentFiltersProps {
 }
 
 export function DocumentFilters({fileTypeFilter, setFileTypeFilter, searchQuery, setSearchQuery}: DocumentFiltersProps) {
+
+  const { user } = useAuth();
+  
   return (
     <div className="flex items-center space-x-2">
       <Select value={fileTypeFilter} onValueChange={setFileTypeFilter}>

@@ -18,7 +18,7 @@ interface DocumentGridProps {
   handleRetry: (id: string) => void;
   footer?: React.ReactNode;
 }
-const { user } = useAuth();
+
 
 const getFooterText = (doc: Document) => {
   if (isEmbeddingActivelyProcessing(doc)) return <InlineLoader />;
@@ -72,6 +72,9 @@ const getActions = (
 ];
 
 export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry, footer}: DocumentGridProps) => {
+  
+  const { user } = useAuth();
+
   return (
     <>
       <div className="p-6">

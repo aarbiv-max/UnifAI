@@ -7,7 +7,7 @@ import { ProcessingOptions } from "./ProcessingOptions";
 import { embedDocs, uploadDocs } from "@/api/docs";
 import { useAuth } from "@/contexts/AuthContext"; // for user id
 
-const { user } = useAuth();
+
 
 interface UploadTabProps {
     setShowUploadModal: (showUploadModal: boolean) => void;
@@ -22,6 +22,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string>("");
+    const { user } = useAuth();
     
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
