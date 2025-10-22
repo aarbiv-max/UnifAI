@@ -15,28 +15,13 @@ class SSOService:
         """Forward a request to the SSO backend"""
         try:
             url = f"{self.sso_backend_url}/api{endpoint}"
-            
-            # Forward essential headers and cookies
             headers = {
                 'Cookie': request.headers.get('Cookie', ''),
                 'User-Agent': request.headers.get('User-Agent', ''),
                 'Accept': request.headers.get('Accept', 'application/json'),
             }
-            
-            logger.info(f"Forwarding {method} request to SSO backend: {url}")
-            
-            # Make the request to SSO backend
-            response = requests.request(
-                method=method,
-                url=url,
-                headers=headers,
-                cookies=request.cookies,
-                timeout=30
-            )
-            
-            logger.info(f"SSO backend response: {response.status_code}")
+            response = requests.request(method=method, url=url, headers=headers, cookies=request.cookies, timeout=30)
             return response
-            
         except requests.exceptions.RequestException as e:
             logger.error(f"Error forwarding request to SSO backend: {str(e)}")
             raise Exception(f"Failed to communicate with SSO backend: {str(e)}")
