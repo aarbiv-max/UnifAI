@@ -28,6 +28,7 @@ import {
 import { useWorkspaceData } from "../../../hooks/useWorkspaceData";
 import { FieldValidation } from "./FieldValidation";
 import { FieldPopulation } from "./FieldPopulation";
+import { useAuth } from "@/contexts/AuthContext"; // for user id
 
 interface ElementFormProps {
   isOpen: boolean;
@@ -81,7 +82,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     }
   };
 
-
+  const { user } = useAuth();
 
   // Initialize form data
   useEffect(() => {
@@ -1046,6 +1047,9 @@ export const ElementForm: React.FC<ElementFormProps> = ({
               type="submit"
               className="bg-primary hover:bg-opacity-80"
               disabled={isSaving || !isFormValid()}
+              data-umami-event="agent-repository-save-element-button" 
+              data-umami-event-user-id={user?.name}
+              data-umami-event-element-type={elementType.name}
             >
               {isSaving ? "Saving..." : "Save"}
             </Button>
