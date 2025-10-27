@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import ClassVar, Literal
 from .identifiers import Identifier
 from pydantic import Field, HttpUrl
 from elements.retrievers.common.base_config import BaseRetrieverConfig
@@ -7,7 +7,7 @@ from config.app_config import AppConfig
 
 
 class SlackRetrieverConfig(BaseRetrieverConfig):
-    app_config = AppConfig.get_instance()
+    app_config: ClassVar[AppConfig] = AppConfig.get_instance()
     """
     Retrieves messages from Slack via an API endpoint.
     """
