@@ -45,11 +45,12 @@ http {
         include /opt/app-root/etc/nginx.default.d/*.conf;
 
         location /api3/ {
-           proxy_pass http://${SSO_BACKEND_HOST}:${SSO_BACKEND_PORT}/api/;
+           proxy_pass ${SSO_BACKEND_HOST}/api/;
            proxy_set_header X-Real-IP ${DOLLAR}remote_addr;
            proxy_set_header X-Forwarded-For ${DOLLAR}proxy_add_x_forwarded_for;
            proxy_set_header X-Forwarded-Proto ${DOLLAR}scheme;
            proxy_set_header Host ${DOLLAR}host;
+           proxy_ssl_server_name on;
            proxy_cookie_path / /;
         }
 
