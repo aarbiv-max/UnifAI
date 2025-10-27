@@ -3,17 +3,20 @@ from .identifiers import Identifier
 from pydantic import Field, HttpUrl
 from elements.retrievers.common.base_config import BaseRetrieverConfig
 from core.field_hints import HiddenHint
+from config.app_config import AppConfig
 
 
 class SlackRetrieverConfig(BaseRetrieverConfig):
+    app_config = AppConfig.get_instance()
     """
     Retrieves messages from Slack via an API endpoint.
     """
     type: Literal[Identifier.TYPE] = Identifier.TYPE
     api_url: HttpUrl = Field(
-        HttpUrl("https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/api/slack/query.match"),
+        #HttpUrl("https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/api/slack/query.match"),
         # default_factory=lambda: HttpUrl(
             # "https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/api/slack/query.match"),
+        HttpUrl(f"{app_config.dataflow_url}/api/slack/query.match"),
         description="URL for retrieving slack messages from the API",
         json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints()
     )
