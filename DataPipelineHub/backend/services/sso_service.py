@@ -16,7 +16,9 @@ class SSOService:
                 'User-Agent': request.headers.get('User-Agent', ''),
                 'Accept': request.headers.get('Accept', 'application/json'),
             }
-            response = requests.request(method=method, url=url, headers=headers, cookies=request.cookies, timeout=30)
+            # Handle HTTPS connections - verify SSL for production
+            verify = not os.environ.get('SSO_SSL_VERIFY', 'true').lower() == 'false'
+            response = requests.request(method=method, url=url, headers=headers, cookies=request.cookies, timeout=30, verify=verify)
             return response
         except requests.exceptions.RequestException as e:
             logger.error(f"Error forwarding request to SSO backend: {str(e)}")
