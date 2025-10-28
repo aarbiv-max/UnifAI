@@ -14,4 +14,7 @@ spec:
     kind: Service
     name: {{ include "ui.fullname" . }}
     weight: 100
+  tls:
+    termination: passthrough
+    insecureEdgeTerminationPolicy: None
   wildcardPolicy: None
