@@ -53,6 +53,8 @@ securityContext: {}
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
   portList:
+  - name: ui-https
+    port: 443
   - name: ui
     port: 8080
   - name: df-backend
