@@ -68,7 +68,8 @@ debug: false
 command: ["/bin/sh", "-c", "sleep infinity"]
 
 env:
-  NGINX_PORT: "8080"
+  NGINX_PORT: "443"
+  #NGINX_PORT: "8080"
   #DATAPIPELINEHUB_PORT: "13456"
   # DATAPIPELINEHUB_HOST: "unifai-dataflow-server"
   #MULTIAGENT_PORT: "8080"
