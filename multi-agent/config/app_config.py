@@ -10,6 +10,6 @@ class AppConfig(SharedConfig):
     hostname: str = "0.0.0.0"
     port: str = "8002"
     version: str = "1.0.0"
-    #dataflow_url: str = "http://unifai-dataflow-server:13456"
+    dataflow_url: str = "http://unifai-dataflow-server:13456"
     # Engine
     engine_name: str = "langgraph"
