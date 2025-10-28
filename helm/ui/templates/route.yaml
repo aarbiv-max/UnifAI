@@ -9,7 +9,7 @@ metadata:
 spec:
   host:
   port:
-    targetPort: 443
+    targetPort: 8443
   to:
     kind: Service
     name: {{ include "ui.fullname" . }}

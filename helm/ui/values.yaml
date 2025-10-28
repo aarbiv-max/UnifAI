@@ -54,7 +54,7 @@ securityContext: {}
 service:
   portList:
   - name: ui-https
-    port: 443
+    port: 8443
   - name: ui
     port: 8080
   - name: df-backend
@@ -68,7 +68,7 @@ debug: false
 command: ["/bin/sh", "-c", "sleep infinity"]
 
 env:
-  NGINX_PORT: "443"
+  NGINX_PORT: "8443"
   #NGINX_PORT: "8080"
   #DATAPIPELINEHUB_PORT: "13456"
   # DATAPIPELINEHUB_HOST: "unifai-dataflow-server"
@@ -111,13 +111,13 @@ resources: {}
 livenessProbe:
   httpGet:
     path: /
-    port: 443
+    port: 8443
     periodSeconds: 60
     scheme: HTTPS
 readinessProbe:
   httpGet:
     path: /
-    port: 443
+    port: 8443
     periodSeconds: 60
     scheme: HTTPS
 
