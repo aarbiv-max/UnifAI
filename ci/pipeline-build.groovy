@@ -127,7 +127,7 @@ pipeline {
                         ]]
                     ])
                 }
-                dir("${buildParams.DevRoot}/${params.BRANCH}/DataPipelineHub/ui/deployment/") {
+                dir("${buildParams.DevRoot}/${params.BRANCH}/DataPipelineHub/ui/") {
                     checkout([$class: 'GitSCM',
                         branches: [[name: "${buildParams.CredMainRepoBranch}"]],
                         doGenerateSubmoduleConfigurations: false,
