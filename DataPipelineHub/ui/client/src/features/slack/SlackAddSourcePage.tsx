@@ -9,11 +9,13 @@ import { motion } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { useToast } from "@/hooks/use-toast";
 import { SlackSetupInfo } from './SlackSetupInfo';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function SlackAddSourcePage() {
     const [, navigate] = useLocation();
     const queryClient = useQueryClient();
     const { toast } = useToast();
+    const { getSession } = useAuth();
 
     const {
         mutate: addChannels,
@@ -21,7 +23,10 @@ export default function SlackAddSourcePage() {
         isError,
         error,
     } = useMutation({
-        mutationFn: submitSlackChannels,
+        mutationFn: async (channels: ChannelWithSettings[]) => {
+            const session = await getSession();
+            return submitSlackChannels(channels, session || undefined);
+        },
         onSuccess: (data, variables) => {
             queryClient.invalidateQueries({ queryKey: ['slackChannels'] });
             queryClient.invalidateQueries({ queryKey: ['embeddedSlackChannels'] });

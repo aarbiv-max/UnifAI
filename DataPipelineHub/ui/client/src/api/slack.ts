@@ -71,7 +71,8 @@ export interface ChannelWithSettings extends Channel {
 }
 
 export async function submitSlackChannels(
-  channels: ChannelWithSettings[]
+  channels: ChannelWithSettings[],
+  session?: any
 ): Promise<{ status: string }> {
   // Transform channels to include settings as metadata
   const enrichedChannels = channels.map(channel => ({
@@ -87,9 +88,19 @@ export async function submitSlackChannels(
     }
   }));
 
+  const payload: any = { 
+    data: enrichedChannels, 
+    type: 'slack' 
+  };
+  
+  // Include session if provided
+  if (session) {
+    payload.session = session;
+  }
+
   const { data } = await api.put<{ status: string }>(
     'pipelines/embed',
-    { data: enrichedChannels, type: 'slack' }
+    payload
   );
   
   return data;

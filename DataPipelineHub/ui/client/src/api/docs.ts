@@ -22,14 +22,22 @@ export async function uploadDocs(files: {name: string, content: string}[]): Prom
       );
 }
 
-export async function embedDocs(docs: {source_name: string}[]): Promise<any> {
+export async function embedDocs(docs: {source_name: string}[], session?: any): Promise<any> {
+    const payload: any = { 
+        data: docs,
+        type: 'document'
+    };
+    
+    // Include session if provided
+    if (session) {
+        payload.session = session;
+    }
+    
     const embedded = await api.put<any>(
         'pipelines/embed',
-        { 
-            data: docs,
-            type: 'document'
-        }
-      );
+        payload
+    );
+    return embedded;
 }
 
 export async function deleteDoc(pipelineId: string): Promise<any> {

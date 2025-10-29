@@ -9,13 +9,23 @@ export interface User {
   token_expires_at: number;
 }
 
+export interface SessionData {
+  user: User;
+  access_token?: string;
+  refresh_token?: string;
+  token_expires_at?: number;
+  authenticated: boolean;
+}
+
 export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  session: SessionData | null;
   login: () => void;
   logout: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
+  getSession: () => Promise<SessionData | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,6 +38,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<SessionData | null>(null);
+
+  // Get session data from SSO backend
+  const getSession = async (): Promise<SessionData | null> => {
+    try {
+      const response = await api.get('/auth/session');
+      if (response.data.authenticated && response.data.user) {
+        const sessionData: SessionData = {
+          user: response.data.user,
+          access_token: response.data.access_token,
+          refresh_token: response.data.refresh_token,
+          token_expires_at: response.data.token_expires_at,
+          authenticated: true
+        };
+        setSession(sessionData);
+        return sessionData;
+      } else {
+        setSession(null);
+        return null;
+      }
+    } catch (error) {
+      console.error('Failed to fetch session:', error);
+      setSession(null);
+      return null;
+    }
+  };
 
   // Check authentication status
   const checkAuthStatus = async () => {
@@ -36,14 +72,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.data.authenticated && response.data.user) {
         setUser(response.data.user);
         setIsAuthenticated(true);
+        // Also fetch session data
+        await getSession();
       } else {
         setUser(null);
         setIsAuthenticated(false);
+        setSession(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       setUser(null);
       setIsAuthenticated(false);
+      setSession(null);
     } finally {
       setIsLoading(false);
     }
@@ -129,9 +169,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     isAuthenticated,
     isLoading,
+    session,
     login,
     logout,
     checkAuthStatus,
+    getSession,
   };
 
   return (

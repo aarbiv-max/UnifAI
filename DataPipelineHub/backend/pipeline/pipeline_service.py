@@ -1,5 +1,4 @@
-from typing import List, Dict, Any, Tuple
-from flask import session
+from typing import List, Dict, Any, Tuple, Optional
 from shared.logger import logger
 from global_utils.celery_app.helpers import send_task
 from global_utils.celery_app import CeleryApp
@@ -14,7 +13,7 @@ class PipelineCeleryService:
     def __init__(self):
         self.celery_app = CeleryApp().app
     
-    def execute_pipeline_workflow_with_registration(self, data: List[Dict[str, Any]], source_type: str) -> Tuple[Dict[str, Any], int]:
+    def execute_pipeline_workflow_with_registration(self, data: List[Dict[str, Any]], source_type: str, session_data: Optional[Dict[str, Any]] = None) -> Tuple[Dict[str, Any], int]:
         """
         Execute a complete pipeline workflow using Celery workers with source registration.
         First dispatches registration tasks to workers, waits for completion, then submits 
@@ -23,6 +22,7 @@ class PipelineCeleryService:
         Args:
             data: List of data sources to register and process via Celery workers
             source_type: Type of data source (SLACK, DOCUMENT, etc.) for worker queue routing
+            session_data: Optional session data containing user information from SSO backend
             
         Returns:
             Tuple of (response_data, status_code)
@@ -31,7 +31,16 @@ class PipelineCeleryService:
             Exception: If Celery task registration or worker task submission fails
         """
         try:
-            current_user = session.get('user', {}).get('username', 'default')
+            # Extract user from session data passed from UI
+            if session_data and isinstance(session_data, dict):
+                user_info = session_data.get('user', {})
+                if isinstance(user_info, dict):
+                    current_user = user_info.get('username', 'default')
+                else:
+                    current_user = 'default'
+            else:
+                current_user = 'default'
+            
             registered_sources = self._execute_registration_tasks_sync(data, source_type, current_user)
             pipeline_worker_tasks_submitted = self._dispatch_pipeline_worker_tasks(registered_sources, source_type)
             

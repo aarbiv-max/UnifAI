@@ -1,6 +1,10 @@
 // import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import axios, { AxiosError } from 'axios';
 
+interface APIErrorResponse {
+  error?: string;
+}
+
 export const api = axios.create({
     baseURL: '/api3',
     // baseURL: '/',
