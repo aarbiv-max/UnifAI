@@ -370,10 +370,14 @@ export function DataTable<T extends object>({
       {enablePagination && (
         <div className="flex items-center justify-between py-4">
           <span className="text-sm text-muted-foreground">
-            Page{' '}
-            <strong>
-              {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-            </strong>
+            Page <strong>{table.getState().pagination.pageIndex + 1} of {table.getPageCount()}</strong>
+            {' '}(documents{' '}
+            {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}-
+            {Math.min(
+              (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+              table.getFilteredRowModel().rows.length
+            )}
+            {' '}out of {table.getFilteredRowModel().rows.length})
           </span>
           <div className="flex items-center space-x-2">
             <button
