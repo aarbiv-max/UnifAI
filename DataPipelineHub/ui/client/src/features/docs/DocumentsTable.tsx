@@ -174,6 +174,9 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
         enableGlobalFilter={false}
         enableColumnFilters={true}
         enablePagination={true}
+        initialState={{
+          pagination: { pageIndex: 0, pageSize: 15 }
+        }}
         expendedRow={activeDoc}
         renderExpandedRow={(doc) => <DocumentData doc={doc} />}
       />
