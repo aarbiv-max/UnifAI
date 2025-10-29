@@ -16,7 +16,7 @@ import { deleteDoc, fetchDocuments } from "@/api/docs";
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [activeDoc, setActiveDoc] = useState<Document | null>(null);
   const [fileTypeFilter, setFileTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,18 +97,18 @@ export default function Documents() {
       <Button onClick={() => setShowUploadModal(true)}>Upload Document</Button>
       <div className="flex">
         <Button
-          variant={viewMode === "grid" ? "default" : "outline"}
-          size="icon"
-          onClick={() => { setViewMode("grid"); setActiveDoc(null) }}
-        >
-          <FaTh />
-        </Button>
-        <Button
           variant={viewMode === "list" ? "default" : "outline"}
           size="icon"
           onClick={() => { setViewMode("list"); setActiveDoc(null) }}
         >
           <FaList />
+        </Button>
+        <Button
+          variant={viewMode === "grid" ? "default" : "outline"}
+          size="icon"
+          onClick={() => { setViewMode("grid"); setActiveDoc(null) }}
+        >
+          <FaTh />
         </Button>
       </div>
     </div>
