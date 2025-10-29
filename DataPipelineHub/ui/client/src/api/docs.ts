@@ -28,7 +28,6 @@ export async function embedDocs(docs: {source_name: string}[], session?: any): P
         type: 'document'
     };
     
-    // Include session if provided
     if (session) {
         payload.session = session;
     }

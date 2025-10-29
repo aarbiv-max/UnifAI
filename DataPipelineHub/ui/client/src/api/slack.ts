@@ -93,7 +93,6 @@ export async function submitSlackChannels(
     type: 'slack' 
   };
   
-  // Include session if provided
   if (session) {
     payload.session = session;
   }

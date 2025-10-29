@@ -28,7 +28,13 @@ def start_pipeline(data, type, session=None):
     """
     try:
         pipeline_celery_service = PipelineCeleryService()
-        response_data, status_code = pipeline_celery_service.execute_pipeline_workflow_with_registration(data, type, session)
+        # Extract user from session data passed from UI
+        current_user = "default"
+        if session and isinstance(session, dict):
+            user_info = session.get('user', {})
+            if isinstance(user_info, dict):
+                current_user = user_info.get('username', 'default')
+        response_data, status_code = pipeline_celery_service.execute_pipeline_workflow_with_registration(data, type, current_user)
         return jsonify(response_data), status_code
         
     except Exception as e:

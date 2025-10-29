@@ -72,18 +72,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.data.authenticated && response.data.user) {
         setUser(response.data.user);
         setIsAuthenticated(true);
-        // Also fetch session data
-        await getSession();
       } else {
         setUser(null);
         setIsAuthenticated(false);
-        setSession(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       setUser(null);
       setIsAuthenticated(false);
-      setSession(null);
     } finally {
       setIsLoading(false);
     }
