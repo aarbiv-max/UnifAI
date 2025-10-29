@@ -4,13 +4,6 @@
 
 This document describes the integration between the Regular Backend and the SSO Backend for user authentication and data retrieval. The system allows the Regular Backend to retrieve logged-in user data from the SSO Backend while maintaining a direct connection between the UI and SSO Backend for login/logout operations.
 
-## Architecture
-
-The system consists of three main components:
-1. **UI/Frontend** - User interface that communicates with both backends
-2. **Regular Backend** - Main application backend (runs on port `13457`)
-3. **SSO Backend** - Authentication backend that handles SSO integration (runs on port `13456`)
-
 ## Port Configuration
 
 ### Local Development Ports
