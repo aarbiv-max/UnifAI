@@ -21,7 +21,7 @@ def start_pipeline(data, type, session=None):
     Args:
         data: List of data sources to register and process
         type: Type of data source (SLACK, DOCUMENT, etc.)
-        session: Optional session data from SSO backend containing user information
+        session: Session data from SSO backend containing user information
         
     Returns:
         JSON response indicating task submission status

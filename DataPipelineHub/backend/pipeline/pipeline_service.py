@@ -22,7 +22,7 @@ class PipelineCeleryService:
         Args:
             data: List of data sources to register and process via Celery workers
             source_type: Type of data source (SLACK, DOCUMENT, etc.) for worker queue routing
-            session_data: Optional session data containing user information from SSO backend
+            current_user: Extracted user information from SSO backend
             
         Returns:
             Tuple of (response_data, status_code)
