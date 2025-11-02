@@ -637,7 +637,7 @@ export default function ChatInterface({
             <div
               className="mt-3 p-3 rounded-lg"
               style={{
-                backgroundColor: `hsl(var(--primary) / 0.1)`,
+                // backgroundColor: `hsl(var(--primary) / 0.1)`,
                 border: `1px solid hsl(var(--primary) / 0.3)`,
               }}
             >
