@@ -18,6 +18,7 @@ def create_app(config: AppConfig = None) -> Flask:
     """
     config = config or AppConfig.get_instance()
     app = Flask(__name__)
+    app.version = config.get("version", "1.0.0")
     CORS(app, resources={r"/api/*": {"origins": "*",
                                      "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                                      "allow_headers": ["Content-Type", "Authorization"],

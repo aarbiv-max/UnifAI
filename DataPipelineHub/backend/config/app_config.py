@@ -33,6 +33,7 @@ class AppConfig(SharedConfig):
     upload_folder: str = "/app/shared"
     # session_cookie_secure=True
     backend_env: str = "development"
+    version: str = "1.0.0"
 
     # qdrant_ip: str = "http://a467739e076d04bf1b15aa68187cbc05-1112405490.us-east-1.elb.amazonaws.com"
     # mongodb_ip: str = "ae8f0dd8e6cd046539c3f0b7c6a75f13-508991814.us-east-1.elb.amazonaws.com"

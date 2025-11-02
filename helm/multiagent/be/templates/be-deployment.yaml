@@ -60,14 +60,14 @@ spec:
             httpGet:
               path: /api/health/
               port: {{ .Values.service.port }}
-            initialDelaySeconds: 10
-            periodSeconds: 3
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
           readinessProbe:
             httpGet:
               path: /api/health/
               port: {{ .Values.service.port }}
-            initialDelaySeconds: 10
-            periodSeconds: 3
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
 
           {{- end }}
 

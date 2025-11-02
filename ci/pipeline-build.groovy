@@ -44,6 +44,7 @@ def buildDockerImage(String component) {
     if (component == "DataPipelineHub/ui") {
         dockerfile = "deployment/Dockerfile"
         context = "${component}"
+
     }
 
     String logFile = "/tmp/${component.replace("/", "_")}_build.log"

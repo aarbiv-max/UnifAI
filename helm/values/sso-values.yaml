@@ -6,6 +6,7 @@ backend:
   env:
     ROLE: "flask"
     BACKEND_ENV: "production"
+    VERSION: ""
 
   service:
     name: sso-backend

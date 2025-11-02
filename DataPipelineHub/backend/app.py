@@ -21,6 +21,7 @@ app = Flask(__name__)
 
 config = AppConfig.get_instance()
 app.secret_key = config.get('secret_key', os.urandom(24))
+app.version = config.get("version", "1.0.0")
 
 # Configure CORS to allow credentials
 CORS(app, supports_credentials=True, origins=os.environ.get("FRONTEND_URL", "http://localhost:5000"))

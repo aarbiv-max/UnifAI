@@ -111,7 +111,7 @@ export default function AvailableFlows({
   const { user } = useAuth();
   const { openShareForItem } = useShared();
 
-  // Fetch available flows from API
+  // Fetch available workflows from API
   const fetchAvailableFlows = async (): Promise<void> => {
     try {
       const userId = user?.username || "default";
@@ -136,7 +136,7 @@ export default function AvailableFlows({
         onFlowSelect(processedFlows[0]);
       }
     } catch (error) {
-      console.error("Error fetching available flows:", error);
+      console.error("Error fetching available workflows:", error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -241,7 +241,7 @@ export default function AvailableFlows({
       <div className={`flex h-full overflow-hidden ${className}`} style={{ height }}>
         <div className="w-1/3 border-r border-gray-800 bg-background-dark flex flex-col min-h-0">
           <div className="py-3 px-4 border-b border-gray-800 bg-background-surface flex-shrink-0">
-            <h3 className="text-sm font-medium">Available Flows</h3>
+            <h3 className="text-sm font-medium">Available Workflows</h3>
           </div>
           <div className="flex-1 flex items-center justify-center overflow-hidden">
             <div className="text-gray-400">Loading flows...</div>
@@ -259,10 +259,10 @@ export default function AvailableFlows({
   return (
     <>
       <div className={`flex h-full overflow-hidden ${className}`} style={{ height }}>
-        {/* Available Flows Sidebar */}
+        {/* Available Workflows Sidebar */}
         <div className="w-1/3 border-r border-gray-800 bg-background-dark flex flex-col min-h-0 relative">
           <div className="py-3 px-4 border-b border-gray-800 bg-background-surface flex-shrink-0">
-            <h3 className="text-sm font-medium">Available Flows ({graphFlows.length})</h3>
+            <h3 className="text-sm font-medium">Available Workflows ({graphFlows.length})</h3>
           </div>
           <div className="flex-1 overflow-y-auto py-2 max-h-full relative">
             {graphFlows.length === 0 ? (

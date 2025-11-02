@@ -16,6 +16,7 @@ unifai_dataflow_server:
   env:
     ROLE: "flask"
     SHARED_STORAGE: "/app/shared"
+    VERSION: ""
     #FRONTEND_URL: "http://unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
   resources:
     limits:
@@ -38,6 +39,7 @@ unifai_dataflow_celery:
     SHARED_STORAGE: "/app/shared"
     CELERY_QUEUES: "slack_queue,document_queue,registration_queue"
     CELERY_WORKER: 1
+    VERSION: ""
   resources:
     limits:
       cpu: 4

@@ -17,3 +17,4 @@ multiagent_server:
     ROLE: "flask" # options are flask celery debug
     GUNICORN_WORKERS: "9"
     GUNICORN_TIMEOUT: "300"
+    VERSION: ""
