@@ -97,7 +97,7 @@ export default function AgenticAI() {
                 <Card className="bg-background-card shadow-card border-gray-800 mb-6">
                   <CardHeader className="py-2 px-6 flex flex-row justify-between items-center">
                     <CardTitle className="text-lg font-heading">
-                      Agent Flow Configuration
+                      Agent Workflow Configuration
                     </CardTitle>
                     <div className="flex gap-2">
                       <Button
@@ -108,7 +108,7 @@ export default function AgenticAI() {
                         className="bg-primary hover:bg-[#7525c9] text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <LoaderCircle className={`h-4 w-4 ${isLoadingFlow ? 'animate-spin' : ''}`} />
-                        {isLoadingFlow ? 'Loading...' : 'Load Flow'}
+                        {isLoadingFlow ? 'Loading...' : 'Load Workflow'}
                       </Button>
                       <Button
                         className="bg-primary hover:bg-opacity-80 flex items-center gap-2"
@@ -116,15 +116,15 @@ export default function AgenticAI() {
                         onClick={handleBuildGraph}
                       >
                         <Plus className="h-4 w-4" />
-                        Build Graph
+                        Build Workflow
                       </Button>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-2 px-4 pb-4">
                     <p className="text-sm text-gray-400">
                       Configure your agent workflow. Select a pre-existing
-                      flow and click "Load Flow" to execute it, or click
-                      "Build Graph" to create a custom graph with
+                      flow and click "Load Workflow" to execute it, or click
+                      "Build Workflow" to create a custom workflow with
                       drag-and-drop components.
                     </p>
                   </CardContent>

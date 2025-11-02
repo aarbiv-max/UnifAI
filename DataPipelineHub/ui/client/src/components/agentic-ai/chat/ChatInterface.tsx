@@ -18,7 +18,7 @@ import axios from "../../../http/axiosAgentConfig";
 import { MarkdownComponents, preprocessText } from "./helpers/TextComponents";
 import { SessionPayload } from "../ExecutionTab";
 import { useStreamingData } from "../StreamingDataContext";
-import { Message, StreamLogEntry } from "./types";
+import { Message, StreamLogEntry, WorkPlanSnapshot } from "./types";
 import { StreamLogDisplay } from "./StreamLogDisplay";
 import { useToast } from "@/hooks/use-toast";
 
@@ -47,13 +47,18 @@ export default function ChatInterface({
   const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<
     string | null
   >(null);
+  const [workPlanData, setWorkPlanData] = useState<Record<string, WorkPlanSnapshot[]>>({});
+  const [streamLogData, setStreamLogData] = useState<Record<string, StreamLogEntry[]>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const workplanStreamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const workPlanDataRef = useRef<Record<string, WorkPlanSnapshot[]>>({});
+  const streamLogDataRef = useRef<Record<string, StreamLogEntry[]>>({});
   const { nodeListRef, clearStream } = useStreamingData();
   const { toast } = useToast();
 
-  // Transform backend messages to frontend format
+  // Transform backend messages to frontend format (streamLogs/workPlans, managed separately)
   const transformBackendMessagesToFrontend = useCallback(
     (backendMessages: BackendMessage[]): Message[] => {
       return backendMessages.map((msg, index) => ({
@@ -63,7 +68,6 @@ export default function ChatInterface({
         // For AI messages, we might want to add finalAnswer if it's the last assistant message
         ...(msg.role === "assistant" && {
           finalAnswer: msg.content,
-          streamLogs: [],
         }),
       }));
     },
@@ -113,14 +117,14 @@ export default function ChatInterface({
     }
   };
 
-  // Optimized streaming logic with reduced update frequency
+  // Optimized streaming logic for stream logs using separate state (no messages updates)
   const startStreamingLogs = (messageId: string) => {
     if (streamingIntervalRef.current) {
       clearInterval(streamingIntervalRef.current);
     }
 
     let lastUpdateTime = 0;
-    const UPDATE_THROTTLE = 300; // Reduced update frequency to 300ms
+    const UPDATE_THROTTLE = 300; // Update frequency to 300ms
 
     streamingIntervalRef.current = setInterval(() => {
       const now = Date.now();
@@ -133,116 +137,261 @@ export default function ChatInterface({
       if (list.length > 0) {
         lastUpdateTime = now;
 
-        setMessages((prevMessages) =>
-          prevMessages.map((msg) => {
-            if (msg.id === messageId && msg.sender === "ai") {
-              const currentLogs = msg.streamLogs || [];
-              const updatedStreamLogs: StreamLogEntry[] = [];
+        const currentLogs = streamLogDataRef.current[messageId] || [];
+        const updatedStreamLogs: StreamLogEntry[] = [];
 
-              // Process each entry from nodeListRef
-              list.forEach((entry) => {
-                const existingLog = currentLogs.find(
-                  (log) => log.nodeId === entry.node_name,
-                );
+        // Process each entry from nodeListRef for stream logs only
+        list.forEach((entry) => {
+          // Process stream logs
+          const existingLog = currentLogs.find(
+            (log) => log.nodeId === entry.node_name,
+          );
 
-                // Only update if there's actually a change
-                const newStatus = mapStreamToStatus(entry.stream);
-                const newMessage = entry.text;
+          // Only update if there's actually a change
+          const newStatus = mapStreamToStatus(entry.stream);
+          const newMessage = entry.text;
 
-                if (
-                  !existingLog ||
-                  existingLog.status !== newStatus ||
-                  existingLog.message !== newMessage
-                ) {
-                  if (newMessage) {
-                    updatedStreamLogs.push({
-                      nodeId: entry.node_name,
-                      nodeName: entry.node_name
-                        .replace(/_/g, " ")
-                        .replace(/\b\w/g, (l) => l.toUpperCase()),
-                      message: newMessage,
-                      tools: entry?.tools || [],
-                      status: newStatus,
-                      isExpanded: existingLog?.isExpanded || false,
-                    });
-                  }
-                } else {
-                  // Keep existing log unchanged
-                  updatedStreamLogs.push(existingLog);
-                }
+          if (
+            !existingLog ||
+            existingLog.status !== newStatus ||
+            existingLog.message !== newMessage
+          ) {
+            if (newMessage) {
+              updatedStreamLogs.push({
+                nodeId: entry.node_name,
+                nodeName: entry.node_name
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (l: string) => l.toUpperCase()),
+                message: newMessage,
+                tools: entry?.tools || [],
+                status: newStatus,
+                isExpanded: existingLog?.isExpanded || false,
               });
-
-              // Only update if there are actual changes
-              const hasChanges =
-                updatedStreamLogs.length !== currentLogs.length ||
-                updatedStreamLogs.some((log, index) => {
-                  const currentLog = currentLogs[index];
-                  return (
-                    !currentLog ||
-                    log.status !== currentLog.status ||
-                    log.message !== currentLog.message
-                  );
-                });
-
-              if (hasChanges) {
-                return {
-                  ...msg,
-                  streamLogs: updatedStreamLogs,
-                };
-              }
             }
-            return msg;
-          }),
-        );
+          } else {
+            // Keep existing log unchanged
+            updatedStreamLogs.push(existingLog);
+          }
+        });
+
+        // Only update if there are actual changes
+        const hasLogChanges =
+          updatedStreamLogs.length !== currentLogs.length ||
+          updatedStreamLogs.some((log, index) => {
+            const currentLog = currentLogs[index];
+            return (
+              !currentLog ||
+              log.status !== currentLog.status ||
+              log.message !== currentLog.message
+            );
+          });
+
+        if (hasLogChanges) {
+          // Update the ref and state
+          streamLogDataRef.current = {
+            ...streamLogDataRef.current,
+            [messageId]: updatedStreamLogs
+          };
+          
+          setStreamLogData(prev => ({
+            ...prev,
+            [messageId]: updatedStreamLogs
+          }));
+        }
       }
     }, 100); // Check every 100ms but only update every 300ms
   };
 
-  // Stop streaming logs and mark all as complete
+  // Separate streaming logic for workplans with 500ms intervals using dedicated state
+  const startStreamingWorkPlans = (messageId: string) => {
+    if (workplanStreamingIntervalRef.current) {
+      clearInterval(workplanStreamingIntervalRef.current);
+    }
+
+    workplanStreamingIntervalRef.current = setInterval(() => {
+      const list = Array.from(nodeListRef.current.values());
+
+      if (list.length > 0) {
+        const currentWorkPlans = workPlanDataRef.current[messageId] || [];
+        const updatedWorkPlans: WorkPlanSnapshot[] = [];
+
+        // Process each entry from nodeListRef for workplans only
+        list.forEach((entry) => {
+          // Process workplan data
+          if (entry.workplans && entry.workplans.length > 0) {
+            entry.workplans.forEach((workplanSnapshot: WorkPlanSnapshot) => {
+              const existingPlanIndex = updatedWorkPlans.findIndex(
+                (wp) => wp.plan_id === workplanSnapshot.plan_id
+              );
+
+              if (existingPlanIndex !== -1) {
+                // Update existing workplan while preserving expansion state
+                const existingPlan = updatedWorkPlans[existingPlanIndex];
+                updatedWorkPlans[existingPlanIndex] = {
+                  ...workplanSnapshot,
+                  isExpanded: existingPlan.isExpanded // Preserve expansion state
+                };
+              } else {
+                // Add new workplan with default expansion state
+                updatedWorkPlans.push({
+                  ...workplanSnapshot,
+                  isExpanded: false // Default to collapsed
+                });
+              }
+            });
+          }
+        });
+
+        // Also preserve existing workplans that weren't updated
+        currentWorkPlans.forEach((existingPlan) => {
+          if (!updatedWorkPlans.find(wp => wp.plan_id === existingPlan.plan_id)) {
+            updatedWorkPlans.push(existingPlan);
+          }
+        });
+
+        // More precise workplan change detection to reduce flickering
+        const hasPlanChanges = (() => {
+          if (updatedWorkPlans.length !== currentWorkPlans.length) {
+            return true; // Number of plans changed
+          }
+
+          for (const updatedPlan of updatedWorkPlans) {
+            const currentPlan = currentWorkPlans.find(p => p.plan_id === updatedPlan.plan_id);
+            
+            if (!currentPlan) {
+              return true; // New plan
+            }
+
+            // Check if plan-level properties changed
+            if (updatedPlan.action !== currentPlan.action ||
+                updatedPlan.workplan.summary !== currentPlan.workplan.summary) {
+              return true;
+            }
+
+            // Check work items for meaningful changes
+            const updatedItems = Object.values(updatedPlan.workplan.items);
+            const currentItems = Object.values(currentPlan.workplan.items);
+
+            if (updatedItems.length !== currentItems.length) {
+              return true; // Number of items changed
+            }
+
+            // Check each item for status or content changes
+            for (const updatedItem of updatedItems) {
+              const currentItem = currentItems.find(item => item.id === updatedItem.id);
+              
+              if (!currentItem) {
+                return true; // New item
+              }
+
+              // Only trigger update for meaningful changes
+              if (
+                currentItem.status !== updatedItem.status ||
+                currentItem.title !== updatedItem.title ||
+                currentItem.description !== updatedItem.description ||
+                currentItem.error !== updatedItem.error ||
+                currentItem.retry_count !== updatedItem.retry_count
+              ) {
+                return true;
+              }
+            }
+          }
+
+          return false; // No meaningful changes
+        })();
+
+        if (hasPlanChanges) {
+          // Update the ref and state
+          workPlanDataRef.current = {
+            ...workPlanDataRef.current,
+            [messageId]: updatedWorkPlans
+          };
+          
+          setWorkPlanData(prev => ({
+            ...prev,
+            [messageId]: updatedWorkPlans
+          }));
+        }
+      }
+    }, 500); // Check every 500ms for workplans
+  };
+
+  // Stop streaming logs and workplans and mark all as complete
   const stopStreamingLogs = (messageId?: string) => {
+    // Clear stream logs interval
     if (streamingIntervalRef.current) {
       clearInterval(streamingIntervalRef.current);
       streamingIntervalRef.current = null;
+    }
 
-      // Mark all processing nodes as complete when streaming stops
-      const targetMessageId = messageId || currentStreamingMessageId;
-      if (targetMessageId) {
-        setMessages((prevMessages) =>
-          prevMessages.map((msg) => {
-            if (msg.id === targetMessageId && msg.sender === "ai") {
-              return {
-                ...msg,
-                streamLogs: msg.streamLogs?.map((log) => ({
-                  ...log,
-                  status: log.status === "processing" ? "complete" : log.status,
-                })),
-              };
-            }
-            return msg;
-          }),
-        );
+    // Clear workplan streaming interval
+    if (workplanStreamingIntervalRef.current) {
+      clearInterval(workplanStreamingIntervalRef.current);
+      workplanStreamingIntervalRef.current = null;
+    }
+
+    // Mark all processing nodes as complete when streaming stops
+    const targetMessageId = messageId || currentStreamingMessageId;
+    if (targetMessageId) {
+      const currentLogs = streamLogDataRef.current[targetMessageId] || [];
+      const updatedLogs = currentLogs.map((log) => ({
+        ...log,
+        status: log.status === "processing" ? "complete" : log.status,
+      }));
+      
+      if (updatedLogs.length > 0) {
+        streamLogDataRef.current = {
+          ...streamLogDataRef.current,
+          [targetMessageId]: updatedLogs
+        };
+        
+        setStreamLogData(prev => ({
+          ...prev,
+          [targetMessageId]: updatedLogs
+        }));
       }
     }
   };
 
-  // Toggle expansion of a specific node log
-  const toggleNodeExpansion = (messageId: string, nodeId: string) => {
-    setMessages((prevMessages) =>
-      prevMessages.map((msg) => {
-        if (msg.id === messageId) {
-          return {
-            ...msg,
-            streamLogs: msg.streamLogs?.map((log) =>
-              log.nodeId === nodeId
-                ? { ...log, isExpanded: !log.isExpanded }
-                : log,
-            ),
-          };
-        }
-        return msg;
-      }),
+  // Toggle expansion of a specific node log in separate state
+  const toggleNodeExpansion = useCallback((messageId: string, nodeId: string) => {
+    const currentLogs = streamLogDataRef.current[messageId] || [];
+    const updatedLogs = currentLogs.map((log) =>
+      log.nodeId === nodeId
+        ? { ...log, isExpanded: !log.isExpanded }
+        : log,
     );
-  };
+    
+    streamLogDataRef.current = {
+      ...streamLogDataRef.current,
+      [messageId]: updatedLogs
+    };
+    
+    setStreamLogData(prev => ({
+      ...prev,
+      [messageId]: updatedLogs
+    }));
+  }, []);
+
+  // Toggle expansion of a specific workplan in separate state
+  const toggleWorkPlanExpansion = useCallback((messageId: string, planId: string) => {
+    const currentPlans = workPlanDataRef.current[messageId] || [];
+    const updatedPlans = currentPlans.map((plan) =>
+      plan.plan_id === planId
+        ? { ...plan, isExpanded: !plan.isExpanded }
+        : plan,
+    );
+    
+    workPlanDataRef.current = {
+      ...workPlanDataRef.current,
+      [messageId]: updatedPlans
+    };
+    
+    setWorkPlanData(prev => ({
+      ...prev,
+      [messageId]: updatedPlans
+    }));
+  }, []);
 
   const getSessionState = async (sid: string) => {
     try {
@@ -301,21 +450,21 @@ export default function ChatInterface({
       }
     }, 0);
 
-    // Create initial AI message for streaming
+    // Create initial AI message for streaming (no streamLogs, managed separately)
     const streamingMessageId = (Date.now() + 1).toString();
     const initialAiMessage: Message = {
       id: streamingMessageId,
       content: "",
       sender: "ai",
-      streamLogs: [],
     };
 
     setMessages((prev) => [...prev, initialAiMessage]);
     clearStream();
     setCurrentStreamingMessageId(streamingMessageId);
 
-    // Start streaming logs
+    // Start streaming logs and workplans
     startStreamingLogs(streamingMessageId);
+    startStreamingWorkPlans(streamingMessageId);
 
     try {
       const sessionPayload: SessionPayload = {
@@ -378,6 +527,11 @@ export default function ChatInterface({
         sender: "ai",
       },
     ]);
+    // Clear both workplan and stream log data
+    setWorkPlanData({});
+    workPlanDataRef.current = {};
+    setStreamLogData({});
+    streamLogDataRef.current = {};
     stopStreamingLogs();
   };
 
@@ -441,6 +595,24 @@ export default function ChatInterface({
 
   // Component for rendering message content with markdown support
   const MessageContent = ({ message }: { message: Message }) => {
+    // Get stream logs and workplans from separate states
+    const streamLogs = streamLogData[message.id] || [];
+    const workPlans = workPlanData[message.id] || [];
+
+    // Memoize the complete message object with separate data
+    const messageWithStreamingData = useMemo(() => {
+      // Create enhanced message object only when needed
+      if (streamLogs.length > 0 || workPlans.length > 0) {
+        return {
+          ...message,
+          streamLogs: streamLogs,
+          workPlans: workPlans
+        };
+      }
+      
+      return message;
+    }, [message, streamLogs, workPlans]);
+
     if (message.sender === "user") {
       return (
         <div className="text-sm whitespace-pre-line">{message.content}</div>
@@ -449,14 +621,15 @@ export default function ChatInterface({
 
     if (
       message.sender === "ai" &&
-      (message.streamLogs || message.finalAnswer)
+      (streamLogs.length > 0 || workPlans.length > 0 || message.finalAnswer)
     ) {
       return (
         <div className="space-y-3 w-full">
           {/* Stream logs display */}
           <StreamLogDisplay
-            message={message}
+            message={messageWithStreamingData}
             onToggleExpansion={toggleNodeExpansion}
+            onToggleWorkPlanExpansion={toggleWorkPlanExpansion}
           />
 
           {/* Final answer with markdown rendering */}
@@ -464,7 +637,7 @@ export default function ChatInterface({
             <div
               className="mt-3 p-3 rounded-lg"
               style={{
-                backgroundColor: `hsl(var(--primary) / 0.1)`,
+                // backgroundColor: `hsl(var(--primary) / 0.1)`,
                 border: `1px solid hsl(var(--primary) / 0.3)`,
               }}
             >

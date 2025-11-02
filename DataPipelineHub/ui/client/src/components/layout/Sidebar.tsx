@@ -157,7 +157,7 @@ export default function Sidebar() {
             label="Agentic AI Workflows" 
             to="/agentic-ai"
             isActive={location === '/agentic-ai'}
-            status="New"
+            // status="New"
             isCollapsed={isCollapsed}
           />
           <NavItem 
