@@ -301,7 +301,7 @@ const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({
         {hasReferences && (
           <div className="px-4 py-2">
             <div className={`text-xs text-gray-400 mb-1`}>
-              References:
+              Resources:
             </div>
             <div className="flex flex-wrap gap-1">
               {Object.entries(references).map(([key, refId]) => (
@@ -409,7 +409,20 @@ const getEdgeStyle = (
   } else if (sourceNodeType === "final_answer_node") {
     return { stroke: "#003f5c", color: "#003f5c" };
   } else {
-    return { stroke: "#8A2BE2", color: "#8A2BE2" };
+    return { stroke: "hsl(var(--primary))", color: "hsl(var(--primary))" };
+  }
+};
+
+// Function to generate conditional edge styling - matches node gradient colors
+const getConditionalEdgeStyle = (
+  sourceNodeType: string,
+): { stroke: string; color: string; strokeDasharray: string } => {
+  if (sourceNodeType === "user_question_node") {
+    return { stroke: "hsl(var(--accent))", color: "hsl(var(--accent))", strokeDasharray: "5,5" };
+  } else if (sourceNodeType === "final_answer_node") {
+    return { stroke: "hsl(var(--accent))", color: "hsl(var(--accent))", strokeDasharray: "5,5" };
+  } else {
+    return { stroke: "hsl(var(--primary))", color: "hsl(var(--primary))", strokeDasharray: "5,5" };
   }
 };
 
@@ -463,6 +476,16 @@ const parseGraphFlow = (
     } else {
       // No predecessors, this is a root node
       nodePredecessors[nodeId] = [];
+    }
+  });
+
+  // Force user_question_node to level 0 (first layer)
+  graphFlow.plan.forEach((item) => {
+    const nodeId = item.uid;
+    const nodeDefinition = nodeMap[item.node];
+    const nodeType = nodeDefinition?.type || "custom_agent_node";
+    
+    if (nodeType === "user_question_node") {
       nodeLevel[nodeId] = 0;
       if (!nodesByLevel[0]) {
         nodesByLevel[0] = [];
@@ -471,15 +494,37 @@ const parseGraphFlow = (
     }
   });
 
-  // Second pass: Determine node levels
+  // Also assign other root nodes (nodes without predecessors) to level 0 if not user_question_node
+  graphFlow.plan.forEach((item) => {
+    const nodeId = item.uid;
+    const nodeDefinition = nodeMap[item.node];
+    const nodeType = nodeDefinition?.type || "custom_agent_node";
+    
+    if (!item.after && nodeType !== "user_question_node" && nodeType !== "final_answer_node") {
+      nodeLevel[nodeId] = 0;
+      if (!nodesByLevel[0]) {
+        nodesByLevel[0] = [];
+      }
+      nodesByLevel[0].push(nodeId);
+    }
+  });
+
+  // Second pass: Determine node levels for all nodes except final_answer_node
   let allNodesAssigned = false;
   while (!allNodesAssigned) {
     allNodesAssigned = true;
     graphFlow.plan.forEach((item) => {
       const nodeId = item.uid;
+      const nodeDefinition = nodeMap[item.node];
+      const nodeType = nodeDefinition?.type || "custom_agent_node";
 
       // Skip nodes that already have a level assigned
       if (nodeLevel[nodeId] !== undefined) {
+        return;
+      }
+
+      // Skip final_answer_node for now - we'll handle it separately
+      if (nodeType === "final_answer_node") {
         return;
       }
 
@@ -508,6 +553,26 @@ const parseGraphFlow = (
       }
     });
   }
+
+  // Third pass: Force final_answer_node to the highest level + 1 (last layer)
+  graphFlow.plan.forEach((item) => {
+    const nodeId = item.uid;
+    const nodeDefinition = nodeMap[item.node];
+    const nodeType = nodeDefinition?.type || "custom_agent_node";
+    
+    if (nodeType === "final_answer_node") {
+      // Find the current highest level
+      const existingLevels = Object.keys(nodesByLevel).map(level => parseInt(level));
+      const maxLevel = existingLevels.length > 0 ? Math.max(...existingLevels) : -1;
+      const finalLevel = maxLevel + 1;
+      
+      nodeLevel[nodeId] = finalLevel;
+      if (!nodesByLevel[finalLevel]) {
+        nodesByLevel[finalLevel] = [];
+      }
+      nodesByLevel[finalLevel].push(nodeId);
+    }
+  });
 
   // Create nodes with the calculated positions
   const nodes: Node<EnhancedNodeData>[] = graphFlow.plan.map((item) => {
@@ -564,6 +629,7 @@ const parseGraphFlow = (
   const edges: Edge[] = [];
 
   graphFlow.plan.forEach((item) => {
+    // Handle regular sequential edges (after dependencies)
     if (item.after) {
       // Handle both string and array 'after' properties
       const predecessors = Array.isArray(item.after)
@@ -592,6 +658,45 @@ const parseGraphFlow = (
             height: 10,
           },
           zIndex: 1000, // Ensure edges are on top
+        });
+      });
+    }
+
+    // Handle conditional edges (branches)
+    if (item.branches) {
+      const sourceNodeType = nodeTypeMap[item.uid] || "custom_agent_node";
+      const conditionalEdgeStyle = getConditionalEdgeStyle(sourceNodeType);
+
+      // Create edges for each branch target
+      Object.entries(item.branches).forEach(([branchKey, targetNodeId]) => {
+        edges.push({
+          id: `${item.uid}-branch-${branchKey}-to-${targetNodeId}`,
+          source: item.uid,
+          target: targetNodeId as string,
+          animated: true,
+          type: "default",
+          style: {
+            stroke: conditionalEdgeStyle.stroke,
+            strokeWidth: 2,
+            strokeDasharray: conditionalEdgeStyle.strokeDasharray,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: conditionalEdgeStyle.color,
+            width: 10,
+            height: 10,
+          },
+          label: branchKey, // Show the branch condition as edge label
+          labelStyle: {
+            fontSize: 10,
+            fontWeight: 'bold',
+            fill: conditionalEdgeStyle.color,
+          },
+          labelBgStyle: {
+            fill: 'rgba(0, 0, 0, 0.7)',
+            fillOpacity: 0.8,
+          },
+          zIndex: 1001, // Conditional edges slightly higher than regular edges
         });
       });
     }
