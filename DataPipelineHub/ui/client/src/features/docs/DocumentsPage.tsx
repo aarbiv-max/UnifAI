@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext"; // for user id
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [activeDoc, setActiveDoc] = useState<Document | null>(null);
   const [fileTypeFilter, setFileTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -100,19 +100,19 @@ export default function Documents() {
       <Button onClick={() => setShowUploadModal(true)} data-umami-event="upload-document-button" data-umami-event-user-id={user?.name}>Upload Document</Button>
       <div className="flex">
         <Button
-          variant={viewMode === "grid" ? "default" : "outline"}
-          size="icon"
-          onClick={() => { setViewMode("grid"); setActiveDoc(null) }}
-        >
-          <FaTh />
-        </Button>
-        <Button
           variant={viewMode === "list" ? "default" : "outline"}
           size="icon"
           onClick={() => { setViewMode("list"); setActiveDoc(null) }}
           data-umami-event="document-view-mode-button" data-umami-event-user-id={user?.name}
         >
           <FaList />
+        </Button>
+        <Button
+          variant={viewMode === "grid" ? "default" : "outline"}
+          size="icon"
+          onClick={() => { setViewMode("grid"); setActiveDoc(null) }}
+        >
+          <FaTh />
         </Button>
       </div>
     </div>

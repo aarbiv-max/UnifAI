@@ -6,7 +6,7 @@ flask_pymongo
 pymongo
 asyncio
 datamodel-code-generator
-pydantic>=2.0
+pydantic==2.11.7
 # flask
 # flask-cors
 # scapy

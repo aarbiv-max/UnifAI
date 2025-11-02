@@ -111,7 +111,7 @@ export function PaginatedChannelTable({
               enableColumnFilters={true}
               enablePagination={true}
               initialState={{
-                pagination: { pageIndex: 0, pageSize },
+                pagination: { pageIndex: 0, pageSize: 8 },
                 sorting: [],
               }}
             />
