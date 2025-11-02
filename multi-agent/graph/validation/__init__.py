@@ -9,6 +9,7 @@ from .cycle.validator import CycleValidator
 from .orphan.validator import OrphanValidator
 from .channel.validator import ChannelValidator
 from .required_nodes.validator import RequiredNodesValidator
+from .orchestrator.validator import OrchestratorValidator
 
 # Import fix providers to trigger registration
 from .channel.fix_provider import ChannelFixProvider

@@ -23,39 +23,66 @@ class GraphState(BaseModel):
 
     # —————– Channels (with merge strategies) —————–
     # last-writer-wins for user_prompt:
-    user_prompt: Annotated[str, lambda old, new: new] = Field(default="", json_schema_extra={'external': True})
+    user_prompt: Annotated[str, lambda old, new: new] = Field(
+        default="", 
+        json_schema_extra={'external': True, 'streamable': True}
+    )
     # merge dicts into a new dict:
-    nodes_output: Annotated[Dict[str, str], merge_string_dicts] = Field(default_factory=dict)
+    nodes_output: Annotated[Dict[str, str], merge_string_dicts] = Field(
+        default_factory=dict,
+        json_schema_extra={'streamable': False}
+    )
 
     # appending messages to a list:
-    messages: Annotated[list[ChatMessage], append_chat_messages] = Field(default_factory=list)
+    messages: Annotated[list[ChatMessage], append_chat_messages] = Field(
+        default_factory=list,
+        json_schema_extra={'streamable': True}
+    )
 
     # last-writer-wins for output
-    output: Annotated[str, lambda old, new: new] = ""
+    output: Annotated[str, lambda old, new: new] = Field(
+        default="",
+        json_schema_extra={'streamable': True}
+    )
 
-    target_branch: Annotated[str, lambda old, new: new] = ""
+    target_branch: Annotated[str, lambda old, new: new] = Field(
+        default="",
+        json_schema_extra={'streamable': False}
+    )
 
     # Dynamic storage for extra fields (will be included in serialization)
     dynamic_fields: Annotated[Dict[str, Any], merge_dynamic_fields] = Field(default_factory=dict)
 
     # —————– STRUCTURED COMMUNICATION (Inter-Node Coordination) —————–
     # IEM protocol packets for structured node-to-node communication
-    inter_packets: Annotated[List[Any], append_iem_packets] = Field(default_factory=list)
+    inter_packets: Annotated[List[Any], append_iem_packets] = Field(
+        default_factory=list,
+        json_schema_extra={'streamable': False}  # Too large for streaming
+    )
     
     # —————– PRIVATE WORKSPACE (Node Internal State) —————–
 
     # Task-focused conversation threads (agentic context)
     # Structure: {thread_id: [ChatMessage, ...]}
-    task_threads: Annotated[Dict[str, List[ChatMessage]], merge_task_threads] = Field(default_factory=dict)
+    task_threads: Annotated[Dict[str, List[ChatMessage]], merge_task_threads] = Field(
+        default_factory=dict,
+        json_schema_extra={'streamable': False}  # Too large for streaming
+    )
     
     # —————– ENGENTIC WORKLOAD MANAGEMENT —————–
     # Thread metadata management (Thread objects)
     # Structure: {thread_id: Thread}
-    threads: Annotated[Dict[str, Any], merge_threads] = Field(default_factory=dict)
+    threads: Annotated[Dict[str, Any], merge_threads] = Field(
+        default_factory=dict,
+        json_schema_extra={'streamable': False}  # Too large for streaming
+    )
     
     # Workspace shared context management (Workspace objects)  
     # Structure: {thread_id: Workspace}
-    workspaces: Annotated[Dict[str, Any], merge_workspaces] = Field(default_factory=dict)
+    workspaces: Annotated[Dict[str, Any], merge_workspaces] = Field(
+        default_factory=dict,
+        json_schema_extra={'streamable': False}  # Too large for streaming
+    )
 
     # —————– Dict-like API —————–
     def __getitem__(self, key: str) -> Any:
@@ -131,6 +158,41 @@ class GraphState(BaseModel):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.dict()})"
+
+    @classmethod
+    def get_streamable_channels(cls) -> Set[str]:
+        """
+        Returns names of all fields marked as streamable.
+        Only these fields will be included in stream payloads.
+        
+        Returns:
+            Set of field names that have streamable=True in json_schema_extra
+        """
+        streamable = set()
+        for field_name, field_info in cls.model_fields.items():
+            if field_info.json_schema_extra:
+                is_streamable = field_info.json_schema_extra.get('streamable', False)
+                if is_streamable:
+                    streamable.add(field_name)
+        return streamable
+
+    def get_streamable_state(self) -> Dict[str, Any]:
+        """
+        Returns a filtered dict containing only streamable fields.
+        This is what gets sent over the wire during streaming to reduce payload size.
+        
+        Returns:
+            Dictionary with only streamable fields and their values
+        """
+        streamable = self.get_streamable_channels()
+        result = {}
+        
+        # Include streamable declared fields
+        for field_name in streamable:
+            if field_name in self.__class__.model_fields:
+                result[field_name] = getattr(self, field_name)
+        
+        return result
 
 
 def _build_channel_enum() -> Enum:

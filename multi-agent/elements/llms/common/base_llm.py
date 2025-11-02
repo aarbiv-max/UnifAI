@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, Dict, Any, List
+from typing import Iterator, Dict, Any, List, Union
 from elements.tools.common.base_tool import BaseTool
 from .chat.message import ChatMessage
 
@@ -14,6 +14,16 @@ class BaseLLM(ABC):
         """
         Perform a conversational completion.
         messages = list of {"role": "user"/"assistant", "content": "..."}
+        """
+        pass
+
+    @abstractmethod
+    def stream(self, messages: List[ChatMessage], **call_params: Any) -> Iterator[Union[str, ChatMessage]]:
+        """
+        Stream conversational completion with real-time token generation.
+        
+        Yields either incremental text tokens (str) or complete ChatMessage objects.
+        For tool calling, yields final ChatMessage with tool_calls populated.
         """
         pass
 

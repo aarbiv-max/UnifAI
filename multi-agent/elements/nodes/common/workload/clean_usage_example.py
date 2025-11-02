@@ -11,8 +11,8 @@ from elements.nodes.common.capabilities.workload_capable import WorkloadCapableM
 from graph.state.state_view import StateView
 from graph.state.graph_state import Channel
 from typing import ClassVar
-from .interfaces import IWorkloadService
-from .in_memory_service import InMemoryWorkloadService
+from .unified_service import IWorkloadService
+from .storage import InMemoryStorage
 from .task import Task
 
 
