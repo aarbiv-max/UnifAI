@@ -522,7 +522,7 @@ export const useGraphLogic = () => {
     const finalizeNode: Node = {
       id: "finalize",
       type: "custom",
-      position: { x: 200, y: 300 },
+      position: { x: 200, y: 900 },
       data: {
         label: "Final Answer",
         icon: getCategoryDisplay("nodes").icon,
@@ -1046,8 +1046,8 @@ export const useGraphLogic = () => {
       } catch (error) {
         console.error("Error saving graph:", error);
         toast({
-          title: "❌ Error Saving Blueprint",
-          description: "Failed to save blueprint to server",
+          title: "❌ Error Saving Workflow",
+          description: "Failed to save workflow to the server",
           variant: "destructive",
         });
         setIsSaving(false);

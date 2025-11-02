@@ -34,7 +34,7 @@ export default function AgentFlowGraph({
     <Card className="bg-background-card shadow-card border-gray-800">
       <CardHeader className="py-4 px-6 flex flex-row justify-between items-center">
         <CardTitle className="text-lg font-heading">
-          Agent Flow Visualization
+          Agent Workflow Visualization
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0" style={{ height: "73.5vh" }}>

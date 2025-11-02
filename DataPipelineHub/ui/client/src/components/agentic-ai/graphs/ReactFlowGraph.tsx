@@ -494,20 +494,6 @@ const parseGraphFlow = (
     }
   });
 
-  // Also assign other root nodes (nodes without predecessors) to level 0 if not user_question_node
-  graphFlow.plan.forEach((item) => {
-    const nodeId = item.uid;
-    const nodeDefinition = nodeMap[item.node];
-    const nodeType = nodeDefinition?.type || "custom_agent_node";
-    
-    if (!item.after && nodeType !== "user_question_node" && nodeType !== "final_answer_node") {
-      nodeLevel[nodeId] = 0;
-      if (!nodesByLevel[0]) {
-        nodesByLevel[0] = [];
-      }
-      nodesByLevel[0].push(nodeId);
-    }
-  });
 
   // Second pass: Determine node levels for all nodes except final_answer_node
   let allNodesAssigned = false;
@@ -536,13 +522,19 @@ const parseGraphFlow = (
       );
 
       if (allPredecessorsHaveLevels) {
-        // Find the maximum level among predecessors
-        const maxPredLevel = Math.max(
-          ...predecessors.map((predId) => nodeLevel[predId]),
-        );
-        const level = maxPredLevel + 1;
+        let level;
+        if (predecessors.length === 0) {
+          // Node has no predecessors - assign to level 1 (not level 0, which is reserved for user_question_node)
+          level = 1;
+        } else {
+          // Find the maximum level among predecessors
+          const maxPredLevel = Math.max(
+            ...predecessors.map((predId) => nodeLevel[predId]),
+          );
+          level = maxPredLevel + 1;
+        }
 
-        // Assign this node to the next level
+        // Assign this node to the calculated level
         nodeLevel[nodeId] = level;
         if (!nodesByLevel[level]) {
           nodesByLevel[level] = [];
@@ -592,7 +584,7 @@ const parseGraphFlow = (
 
     // Calculate position
     // Horizontal spacing increases with the number of nodes in the level
-    const levelWidth = Math.max(totalInLevel * 300, 400);
+    const levelWidth = Math.max(totalInLevel * 600, 800);
     const xSpacing = levelWidth / totalInLevel;
     const xOffset = xSpacing / 2 + indexInLevel * xSpacing;
     const yOffset = level * 150;
@@ -646,7 +638,7 @@ const parseGraphFlow = (
           source: predecessorId,
           target: item.uid,
           animated: true,
-          type: "default", // Simpler edge type for reliability
+          type: "default", // Will be updated to smoothstep for bidirectional edges
           style: {
             stroke: edgeStyle.stroke,
             strokeWidth: 2,
@@ -686,7 +678,7 @@ const parseGraphFlow = (
             width: 10,
             height: 10,
           },
-          label: branchKey, // Show the branch condition as edge label
+          // label: branchKey, // Show the branch condition as edge label
           labelStyle: {
             fontSize: 10,
             fontWeight: 'bold',
@@ -702,7 +694,37 @@ const parseGraphFlow = (
     }
   });
 
-  return { nodes, edges };
+  // Detect and update bidirectional edges to use smoothstep type
+  const edgeMap = new Map<string, Edge>();
+  const bidirectionalPairs = new Set<string>();
+
+  // Create a map of edges by their connection pair
+  edges.forEach(edge => {
+    const key1 = `${edge.source}-${edge.target}`;
+    const key2 = `${edge.target}-${edge.source}`;
+    
+    edgeMap.set(key1, edge);
+    
+    // Check if reverse edge exists
+    if (edgeMap.has(key2)) {
+      bidirectionalPairs.add(key1);
+      bidirectionalPairs.add(key2);
+    }
+  });
+
+  // Update bidirectional edges to use smoothstep type
+  const updatedEdges = edges.map(edge => {
+    const edgeKey = `${edge.source}-${edge.target}`;
+    if (bidirectionalPairs.has(edgeKey)) {
+      return {
+        ...edge,
+        type: "smoothstep",
+      };
+    }
+    return edge;
+  });
+
+  return { nodes, edges: updatedEdges };
 };
 
 type ReactFlowGraphProps = {

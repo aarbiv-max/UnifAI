@@ -767,21 +767,21 @@ export default function ExecutionTab({
         {/* Blueprint Graph Visualization - Dynamic width */}
         <div className="flex-shrink-0" style={{ width: `${blueprintGraphWidth}%` }}>
           <Card className="bg-background-card shadow-card border-gray-800 h-full flex flex-col ml-0">
-            <CardHeader className="py-3 px-4 border-b border-gray-800">
+            {/* TODO: Add below general component that gets 'blueprintId' and showing his title and uid - can be called from multiple places */}
+            {/* <CardHeader className="py-3 px-4 border-b border-gray-800">
               {selectedSession && (
                   <div className="mb-4 px-4 py-3 bg-[#8A2BE2] bg-opacity-10 border border-[hsl(var(--primary))] rounded-md">
                     <p className="text-sm">
-                      {/* TODO: Add below general component that gets 'blueprintId' and showing his title and uid - can be called from multiple places */}
                       <span className="font-medium">Active Graph:</span> {''} <span className="text-xs text-gray-400 ml-2">(ID: {selectedSession.blueprintId || 'N/A'})</span>
                     </p>
                   </div>
                 )}
-              {/* {selectedSession && (
+              {selectedSession && (
                 <p className="text-xs text-gray-400 mt-1">
                   Blueprint ID: {selectedSession.blueprintId || 'N/A'}
                 </p>
-              )} */}
-            </CardHeader>
+              )}
+            </CardHeader> */}
             <CardContent className="p-0 flex-grow">
               {selectedSession?.blueprintId ? (
                 <ReactFlowProvider key={`main-graph-${selectedSession.blueprintId}`}>
