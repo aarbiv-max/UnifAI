@@ -14,6 +14,7 @@ import {
   Bot
 } from 'lucide-react';
 import { WorkPlanSnapshot, WorkItem, WorkPlan, DelegationExchange } from './types';
+import { getStatusConfig, formatTimestamp } from './WorkPlanDisplayHelpers';
 
 interface WorkPlanDisplayProps {
   workPlanSnapshot: WorkPlanSnapshot;
@@ -29,39 +30,6 @@ interface WorkPlanItemProps {
   onToggleExpansion: () => void;
 }
 
-// Status colors and icons
-const getStatusConfig = (status: string) => {
-  switch (status) {
-    case 'done':
-      return {
-        icon: CheckCircle2,
-        color: 'text-green-400',
-        bgColor: 'bg-green-400/10',
-        borderColor: 'border-green-400/30'
-      };
-    case 'in_progress':
-      return {
-        icon: Clock,
-        color: 'text-blue-400',
-        bgColor: 'bg-blue-400/10',
-        borderColor: 'border-blue-400/30'
-      };
-    case 'failed':
-      return {
-        icon: AlertCircle,
-        color: 'text-red-400',
-        bgColor: 'bg-red-400/10',
-        borderColor: 'border-red-400/30'
-      };
-    default: // pending
-      return {
-        icon: Circle,
-        color: 'text-gray-400',
-        bgColor: 'bg-gray-400/10',
-        borderColor: 'border-gray-400/30'
-      };
-  }
-};
 
 // Individual delegation Q&A component
 const DelegationItem: React.FC<{ delegation: DelegationExchange; index: number }> = memo(({ delegation, index }) => {
@@ -70,14 +38,6 @@ const DelegationItem: React.FC<{ delegation: DelegationExchange; index: number }
   const truncateText = (text: string, maxLength: number = 50) => {
     if (!text || text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
-  };
-
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      second: '2-digit'
-    });
   };
 
   return (
@@ -190,15 +150,6 @@ const WorkItemCard: React.FC<{ item: WorkItem; isLast: boolean }> = memo(({ item
   const isCompleted = item.status === 'done';
   const isActive = item.status === 'in_progress';
   const hasFailed = item.status === 'failed';
-
-  // Format timing information
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      second: '2-digit'
-    });
-  };
 
   return (
     <motion.div
