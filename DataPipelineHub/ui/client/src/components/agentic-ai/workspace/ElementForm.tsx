@@ -28,6 +28,8 @@ import {
 import { useWorkspaceData } from "../../../hooks/useWorkspaceData";
 import { FieldValidation } from "./FieldValidation";
 import { FieldPopulation } from "./FieldPopulation";
+import { GoogleMcpOAuthFields } from "./GoogleMcpOAuthFields";
+import { isGoogleMcpServer as checkIsGoogleMcpServer } from "./googleMcpUtils";
 
 interface ElementFormProps {
   isOpen: boolean;
@@ -55,6 +57,20 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   );
   const [fieldValidationStates, setFieldValidationStates] = useState<{ [fieldName: string]: boolean }>({});
   const [populateResults, setPopulateResults] = useState<{ [fieldName: string]: string[] }>({});
+  const [googleOAuthCredentials, setGoogleOAuthCredentials] = useState<{
+    clientId: string;
+    clientSecret: string;
+    mailAddress: string;
+  }>({
+    clientId: "",
+    clientSecret: "",
+    mailAddress: "",
+  });
+
+  // Check if the current MCP server is a Google MCP server
+  const isGoogleMcpServer = React.useMemo(() => {
+    return checkIsGoogleMcpServer(elementType.type, formData.sse_endpoint);
+  }, [elementType.type, formData.sse_endpoint]);
 
   const { fetchResourcesForCategory } = useWorkspaceData();
 
@@ -142,6 +158,15 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             } else {
               initialData[key] = value;
             }
+          });
+        }
+
+        // Load Google OAuth credentials if they exist in config
+        if (editingElement.config?.google_oauth) {
+          setGoogleOAuthCredentials({
+            clientId: editingElement.config.google_oauth.client_id || "",
+            clientSecret: editingElement.config.google_oauth.client_secret || "",
+            mailAddress: editingElement.config.google_oauth.mail_address || "",
           });
         }
       }
@@ -415,7 +440,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
 
     // Check all required fields from combined schema, excluding hidden fields
     const required = elementSchema.config_schema.required || [];
-    return required.every((field) => {
+    const baseFormValid = required.every((field) => {
       const fieldSchema = elementSchema.config_schema.properties[field];
       
       // Skip validation for hidden fields
@@ -438,13 +463,32 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       }
       
       // If field has validation hint and a value, check validation state
+      // For Google MCP servers, skip validation requirement for sse_endpoint since it's a mock URL
       if (hasValidationHint && hasValue) {
+        // For Google MCP servers, don't require validation to pass for sse_endpoint
+        // (mock URLs won't connect, but that's expected)
+        if (isGoogleMcpServer && field === 'sse_endpoint') {
+          // Just check that the field has a value, validation can fail
+          return hasValue;
+        }
         return fieldValidationStates[field] === true;
       }
       
       // Otherwise, just check if value exists
       return hasValue;
     });
+
+    // If it's a Google MCP server, also validate OAuth credentials
+    if (isGoogleMcpServer) {
+      const oauthValid = 
+        googleOAuthCredentials.clientId.trim() !== "" &&
+        googleOAuthCredentials.clientSecret.trim() !== "" &&
+        googleOAuthCredentials.mailAddress.trim() !== "" &&
+        googleOAuthCredentials.mailAddress.includes("@");
+      return baseFormValid && oauthValid;
+    }
+
+    return baseFormValid;
   };
 
   const handleSave = async () => {
@@ -577,6 +621,15 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       // Add cfg_dict to save data
       saveData.cfg_dict = configForSave;
 
+      // If this is a Google MCP server, add OAuth credentials to config
+      if (isGoogleMcpServer && (googleOAuthCredentials.clientId || googleOAuthCredentials.clientSecret || googleOAuthCredentials.mailAddress)) {
+        saveData.cfg_dict.google_oauth = {
+          client_id: googleOAuthCredentials.clientId,
+          client_secret: googleOAuthCredentials.clientSecret,
+          mail_address: googleOAuthCredentials.mailAddress,
+        };
+      }
+
       const result = await onSave(saveData);
 
       // Only close the dialog if save was successful (result is not null/false)
@@ -589,6 +642,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       setIsSaving(false);
     }
   };
+
 
   const renderFormField = (fieldName: string, fieldSchema: any) => {
     const isRequired = elementSchema.config_schema.required?.includes(fieldName);
@@ -959,14 +1013,24 @@ export const ElementForm: React.FC<ElementFormProps> = ({
           disabled={!!populateHint}
         />
         {validationHint && (
-          <FieldValidation
-            fieldName={fieldName}
-            fieldValue={value}
-            validationHint={validationHint}
-            elementActions={elementActions}
-            selectedElementType={elementType}
-            onValidationChange={handleValidationChange}
-          />
+          <>
+            {/* Skip validation for Google MCP server URLs */}
+            {!(fieldName === 'sse_endpoint' && isGoogleMcpServer) && (
+              <FieldValidation
+                fieldName={fieldName}
+                fieldValue={value}
+                validationHint={validationHint}
+                elementActions={elementActions}
+                selectedElementType={elementType}
+                onValidationChange={handleValidationChange}
+              />
+            )}
+            {fieldName === 'sse_endpoint' && isGoogleMcpServer && (
+              <p className="text-xs text-amber-400 mt-1">
+                Validation is disabled for Google MCP servers.
+              </p>
+            )}
+          </>
         )}
         {populateHint && (
           <FieldPopulation
@@ -1036,7 +1100,24 @@ export const ElementForm: React.FC<ElementFormProps> = ({
               //   return true;
               // }
             })
-            .map(([fieldName, fieldSchema]) => renderFormField(fieldName, fieldSchema))}
+            .map(([fieldName, fieldSchema]) => {
+              const fieldElement = renderFormField(fieldName, fieldSchema);
+              
+              // If this is the sse_endpoint field and it's a Google MCP server, add Google OAuth fields after it
+              if (fieldName === 'sse_endpoint' && isGoogleMcpServer) {
+                return (
+                  <React.Fragment key={fieldName}>
+                    {fieldElement}
+                    <GoogleMcpOAuthFields
+                      credentials={googleOAuthCredentials}
+                      onCredentialsChange={setGoogleOAuthCredentials}
+                    />
+                  </React.Fragment>
+                );
+              }
+              
+              return fieldElement;
+            })}
 
           <DialogFooter className="mt-6">
             <Button type="button" variant="outline" onClick={onClose}>
