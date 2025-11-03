@@ -413,7 +413,7 @@ export const useGraphLogic = () => {
 
       // Add condition definition to conditions section if not exists
       const conditionExists = (prevFlow.conditions || []).some(
-        (cond: any) => cond.rid === conditionRid,
+        (cond: any) => cond.rid === `$ref:${conditionRid}`,
       );
 
       let updatedConditions = prevFlow.conditions || [];
@@ -421,7 +421,7 @@ export const useGraphLogic = () => {
         updatedConditions = [
           ...updatedConditions,
           {
-            rid: conditionRid,
+            rid: `$ref:${conditionRid}`,
             name: condition.workspaceData?.name || condition.label,
             type: condition.workspaceData?.type,
             config: condition.workspaceData?.config,
@@ -474,7 +474,7 @@ export const useGraphLogic = () => {
 
       // Remove condition definition from conditions section (if exists)
       const updatedConditions = (prevFlow.conditions || []).filter(
-        (cond: any) => cond.rid !== conditionRid,
+        (cond: any) => cond.rid !== `$ref:${conditionRid}`,
       );
 
       return {
@@ -1142,7 +1142,7 @@ export const useGraphLogic = () => {
       // Add condition definition if not exists
       const conditionRid = condition?.workspaceData?.rid || condition?.id;
       const conditionExists = (prevFlow.conditions || []).some(
-        (cond) => cond.rid === conditionRid,
+        (cond) => cond.rid === `$ref:${conditionRid}`,
       );
 
       let updatedConditions = prevFlow.conditions || [];
@@ -1150,7 +1150,7 @@ export const useGraphLogic = () => {
         updatedConditions = [
           ...updatedConditions,
           {
-            rid: conditionRid,
+            rid: `$ref:${conditionRid}`,
             name: condition.workspaceData?.name || condition.label,
             type: condition.workspaceData?.type,
             config: condition.workspaceData?.config,
