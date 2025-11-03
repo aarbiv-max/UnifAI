@@ -1,3 +1,6 @@
+#This template file is a backup of the original nginx template supporting http only.
+# it is not being used and if desired to move to https the ui image should be rebuilt with this file instead of ../nginx.conf.template
+
 # For more information on configuration, see:
 #   * Official English Documentation: http://nginx.org/en/docs/
 
