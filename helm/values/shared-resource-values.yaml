@@ -4,7 +4,8 @@ mongodb:
     repository: "mongo"
     pullPolicy: IfNotPresent
   service:
-    type: LoadBalancer
+    #type: LoadBalancer
+    type: ClusterIP
     port: 27017
 
 qdrant:
@@ -15,7 +16,8 @@ qdrant:
     pullPolicy: IfNotPresent
     tag: "stable"
   service:
-    type: LoadBalancer
+    #type: LoadBalancer
+    type: ClusterIP
     port: 6333
   resources:
     limits:
@@ -32,7 +34,8 @@ rabbitmq:
     pullPolicy: IfNotPresent
     tag: 4.0.5-debian-12-r0
   service:
-    type: LoadBalancer
+    #type: LoadBalancer
+    type: ClusterIP
 
 storage:
   volumeName: unifai-dataflow-shared-storage
