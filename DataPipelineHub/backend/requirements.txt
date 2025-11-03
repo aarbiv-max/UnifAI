@@ -13,4 +13,3 @@ Authlib
 PyJWT
 python-dotenv
 pydantic
-mesa-libGL
