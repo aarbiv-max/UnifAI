@@ -284,6 +284,15 @@ class OrchestratorPhaseProvider(PhaseProvider):
                 "- Granularity: Break complex tasks into smaller steps\n"
                 "- Logical order: Arrange items in execution sequence\n\n"
 
+                "WORK ITEM STRATEGY:\n"
+                "- Consider information completeness requirements:\n"
+                "  * If comprehensive coverage is valuable: Create work items for multiple agents\n"
+                "  * Each agent searches their respective data domain in parallel\n"
+                "  * Aggregate results to ensure no relevant information is missed\n"
+                "- Consider specificity of target:\n"
+                "  * If action requires specific capability: Create focused work item for that agent\n"
+                "  * If information could exist in multiple sources: Query broadly\n\n"
+
                 "PHASE SEPARATION (IMPORTANT):\n"
                 "- PLANNING phase (you are here): Create work plan structure only\n"
                 "- ALLOCATION phase (next): Delegate REMOTE items to agents\n"
@@ -310,21 +319,21 @@ class OrchestratorPhaseProvider(PhaseProvider):
                 "WORKFLOW:\n"
                 "1. Review work plan for PENDING items with kind=REMOTE\n"
                 "2. For each REMOTE item:\n"
-                "   a. Use ListAdjacentNodesTool to see available agents\n"
-                "   b. Use GetNodeCardTool to understand agent capabilities\n"
-                "   c. Choose best agent based on task requirements and capabilities\n"
-                "   d. Use AssignWorkItemTool to assign item to chosen agent\n"
-                "   e. Use DelegateTaskTool to send task (MUST include work_item_id)\n"
+                "   a. Review 'Available Agents' section to see agent capabilities\n"
+                "   b. Choose best agent based on task requirements and capabilities\n"
+                "   c. Use AssignWorkItemTool to assign item to chosen agent\n"
+                "   d. Use DelegateTaskTool to send task (MUST include work_item_id)\n"
                 "3. Skip LOCAL items (handled in EXECUTION phase)\n\n"
-                "ASSIGNMENT STRATEGY:\n"
-                "- Match task requirements to agent specialization\n"
-                "  * Research tasks → research_agent\n"
-                "  * Jira operations → jira_agent\n"
-                "  * Confluence queries → confluence_agent\n"
-                "  * Analysis/reasoning → reasoning_agent\n"
+                "ALLOCATION STRATEGY:\n"
+                "- Review 'Available Agents for Delegation' section above\n"
+                "- Use GetNodeCardTool only if you need more detailed capabilities\n"
+                "- Match work item requirements to agent capabilities\n"
+                "- For information gathering: Parallel delegation across relevant agents\n"
+                "- For specific actions: Direct delegation to capable agent\n\n"
+                "BEST PRACTICES:\n"
+                "- All agents can be queried in parallel - leverage this for comprehensive results\n"
                 "- Check agent is in adjacency list (can't delegate to non-adjacent nodes)\n"
-                "- One work item → One agent (no multi-assignment yet)\n"
-                "- Consider agent capabilities from GetNodeCardTool\n\n"
+                "- One work item → One agent (no multi-assignment yet)\n\n"
                 "DELEGATION COORDINATION:\n"
                 "- CRITICAL: Always assign BEFORE delegate\n"
                 "  1. AssignWorkItemTool(item_id, agent_uid) - marks assigned_uid\n"
@@ -1585,12 +1594,16 @@ class OrchestratorPhaseProvider(PhaseProvider):
                 f"User asked: \"{user_request}\"\n\n"
                 "**Your task:** Create a comprehensive work plan.\n\n"
                 "**Steps:**\n"
-                "1. Break down request into specific work items\n"
-                "2. For each item, determine:\n"
+                "1. Analyze the request to understand information needs\n"
+                "2. Review 'Available Agents' section above to see agent capabilities\n"
+                "3. For each work item, determine:\n"
                 "   • Type: LOCAL (you execute) or REMOTE (delegate to agent)\n"
                 "   • Dependencies: Which items must complete first\n"
-                "   • Assignment: For REMOTE items, which agent (check Available Agents above)\n"
-                "3. Use `CreateOrUpdateWorkPlanTool` with all items\n\n"
+                "   • Assignment: For REMOTE items, which agent based on their capabilities\n"
+                "4. **COMPREHENSIVE COVERAGE:** When information completeness is important,\n"
+                "   create work items for multiple agents rather than assuming which source\n"
+                "   is best. Information is often distributed across multiple data sources.\n"
+                "5. Use `CreateOrUpdateWorkPlanTool` with all items\n\n"
                 "**Remember:** Create the structure now, delegation happens in ALLOCATION phase."
             )
         
@@ -1743,10 +1756,11 @@ class OrchestratorPhaseProvider(PhaseProvider):
                 lines.append("")
             
             lines.append("**Tips:**")
-            lines.append("• Use ListAdjacentNodesTool to see available agents")
-            lines.append("• Use GetNodeCardTool to check agent capabilities")
-            lines.append("• Match task to agent specialization")
-            lines.append("• Include clear instructions in delegation content")
+            lines.append("• Review capabilities of all agents shown in 'Available Agents' section above")
+            lines.append("• Use GetNodeCardTool only if you need more details about an agent")
+            lines.append("• Match task intent to agent domain expertise")
+            lines.append("• Parallel delegation enables comprehensive coverage across data sources")
+            lines.append("• Provide clear, specific instructions in each delegation")
             
             return "\n".join(lines)
         
