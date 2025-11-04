@@ -15,6 +15,9 @@ resources_bp = Blueprint("resources", __name__)
     "config": fields.Dict(required=True),
 })
 def save_resource(user_id, category, type, name, config):
+    if category in category:
+        category = category[category]
+    
     svc = current_app.container.resources_service
     try:
         doc = svc.create(user_id=user_id,

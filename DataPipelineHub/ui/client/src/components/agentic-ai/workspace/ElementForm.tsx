@@ -69,8 +69,8 @@ export const ElementForm: React.FC<ElementFormProps> = ({
 
   // Check if the current MCP server is a Google MCP server
   const isGoogleMcpServer = React.useMemo(() => {
-    return checkIsGoogleMcpServer(elementType.type, formData.sse_endpoint);
-  }, [elementType.type, formData.sse_endpoint]);
+    return checkIsGoogleMcpServer(elementType.type, formData.sse_endpoint, editingElement?.config);
+  }, [elementType.type, formData.sse_endpoint, editingElement?.config]);
 
   const { fetchResourcesForCategory } = useWorkspaceData();
 
@@ -169,6 +169,9 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             mailAddress: editingElement.config.google_oauth.mail_address || "",
           });
         }
+        
+        // If this is a Google MCP server with pod_url, ensure it's recognized as Google MCP
+        // (This will be handled by the isGoogleMcpServer check which looks for pod_url in config)
       }
 
       setFormData(initialData);

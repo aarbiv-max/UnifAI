@@ -23,6 +23,14 @@ class ResourcesService:
 
     # ---------- CRUD ----------
     def create(self, *, user_id, category, type, name, config) -> ResourceDoc:
+        # Normalize category to handle common mistakes (e.g., "provider" -> "providers")
+        # Map common incorrect category names to correct ResourceCategory enum values
+        category_normalization = {
+            "provider": "providers",  # Common mistake: singular instead of plural
+        }
+        if category in category_normalization:
+            category = category_normalization[category]
+        
         # schema validation
         model_cls = self.element_registry.get_schema(ResourceCategory(category), type)
         cfg_model = model_cls(**config)  # Pydantic instance
@@ -31,9 +39,10 @@ class ResourcesService:
         nested_refs = list(RefWalker.external_rids(cfg_model))
 
         # build the document for storage
+        # ResourceDoc expects ResourceCategory enum, which Pydantic will auto-convert from string
         doc = ResourceDoc(
             user_id=user_id,
-            category=category,
+            category=ResourceCategory(category),  # Explicitly convert to enum to ensure correct value
             type=type,
             name=name,
             cfg_dict=cfg_model.model_dump(mode="json"),

@@ -17,14 +17,33 @@ export const isGoogleMcpUrl = (url: string): boolean => {
 };
 
 /**
- * Check if the current element is a Google MCP server based on element type and endpoint URL
+ * Check if the current element is a Google MCP server based on element type and config
+ * This checks for:
+ * 1. Element type is mcp_server
+ * 2. Either has google_oauth in config, or has pod_url in config (indicating Google MCP setup)
  */
 export const isGoogleMcpServer = (
   elementType: string,
-  sseEndpoint: string | undefined
+  sseEndpoint: string | undefined,
+  config?: any
 ): boolean => {
   if (elementType !== "mcp_server") return false;
-  if (!sseEndpoint) return false;
-  return isGoogleMcpUrl(sseEndpoint);
+  
+  // Check if config has google_oauth (existing Google MCP servers)
+  if (config?.google_oauth) {
+    return true;
+  }
+  
+  // Check if config has pod_url (new Google MCP setup via GoogleMcpForm)
+  if (config?.pod_url) {
+    return true;
+  }
+  
+  // Legacy check: if sseEndpoint matches Google MCP URL pattern
+  if (sseEndpoint && isGoogleMcpUrl(sseEndpoint)) {
+    return true;
+  }
+  
+  return false;
 };
 
