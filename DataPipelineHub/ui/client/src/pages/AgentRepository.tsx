@@ -7,7 +7,6 @@ import { Plus } from 'lucide-react';
 import { CategorySidebar } from '../components/agentic-ai/workspace/CategorySidebar';
 import { ElementGrid } from '../components/agentic-ai/workspace/ElementGrid';
 import { ElementForm } from '../components/agentic-ai/workspace/ElementForm';
-import { GoogleMcpForm } from '../components/agentic-ai/workspace/GoogleMcpForm';
 import { useWorkspaceData } from '../hooks/useWorkspaceData';
 import { ElementCategory, ElementType, ElementInstance } from '../types/workspace';
 
@@ -170,21 +169,6 @@ export default function UserWorkspace() {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      {selectedElementType.type === 'mcp_server' && (
-                        <Button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log('Button clicked, calling handleCreateGoogleMcp');
-                            handleCreateGoogleMcp();
-                          }}
-                          className="bg-amber-600 hover:bg-amber-700"
-                          disabled={false}
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Google MCP
-                        </Button>
-                      )}
                       <Button 
                         onClick={handleCreateNew}
                         className="bg-primary hover:bg-opacity-80"
@@ -230,53 +214,6 @@ export default function UserWorkspace() {
               elementActions={elementActions}
               editingElement={editingElement}
               onSave={handleSaveElement}
-            />
-          )}
-
-          {/* Google MCP Form Modal */}
-          {isGoogleMcpFormOpen && (
-            <GoogleMcpForm
-              isOpen={isGoogleMcpFormOpen}
-              onClose={() => setIsGoogleMcpFormOpen(false)}
-              elementType={{ category: 'providers', type: 'mcp_server', name: 'MCP Server' }}
-              elementSchema={elementSchema || {
-                description: 'Google MCP Server Configuration',
-                config_schema: {
-                  type: 'object',
-                  properties: {},
-                  required: []
-                }
-              }}
-              elementActions={elementActions}
-              onSave={async (data) => {
-                // MCP servers are always in the "providers" category (plural)
-                // Hardcode to avoid any issues with category normalization
-                const category = 'providers';
-                const type = 'mcp_server';
-                
-                console.log('=== GoogleMcpForm onSave ===');
-                console.log('Category:', category);
-                console.log('Type:', type);
-                console.log('Data being saved:', JSON.stringify(data, null, 2));
-                console.log('selectedElementType?.category:', selectedElementType?.category);
-                
-                // Ensure data doesn't have category/type fields that could interfere
-                const cleanData = { ...data };
-                delete cleanData.category;
-                delete cleanData.type;
-                
-                console.log('Clean data (after removing category/type):', JSON.stringify(cleanData, null, 2));
-                
-                const result = await saveElement(category, type, cleanData);
-                
-                setIsGoogleMcpFormOpen(false);
-                // Refresh instances - use "providers" category
-                if (selectedElementType) {
-                  fetchElementInstances('providers', 'mcp_server');
-                }
-                
-                return result;
-              }}
             />
           )}
         </main>
