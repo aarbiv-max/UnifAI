@@ -23,12 +23,12 @@ class McpProvider:
     tool instances that use fresh connections for actual execution.
     
     Attributes:
-        sse_endpoint: MCP server endpoint URL
+        endpoint: MCP server endpoint URL
         tool_names: List of specific tools to create (None for all)
         tools: List of created MCP proxy tool instances
     """
 
-    def __init__(self, sse_endpoint: HttpUrl, tool_names: Optional[List[str]] = None):
+    def __init__(self, endpoint: HttpUrl, tool_names: Optional[List[str]] = None):
         """
         Initialize MCP provider for the specified server.
         
@@ -37,10 +37,10 @@ class McpProvider:
         create_sync() is called to perform tool discovery.
         
         Args:
-            sse_endpoint: MCP server endpoint URL for SSE communication
+            endpoint: MCP server endpoint URL for HTTP communication
             tool_names: Specific tool names to create (None discovers all)
         """
-        self.sse_endpoint = sse_endpoint
+        self.endpoint = endpoint
         self.tool_names = tool_names or []
         self._tools: List[McpProxyTool] = []
         self._initialized = False
@@ -60,7 +60,7 @@ class McpProvider:
         if self._initialized:
             return
 
-        async with McpServerClient(sse_endpoint=self.sse_endpoint) as mcp_client:
+        async with McpServerClient(endpoint=self.endpoint) as mcp_client:
             # Fetch all available tools in one go
             available_tools = await mcp_client.get_tools()
             print(f"Fetched {len(available_tools)} tools from MCP server: {[tool.name for tool in available_tools]}")
@@ -79,7 +79,7 @@ class McpProvider:
             if cached_tool_info:
                 # Create tool with pre-cached schema
                 tool = McpProxyTool.create_with_cached_schema(
-                    tool_name, self.sse_endpoint, cached_tool_info
+                    tool_name, self.endpoint, cached_tool_info
                 )
                 self._tools.append(tool)
             else:
@@ -158,7 +158,7 @@ class McpProvider:
         Create a new McpProvider with the same configuration.
         """
         return McpProvider(
-            sse_endpoint=self.sse_endpoint,
+            endpoint=self.endpoint,
             tool_names=self.tool_names.copy() if self.tool_names else None
         )
 
@@ -179,43 +179,43 @@ class McpProvider:
         return len(cached_tools) if cached_tools else 0
 
     def __str__(self) -> str:
-        return f"McpProvider(endpoint='{self.sse_endpoint}', tools={len(self._tools)}, cached={self.cached_tool_count})"
+        return f"McpProvider(endpoint='{self.endpoint}', tools={len(self._tools)}, cached={self.cached_tool_count})"
 
     @classmethod
-    async def create_async(cls, sse_endpoint: HttpUrl, tool_names: Optional[List[str]] = None) -> "McpProvider":
+    async def create_async(cls, endpoint: HttpUrl, tool_names: Optional[List[str]] = None) -> "McpProvider":
         """
         Async factory method for creating a fully initialized McpProvider.
         
         Args:
-            sse_endpoint: HTTP(S) endpoint that streams SSE events
+            endpoint: HTTP(S) endpoint for MCP server communication
             tool_names: List of specific tool names to use from the MCP server
             
         Returns:
             Fully initialized McpProvider instance
         """
-        provider = cls(sse_endpoint, tool_names)
+        provider = cls(endpoint, tool_names)
         await provider._initialize_tools()
         return provider
 
     @classmethod
-    def create_sync(cls, sse_endpoint: HttpUrl, tool_names: Optional[List[str]] = None) -> "McpProvider":
+    def create_sync(cls, endpoint: HttpUrl, tool_names: Optional[List[str]] = None) -> "McpProvider":
         """
         Sync factory method for creating a fully initialized McpProvider.
         Uses AsyncBridge internally to handle the async initialization.
         
         Args:
-            sse_endpoint: HTTP(S) endpoint that streams SSE events
+            endpoint: HTTP(S) endpoint for MCP server communication
             tool_names: List of specific tool names to use from the MCP server
         
         Returns:
             Fully initialized McpProvider instance
         """
         with get_async_bridge() as bridge:
-            return bridge.run(cls.create_async(sse_endpoint, tool_names))
+            return bridge.run(cls.create_async(endpoint, tool_names))
 
     def __repr__(self) -> str:
         tool_names_str = ", ".join(self.tool_names) if self.tool_names else "all"
         return (
-            f"McpProvider(sse_endpoint='{self.sse_endpoint}', "
+            f"McpProvider(endpoint='{self.endpoint}', "
             f"tool_names=[{tool_names_str}], initialized={self._initialized})"
         )
