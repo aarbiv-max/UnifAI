@@ -2,8 +2,8 @@ import asyncio
 import time
 import json
 import logging
-from typing import Optional, Dict, Any, Literal
-from pydantic import BaseModel, HttpUrl, Field
+from typing import Optional, Dict, Any, Literal, Union
+from pydantic import BaseModel, HttpUrl, Field, AnyHttpUrl
 from actions.common.base_action import BaseAction
 from actions.common.action_models import BaseActionInput, BaseActionOutput, ActionType
 from elements.providers.mcp_server_client.mcp_server_client import McpServerClient
@@ -22,7 +22,8 @@ except ImportError:
 # Input/Output models for this action
 class ValidateConnectionInput(BaseActionInput):
     """Input for MCP connection validation"""
-    endpoint: HttpUrl
+    endpoint: Union[str, HttpUrl, AnyHttpUrl]
+    transport_type: Optional[Literal["sse", "http", "streamable-http"]] = Field(default="sse", description="Transport type to use")
 
 
 class ValidateConnectionOutput(BaseActionOutput):
@@ -63,21 +64,21 @@ class ValidateConnectionAction(BaseAction):
         """
         start_time = time.time()
         
-        logger.info(f"Validating MCP connection: endpoint={input_data.sse_endpoint}, transport_type={input_data.transport_type}")
+        logger.info(f"Validating MCP connection: endpoint={input_data.endpoint}, transport_type={input_data.transport_type}")
         
         # Handle HTTP transport type validation
         if input_data.transport_type == "http":
-            return await self._validate_http_connection(input_data.sse_endpoint, start_time)
+            return await self._validate_http_connection(input_data.endpoint, start_time)
         
         # Handle SSE transport type validation (original behavior)
         try:
-            logger.info(f"Validating SSE connection to: {input_data.sse_endpoint}")
+            logger.info(f"Validating connection to: {input_data.endpoint} using transport {input_data.transport_type}")
             # Create client and test connection
-            client = McpServerClient(input_data.endpoint)
+            client = McpServerClient(endpoint=input_data.endpoint)
             
             async with client:
                 # Test connection by listing tools with timeout
-                await asyncio.wait_for(client.tools.get_tools(), timeout=10.0)
+                await asyncio.wait_for(client.get_tools(), timeout=10.0)
             
             response_time = (time.time() - start_time) * 1000
             
