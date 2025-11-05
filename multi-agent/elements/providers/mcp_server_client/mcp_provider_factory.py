@@ -24,7 +24,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         try:
             # Use the clean sync factory method which handles async internally
             return McpProvider.create_sync(
-                sse_endpoint=cfg.sse_endpoint,
+                endpoint=cfg.endpoint,
                 tool_names=cfg.tool_names
             )
         except Exception as e:
@@ -43,7 +43,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         try:
             # Use the async factory method directly for better performance
             return await McpProvider.create_async(
-                sse_endpoint=cfg.sse_endpoint,
+                endpoint=cfg.endpoint,
                 tool_names=cfg.tool_names
             )
         except Exception as e:

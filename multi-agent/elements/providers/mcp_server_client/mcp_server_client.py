@@ -32,10 +32,15 @@ class McpServerClient:
     Attributes:
         tools: ToolInterface for clean tool operations
         transport: TransportManager for connection handling
-        sse_endpoint: Server endpoint URL
+        endpoint: Server endpoint URL
+        headers: Optional HTTP headers for authentication or custom metadata
     """
 
-    def __init__(self, sse_endpoint: HttpUrl):
+    def __init__(
+        self,
+        endpoint: HttpUrl,
+        headers: Optional[Dict[str, str]] = None
+    ):
         """
         Initialize MCP server client.
         
@@ -44,14 +49,17 @@ class McpServerClient:
         sharing and reference counting for efficient resource usage.
         
         Args:
-            sse_endpoint: HTTP(S) URL of the MCP server SSE endpoint
+            endpoint: HTTP(S) URL of the MCP server endpoint
+            headers: Optional HTTP headers for authentication or custom metadata
         """
-        self.sse_endpoint = str(sse_endpoint)
+        self.endpoint = str(endpoint)
+        self.headers = headers or {}
 
         # Initialize transport layer for server communication
         self.transport = TransportManager(
-            self.sse_endpoint,
-            sampling_callback=self._default_sampling_callback
+            self.endpoint,
+            sampling_callback=self._default_sampling_callback,
+            headers=self.headers
         )
 
         # Initialize clean tool interface
@@ -200,7 +208,7 @@ class McpServerClient:
         """
         async with self._lock:
             if self._refcount == 0:
-                # Nobody’s connected yet → open the SSE + session
+                # Nobody's connected yet → open the HTTP transport + session
                 await self.transport.connect()
             self._refcount += 1
         return self
@@ -236,5 +244,6 @@ class McpServerClient:
             New McpServerClient instance for the same endpoint
         """
         return McpServerClient(
-            sse_endpoint=self.sse_endpoint
+            endpoint=self.endpoint,
+            headers=self.headers
         )

@@ -22,8 +22,7 @@ except ImportError:
 # Input/Output models for this action
 class ValidateConnectionInput(BaseActionInput):
     """Input for MCP connection validation"""
-    sse_endpoint: HttpUrl
-    transport_type: Literal["sse", "http"] = Field(default="sse", description="Transport type: 'sse' for Server-Sent Events or 'http' for HTTP streamable")
+    endpoint: HttpUrl
 
 
 class ValidateConnectionOutput(BaseActionOutput):
@@ -74,7 +73,7 @@ class ValidateConnectionAction(BaseAction):
         try:
             logger.info(f"Validating SSE connection to: {input_data.sse_endpoint}")
             # Create client and test connection
-            client = McpServerClient(input_data.sse_endpoint)
+            client = McpServerClient(input_data.endpoint)
             
             async with client:
                 # Test connection by listing tools with timeout
