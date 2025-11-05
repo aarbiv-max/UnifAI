@@ -316,15 +316,29 @@ export const useWorkspaceData = () => {
           return response.data;
         } else {
           // Create new resource
-          const { cfg_dict, ...firstLevelFields } = elementData;
+          // Explicitly exclude category and type from elementData to prevent them overriding our values
+          const { cfg_dict, category: _ignoredCategory, type: _ignoredType, ...firstLevelFields } = elementData;
+          
+          // Remove category and type from firstLevelFields if they somehow got through
+          delete firstLevelFields.category;
+          delete firstLevelFields.type;
+          
           const savePayload = {
             userId: USER_ID,
-            category,
-            type,
+            category, // Use the category parameter passed to this function
+            type,     // Use the type parameter passed to this function
             config: cfg_dict,
             ...firstLevelFields,
           };
-
+          
+          // Ensure category is always "providers" for MCP servers (defensive check)
+          if (type === 'mcp_server' && savePayload.category !== 'providers') {
+            console.warn(`Category was ${savePayload.category}, normalizing to 'providers'`);
+            savePayload.category = 'providers';
+          }
+          
+          console.log('Final save payload:', JSON.stringify(savePayload, null, 2));
+          console.log(savePayload)
           const response = await axios.post(
             "/resources/resource.save",
             savePayload,

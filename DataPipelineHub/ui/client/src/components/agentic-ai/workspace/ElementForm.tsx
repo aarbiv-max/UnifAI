@@ -57,12 +57,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   );
   const [fieldValidationStates, setFieldValidationStates] = useState<{ [fieldName: string]: boolean }>({});
   const [populateResults, setPopulateResults] = useState<{ [fieldName: string]: string[] }>({});
-  const [transportType, setTransportType] = useState<"sse" | "http">("sse");
-
-  // Check if the current MCP server is a Google MCP server
-  const isGoogleMcpServer = React.useMemo(() => {
-    return checkIsGoogleMcpServer(elementType.type, formData.sse_endpoint);
-  }, [elementType.type, formData.sse_endpoint]);
 
   const { fetchResourcesForCategory } = useWorkspaceData();
 
@@ -152,7 +146,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             }
           });
         }
-
       }
 
       setFormData(initialData);
@@ -425,6 +418,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     // Check all required fields from combined schema, excluding hidden fields
     const required = elementSchema.config_schema.required || [];
     const baseFormValid = required.every((field) => {
+    const baseFormValid = required.every((field) => {
       const fieldSchema = elementSchema.config_schema.properties[field];
       
       // Skip validation for hidden fields
@@ -448,7 +442,14 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       
       // If field has validation hint and a value, check validation state
       // For Google MCP servers, skip validation requirement for sse_endpoint since it's a mock URL
+      // For Google MCP servers, skip validation requirement for sse_endpoint since it's a mock URL
       if (hasValidationHint && hasValue) {
+        // For Google MCP servers, don't require validation to pass for sse_endpoint
+        // (mock URLs won't connect, but that's expected)
+        if (isGoogleMcpServer && field === 'sse_endpoint') {
+          // Just check that the field has a value, validation can fail
+          return hasValue;
+        }
         // For Google MCP servers, don't require validation to pass for sse_endpoint
         // (mock URLs won't connect, but that's expected)
         if (isGoogleMcpServer && field === 'sse_endpoint') {
@@ -461,8 +462,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       // Otherwise, just check if value exists
       return hasValue;
     });
-
-    return baseFormValid;
   };
 
   const handleSave = async () => {
@@ -594,6 +593,15 @@ export const ElementForm: React.FC<ElementFormProps> = ({
 
       // Add cfg_dict to save data
       saveData.cfg_dict = configForSave;
+
+      // If this is a Google MCP server, add OAuth credentials to config
+      if (isGoogleMcpServer && (googleOAuthCredentials.clientId || googleOAuthCredentials.clientSecret || googleOAuthCredentials.mailAddress)) {
+        saveData.cfg_dict.google_oauth = {
+          client_id: googleOAuthCredentials.clientId,
+          client_secret: googleOAuthCredentials.clientSecret,
+          mail_address: googleOAuthCredentials.mailAddress,
+        };
+      }
 
       const result = await onSave(saveData);
 
