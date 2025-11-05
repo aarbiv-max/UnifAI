@@ -11,6 +11,7 @@ interface FieldValidationProps {
   elementActions: any[];
   selectedElementType: any;
   onValidationChange: (fieldName: string, isValid: boolean) => void;
+  transportType?: "sse" | "http";
 }
 
 export const FieldValidation: React.FC<FieldValidationProps> = ({
@@ -19,7 +20,8 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
   validationHint,
   elementActions,
   selectedElementType,
-  onValidationChange
+  onValidationChange,
+  transportType
 }) => {
   const [validationState, setValidationState] = useState<{
     isValidating: boolean;
@@ -32,7 +34,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
   });
 
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastValidatedValueRef = useRef<any>(null);
+  const lastValidatedValueRef = useRef<string | null>(null);
 
   // Find the validation action from elementActions
   const validationAction = elementActions.find(
@@ -50,8 +52,11 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
       return;
     }
 
-    // Skip validation if value hasn't changed
-    if (lastValidatedValueRef.current === value) {
+    // Create a unique key that includes both value and transportType
+    const validationKey = `${value}|${transportType || 'sse'}`;
+    
+    // Skip validation if value and transportType haven't changed
+    if (lastValidatedValueRef.current === validationKey) {
       return;
     }
 
@@ -90,10 +95,24 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
         }
       }
 
+      // Add transport_type if provided and the action supports it
+      if (transportType && validationAction.input_schema?.properties?.transport_type) {
+        inputData.transport_type = transportType;
+      }
+
+      console.log(`[FieldValidation] Calling validation action:`, {
+        uid: validationAction.uid,
+        inputData,
+        fieldName,
+        transportType
+      });
+
       const response = await axios.post('/actions/action.execute', {
         uid: validationAction.uid,
         inputData
       });
+
+      console.log(`[FieldValidation] Validation response:`, response.data);
 
       // Extract validation result based on field_mapping or default to 'success'
       const fieldMapping = validationHint.field_mapping || 'success';
@@ -105,7 +124,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
         message: response.data.message || (isValid ? 'Valid' : 'Invalid')
       });
 
-      lastValidatedValueRef.current = value;
+      lastValidatedValueRef.current = validationKey;
       onValidationChange(fieldName, isValid);
 
     } catch (error: any) {
@@ -122,7 +141,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
     }
   };
 
-  // Debounced validation on value change
+  // Debounced validation on value or transportType change
   useEffect(() => {
     if (validationTimeoutRef.current) {
       clearTimeout(validationTimeoutRef.current);
@@ -137,7 +156,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
         clearTimeout(validationTimeoutRef.current);
       }
     };
-  }, [fieldValue]);
+  }, [fieldValue, transportType]);
 
   // Cleanup on unmount
   useEffect(() => {
