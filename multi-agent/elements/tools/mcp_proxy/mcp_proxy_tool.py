@@ -23,11 +23,11 @@ class McpProxyTool(BaseTool):
     def __init__(
             self,
             mcp_tool_name: str,
-            sse_endpoint: HttpUrl,
+            endpoint: HttpUrl,
     ):
         self.name = mcp_tool_name
         self.mcp_tool_name = mcp_tool_name
-        self.sse_endpoint = sse_endpoint  # Store endpoint instead of client
+        self.endpoint = endpoint  # Store endpoint instead of client
         self._tool_info = None
         self._schema_initialized = False
 
@@ -81,7 +81,7 @@ class McpProxyTool(BaseTool):
         This approach eliminates cross-event-loop thread safety issues.
         """
         # 1) Create fresh client in current event loop/portal
-        client = McpServerClient(sse_endpoint=self.sse_endpoint)
+        client = McpServerClient(endpoint=self.endpoint)
         
         # 2) Use the fresh client for all operations
         async with client:
@@ -174,44 +174,44 @@ class McpProxyTool(BaseTool):
         return f"McpProxyTool(name='{self.name}', mcp_tool='{self.mcp_tool_name}')"
 
     @classmethod
-    async def create_async(cls, mcp_tool_name: str, sse_endpoint: HttpUrl) -> "McpProxyTool":
+    async def create_async(cls, mcp_tool_name: str, endpoint: HttpUrl) -> "McpProxyTool":
         """
         Async factory method for creating a fully initialized McpProxyTool.
         
         Args:
             mcp_tool_name: Name of the MCP tool to proxy
-            sse_endpoint: MCP server SSE endpoint
+            endpoint: MCP server HTTP endpoint
             
         Returns:
             Fully initialized McpProxyTool instance
         """
-        tool = cls(mcp_tool_name, sse_endpoint)
+        tool = cls(mcp_tool_name, endpoint)
         
         # Initialize schema using a fresh client
-        client = McpServerClient(sse_endpoint=sse_endpoint)
+        client = McpServerClient(endpoint=endpoint)
         async with client:
             await tool._ensure_tool_info(client)
         
         return tool
 
     @classmethod
-    def create_sync(cls, mcp_tool_name: str, sse_endpoint: HttpUrl) -> "McpProxyTool":
+    def create_sync(cls, mcp_tool_name: str, endpoint: HttpUrl) -> "McpProxyTool":
         """
         Sync factory method for creating a fully initialized McpProxyTool.
         Uses AsyncBridge internally to handle the async initialization.
         
         Args:
             mcp_tool_name: Name of the MCP tool to proxy
-            sse_endpoint: MCP server SSE endpoint
+            endpoint: MCP server HTTP endpoint
             
         Returns:
             Fully initialized McpProxyTool instance
         """
         with get_async_bridge() as bridge:
-            return bridge.run(cls.create_async(mcp_tool_name, sse_endpoint))
+            return bridge.run(cls.create_async(mcp_tool_name, endpoint))
 
     @classmethod
-    def create_with_cached_schema(cls, mcp_tool_name: str, sse_endpoint: HttpUrl, 
+    def create_with_cached_schema(cls, mcp_tool_name: str, endpoint: HttpUrl, 
                                  tool_info) -> "McpProxyTool":
         """
         Create tool with pre-cached schema (no connection needed).
@@ -219,13 +219,13 @@ class McpProxyTool(BaseTool):
         
         Args:
             mcp_tool_name: Name of the MCP tool to proxy
-            sse_endpoint: MCP server SSE endpoint
+            endpoint: MCP server HTTP endpoint
             tool_info: Pre-fetched Tool object with schema information
             
         Returns:
             Fully initialized McpProxyTool instance
         """
-        tool = cls(mcp_tool_name, sse_endpoint)
+        tool = cls(mcp_tool_name, endpoint)
         
         # Use cached tool info
         tool._tool_info = tool_info
@@ -239,5 +239,5 @@ class McpProxyTool(BaseTool):
         desc = (self.description[:50] + "...") if self.description else "No description"
         return (
             f"McpProxyTool(name='{self.name}', mcp_tool_name='{self.mcp_tool_name}', "
-            f"description='{desc}', endpoint='{self.sse_endpoint}')"
+            f"description='{desc}', endpoint='{self.endpoint}')"
         )
