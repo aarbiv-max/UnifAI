@@ -64,12 +64,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   );
   const [fieldValidationStates, setFieldValidationStates] = useState<{ [fieldName: string]: boolean }>({});
   const [populateResults, setPopulateResults] = useState<{ [fieldName: string]: string[] }>({});
-  const [transportType, setTransportType] = useState<"sse" | "http">("sse");
-
-  // Check if the current MCP server is a Google MCP server
-  const isGoogleMcpServer = React.useMemo(() => {
-    return checkIsGoogleMcpServer(elementType.type, formData.sse_endpoint);
-  }, [elementType.type, formData.sse_endpoint]);
 
   const { fetchResourcesForCategory } = useWorkspaceData();
 
@@ -940,7 +934,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
               elementActions={elementActions}
               selectedElementType={elementType}
               onValidationChange={handleValidationChange}
-              transportType={fieldName === 'sse_endpoint' ? transportType : undefined}
             />
           )}
           {populateHint && (
@@ -1015,9 +1008,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
                         });
                     }}
                   >
-                    <Info className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Google MCP Setup Guide</span>
-                    <ExternalLink className="w-3 h-3 ml-1" />
+                    
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs">
@@ -1038,52 +1029,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
           readOnly={!!populateHint}
           disabled={!!populateHint}
         />
-        {/* Transport type selector for MCP server endpoints */}
-        {fieldName === 'sse_endpoint' && elementType.type === 'mcp_server' && (
-          <div className="space-y-2 mt-2">
-            <Label className="text-sm">Transport Type</Label>
-            <RadioGroup
-              value={transportType}
-              onValueChange={(value) => setTransportType(value as "sse" | "http")}
-              className="flex gap-4"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="sse" id="transport-sse" />
-                <Label htmlFor="transport-sse" className="cursor-pointer">
-                  SSE (Server-Sent Events)
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="http" id="transport-http" />
-                <Label htmlFor="transport-http" className="cursor-pointer">
-                  HTTP (Streamable)
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
-        )}
-        {validationHint && (
-          <>
-            {/* Skip validation for Google MCP server URLs */}
-            {/* Always show validation for sse_endpoint, but skip Google MCP servers */}
-            {!(fieldName === 'sse_endpoint' && isGoogleMcpServer) && (
-              <FieldValidation
-                fieldName={fieldName}
-                fieldValue={value}
-                validationHint={validationHint}
-                elementActions={elementActions}
-                selectedElementType={elementType}
-                onValidationChange={handleValidationChange}
-                transportType={fieldName === 'sse_endpoint' ? transportType : undefined}
-              />
-            )}
-            {fieldName === 'sse_endpoint' && isGoogleMcpServer && (
-              <p className="text-xs text-amber-400 mt-1">
-                Validation is disabled for Google MCP servers.
-              </p>
-            )}
-          </>
-        )}
         {populateHint && (
           <FieldPopulation
             fieldName={fieldName}

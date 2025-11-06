@@ -11,7 +11,6 @@ interface FieldValidationProps {
   elementActions: any[];
   selectedElementType: any;
   onValidationChange: (fieldName: string, isValid: boolean) => void;
-  transportType?: "sse" | "http";
 }
 
 export const FieldValidation: React.FC<FieldValidationProps> = ({
@@ -21,7 +20,6 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
   elementActions,
   selectedElementType,
   onValidationChange,
-  transportType
 }) => {
   const [validationState, setValidationState] = useState<{
     isValidating: boolean;
@@ -52,11 +50,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
       return;
     }
 
-    // Create a unique key that includes both value and transportType
-    const validationKey = `${value}|${transportType || 'sse'}`;
-    
-    // Skip validation if value and transportType haven't changed
-    if (lastValidatedValueRef.current === validationKey) {
+    if (lastValidatedValueRef.current === value) {
       return;
     }
 
@@ -95,16 +89,10 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
         }
       }
 
-      // Add transport_type if provided and the action supports it
-      if (transportType && validationAction.input_schema?.properties?.transport_type) {
-        inputData.transport_type = transportType;
-      }
-
       console.log(`[FieldValidation] Calling validation action:`, {
         uid: validationAction.uid,
         inputData,
         fieldName,
-        transportType
       });
 
       const response = await axios.post('/actions/action.execute', {
@@ -124,7 +112,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
         message: response.data.message || (isValid ? 'Valid' : 'Invalid')
       });
 
-      lastValidatedValueRef.current = validationKey;
+      lastValidatedValueRef.current = value;
       onValidationChange(fieldName, isValid);
 
     } catch (error: any) {
@@ -141,7 +129,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
     }
   };
 
-  // Debounced validation on value or transportType change
+  // Debounced validation on value change
   useEffect(() => {
     if (validationTimeoutRef.current) {
       clearTimeout(validationTimeoutRef.current);
@@ -156,7 +144,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
         clearTimeout(validationTimeoutRef.current);
       }
     };
-  }, [fieldValue, transportType]);
+  }, [fieldValue]);
 
   // Cleanup on unmount
   useEffect(() => {
