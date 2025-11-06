@@ -12,7 +12,7 @@ from core.enums import ResourceCategory
 # Input/Output models for this action
 class ValidateConnectionInput(BaseActionInput):
     """Input for MCP connection validation"""
-    endpoint: HttpUrl
+    sse_endpoint: HttpUrl
 
 
 class ValidateConnectionOutput(BaseActionOutput):
@@ -55,7 +55,7 @@ class ValidateConnectionAction(BaseAction):
         
         try:
             # Create client and test connection
-            client = McpServerClient(input_data.endpoint)
+            client = McpServerClient(input_data.sse_endpoint)
             
             async with client:
                 # Test connection by listing tools with timeout

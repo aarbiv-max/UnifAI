@@ -32,11 +32,11 @@ class TransportManager:
 
     def __init__(
         self,
-        endpoint: str,
+        sse_endpoint: str,
         sampling_callback=None,
         headers: Optional[Dict[str, str]] = None
     ):
-        self.endpoint = endpoint
+        self.sse_endpoint = sse_endpoint
         self.sampling_callback = sampling_callback
         self.headers = headers or {}
 
@@ -71,9 +71,9 @@ class TransportManager:
         # 2) Create the Streamable HTTP context
         try:
             # TODO: Replace with proper logging when logging system is implemented
-            # print("TransportManager: Opening Streamable HTTP transport to %s", self.endpoint)
+            # print("TransportManager: Opening Streamable HTTP transport to %s", self.sse_endpoint)
             self._transport_context = streamablehttp_client(
-                url=self.endpoint,
+                url=self.sse_endpoint,
                 headers=self.headers
             )
             # Note: streamablehttp_client returns 3 values (read, write, and additional context)
@@ -103,7 +103,7 @@ class TransportManager:
 
         self._is_connected = True
         # TODO: Replace with proper logging when logging system is implemented
-        # print("TransportManager: connected successfully to %s", self.endpoint)
+        # print("TransportManager: connected successfully to %s", self.sse_endpoint)
 
     async def disconnect(self) -> None:
         """
@@ -159,7 +159,7 @@ class TransportManager:
                 self._write_stream = None
 
         # TODO: Replace with proper logging when logging system is implemented
-        # print("TransportManager: disconnected from %s", self.endpoint)
+        # print("TransportManager: disconnected from %s", self.sse_endpoint)
 
     async def _safe_cleanup(self) -> None:
         """

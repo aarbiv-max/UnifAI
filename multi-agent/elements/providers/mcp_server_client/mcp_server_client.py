@@ -32,13 +32,13 @@ class McpServerClient:
     Attributes:
         tools: ToolInterface for clean tool operations
         transport: TransportManager for connection handling
-        endpoint: Server endpoint URL
+        sse_endpoint: Server endpoint URL
         headers: Optional HTTP headers for authentication or custom metadata
     """
 
     def __init__(
         self,
-        endpoint: HttpUrl,
+        sse_endpoint: HttpUrl,
         headers: Optional[Dict[str, str]] = None
     ):
         """
@@ -49,15 +49,15 @@ class McpServerClient:
         sharing and reference counting for efficient resource usage.
         
         Args:
-            endpoint: HTTP(S) URL of the MCP server endpoint
+            sse_endpoint: HTTP(S) URL of the MCP server endpoint
             headers: Optional HTTP headers for authentication or custom metadata
         """
-        self.endpoint = str(endpoint)
+        self.sse_endpoint = str(sse_endpoint)
         self.headers = headers or {}
 
         # Initialize transport layer for server communication
         self.transport = TransportManager(
-            self.endpoint,
+            self.sse_endpoint,
             sampling_callback=self._default_sampling_callback,
             headers=self.headers
         )
@@ -244,6 +244,6 @@ class McpServerClient:
             New McpServerClient instance for the same endpoint
         """
         return McpServerClient(
-            endpoint=self.endpoint,
+            sse_endpoint=self.sse_endpoint,
             headers=self.headers
         )
