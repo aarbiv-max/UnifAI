@@ -1,4 +1,4 @@
-import { FaFileAlt, FaFileWord, FaFilePdf, FaFileExcel, FaFilePowerpoint } from "react-icons/fa";
+import { FaFileAlt, FaFileWord, FaFilePdf, FaFileExcel, FaFilePowerpoint, FaMarkdown, FaHtml5, FaFileCsv } from "react-icons/fa";
 import { PIPELINE_STATUS, PipelineStatus } from "@/constants/pipelineStatus";
 import { EmbedChannel, Document } from "@/types";
 import { InlineLoader } from "@/components/shared/InlineLoader";
@@ -13,6 +13,12 @@ export const getFileIcon = (type: string) => {
         return <FaFileExcel />;
       case 'pptx':
         return <FaFilePowerpoint />;
+      case 'md':
+        return <FaMarkdown />;
+      case "html": 
+      return <FaHtml5 />;
+    case "csv":
+      return <FaFileCsv />;
       default:
         return <FaFileAlt />;
     }
@@ -24,6 +30,9 @@ export const fileByColors: Record<string, string> = {
   pptx: "bg-orange-500 dark:bg-orange-600",
   xlsx: "bg-green-500 dark:bg-green-600",
   txt: "bg-gray-500 dark:bg-gray-600",
+  md: "bg-slate-500 dark:bg-slate-600",
+  html: "bg-pink-500 dark:bg-pink-600",
+  csv: "bg-teal-500 dark:bg-teal-600"
 };
 
 export function formatDate(dateStr: string): string {

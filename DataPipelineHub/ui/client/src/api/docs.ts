@@ -39,3 +39,8 @@ export async function deleteDoc(pipelineId: string): Promise<any> {
     });
     return deleted.data;
 };
+
+export async function getSupportedFileExtensions(): Promise<string[]> {
+    const response = await api.get<{supported_extensions: string[]}>('docs/supported-extensions');
+    return response.data.supported_extensions;
+};

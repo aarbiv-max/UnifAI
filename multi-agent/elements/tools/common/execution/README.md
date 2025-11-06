@@ -160,7 +160,7 @@ class MyAgent(ToolCapableMixin):
             tools=tools,
             executor_config={
                 'error_handler': RetryPolicy(max_retries=2),
-                'max_concurrent': 5
+                'max_concurrent': 10
             }
         )
 ```

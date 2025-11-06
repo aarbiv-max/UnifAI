@@ -9,7 +9,7 @@ from datetime import timedelta, datetime
 import uuid
 from graph.state.state_view import StateView
 from graph.state.graph_state import Channel
-from graph.step_context import StepContext
+from graph.models import StepContext
 from .interfaces import InterMessenger, MessengerMiddleware
 from .packets import BaseIEMPacket
 from .models import ElementAddress, PacketType

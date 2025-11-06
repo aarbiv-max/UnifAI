@@ -24,7 +24,7 @@ export const DocumentData: React.FC<LibraryTabProps> = ({ doc }) => {
   const statistics = [
     // { label: "Text Quality", value: "Excellent", progress: 95, color: "bg-success" },
     // { label: "Structure Preservation", value: "Good", progress: 85, color: "bg-primary" },
-    { label: "Total Chunks", value: doc.pipeline_stats.chunks_generated },
+    { label: "Total Chunks", value: doc.pipeline_stats?.chunks_generated },
     // { label: "Total Tokens", value: doc.stats?.total_tokens || "—" },
     // { label: "Avg. Chunk Size", value: doc.stats?.avg_chunk_size || "—" },
     // { label: "Images Extracted", value: doc.stats?.images_extracted || "—" },

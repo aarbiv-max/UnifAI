@@ -6,7 +6,7 @@ Clean, minimal configuration for generic packet handling.
 """
 
 from typing import Optional, Callable, List
-from graph.step_context import StepContext
+from graph.models import StepContext
 from graph.state.state_view import StateView
 from .models import ElementAddress
 from .messenger import DefaultInterMessenger

@@ -32,7 +32,9 @@ class LangChainConverter:
                     out.append(AIMessage(content=m.content))
 
             elif m.role == Role.TOOL:
-                out.append(ToolMessage(content=m.content, tool_call_id=m.tool_call_id))
+                # LangChain ToolMessage requires name parameter
+                tool_name = getattr(m, 'name', None) or 'unknown_tool'
+                out.append(ToolMessage(content=m.content, tool_call_id=m.tool_call_id, name=tool_name))
 
             else:
                 raise ValueError(f"Unknown role {m.role}")

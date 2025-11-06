@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Optional, ClassVar
 
-from graph.step_context import StepContext
+from graph.models import StepContext
 from graph.state.graph_state import GraphState
 from graph.state.state_view import StateView
 from .models import ConditionOutputSchema

@@ -5,7 +5,7 @@ from core.models import ElementCard
 from core.enums import ResourceCategory
 from .graph_plan import GraphPlan
 from .models import Step, RTStep
-from .step_context import StepContext
+from .models import StepContext
 
 
 class RTGraphPlan:
@@ -77,9 +77,12 @@ class RTGraphPlan:
     def _create_runtime_step(self, step: Step) -> RTStep:
         """Create a runtime step from a logical step."""
         # ------------------------------------------------------------------ #
-        # 1. Build rich StepContext (adjacent nodes + branching logic)
+        # 1. Build rich StepContext (adjacent nodes + branching logic + topology)
         # ------------------------------------------------------------------ #
-        adjacent_nodes: Dict[str, ElementCard] = {}
+        from .models import AdjacentNodes
+        from .topology.finalizer_analyzer import FinalizerAnalyzer
+        
+        adjacent_nodes_dict = {}
         
         # Find direct connections: steps that have this step in their 'after' list
         for other_step in self._logical_plan.steps:
@@ -91,7 +94,7 @@ class RTGraphPlan:
                     uid=other_step.uid, 
                     metadata=other_step.meta
                 )
-                adjacent_nodes[other_step.uid] = card
+                adjacent_nodes_dict[other_step.uid] = card
         
         # Add conditional connections (branches from this step)
         branches: Dict[str, str] = step.branches or {}
@@ -104,17 +107,33 @@ class RTGraphPlan:
                     uid=tgt.uid,
                     metadata=tgt.meta
                 )
-                adjacent_nodes[next_uid] = card
+                adjacent_nodes_dict[next_uid] = card
+
+        # Create clean Pydantic model
+        adjacent_nodes = AdjacentNodes.from_dict(adjacent_nodes_dict)
+        
+        # ------------------------------------------------------------------ #
+        # 2. Analyze topology (paths to finalizers with cycle prevention)
+        # ------------------------------------------------------------------ #
+        analyzer = FinalizerAnalyzer(output_channel="output")  # Channel.OUTPUT maps to "output"
+        adjacent_node_uids = list(adjacent_nodes_dict.keys())
+        
+        topology = analyzer.analyze_node_topology(
+            plan=self._logical_plan,
+            from_node_uid=step.uid,
+            adjacent_node_uids=adjacent_node_uids
+        )
 
         step_context = StepContext(
             uid=step.uid,
             metadata=step.meta,
             adjacent_nodes=adjacent_nodes,
             branches=branches,
+            topology=topology,
         )
 
         # ------------------------------------------------------------------ #
-        # 2. Bind node & condition callables + inject context
+        # 3. Bind node & condition callables + inject context
         # ------------------------------------------------------------------ #
 
         node_func = self._session.get_instance(ResourceCategory.NODE, step.rid)

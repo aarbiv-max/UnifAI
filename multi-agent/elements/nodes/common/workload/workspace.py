@@ -8,7 +8,8 @@ Enables agent collaboration through centralized context management.
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List
 from datetime import datetime
-from .models import AgentResult, WorkspaceContext, ArtifactRef
+from .models import AgentResult, ArtifactRef
+from .context import WorkspaceContext
 from elements.llms.common.chat.message import ChatMessage
 
 

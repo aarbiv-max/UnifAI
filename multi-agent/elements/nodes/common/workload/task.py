@@ -7,7 +7,7 @@ Enhanced with fork functionality for task chaining and processing lineage.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List, Union, TYPE_CHECKING
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
 from .models import AgentResult
 import uuid
@@ -46,7 +46,7 @@ class Task(BaseModel):
 
     # Results (only when responding)
     result: Optional[Union[AgentResult, Dict[str, Any]]] = None
-    error: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None  # Error message (string for simplicity and consistency)
 
     # ========== CLASS METHODS (Existing) ==========
 
@@ -95,19 +95,20 @@ class Task(BaseModel):
             should_respond=False,
             correlation_task_id=original_task.task_id,  # Link to original
             thread_id=original_task.thread_id,
+            created_by=processed_by,  # Agent responding is creating this response task
             processed_by=processed_by,
             processed_at=datetime.utcnow()
         )
 
     @classmethod
-    def respond_error(cls, original_task: 'Task', error: dict,
+    def respond_error(cls, original_task: 'Task', error: str,
                       processed_by: str) -> 'Task':
         """
         Create error response task with processing metadata.
         
         Args:
             original_task: The task being responded to
-            error: The error data
+            error: The error message (string)
             processed_by: Agent that processed the task and created the error response
         """
         return cls(
@@ -116,6 +117,7 @@ class Task(BaseModel):
             should_respond=False,
             correlation_task_id=original_task.task_id,
             thread_id=original_task.thread_id,
+            created_by=processed_by,  # Agent responding is creating this error response task
             processed_by=processed_by,
             processed_at=datetime.utcnow()
         )
