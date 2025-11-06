@@ -124,7 +124,7 @@ export default function ChatInterface({
     }
 
     let lastUpdateTime = 0;
-    const UPDATE_THROTTLE = 300; // Update frequency to 300ms
+    const UPDATE_THROTTLE = 100; // Update frequency to 100ms
 
     streamingIntervalRef.current = setInterval(() => {
       const now = Date.now();
