@@ -996,7 +996,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
                     }}
                   >
                     <Info className="w-3 h-3 mr-1" />
-                    <span className="hidden sm:inline">Setup Guide</span>
+                    <span className="hidden sm:inline">Google MCP Setup Guide</span>
                     <ExternalLink className="w-3 h-3 ml-1" />
                   </Button>
                 </TooltipTrigger>
