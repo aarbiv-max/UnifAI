@@ -36,7 +36,6 @@ import {
 import { useWorkspaceData } from "../../../hooks/useWorkspaceData";
 import { FieldValidation } from "./FieldValidation";
 import { FieldPopulation } from "./FieldPopulation";
-import { isGoogleMcpServer as checkIsGoogleMcpServer } from "./googleMcpUtils";
 
 interface ElementFormProps {
   isOpen: boolean;
@@ -425,7 +424,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
 
     // Check all required fields from combined schema, excluding hidden fields
     const required = elementSchema.config_schema.required || [];
-    const baseFormValid = required.every((field) => {
+    return required.every((field) => {
       const fieldSchema = elementSchema.config_schema.properties[field];
       
       // Skip validation for hidden fields
@@ -448,22 +447,13 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       }
       
       // If field has validation hint and a value, check validation state
-      // For Google MCP servers, skip validation requirement for sse_endpoint since it's a mock URL
       if (hasValidationHint && hasValue) {
-        // For Google MCP servers, don't require validation to pass for sse_endpoint
-        // (mock URLs won't connect, but that's expected)
-        if (isGoogleMcpServer && field === 'sse_endpoint') {
-          // Just check that the field has a value, validation can fail
-          return hasValue;
-        }
         return fieldValidationStates[field] === true;
       }
       
       // Otherwise, just check if value exists
       return hasValue;
     });
-
-    return baseFormValid;
   };
 
   const handleSave = async () => {
@@ -1011,11 +1001,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
                     
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  <p className="text-sm">
-                    Click to view or download the guide on how to set up and run your own MCP server
-                  </p>
-                </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
