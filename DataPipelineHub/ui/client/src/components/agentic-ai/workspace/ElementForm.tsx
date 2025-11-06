@@ -21,6 +21,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Info, ExternalLink } from "lucide-react";
+import {
   ElementType,
   ElementSchema,
   ElementInstance,
@@ -934,21 +941,74 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     }
 
     // Handle regular string fields
+    const isMcpServerEndpoint = fieldName === "sse_endpoint" && elementType.type === "mcp_server";
+    
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName}>
-          {fieldName} {isRequired && <span className="text-red-400">*</span>}
-          {validationHint && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              validation
-            </Badge>
+        <div className="flex items-center justify-between">
+          <Label htmlFor={fieldName} className="flex items-center gap-2">
+            {fieldName} {isRequired && <span className="text-red-400">*</span>}
+            {validationHint && (
+              <Badge variant="outline" className="ml-2 text-xs">
+                validation
+              </Badge>
+            )}
+            {populateHint && (
+              <Badge variant="outline" className="ml-2 text-xs">
+                populate
+              </Badge>
+            )}
+          </Label>
+          {isMcpServerEndpoint && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-primary hover:text-primary/80 hover:bg-primary/10"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const guidePath = "/guides/mcp-server-setup-guide.md";
+                      // Try to download the guide file
+                      fetch(guidePath)
+                        .then((response) => {
+                          if (!response.ok) {
+                            throw new Error("File not found");
+                          }
+                          return response.blob();
+                        })
+                        .then((blob) => {
+                          const url = window.URL.createObjectURL(blob);
+                          const link = document.createElement("a");
+                          link.href = url;
+                          link.download = "mcp-server-setup-guide.md";
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          window.URL.revokeObjectURL(url);
+                        })
+                        .catch(() => {
+                          // If download fails, try opening in new tab
+                          window.open(guidePath, "_blank");
+                        });
+                    }}
+                  >
+                    <Info className="w-3 h-3 mr-1" />
+                    <span className="hidden sm:inline">Setup Guide</span>
+                    <ExternalLink className="w-3 h-3 ml-1" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p className="text-sm">
+                    Click to view or download the guide on how to set up and run your own MCP server
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
-          {populateHint && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              populate
-            </Badge>
-          )}
-        </Label>
+        </div>
         <Input
           id={fieldName}
           value={value}
@@ -981,6 +1041,42 @@ export const ElementForm: React.FC<ElementFormProps> = ({
         {fieldSchema.description && (
             <p className="text-xs text-gray-400">{fieldSchema.description}</p>
           )}
+        {isMcpServerEndpoint && (
+          <div className="flex items-start gap-2 p-2 bg-primary/5 border border-primary/20 rounded-md">
+            <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              Need help setting up a Google Workspace MCP server?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  const guidePath = "/guides/mcp-server-setup-guide.md";
+                  fetch(guidePath)
+                    .then((response) => {
+                      if (!response.ok) throw new Error("File not found");
+                      return response.blob();
+                    })
+                    .then((blob) => {
+                      const url = window.URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = "mcp-server-setup-guide.md";
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      window.URL.revokeObjectURL(url);
+                    })
+                    .catch(() => {
+                      // Try opening in new tab as fallback
+                      window.open(guidePath, "_blank");
+                    });
+                }}
+                className="text-primary hover:text-primary/80 underline font-medium"
+              >
+                Download setup guide
+              </button>
+            </p>
+          </div>
+        )}
       </div>
     );
   };
