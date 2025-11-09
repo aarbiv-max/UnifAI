@@ -26,7 +26,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
 
   const columns: DataTableColumn<Document>[] = [
     {
-      accessorKey: "name",
+      accessorKey: "source_name",
       header: "Name",
       cell: ({ row }) => {
         const doc = row.original;
@@ -55,7 +55,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       meta: { align: "left" },
     },
     {
-      accessorKey: "page_count",
+      accessorKey: "type_data.page_count",
       header: "Pages",
       cell: ({ row }) => {
         const doc = row.original;
@@ -64,7 +64,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       meta: { align: "center" },
     },
     {
-      accessorKey: "file_size",
+      accessorKey: "type_data.file_size",
       header: "Size (MB)",
       cell: ({ row }) => {
         const doc = row.original;
@@ -75,7 +75,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       meta: { align: "center" },
     },
     {
-      accessorKey: "file_type",
+      accessorKey: "type_data.file_type",
       header: "File Type",
       cell: ({ row }) => row.original.type_data.file_type.toUpperCase(),
       meta: {
@@ -85,7 +85,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
       },
     },
     {
-      accessorKey: "chunks",
+      accessorKey: "pipeline_stats.chunks_generated",
       header: "Chunks",
       cell: ({ row }) => {
         const doc = row.original;
@@ -174,6 +174,9 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
         enableGlobalFilter={false}
         enableColumnFilters={true}
         enablePagination={true}
+        initialState={{
+          pagination: { pageIndex: 0, pageSize: 15 }
+        }}
         expendedRow={activeDoc}
         renderExpandedRow={(doc) => <DocumentData doc={doc} />}
       />

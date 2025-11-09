@@ -17,9 +17,7 @@ class RouterDirectConditionFactory(BaseFactory[RouterDirectConditionConfig, Rout
           • step_ctx  – mandatory identity capsule
         """
         try:
-            return RouterDirectCondition(
-                default_target=getattr(cfg, "default_target", None)
-            )
+            return RouterDirectCondition()
         except Exception as exc:
             raise PluginConfigurationError(
                 f"RouterDirectConditionFactory.create failed: {exc}",

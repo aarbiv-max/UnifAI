@@ -91,7 +91,7 @@ class ConversationHistoryExample(WorkloadCapableMixin, IEMCapableMixin, BaseNode
         # Create thread for this conversation
         thread = self.create_thread("Account Support", "Help with account issues")
         
-        # ✅ Copy all messages from GraphState to workspace
+        # ✅ Copy all messages from GraphState to workspace using NEW SOLID API
         self.copy_graphstate_messages_to_workspace(thread.thread_id)
         
         # Verify the copy
@@ -106,8 +106,8 @@ class ConversationHistoryExample(WorkloadCapableMixin, IEMCapableMixin, BaseNode
         current_messages.extend(new_messages)
         state[Channel.MESSAGES] = current_messages
         
-        # ✅ Sync only new messages (avoiding duplicates)
-        self.sync_graphstate_messages_to_workspace(thread.thread_id)
+        # ✅ Sync only new messages (example - could use "conversation" strategy)
+        self.copy_graphstate_messages_to_workspace(thread.thread_id, strategy="conversation")
         
         # Check updated summary
         updated_summary = self.get_workspace_conversation_summary(thread.thread_id)
@@ -253,16 +253,17 @@ def practical_conversation_patterns():
     print("🎯 Practical Conversation History Patterns")
     print("=" * 50)
     
-    # Pattern 1: Copy from GraphState
+    # Pattern 1: Copy from GraphState (NEW SOLID API)
     print("✅ Pattern 1: Copy GraphState Messages")
     print("self.copy_graphstate_messages_to_workspace(thread_id)")
-    print("# Creates clean copy of all current GraphState messages")
+    print("# Uses NEW SOLID WorkspaceService - clean, testable, SOLID")
     print()
     
-    # Pattern 2: Incremental sync
-    print("✅ Pattern 2: Incremental Sync")
-    print("self.sync_graphstate_messages_to_workspace(thread_id)")
-    print("# Adds only new messages, avoids duplicates")
+    # Pattern 2: Strategy-based sync
+    print("✅ Pattern 2: Strategy-based Sync")
+    print("self.copy_graphstate_messages_to_workspace(thread_id)  # Default: 'conversation'")
+    print("self.copy_graphstate_messages_to_workspace(thread_id, strategy='facts')  # For LLM context")
+    print("# NEW: 'conversation' default, 'facts' for LLM context, 'both' for flexibility")
     print()
     
     # Pattern 3: Manual message addition

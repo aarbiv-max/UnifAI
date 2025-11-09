@@ -16,7 +16,37 @@ import axios from "../http/axiosAgentConfig";
 import * as yaml from "js-yaml";
 import { useLocation } from "wouter";
 
-const defaulYmlState = {
+interface YamlFlowNode {
+  rid: string;
+  name: string;
+  type?: string;
+  config?: any;
+}
+
+interface YamlFlowPlanStep {
+  uid: string;
+  node: string;
+  after?: string | string[] | null;
+  branches?: any;
+  exit_condition?: string;
+}
+
+interface YamlFlowCondition {
+  rid: string;
+  name: string;
+  type?: string;
+  config?: any;
+}
+
+interface YamlFlowState {
+  name?: string;
+  description?: string;
+  nodes: YamlFlowNode[];
+  plan: YamlFlowPlanStep[];
+  conditions?: YamlFlowCondition[];
+}
+
+const defaulYmlState: YamlFlowState = {
   nodes: [
     {
       rid: "user_question",
@@ -85,7 +115,7 @@ export const useGraphLogic = () => {
   });
 
   // YAML flow state management
-  const [yamlFlow, setYamlFlow] = useState(defaulYmlState);
+  const [yamlFlow, setYamlFlow] = useState<YamlFlowState>(defaulYmlState);
 
   // Graph validation state
   const [isGraphValid, setIsGraphValid] = useState(false);
@@ -96,6 +126,9 @@ export const useGraphLogic = () => {
   // Save modal state
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Drag state to track what type of item is being dragged
+  const [isDraggingCondition, setIsDraggingCondition] = useState(false);
 
   const { user } = useAuth();
   const USER_ID = user?.username || "default";
@@ -333,6 +366,125 @@ export const useGraphLogic = () => {
     [setEdges],
   );
 
+  const attachConditionToNode = (nodeId: string, condition: any) => {
+    // Check if node already has a condition attached
+    const targetNode = nodes.find((node) => node.id === nodeId);
+    if (
+      targetNode?.data?.referencedConditions &&
+      targetNode.data.referencedConditions.length > 0
+    ) {
+      toast({
+        title: "❌ Condition Limit Reached",
+        description:
+          "Each node can only have one condition attached. Remove the existing condition first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setNodes((prevNodes) =>
+      prevNodes.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                referencedConditions: [condition], // Only allow one condition
+              },
+            }
+          : node,
+      ),
+    );
+
+    // Update YAML flow to immediately set exit_condition and add condition definition
+    setYamlFlow((prevFlow) => {
+      const conditionRid = condition.workspaceData?.rid || condition.id;
+      
+      // Update plan with exit_condition
+      const updatedPlan = prevFlow.plan.map((step) => {
+        if (step.uid === nodeId) {
+          return {
+            ...step,
+            exit_condition: conditionRid,
+          };
+        }
+        return step;
+      });
+
+      // Add condition definition to conditions section if not exists
+      const conditionExists = (prevFlow.conditions || []).some(
+        (cond: any) => cond.rid === `$ref:${conditionRid}`,
+      );
+
+      let updatedConditions = prevFlow.conditions || [];
+      if (!conditionExists) {
+        updatedConditions = [
+          ...updatedConditions,
+          {
+            rid: `$ref:${conditionRid}`,
+            name: condition.workspaceData?.name || condition.label,
+            type: condition.workspaceData?.type,
+            config: condition.workspaceData?.config,
+          },
+        ];
+      }
+
+      return {
+        ...prevFlow,
+        conditions: updatedConditions,
+        plan: updatedPlan,
+      };
+    });
+  };
+
+  const removeConditionFromNode = (nodeId: string, conditionRid: string) => {
+    setNodes((prevNodes) =>
+      prevNodes.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                referencedConditions: (
+                  node.data.referencedConditions || []
+                ).filter(
+                  (condition: any) =>
+                    (condition.workspaceData?.rid || condition.id) !==
+                    conditionRid,
+                ),
+              },
+            }
+          : node,
+      ),
+    );
+
+    // Remove related edges
+    setEdges((prevEdges) => prevEdges.filter((edge) => edge.source !== nodeId));
+
+    // Update YAML flow to remove the condition and related connections
+    setYamlFlow((prevFlow) => {
+      // Remove condition from plan
+      const updatedPlan = prevFlow.plan.map((step) => {
+        if (step.uid === nodeId && step.exit_condition === conditionRid) {
+          const { exit_condition, branches, ...stepWithoutCondition } = step;
+          return stepWithoutCondition;
+        }
+        return step;
+      });
+
+      // Remove condition definition from conditions section (if exists)
+      const updatedConditions = (prevFlow.conditions || []).filter(
+        (cond: any) => cond.rid !== `$ref:${conditionRid}`,
+      );
+
+      return {
+        ...prevFlow,
+        conditions: updatedConditions.length > 0 ? updatedConditions : [],
+        plan: updatedPlan,
+      };
+    });
+  };
+
   // Initialize canvas with default required nodes
   const initializeDefaultNodes = useCallback(() => {
     const userInputNode: Node = {
@@ -370,7 +522,7 @@ export const useGraphLogic = () => {
     const finalizeNode: Node = {
       id: "finalize",
       type: "custom",
-      position: { x: 200, y: 300 },
+      position: { x: 200, y: 900 },
       data: {
         label: "Final Answer",
         icon: getCategoryDisplay("nodes").icon,
@@ -401,7 +553,7 @@ export const useGraphLogic = () => {
 
     setNodes([userInputNode, finalizeNode]);
     setNodeId(3); // Start from 3 since we have 2 default nodes
-  }, [allBlocksData, deleteNode]);
+  }, [allBlocksData, deleteNode, attachConditionToNode, removeConditionFromNode]);
 
   const loadBuildingBlocks = useCallback(async () => {
     try {
@@ -416,13 +568,13 @@ export const useGraphLogic = () => {
 
       // Filter to show only blocks with category "nodes"
       const nodeBlocks = allBlocks.filter(
-        (block) => block.workspaceData?.category === "nodes",
+        (block: BuildingBlock) => block.workspaceData?.category === "nodes",
       );
       setBuildingBlocksData(nodeBlocks);
 
       // Filter to show only blocks with category "conditions"
       const conditionBlocks = allBlocks.filter(
-        (block) => block.workspaceData?.category === "conditions",
+        (block: BuildingBlock) => block.workspaceData?.category === "conditions",
       );
       setConditionsData(conditionBlocks);
     } catch (error) {
@@ -575,12 +727,41 @@ export const useGraphLogic = () => {
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-  }, []);
+    
+    if (isDraggingCondition) {
+      // For condition nodes, check if cursor is over a valid target node
+      const reactFlowBounds = event.currentTarget.getBoundingClientRect();
+      const position = {
+        x: event.clientX - reactFlowBounds.left - 75,
+        y: event.clientY - reactFlowBounds.top - 25,
+      };
+
+      const targetNode = nodes.find((node) => {
+        const nodeWidth = 150;
+        const nodeHeight = 80;
+        
+        return (
+          position.x >= node.position.x - nodeWidth / 2 &&
+          position.x <= node.position.x + nodeWidth / 2 &&
+          position.y >= node.position.y - nodeHeight / 2 &&
+          position.y <= node.position.y + nodeHeight / 2
+        );
+      });
+
+      // Set different drop effects based on whether over a valid target
+      event.dataTransfer.dropEffect = targetNode ? "copy" : "none";
+    } else {
+      // Regular nodes can be dropped anywhere
+      event.dataTransfer.dropEffect = "move";
+    }
+  }, [nodes, isDraggingCondition]);
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
+
+      // Reset drag state
+      setIsDraggingCondition(false);
 
       const reactFlowBounds = event.currentTarget.getBoundingClientRect();
       const blockData = event.dataTransfer.getData("application/reactflow");
@@ -593,6 +774,40 @@ export const useGraphLogic = () => {
           y: event.clientY - reactFlowBounds.top - 25,
         };
 
+        // Check if this is a condition node
+        const isConditionNode = block.workspaceData?.category === "conditions";
+
+        if (isConditionNode) {
+          // For condition nodes, check if dropping on an existing node
+          const targetNode = nodes.find((node) => {
+            // Calculate if drop position is within node bounds
+            // Assuming standard node dimensions (approximately 150x80)
+            const nodeWidth = 150;
+            const nodeHeight = 80;
+            
+            return (
+              position.x >= node.position.x - nodeWidth / 2 &&
+              position.x <= node.position.x + nodeWidth / 2 &&
+              position.y >= node.position.y - nodeHeight / 2 &&
+              position.y <= node.position.y + nodeHeight / 2
+            );
+          });
+
+          if (targetNode) {
+            // Attach condition to the target node
+            attachConditionToNode(targetNode.id, block);
+          } else {
+            // Show error message if not dropped on a node
+            toast({
+              title: "❌ Invalid Drop Location",
+              description: "Condition nodes can only be dropped on existing nodes. Please drag the condition onto a node.",
+              variant: "destructive",
+            });
+          }
+          return; // Exit early for condition nodes
+        }
+
+        // Regular node creation logic for non-condition blocks
         const nodeUid = `${block.workspaceData?.name || block.label}-${block.workspaceData?.rid || block.id}-${nodeId}`;
         const newNode: Node = {
           id: nodeUid,
@@ -662,7 +877,7 @@ export const useGraphLogic = () => {
         }));
       }
     },
-    [nodeId, setNodes, nodes, deleteNode, allBlocksData],
+    [nodeId, setNodes, nodes, deleteNode, allBlocksData, attachConditionToNode, toast],
   );
 
   const handleNodesChange = useCallback(
@@ -702,7 +917,12 @@ export const useGraphLogic = () => {
       "application/reactflow",
       JSON.stringify(blockData),
     );
-    event.dataTransfer.effectAllowed = "move";
+    
+    // Set drag state based on block category
+    const isCondition = block.workspaceData?.category === "conditions";
+    setIsDraggingCondition(isCondition);
+    
+    event.dataTransfer.effectAllowed = isCondition ? "copy" : "move";
 
     // Create a simpler drag preview
     const dragPreview = document.createElement("div");
@@ -731,6 +951,11 @@ export const useGraphLogic = () => {
       }
     }, 0);
   };
+
+  const onDragEnd = useCallback(() => {
+    // Reset drag state when drag operation ends (whether successful or cancelled)
+    setIsDraggingCondition(false);
+  }, []);
 
   const clearGraph = () => {
     // Reset to default nodes instead of clearing completely
@@ -821,8 +1046,8 @@ export const useGraphLogic = () => {
       } catch (error) {
         console.error("Error saving graph:", error);
         toast({
-          title: "❌ Error Saving Blueprint",
-          description: "Failed to save blueprint to server",
+          title: "❌ Error Saving Workflow",
+          description: "Failed to save workflow to the server",
           variant: "destructive",
         });
         setIsSaving(false);
@@ -850,124 +1075,6 @@ export const useGraphLogic = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedNodes, selectedEdges, deleteNode, deleteEdge]);
 
-  const attachConditionToNode = (nodeId: string, condition: any) => {
-    // Check if node already has a condition attached
-    const targetNode = nodes.find((node) => node.id === nodeId);
-    if (
-      targetNode?.data?.referencedConditions &&
-      targetNode.data.referencedConditions.length > 0
-    ) {
-      toast({
-        title: "❌ Condition Limit Reached",
-        description:
-          "Each node can only have one condition attached. Remove the existing condition first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setNodes((prevNodes) =>
-      prevNodes.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                referencedConditions: [condition], // Only allow one condition
-              },
-            }
-          : node,
-      ),
-    );
-
-    // Update YAML flow to immediately set exit_condition and add condition definition
-    setYamlFlow((prevFlow) => {
-      const conditionRid = condition.workspaceData?.rid || condition.id;
-      
-      // Update plan with exit_condition
-      const updatedPlan = prevFlow.plan.map((step) => {
-        if (step.uid === nodeId) {
-          return {
-            ...step,
-            exit_condition: conditionRid,
-          };
-        }
-        return step;
-      });
-
-      // Add condition definition to conditions section if not exists
-      const conditionExists = (prevFlow.conditions || []).some(
-        (cond) => cond.rid === conditionRid,
-      );
-
-      let updatedConditions = prevFlow.conditions || [];
-      if (!conditionExists) {
-        updatedConditions = [
-          ...updatedConditions,
-          {
-            rid: conditionRid,
-            name: condition.workspaceData?.name || condition.label,
-            type: condition.workspaceData?.type,
-            config: condition.workspaceData?.config,
-          },
-        ];
-      }
-
-      return {
-        nodes: prevFlow.nodes,
-        conditions: updatedConditions,
-        plan: updatedPlan,
-      };
-    });
-  };
-
-  const removeConditionFromNode = (nodeId: string, conditionRid: string) => {
-    setNodes((prevNodes) =>
-      prevNodes.map((node) =>
-        node.id === nodeId
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                referencedConditions: (
-                  node.data.referencedConditions || []
-                ).filter(
-                  (condition) =>
-                    (condition.workspaceData?.rid || condition.id) !==
-                    conditionRid,
-                ),
-              },
-            }
-          : node,
-      ),
-    );
-
-    // Remove related edges
-    setEdges((prevEdges) => prevEdges.filter((edge) => edge.source !== nodeId));
-
-    // Update YAML flow to remove the condition and related connections
-    setYamlFlow((prevFlow) => {
-      // Remove condition from plan
-      const updatedPlan = prevFlow.plan.map((step) => {
-        if (step.uid === nodeId && step.exit_condition === conditionRid) {
-          const { exit_condition, branches, ...stepWithoutCondition } = step;
-          return stepWithoutCondition;
-        }
-        return step;
-      });
-
-      // Remove condition definition from conditions section (if exists)
-      const updatedConditions = (prevFlow.conditions || []).filter(
-        (cond) => cond.rid !== conditionRid,
-      );
-
-      return {
-        nodes: prevFlow.nodes,
-        conditions: updatedConditions.length > 0 ? updatedConditions : [],
-        plan: updatedPlan,
-      };
-    });
-  };
 
   const createConditionalEdge = (params: Connection, branchConfig: any) => {
     const edgeStyle = {
@@ -1035,7 +1142,7 @@ export const useGraphLogic = () => {
       // Add condition definition if not exists
       const conditionRid = condition?.workspaceData?.rid || condition?.id;
       const conditionExists = (prevFlow.conditions || []).some(
-        (cond) => cond.rid === conditionRid,
+        (cond) => cond.rid === `$ref:${conditionRid}`,
       );
 
       let updatedConditions = prevFlow.conditions || [];
@@ -1043,7 +1150,7 @@ export const useGraphLogic = () => {
         updatedConditions = [
           ...updatedConditions,
           {
-            rid: conditionRid,
+            rid: `$ref:${conditionRid}`,
             name: condition.workspaceData?.name || condition.label,
             type: condition.workspaceData?.type,
             config: condition.workspaceData?.config,
@@ -1070,9 +1177,11 @@ export const useGraphLogic = () => {
   };
 
   const handleConditionalEdgeConfirm = (branchConfig: any) => {
-    const params = {
+    const params: Connection = {
       source: conditionalEdgeModal.sourceNodeId,
       target: conditionalEdgeModal.targetNodeId,
+      sourceHandle: null,
+      targetHandle: null,
     };
 
     createConditionalEdge(params, {
@@ -1114,6 +1223,7 @@ export const useGraphLogic = () => {
     onDrop,
     onDragOver,
     onDragStart,
+    onDragEnd,
     clearGraph,
     openSaveModal,
     saveGraph,
@@ -1123,6 +1233,8 @@ export const useGraphLogic = () => {
     conditionalEdgeModal,
     handleConditionalEdgeConfirm,
     handleConditionalEdgeCancel,
+    // Drag state
+    isDraggingCondition,
     // Validation state
     isGraphValid,
     validationResult,

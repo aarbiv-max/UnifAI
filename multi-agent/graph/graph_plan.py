@@ -49,11 +49,23 @@ class GraphPlan:
         return [s for s in self._steps if not s.after and s.uid not in branch_targets]
 
     def get_leaves(self) -> List[Step]:
-        """Return steps that nothing depends on (including branch targets)."""
-        dependents = {dep for s in self._steps for dep in s.after}
-        # Also include branch targets as dependents
-        dependents.update({target for s in self._steps for target in s.branches.values()})
-        return [s for s in self._steps if s.uid not in dependents]
+        """Return steps with no outgoing edges (true leaf nodes)."""
+        steps_with_outgoing = set()
+        
+        for step in self._steps:
+            # Check if this step has outgoing edges via 'after' dependencies
+            # (i.e., if other steps depend on this step)
+            for other in self._steps:
+                if step.uid in other.after:
+                    steps_with_outgoing.add(step.uid)
+                    break
+            
+            # Check if this step has outgoing conditional branches
+            if step.branches:
+                steps_with_outgoing.add(step.uid)
+        
+        # Leaves are steps with NO outgoing edges
+        return [s for s in self._steps if s.uid not in steps_with_outgoing]
 
     def to_dict(self) -> Dict:
         """Serialize for debugging/logging."""

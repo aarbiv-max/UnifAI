@@ -1,11 +1,11 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, session
 from webargs import fields
 from shared.logger import logger
 from global_utils.helpers.apiargs import from_body, from_query
 from pipeline.pipeline_service import PipelineCeleryService
 from pipeline.pipeline_repository import PipelineRepository
-from utils.auth_manager import get_current_user
 from config.constants import PipelineStatus
+from registration.registration_service import RegistrationService
 
 pipelines_bp = Blueprint("pipelines", __name__)
 
@@ -13,24 +13,50 @@ pipelines_bp = Blueprint("pipelines", __name__)
 @pipelines_bp.route("/embed", methods=["PUT"])
 @from_body({
     "data": fields.List(fields.Dict(), required=True),
-    "type": fields.Str(required=True),
+    "source_type": fields.Str(required=True),
+    "logged_in_user": fields.Str(required=True),
 })
-def start_pipeline(data, type):
+def start_pipeline(data, source_type, logged_in_user):
     """
     Trigger the embedding pipeline for registered data sources.
-    First calls registration task, waits for completion, then calls pipeline execution tasks.
+    Performs registration synchronously, then enqueues pipeline execution tasks to Celery.
     
     Args:
         data: List of data sources to register and process
-        type: Type of data source (SLACK, DOCUMENT, etc.)
+        source_type: Type of data source (SLACK, DOCUMENT, etc.)
+        logged_in_user: Username of the current user
         
     Returns:
-        JSON response indicating task submission status
+        JSON response indicating submission status
     """
     try:
-        pipeline_celery_service = PipelineCeleryService()
-        response_data, status_code = pipeline_celery_service.execute_pipeline_workflow_with_registration(data, type)
-        return jsonify(response_data), status_code
+        registration_response = RegistrationService().register_sources(
+            data_list=data,
+            source_type=source_type.upper(),
+            upload_by=logged_in_user,
+        )
+
+        registered_sources = registration_response.get("registered_sources", [])
+        if registered_sources:
+            pipeline_celery_service = PipelineCeleryService()
+            response_data, status_code = pipeline_celery_service.execute_pipeline(registered_sources, source_type)
+        else:
+            response_data, status_code = {
+                "status": "no_registered_sources",
+                "message": "No sources registered; skipping pipeline execution",
+                "pipeline_worker_tasks_submitted": 0,
+                "source_count": 0,
+            }, 200
+
+        result = {
+            "registration_completed": True,
+            "registration": registration_response,
+            "pipeline_execution": {
+                "data": response_data,
+                "status_code": status_code,
+            },
+        }
+        return jsonify(result), status_code
         
     except Exception as e:
         logger.error(f"Failed to start pipeline: {str(e)}")
@@ -72,22 +98,22 @@ def get_pending_pipelines_count():
 
 
 @pipelines_bp.route("/queue/user-position", methods=["GET"])
-@from_query({"source_type": fields.Str(required=True)})
-def get_user_queue_position(source_type):
+@from_query({"source_type": fields.Str(required=True),
+             "logged_in_user": fields.Str(required=True)})
+def get_user_queue_position(source_type, logged_in_user):
     """
     Get the current user's position in the queue for a specific source type.
     """
     try:
-        current_user = get_current_user()
-        if not current_user:
+        if not logged_in_user:
             return jsonify({"error": "User not authenticated"}), 401
 
         pipeline_repo = PipelineRepository()
         coll = pipeline_repo.pipelines_collection
         source_type = source_type.upper()
 
-        username = current_user.get("username")
-        user_id = current_user.get("user_id")
+        username = logged_in_user.get("username")
+        user_id = logged_in_user.get("user_id")
 
         # Find the earliest pending pipeline created by this user
         user_pipeline = coll.find_one(

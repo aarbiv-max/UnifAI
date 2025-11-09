@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import type React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FaFileAlt, FaUpload, FaTimes } from "react-icons/fa";
 import { Progress } from "@/components/ui/progress";
+import { CircleX } from "lucide-react";
 import { ProcessingOptions } from "./ProcessingOptions";
-import { embedDocs, uploadDocs } from "@/api/docs";
+import { embedDocs, uploadDocs, getSupportedFileExtensions } from "@/api/docs";
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from "@/hooks/use-toast";
 
 interface UploadTabProps {
     setShowUploadModal: (showUploadModal: boolean) => void;
@@ -14,11 +18,46 @@ interface UploadTabProps {
 export const UploadTab: React.FC<UploadTabProps> = ({
     setShowUploadModal, fetchDocuments
 }) => {
+    const { user } = useAuth();
     const [isDragging, setIsDragging] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [error, setError] = useState<string>("");
+    const [supportedExtensions, setSupportedExtensions] = useState<string[]>([]);
+    
+    useEffect(() => {
+        const loadSupportedExtensions = async () => {
+            try {
+                const extensions = await getSupportedFileExtensions();
+                setSupportedExtensions(extensions);
+            } catch (err) {
+                console.error("Failed to load supported extensions:", err);
+                setSupportedExtensions([".pdf", ".docx", ".txt"]);
+            }
+        };
+        loadSupportedExtensions();
+    }, []);
+    
+    const isFileExtensionSupported = (fileName: string): boolean => {
+        const extension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+        return supportedExtensions.includes(extension);
+    };
+    
+    const validateFiles = (files: FileList): { validFiles: File[], invalidFiles: string[] } => {
+        const validFiles: File[] = [];
+        const invalidFiles: string[] = [];
+        
+        Array.from(files).forEach(file => {
+            if (isFileExtensionSupported(file.name)) {
+                validFiles.push(file);
+            } else {
+                invalidFiles.push(file.name);
+            }
+        });
+        
+        return { validFiles, invalidFiles };
+    };
     
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
@@ -41,7 +80,33 @@ export const UploadTab: React.FC<UploadTabProps> = ({
     };
 
     const handleFiles = (files: FileList) => {
-        setSelectedFiles((prev) => [...prev, ...Array.from(files)]);
+        const { validFiles, invalidFiles } = validateFiles(files);
+        
+        if (invalidFiles.length > 0) {
+            const invalidExtensions = Array.from(new Set(invalidFiles.map(file => 
+                file.substring(file.lastIndexOf('.')).toLowerCase()
+            )));
+            setError(`The following file extensions are not supported: ${invalidExtensions.join(', ')}. These files will be ignored.`);
+        } else {
+            setError(""); // Clear any previous errors if no invalid files
+        }
+        
+        if (validFiles.length > 0) {
+            const currentFileCount = selectedFiles.length;
+            const totalAfterAdd = currentFileCount + validFiles.length;
+            
+            if (totalAfterAdd > 5) {
+                const remainingSlots = 5 - currentFileCount;
+                if (remainingSlots <= 0) {
+                    setError("Maximum of 5 documents allowed. Please remove some files before adding new ones.");
+                } else {
+                    setError(`Maximum of 5 documents allowed. You can add ${remainingSlots} more document${remainingSlots === 1 ? '' : 's'}.`);
+                }
+                return;
+            }
+            
+            setSelectedFiles((prev) => [...prev, ...validFiles]);
+        }
     };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -82,8 +147,36 @@ export const UploadTab: React.FC<UploadTabProps> = ({
 
     const startPipeline = async (docs: {source_name: string}[]) => {
         try {
-            await embedDocs(docs)
-            console.log("API submission successful!");
+            const res = await embedDocs(docs, user?.username || 'default');
+            const issues = res?.registration?.issues || [];
+
+            if (issues.length > 0) {
+                // Backend provides: { doc_name, issue_type, message }
+                issues.forEach((issue: any) => {
+                    const issueType = String(issue.issue_type || "");
+                    const message = String(issue.message || "");
+                    const titleText = issueType ? issueType.toUpperCase() : "Upload issue";
+                    const descParts = [] as string[];
+                    if (message) descParts.push(message);
+                    const description = descParts.join(" — ");
+
+                    const isDuplicate = issueType.toLowerCase().includes("dup")
+                    const title: React.ReactNode = (
+                        <span className="inline-flex items-center gap-2">
+                            {isDuplicate && (
+                                <CircleX className="h-4 w-4 text-red-500" />
+                            )}
+                            <span>{titleText}</span>
+                        </span>
+                    );
+
+                    toast({
+                        variant: "destructive",
+                        title,
+                        description,
+                    });
+                });
+            }
         } catch (error) {
             console.error(error);
             setError((error as Error).message);
@@ -120,12 +213,18 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                     </div>
 
                     <div
-                        className={`max-h-[400px] overflow-y-auto border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer transition-colors ${isDragging ? "border-primary bg-primary bg-opacity-5" : "border-gray-700 hover:border-gray-600"}`}
-                        onDragEnter={handleDragEnter}
-                        onDragLeave={handleDragLeave}
-                        onDragOver={handleDragOver}
-                        onDrop={handleDrop}
-                        onClick={() =>document.getElementById("file-upload")?.click()}
+                        className={`max-h-[400px] overflow-y-auto border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors ${
+                            selectedFiles.length >= 5 
+                                ? "border-gray-500 cursor-not-allowed opacity-50" 
+                                : isDragging 
+                                    ? "border-primary bg-primary bg-opacity-5 cursor-pointer" 
+                                    : "border-gray-700 hover:border-gray-600 cursor-pointer"
+                        }`}
+                        onDragEnter={selectedFiles.length < 5 ? handleDragEnter : undefined}
+                        onDragLeave={selectedFiles.length < 5 ? handleDragLeave : undefined}
+                        onDragOver={selectedFiles.length < 5 ? handleDragOver : undefined}
+                        onDrop={selectedFiles.length < 5 ? handleDrop : undefined}
+                        onClick={selectedFiles.length < 5 ? () => document.getElementById("file-upload")?.click() : undefined}
                     >
                         {!isUploading ? (
                             <>
@@ -133,13 +232,13 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                                     <FaUpload className="text-accent text-xl" />
                                 </div>
                                 <p className="font-semibold mb-1">
-                                    Drag and drop files here
+                                    {selectedFiles.length >= 5 ? "Maximum files reached" : "Drag and drop files here"}
                                 </p>
                                 <p className="text-sm text-gray-400">
-                                    or click to browse files
+                                    {selectedFiles.length >= 5 ? "Remove files to add more" : "or click to browse files"}
                                 </p>
                                 <p className="text-xs text-gray-500 mt-4">
-                                    Supported formats: PDF, DOCX, TXT
+                                    Supported formats: {supportedExtensions.map(ext => ext.toUpperCase().substring(1)).join(', ')}
                                 </p>
                                 <input id="file-upload" type="file" multiple className="hidden" onChange={handleFileSelect}/>
                             </>
@@ -167,25 +266,32 @@ export const UploadTab: React.FC<UploadTabProps> = ({
 
                         {/* File list after upload */}
                         {selectedFiles.length > 0 && (
-                            <ul className="mt-4 space-y-2">
-                                {selectedFiles.map((file, idx) => (
-                                    <li key={idx} className="flex items-center justify-between text-gray-300 bg-background-surface px-3 py-2 rounded">
-                                        <span className="truncate max-w-[80%]">{file.name}</span>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation(); 
-                                                setSelectedFiles((prev) =>
-                                                    prev.filter((_, i) => i !== idx)
-                                                );
-                                            }}
-                                            className="text-gray-400 hover:text-red-500 transition-colors"
-                                            title="Remove file"
-                                        >
-                                            <FaTimes className="w-4 h-4" />
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
+                            <div className="mt-4 w-full">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-sm text-gray-400">
+                                        {selectedFiles.length} of 5 documents selected
+                                    </span>
+                                </div>
+                                <ul className="space-y-2">
+                                    {selectedFiles.map((file, idx) => (
+                                        <li key={idx} className="flex items-center justify-between text-gray-300 bg-background-surface px-3 py-2 rounded">
+                                            <span className="truncate max-w-[80%]">{file.name}</span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation(); 
+                                                    setSelectedFiles((prev) =>
+                                                        prev.filter((_, i) => i !== idx)
+                                                    );
+                                                }}
+                                                className="text-gray-400 hover:text-red-500 transition-colors"
+                                                title="Remove file"
+                                            >
+                                                <FaTimes className="w-4 h-4" />
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
                         )}
                         {error && <p className="text-red-500 mt-4">{error}</p>}
                     </div>

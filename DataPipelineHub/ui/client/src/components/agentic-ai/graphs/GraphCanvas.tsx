@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import CustomNode from "./CustomNode";
 import CustomEdge from "./CustomEdge";
+import BidirectionalOffsetEdge from "./BidirectionalOffsetEdge";
 import GraphHeader from "./GraphHeader";
 import * as yaml from 'js-yaml';
 
@@ -26,6 +27,87 @@ const nodeTypes: NodeTypes = {
 
 const edgeTypes: EdgeTypes = {
   custom: CustomEdge,
+  bidirectionalOffset: BidirectionalOffsetEdge,
+};
+
+// Helper function to detect and mark bidirectional edge pairs
+const processBidirectionalEdges = (edges: Edge[]): Edge[] => {
+  const edgeMap = new Map<string, Edge[]>();
+  const processedEdges: Edge[] = [];
+
+  // Group edges by node pairs (regardless of direction)
+  edges.forEach(edge => {
+    const key1 = `${edge.source}-${edge.target}`;
+    const key2 = `${edge.target}-${edge.source}`;
+    
+    // Check if reverse edge already exists
+    const existingKey = edgeMap.has(key1) ? key1 : edgeMap.has(key2) ? key2 : key1;
+    
+    if (!edgeMap.has(existingKey)) {
+      edgeMap.set(existingKey, []);
+    }
+    edgeMap.get(existingKey)!.push(edge);
+  });
+
+  // Process each edge group
+  edgeMap.forEach((edgeGroup, key) => {
+    if (edgeGroup.length === 2) {
+      // Bidirectional pair detected - keep both edges but mark them
+      const [edge1, edge2] = edgeGroup;
+      
+      // Determine which edge goes "up" and which goes "down" based on node positions
+      // For now, we'll use a simple rule: first edge gets offset to the right, second to the left
+      
+      const offsetEdge1: Edge = {
+        ...edge1,
+        type: 'bidirectionalOffset',
+        data: {
+          ...edge1.data,
+          bidirectionalPair: true,
+          offsetDirection: 'right', // Offset to the right
+          pairId: edge2.id,
+        },
+        style: {
+          stroke: '#10B981',
+          strokeWidth: 2.5,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 20,
+          height: 20,
+          color: '#10B981',
+        },
+      };
+      
+      const offsetEdge2: Edge = {
+        ...edge2,
+        type: 'bidirectionalOffset',
+        data: {
+          ...edge2.data,
+          bidirectionalPair: true,
+          offsetDirection: 'left', // Offset to the left
+          pairId: edge1.id,
+        },
+        style: {
+          stroke: '#10B981',
+          strokeWidth: 2.5,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 20,
+          height: 20,
+          color: '#10B981',
+        },
+      };
+      
+      processedEdges.push(offsetEdge1, offsetEdge2);
+    } else if (edgeGroup.length === 1) {
+      // Single directional edge - keep as is
+      processedEdges.push(edgeGroup[0]);
+    }
+  });
+
+  return processedEdges;
 };
 
 interface GraphCanvasProps {
@@ -64,6 +146,9 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   isGraphValid = false,
 }) => {
   const [showYamlDebug, setShowYamlDebug] = useState(false);
+  
+  // Process edges to detect and transform bidirectional connections
+  const processedEdges = processBidirectionalEdges(edges);
 
   return (
     <div className="flex-1 relative">
@@ -105,9 +190,9 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
             <ReactFlowProvider>
               <ReactFlow
                 nodes={nodes}
-                edges={edges.map(edge => ({
+                edges={processedEdges.map(edge => ({
                   ...edge,
-                  type: 'custom',
+                  type: edge.type || 'custom',
                   data: {
                     ...edge.data,
                     onDelete: onDeleteEdge,
@@ -121,6 +206,7 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
                 fitView
+                defaultViewport={{ x: 0, y: 0, zoom: 0.33 }}
                 connectionLineType={ConnectionLineType.SmoothStep}
                 defaultEdgeOptions={{
                   type: "custom",

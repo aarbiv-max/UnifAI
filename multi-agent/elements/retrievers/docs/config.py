@@ -11,7 +11,7 @@ class DocsRetrieverConfig(BaseRetrieverConfig):
     """
     type: Literal[Identifier.TYPE] = Identifier.TYPE
     api_url: HttpUrl = Field(
-        HttpUrl("https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/api/docs/query.match"),
+        HttpUrl("http://unifai-dataflow-server:13456/api/docs/query.match"),
         # default_factory=lambda: HttpUrl("https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/api/docs/query.match"),
         description="URL for retrieving docs from the API",
         json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints()

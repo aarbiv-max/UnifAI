@@ -2,6 +2,8 @@ import { formatDate } from '@/features/helpers';
 import { api } from '@/http/queryClient';
 import type { Channel, EmbedChannel } from '@/types';
 import { timeAgo } from '@/utils';
+import { useAuth } from '@/contexts/AuthContext';
+
 export interface SystemStats {
   id: number;
   totalChannels: number;
@@ -70,9 +72,24 @@ export interface ChannelWithSettings extends Channel {
   };
 }
 
+export interface PipelineEmbedResponse {
+  registration_completed: boolean;
+  registration: any;
+  pipeline_execution: {
+    data: {
+      status: string;
+      message: string;
+      pipeline_worker_tasks_submitted: number;
+      source_count: number;
+    };
+    status_code: number;
+  };
+}
+
 export async function submitSlackChannels(
-  channels: ChannelWithSettings[]
-): Promise<{ status: string }> {
+  channels: ChannelWithSettings[],
+  user: string
+): Promise<PipelineEmbedResponse> {
   // Transform channels to include settings as metadata
   const enrichedChannels = channels.map(channel => ({
     channel_name: channel.channel_name,
@@ -87,13 +104,20 @@ export async function submitSlackChannels(
     }
   }));
 
-  const { data } = await api.put<{ status: string }>(
+  const { data } = await api.put<PipelineEmbedResponse>(
     'pipelines/embed',
-    { data: enrichedChannels, type: 'slack' }
+    { data: enrichedChannels, source_type: 'slack', logged_in_user: user }
   );
   
   return data;
 };
+
+export function useSubmitSlackChannels() {
+  const { user } = useAuth();
+  
+  return (channels: ChannelWithSettings[]) => 
+    submitSlackChannels(channels, user?.username || 'default');
+}
 
 export async function fetchEmbeddedSlackChannels(): Promise<EmbedChannel[]> {
   // Call the new backend endpoint for available data sources with source_type='slack'

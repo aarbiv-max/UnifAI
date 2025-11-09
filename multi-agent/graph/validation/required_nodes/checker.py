@@ -1,30 +1,46 @@
-from typing import Set, List, Tuple, AbstractSet
+from typing import Set, List, Tuple, AbstractSet, Optional
 from graph.graph_plan import GraphPlan
 from ..models import ValidationMessage, MessageSeverity, MessageCode
 from .models import RequiredNodeIssue, NodePosition
 
 
 class RequiredNodesChecker:
-    """Business logic for checking required node types."""
+    """Business logic for checking required node types and counts."""
 
-    def __init__(self, required_start_nodes: Set[str] = None, 
-                 required_end_nodes: Set[str] = None, 
-                 required_any_nodes: Set[str] = None):
+    def __init__(
+        self, 
+        required_start_nodes: Set[str] = None, 
+        required_end_nodes: Set[str] = None, 
+        required_any_nodes: Set[str] = None,
+        max_start_nodes: Optional[int] = None,
+        max_end_nodes: Optional[int] = None,
+        max_any_nodes: Optional[int] = None
+    ):
         self._required_start_nodes = set(required_start_nodes or set())
         self._required_end_nodes = set(required_end_nodes or set())
         self._required_any_nodes = set(required_any_nodes or set())
+        
+        # Maximum node constraints
+        self._max_start_nodes = max_start_nodes
+        self._max_end_nodes = max_end_nodes
+        self._max_any_nodes = max_any_nodes
 
     def check_required_nodes(self, plan: GraphPlan) -> Tuple[List[RequiredNodeIssue], List[ValidationMessage]]:
-        """Check that required node types are present."""
+        """Check that required node types are present and within limits."""
         messages = []
         required_node_issues = []
 
-        # Get node type sets
-        root_types = {s.type_key for s in plan.get_roots()}
-        leaf_types = {s.type_key for s in plan.get_leaves()}
-        all_types = {s.type_key for s in plan.steps}
+        # Get node collections
+        roots = plan.get_roots()
+        leaves = plan.get_leaves()
+        all_steps = plan.steps
 
-        # Check each group
+        # Get node type sets (for min checks)
+        root_types = {s.type_key for s in roots}
+        leaf_types = {s.type_key for s in leaves}
+        all_types = {s.type_key for s in all_steps}
+
+        # Check MINIMUM requirements (existing)
         self._check_nodes(
             self._required_start_nodes,
             root_types,
@@ -48,6 +64,34 @@ class RequiredNodesChecker:
             all_types,
             NodePosition.ANY,
             MessageCode.MISSING_REQUIRED_NODE,
+            messages,
+            required_node_issues
+        )
+        
+        # Check MAXIMUM constraints
+        self._check_max_nodes(
+            len(roots),
+            self._max_start_nodes,
+            NodePosition.START,
+            MessageCode.TOO_MANY_START_NODES,
+            messages,
+            required_node_issues
+        )
+        
+        self._check_max_nodes(
+            len(leaves),
+            self._max_end_nodes,
+            NodePosition.END,
+            MessageCode.TOO_MANY_END_NODES,
+            messages,
+            required_node_issues
+        )
+        
+        self._check_max_nodes(
+            len(all_steps),
+            self._max_any_nodes,
+            NodePosition.ANY,
+            MessageCode.TOO_MANY_NODES,
             messages,
             required_node_issues
         )
@@ -76,5 +120,42 @@ class RequiredNodesChecker:
                     severity=MessageSeverity.ERROR,
                     code=error_code,
                     context={"expected": spec, "available": list(available_specs)}
+                )
+            )
+    
+    def _check_max_nodes(
+        self,
+        actual_count: int,
+        max_count: Optional[int],
+        node_type: NodePosition,
+        error_code: MessageCode,
+        messages: List[ValidationMessage],
+        required_node_issues: List[RequiredNodeIssue]
+    ) -> None:
+        """Check if node count exceeds maximum."""
+        if max_count is None:
+            return  # No limit set
+        
+        if actual_count > max_count:
+            position_name = {"start": "start", "end": "end", "any": "total"}[node_type]
+            
+            required_node_issues.append(
+                RequiredNodeIssue(
+                    node_type=node_type,
+                    expected=f"max {max_count}",
+                    actual=str(actual_count)
+                )
+            )
+            
+            messages.append(
+                ValidationMessage(
+                    text=f"Graph has too many {position_name} nodes: {actual_count} (max allowed: {max_count})",
+                    severity=MessageSeverity.ERROR,
+                    code=error_code,
+                    context={
+                        "actual_count": actual_count,
+                        "max_allowed": max_count,
+                        "position": node_type
+                    }
                 )
             ) 

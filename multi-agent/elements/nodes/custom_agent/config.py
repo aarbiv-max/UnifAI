@@ -3,6 +3,7 @@ from pydantic import Field
 from typing import Optional, List, Literal
 from .identifiers import Identifier
 from core.ref.models import LLMRef, RetrieverRef, ToolRef, ProviderRef
+from elements.nodes.common.agent.constants import StrategyType
 
 
 class CustomAgentNodeConfig(NodeBaseConfig):
@@ -15,3 +16,4 @@ class CustomAgentNodeConfig(NodeBaseConfig):
     tools: Optional[List[ToolRef]] = Field(default_factory=list, description="List of tool keys")
     provider: Optional[ProviderRef] = Field(default=None, description="MCP Provider Ref")
     system_message: str = Field("", description="Custom system prompt")
+    strategy_type: str = Field(default=StrategyType.REACT.value, description="Agent strategy type")

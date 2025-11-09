@@ -22,14 +22,30 @@ export async function uploadDocs(files: {name: string, content: string}[]): Prom
       );
 }
 
-export async function embedDocs(docs: {source_name: string}[]): Promise<any> {
-    const embedded = await api.put<any>(
-        'pipelines/embed',
-        { 
-            data: docs,
-            type: 'document'
-        }
-      );
+export interface PipelineEmbedResponse {
+    registration_completed: boolean;
+    registration: any;
+    pipeline_execution: {
+      data: {
+        status: string;
+        message: string;
+        pipeline_worker_tasks_submitted: number;
+        source_count: number;
+      };
+      status_code: number;
+    };
+}
+
+export async function embedDocs(docs: {source_name: string}[], user: string): Promise<PipelineEmbedResponse> {
+    const embedded = await api.put<PipelineEmbedResponse>(
+      'pipelines/embed',
+      {
+        data: docs,
+        source_type: 'document',
+        logged_in_user: user
+      }
+    );
+    return embedded.data;
 }
 
 export async function deleteDoc(pipelineId: string): Promise<any> {
@@ -38,4 +54,9 @@ export async function deleteDoc(pipelineId: string): Promise<any> {
         data: { pipeline_id: pipelineId }
     });
     return deleted.data;
+};
+
+export async function getSupportedFileExtensions(): Promise<string[]> {
+    const response = await api.get<{supported_extensions: string[]}>('docs/supported-extensions');
+    return response.data.supported_extensions;
 };

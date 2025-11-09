@@ -91,16 +91,16 @@ def delete_data_source(source_id: str):
         storage_manager = initialize_storage_manager(actual_source_type if actual_source_type else "data_source")
         
         result = storage_manager.delete_source(source_id, actual_source_type)
-        
-        summary = result.get("summary", {})
+
         return {
             "success": result.get("success", False),
             "result": {
                 "source_id": result.get("source_id"),
                 "source_name": result.get("source_name"),
-                "qdrant_embeddings_deleted": summary.get("embeddings_deleted", 0),
-                "mongo_source_deleted": summary.get("source_deleted", False),
-                "mongo_pipelines_deleted": summary.get("pipelines_deleted", 0)
+                # Map counts directly from deletion result
+                "qdrant_embeddings_deleted": result.get("embeddings_deleted", 0),
+                "mongo_source_deleted": result.get("source_deleted", False),
+                "mongo_pipelines_deleted": result.get("pipelines_deleted", 0)
             }
         }
     except Exception as e:

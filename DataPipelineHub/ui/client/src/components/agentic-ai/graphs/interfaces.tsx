@@ -84,7 +84,7 @@ export interface ProviderDefinition {
 
 export interface PlanItem {
   after?: string | string[] | null;
-  branches: null;
+  branches?: { [key: string]: string } | null; // Conditional branches: condition -> target node uid
   exit_condition: null;
   meta: {
     description: string;

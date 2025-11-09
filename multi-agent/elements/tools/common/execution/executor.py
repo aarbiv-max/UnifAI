@@ -41,7 +41,8 @@ class ToolExecutorManager:
 
     def __init__(
             self,
-            max_concurrent: int = 5,
+            max_concurrent: int = 10,
+            execution_mode: ExecutionMode = ExecutionMode.PARALLEL,
             default_timeout: Optional[float] = None,
             enable_metrics: bool = True,
             error_handler: Optional[ErrorHandler] = None,
@@ -53,6 +54,7 @@ class ToolExecutorManager:
         
         Args:
             max_concurrent: Maximum concurrent executions for ConcurrentLimitedStrategy
+            execution_mode: Default execution mode (SEQUENTIAL, PARALLEL, CONCURRENT_LIMITED)
             default_timeout: Default timeout for tool execution
             enable_metrics: Whether to enable execution metrics
             error_handler: Error handling policy (RetryPolicy, CircuitBreakerPolicy, etc.)
@@ -60,6 +62,7 @@ class ToolExecutorManager:
             enable_circuit_breaker: Whether to enable circuit breaker pattern
         """
         self._max_concurrent = max_concurrent
+        self._execution_mode = execution_mode
         self._default_timeout = default_timeout
         self._enable_metrics = enable_metrics
 
@@ -92,45 +95,57 @@ class ToolExecutorManager:
         # Thread safety
         self._lock = asyncio.Lock()
 
+    def get_execution_mode(self) -> ExecutionMode:
+        """Get the configured execution mode."""
+        return self._execution_mode
+
     # Clean API using request/response models
     async def execute_requests_async(
             self,
             requests: List[ToolExecutionRequest],
-            mode: ExecutionMode = ExecutionMode.PARALLEL
+            mode: Optional[ExecutionMode] = None
     ) -> BatchToolExecutionResponse:
         """
         Execute tool requests using clean request/response models.
         
         Args:
             requests: List of ToolExecutionRequest objects
-            mode: Execution mode
+            mode: Execution mode (uses configured default if None)
             
         Returns:
             BatchToolExecutionResponse with responses keyed by tool_call_id
         """
+        # Use configured default if no mode specified
+        effective_mode = mode or self._execution_mode
+        
         start_time = time.time()
-        print(f"Starting execution of {len(requests)} tool requests using {mode.value} strategy")
 
         # Get the appropriate strategy based on execution mode
-        strategy = self._strategies.get(mode)
+        strategy = self._strategies.get(effective_mode)
         if not strategy:
-            raise ValueError(f"No strategy found for execution mode: {mode}")
+            raise ValueError(f"No strategy found for execution mode: {effective_mode}")
 
         # Execute using the strategy's request/response interface
         # Fix: Pass the async function directly, strategies handle await
-        response_list = await strategy.execute_requests(requests, self._execute_single_request)
+        try:
+            response_list = await strategy.execute_requests(requests, self._execute_single_request)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise
 
         # Convert list to dict keyed by tool_call_id
         responses = {response.tool_call_id: response for response in response_list}
-        return BatchToolExecutionResponse(
+        batch_response = BatchToolExecutionResponse(
             responses=responses,
             total_time=time.time() - start_time,
-            execution_mode=mode.value,
+            execution_mode=str(effective_mode.value),
             metadata={
                 "request_count": len(requests),
                 "tool_names": [req.tool_name for req in requests]
             }
         )
+        return batch_response
 
     async def _execute_single_request(
             self,
@@ -168,6 +183,11 @@ class ToolExecutorManager:
             if self._circuit_breaker:
                 if not self._circuit_breaker.can_execute(tool.name):
                     raise Exception(f"Circuit breaker is open for tool {tool.name}")
+
+            # Log tool execution
+            print(f"🔧 Executing: {tool.name}")
+            if request.args:
+                print(f"   Args: {request.args}")
 
             # Execute the tool with timeout
             result = await self._execute_with_timeout(tool, request.args, self._default_timeout)
@@ -417,7 +437,7 @@ class ToolExecutorManager:
 
 
 # Factory functions
-def create_executor(max_concurrent: int = 5, **kwargs) -> ToolExecutorManager:
+def create_executor(max_concurrent: int = 10, **kwargs) -> ToolExecutorManager:
     """Create a basic tool executor."""
     return ToolExecutorManager(max_concurrent=max_concurrent, **kwargs)
 

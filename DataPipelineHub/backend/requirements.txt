@@ -2,7 +2,9 @@ flask
 flask-cors
 requests
 tiktoken
-langchain
+langchain==0.3.25
+langchain-core==0.3.65
+langchain-openai==0.3.24
 numpy
 sentence-transformers
 qdrant-client

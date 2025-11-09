@@ -27,4 +27,4 @@ export const createPaginationStore = (config: PaginationConfig = {}) => {
   }));
 };
 
-export const usePaginationStore = createPaginationStore({ initialItemsPerPage: 6 });
+export const usePaginationStore = createPaginationStore({ initialItemsPerPage: 12 });
