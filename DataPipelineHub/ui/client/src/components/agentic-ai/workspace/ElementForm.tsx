@@ -942,9 +942,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
         </div>
       );
     }
-
-    // Handle regular string fields
-    const isMcpServerEndpoint = fieldName === "sse_endpoint" && elementType.type === "mcp_server";
     
     return (
       <div key={fieldName} className="space-y-2">
@@ -962,7 +959,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
               </Badge>
             )}
           </Label>
-          {isMcpServerEndpoint && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1003,7 +999,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
                 </TooltipTrigger>
               </Tooltip>
             </TooltipProvider>
-          )}
+          
         </div>
         <Input
           id={fieldName}
@@ -1014,6 +1010,16 @@ export const ElementForm: React.FC<ElementFormProps> = ({
           readOnly={!!populateHint}
           disabled={!!populateHint}
         />
+        {validationHint && (
+          <FieldValidation
+            fieldName={fieldName}
+            fieldValue={value}
+            validationHint={validationHint}
+            elementActions={elementActions}
+            selectedElementType={elementType}
+            onValidationChange={handleValidationChange}
+          />
+        )}
         {populateHint && (
           <FieldPopulation
             fieldName={fieldName}
@@ -1027,7 +1033,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
         {fieldSchema.description && (
             <p className="text-xs text-gray-400">{fieldSchema.description}</p>
           )}
-        {isMcpServerEndpoint && (
+        {fieldName === "sse_endpoint" && (
           <div className="flex items-start gap-2 p-2 bg-primary/5 border border-primary/20 rounded-md">
             <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
             <p className="text-xs text-muted-foreground">
