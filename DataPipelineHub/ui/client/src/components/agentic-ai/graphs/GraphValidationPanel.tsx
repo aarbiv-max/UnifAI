@@ -115,7 +115,7 @@ const GraphValidationPanel: React.FC<GraphValidationPanelProps> = ({
         <CardHeader className="py-3">
           <CardTitle className="text-sm flex items-center gap-2">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-            Validating Graph...
+            Validating Workflow...
           </CardTitle>
         </CardHeader>
       </Card>
@@ -126,7 +126,7 @@ const GraphValidationPanel: React.FC<GraphValidationPanelProps> = ({
     return (
       <Card className="bg-background-card border-gray-800">
         <CardHeader className="py-3">
-          <CardTitle className="text-sm text-gray-400">Graph Validation</CardTitle>
+          <CardTitle className="text-sm text-gray-400">Workflow Validation</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
           <p className="text-sm text-gray-500">
@@ -149,7 +149,7 @@ const GraphValidationPanel: React.FC<GraphValidationPanelProps> = ({
           ) : (
             <XCircle className="h-4 w-4 text-red-500" />
           )}
-          Graph Validation
+          Workflow Validation
           <Badge 
             variant={validationResult.is_valid ? "default" : "destructive"}
             className="text-xs"

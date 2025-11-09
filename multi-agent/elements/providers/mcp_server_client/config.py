@@ -10,7 +10,7 @@ class McpProviderConfig(ProviderBaseConfig):
     Connects to a Model-Context-Protocol service via HTTP Streamable transport.
     """
     type: Literal[Identifier.TYPE] = Identifier.TYPE
-    endpoint: HttpUrl = Field(
+    sse_endpoint: HttpUrl = Field(
         description="Streamable HTTP endpoint for MCP server communication",
         json_schema_extra=ActionHint(
             action_uid="mcp.validate_connection",
@@ -26,6 +26,6 @@ class McpProviderConfig(ProviderBaseConfig):
             hint_type=HintType.POPULATE,
             field_mapping="tool_names",
             multi_select=True,
-            dependencies={"endpoint": "endpoint"}
+            dependencies={"sse_endpoint": "sse_endpoint"}
         ).to_hints()
     )

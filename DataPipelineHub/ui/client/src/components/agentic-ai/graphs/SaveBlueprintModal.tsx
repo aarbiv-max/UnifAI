@@ -47,7 +47,7 @@ const SaveBlueprintModal: React.FC<SaveBlueprintModalProps> = ({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px] bg-gray-900 border-gray-700">
         <DialogHeader>
-          <DialogTitle className="text-white">Save Blueprint</DialogTitle>
+          <DialogTitle className="text-white">Save Workflow</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -101,7 +101,7 @@ const SaveBlueprintModal: React.FC<SaveBlueprintModalProps> = ({
                 Saving...
               </div>
             ) : (
-              "Save Blueprint"
+              "Save Workflow"
             )}
           </Button>
         </DialogFooter>

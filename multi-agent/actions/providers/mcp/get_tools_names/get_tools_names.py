@@ -10,7 +10,7 @@ from core.enums import ResourceCategory
 # Input/Output models for this action
 class GetToolsNamesInput(BaseActionInput):
     """Input for MCP tools discovery"""
-    endpoint: HttpUrl
+    sse_endpoint: HttpUrl
 
 
 class GetToolsNamesOutput(BaseActionOutput):
@@ -51,7 +51,7 @@ class GetToolsNamesAction(BaseAction):
         """
         try:
             # Create client and discover tools
-            client = McpServerClient(input_data.endpoint)
+            client = McpServerClient(input_data.sse_endpoint)
             
             async with client:
                 tools = await client.tools.get_tools()

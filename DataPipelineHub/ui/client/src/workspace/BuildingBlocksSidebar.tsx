@@ -12,6 +12,7 @@ interface BuildingBlocksSidebarProps {
   conditions: BuildingBlock[];
   isLoading: boolean;
   onDragStart: (event: React.DragEvent, block: BuildingBlock) => void;
+  usedElementIds?: Set<string>; // Track which elements are currently used on canvas
 }
 
 const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
@@ -19,6 +20,7 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
   conditions,
   isLoading,
   onDragStart,
+  usedElementIds = new Set<string>(),
 }) => {
   const [selectedElement, setSelectedElement] = useState<BuildingBlock | null>(
     null,
@@ -28,6 +30,15 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
   const handleViewDetails = (block: BuildingBlock) => {
     setSelectedElement(block);
     setIsDetailsModalOpen(true);
+  };
+
+  const handleDragStart = (event: React.DragEvent, block: BuildingBlock) => {
+    // Prevent dragging if element is already used
+    if (usedElementIds.has(block.id)) {
+      event.preventDefault();
+      return;
+    }
+    onDragStart(event, block);
   };
 
   return (
@@ -58,13 +69,19 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 430px)' }}>
-                    {buildingBlocks.map((block) => (
-                      <Card
-                        key={block.id}
-                        className="bg-gray-800 border-gray-700 hover:border-gray-600 transition-colors cursor-grab active:cursor-grabbing"
-                        draggable
-                        onDragStart={(event) => onDragStart(event, block)}
-                      >
+                    {buildingBlocks.map((block) => {
+                      const isUsed = usedElementIds.has(block.id);
+                      return (
+                        <Card
+                          key={block.id}
+                          className={`transition-colors ${
+                            isUsed
+                              ? 'bg-gray-900 border-gray-800 opacity-50 cursor-not-allowed'
+                              : 'bg-gray-800 border-gray-700 hover:border-gray-600 cursor-grab active:cursor-grabbing'
+                          }`}
+                          draggable={!isUsed}
+                          onDragStart={(event) => handleDragStart(event, block)}
+                        >
                         <CardContent className="p-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 flex-1">
@@ -73,9 +90,16 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                                 {getCategoryDisplay(block.workspaceData?.category || "default").icon}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-white text-sm truncate">
-                                  {block.label}
-                                </h4>
+                                <div className="flex items-center gap-2">
+                                  <h4 className={`font-medium text-sm truncate ${isUsed ? 'text-gray-500' : 'text-white'}`}>
+                                    {block.label}
+                                  </h4>
+                                  {isUsed && (
+                                    <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
+                                      Used
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-gray-400 truncate">
                                   {block.workspaceData?.type || block.type}
                                 </p>
@@ -94,7 +118,8 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                           </div>
                         </CardContent>
                       </Card>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>
@@ -109,13 +134,19 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 430px)' }}>
-                    {conditions.map((condition) => (
-                      <Card
-                        key={condition.id}
-                        className="bg-orange-900 border-orange-700 hover:border-orange-600 transition-colors cursor-grab active:cursor-grabbing"
-                        draggable
-                        onDragStart={(event) => onDragStart(event, condition)}
-                      >
+                    {conditions.map((condition) => {
+                      const isUsed = usedElementIds.has(condition.id);
+                      return (
+                        <Card
+                          key={condition.id}
+                          className={`transition-colors ${
+                            isUsed
+                              ? 'bg-orange-950 border-orange-800 opacity-50 cursor-not-allowed'
+                              : 'bg-orange-900 border-orange-700 hover:border-orange-600 cursor-grab active:cursor-grabbing'
+                          }`}
+                          draggable={!isUsed}
+                          onDragStart={(event) => handleDragStart(event, condition)}
+                        >
                         <CardContent className="p-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 flex-1">
@@ -123,9 +154,16 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                                 {getCategoryDisplay("conditions").icon}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-white text-sm truncate">
-                                  {condition.label}
-                                </h4>
+                                <div className="flex items-center gap-2">
+                                  <h4 className={`font-medium text-sm truncate ${isUsed ? 'text-gray-500' : 'text-white'}`}>
+                                    {condition.label}
+                                  </h4>
+                                  {isUsed && (
+                                    <span className="text-xs bg-orange-800 text-orange-300 px-1.5 py-0.5 rounded">
+                                      Used
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-gray-400 truncate">
                                   {condition.workspaceData?.type || condition.type}
                                 </p>
@@ -144,7 +182,8 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                           </div>
                         </CardContent>
                       </Card>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </TabsContent>

@@ -1,0 +1,21 @@
+# Testing dependencies for multi-agent system
+# Install with: pip install -r requirements-test.txt
+
+# Core testing framework
+pytest
+pytest-asyncio
+pytest-mock
+
+# Test organization and reporting
+pytest-html
+pytest-cov
+pytest-xdist
+
+# Test utilities
+pytest-timeout
+pytest-benchmark
+pytest-clarity
+
+# Development utilities (optional)
+pytest-watch
+pytest-sugar

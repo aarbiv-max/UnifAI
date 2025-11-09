@@ -5,8 +5,9 @@ from shared.logger import logger
 from utils.data_connector import DataConnector
 from .doc_config_manager import DocConfigManager
 from .pdf_chunker_strategy import DoclingProcessingError
-
-from docling.document_converter import DocumentConverter, ConversionResult
+from docling.document_converter import DocumentConverter, ConversionResult, InputFormat, PdfFormatOption
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend 
 
 class DocumentConnector(DataConnector):
     """
@@ -27,7 +28,23 @@ class DocumentConnector(DataConnector):
             
         super().__init__(config_manager)
         
-        self._converter = DocumentConverter()
+        # --- 1. Define Pipeline Options: Disable OCR ---
+        pdf_pipeline_options = PdfPipelineOptions(
+            do_ocr=False 
+            # You can also pass 'artifacts_path' here if you want to redirect downloads
+            # artifacts_path=config_manager.get_config("artifact_path")
+        )
+
+        pdf_format_option = PdfFormatOption(
+                    pipeline_options=pdf_pipeline_options,
+                    backend=PyPdfiumDocumentBackend # Forces non-OCR processing
+                )
+
+        self._converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: pdf_format_option
+            }
+        )
         self._conversion_results: Dict[str, ConversionResult] = {}
         logger.info("DocumentConnector initialized")
     

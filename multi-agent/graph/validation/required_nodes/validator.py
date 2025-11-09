@@ -7,14 +7,17 @@ from .checker import RequiredNodesChecker
 
 
 class RequiredNodesValidator(ValidationProvider):
-    """Validates that required node types are present in the graph."""
+    """Validates that required node types are present and counts are within limits."""
 
     def __init__(self, settings: ValidationSettings = None, *args, **kwargs):
         settings = settings or ValidationSettings()
         self._checker = RequiredNodesChecker(
             required_start_nodes=settings.required_start_nodes,
             required_end_nodes=settings.required_end_nodes,
-            required_any_nodes=settings.required_any_nodes
+            required_any_nodes=settings.required_any_nodes,
+            max_start_nodes=settings.max_start_nodes,
+            max_end_nodes=settings.max_end_nodes,
+            max_any_nodes=settings.max_any_nodes
         )
 
     def validate(self, plan: GraphPlan) -> ValidationReport:

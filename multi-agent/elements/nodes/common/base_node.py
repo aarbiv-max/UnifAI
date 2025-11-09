@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from graph.step_context import StepContext
+from graph.models import StepContext
 from graph.state.graph_state import GraphState, Channel
 from graph.state.state_view import StateView
 from core.types import StreamWriter
@@ -56,8 +56,12 @@ class BaseNode(SupportsStreaming, SupportsStateContext, ABC):
         self.run(wrapped_state)
         result = wrapped_state.backing_state
 
-        self._stream({"type": "complete",
-                      "state": result})
+        # Stream only streamable fields to reduce payload size
+        streamable_state = result.get_streamable_state()
+        self._stream({
+            "type": "complete",
+            "state": result
+        })
 
         return result
 
@@ -88,6 +92,24 @@ class BaseNode(SupportsStreaming, SupportsStateContext, ABC):
         """
         return self._is_streaming
 
+    def _stream_field(self, field_name: str, value: Any = None) -> None:
+        """
+        Stream a specific state field during execution.
+        Useful for streaming field updates mid-execution.
+        
+        Args:
+            field_name: Name of the field to stream
+            value: Value to stream (if None, fetches from current state)
+        """
+        if value is None and hasattr(self, '_state'):
+            value = self._state.backing_state.get(field_name)
+        
+        self._stream({
+            "type": "field_update",
+            "field": field_name,
+            "value": value
+        })
+
     def set_context(self, step_ctx: StepContext) -> None:
         """
         Set the step context for this node.
@@ -116,15 +138,19 @@ class BaseNode(SupportsStreaming, SupportsStateContext, ABC):
             raise RuntimeError("Context not available - called outside of execution")
         return self._ctx
     
-    def get_adjacent_nodes(self) -> dict:
+    def get_adjacent_nodes(self):
         """
         Get adjacent nodes from context.
         
         Returns:
-            Dict[str, ElementCard] mapping of adjacent node UIDs to their ElementCard info
+            AdjacentNodes model with rich API for working with adjacent nodes
         """
+        from graph.models import AdjacentNodes
         context = self.get_context()
-        return getattr(context, 'adjacent_nodes', {})
+        adjacent_nodes = getattr(context, 'adjacent_nodes', None)
+        if adjacent_nodes is None:
+            return AdjacentNodes.empty()
+        return adjacent_nodes
 
 
 

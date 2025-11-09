@@ -13,7 +13,7 @@ providers:
     type: mcp_server
     config:
       type: mcp_server
-      endpoint: http://10.46.254.131:8007/servers/mcp-atlassian/mcp
+      sse_endpoint: http://10.46.254.131:8007/servers/mcp-atlassian/mcp
       tool_names:
         - jira_get_issue
         - jira_search
