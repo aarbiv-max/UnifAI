@@ -101,7 +101,7 @@ def updateValuesYaml(String filePath , String version) {
                         [
                             key: "tenant",
                             operator: "Equal",
-                            value: "llmaas-a100",
+                            value: "tag-ai",
                             effect: "NoSchedule"
                         ]
                     ]

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import * as Switch from '@radix-ui/react-switch';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,7 +79,7 @@ type ExecutionTabProps = {
 type ChunkData = {
   node: string;
   display_name: string;
-  type: 'llm_token' | 'complete' | 'tool_calling' | 'tool_result';
+  type: 'llm_token' | 'complete' | 'tool_calling' | 'tool_result' | 'workplan_snapshot';
   chunk?: string;
   tool?: string;
   output?: string;
@@ -88,6 +88,12 @@ type ChunkData = {
   state?: {
     user_prompt?: string;
   };
+  // WorkPlan specific fields
+  action?: 'loaded' | 'saved' | 'deleted';
+  plan_id?: string;
+  thread_id?: string;
+  owner_uid?: string;
+  workplan?: any; // Will contain the full workplan data
 };
 
 export default function ExecutionTab({
@@ -109,9 +115,82 @@ export default function ExecutionTab({
   const [selectedFlowForModal, setSelectedFlowForModal] = useState<FlowObject | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [isLoadingFlowsForModal, setIsLoadingFlowsForModal] = useState(false);
+  // Three panel widths: Available Chats, ChatInterface, Blueprint Graph
+  const [chatSidebarWidth, setChatSidebarWidth] = useState(20);
+  const [chatInterfaceWidth, setChatInterfaceWidth] = useState(50);
+  const [blueprintGraphWidth, setBlueprintGraphWidth] = useState(30);
+  const [isResizing, setIsResizing] = useState(false);
+  const [activeResizer, setActiveResizer] = useState<'left' | 'right' | null>(null);
 
   const { nodeListRef, forceUpdate } = useStreamingData();
   const { user } = useAuth();
+
+  // Resizable panel handlers
+  const handleMouseDown = (resizer: 'left' | 'right') => (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    setActiveResizer(resizer);
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing || !activeResizer) return;
+    
+    const containerRect = document.querySelector('.resizable-container')?.getBoundingClientRect();
+    if (!containerRect) return;
+
+    const mousePosition = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+    
+    if (activeResizer === 'left') {
+      // Resizing between Available Chats and ChatInterface
+      const minChatSidebar = 15;
+      const maxChatSidebar = 35;
+      const newChatSidebarWidth = Math.min(Math.max(mousePosition, minChatSidebar), maxChatSidebar);
+      const remainingWidth = 100 - newChatSidebarWidth;
+      const newChatInterfaceWidth = (chatInterfaceWidth / (chatInterfaceWidth + blueprintGraphWidth)) * remainingWidth;
+      const newBlueprintGraphWidth = remainingWidth - newChatInterfaceWidth;
+      
+      setChatSidebarWidth(newChatSidebarWidth);
+      setChatInterfaceWidth(newChatInterfaceWidth);
+      setBlueprintGraphWidth(newBlueprintGraphWidth);
+    } else if (activeResizer === 'right') {
+      // Resizing between ChatInterface and Blueprint Graph
+      const availableWidth = 100 - chatSidebarWidth;
+      const relativePosition = ((mousePosition - chatSidebarWidth) / availableWidth) * 100;
+      const minChatInterface = 25;
+      const maxChatInterface = 75;
+      const newChatInterfaceRatio = Math.min(Math.max(relativePosition, minChatInterface), maxChatInterface);
+      
+      const newChatInterfaceWidth = (availableWidth * newChatInterfaceRatio) / 100;
+      const newBlueprintGraphWidth = availableWidth - newChatInterfaceWidth;
+      
+      setChatInterfaceWidth(newChatInterfaceWidth);
+      setBlueprintGraphWidth(newBlueprintGraphWidth);
+    }
+  }, [isResizing, activeResizer, chatSidebarWidth, chatInterfaceWidth, blueprintGraphWidth]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+    setActiveResizer(null);
+  }, []);
+
+  // Add event listeners for mouse move and up
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
 
   // Utility functions
   const generateRandomId = (): string => {
@@ -351,7 +430,7 @@ export default function ExecutionTab({
 
   // Maintains and updates a list of nodes and their stream state (PROGRESS or DONE) while aggregating text.
   const updateNodeList = (chunkData: ChunkData) => {
-    const { node, display_name, type, chunk, state, tool, output, call_id, args } = chunkData;
+    const { node, display_name, type, chunk, state, tool, output, call_id, args, action, plan_id, thread_id, owner_uid, workplan } = chunkData;
     const currentText = chunk ?? state?.user_prompt ?? '';
     const map = nodeListRef.current;
 
@@ -365,6 +444,7 @@ export default function ExecutionTab({
         stream: type === 'complete' ? 'DONE' : 'PROGRESS',
         text: '',
         tools: [],
+        workplans: [],
       };
       map.set(node, existing);
     }
@@ -385,7 +465,7 @@ export default function ExecutionTab({
 
       case 'tool_calling':
         if (call_id && tool) {
-          const existingTool = existing.tools?.find(t => t.id === call_id);
+          const existingTool = existing.tools?.find((t: any) => t.id === call_id);
           if (!existingTool) {
             existing.tools?.push({ id: call_id, name: tool, args });
           }
@@ -394,11 +474,45 @@ export default function ExecutionTab({
 
       case 'tool_result':
         if (call_id && tool && output) {
-          const toolEntry = existing.tools?.find(t => t.id === call_id);
+          const toolEntry = existing.tools?.find((t: any) => t.id === call_id);
           if (toolEntry) {
             toolEntry.output = output;
           } else {
             existing.tools?.push({ id: call_id, name: tool, output });
+          }
+        }
+        break;
+
+      case 'workplan_snapshot':
+        if (plan_id && workplan && action) {
+          // Initialize workplans array if it doesn't exist
+          if (!existing.workplans) {
+            existing.workplans = [];
+          }
+
+          // Create the workplan snapshot
+          const workplanSnapshot = {
+            type: 'workplan_snapshot' as const,
+            action: action as 'loaded' | 'saved' | 'deleted',
+            plan_id: plan_id,
+            thread_id: thread_id || '',
+            owner_uid: owner_uid || node,
+            node: node,
+            display_name: display_name,
+            workplan: workplan
+          };
+
+          // Find existing workplan or add new one
+          const existingPlanIndex = existing.workplans.findIndex(
+            (wp: any) => wp.plan_id === plan_id
+          );
+
+          if (existingPlanIndex !== -1) {
+            // Update existing workplan
+            existing.workplans[existingPlanIndex] = workplanSnapshot;
+          } else {
+            // Add new workplan
+            existing.workplans.push(workplanSnapshot);
           }
         }
         break;
@@ -507,146 +621,167 @@ export default function ExecutionTab({
         </Button>
       </div>
 
-      <div className="flex gap-6" style={{ height: "calc(100vh - 230px)" }}>
-        {/* Main Content Area - 70% width */}
-        <div className="flex-grow" style={{ width: "70%" }}>
-          <div className="grid grid-cols-12 gap-6 h-full">
-            {/* Chat sessions sidebar */}
-            <div className="col-span-12 md:col-span-4 lg:col-span-3">
-              <Card className="bg-background-card shadow-card border-gray-800 h-full flex flex-col">
-                <CardHeader className="py-3 px-4 border-b border-gray-800 overflow-hidden">
-                  <div className="flex justify-between items-center min-w-0 w-full max-w-full">
-                    <CardTitle className="text-sm font-medium truncate flex-1 min-w-0 mr-2">
-                      Available Chats ({chatSessions.length})
-                    </CardTitle>
-                    <div className="flex items-center gap-1 flex-shrink-0 max-w-fit">
-                      {/* Global Scope Toggle */}
-                      <Switch.Root
-                        className="relative w-20 h-5 rounded-full bg-gray-600 data-[state=checked]:bg-[#03DAC6] transition-colors cursor-pointer flex-shrink-0"
-                        checked={globalScope === 'public'}
-                        onCheckedChange={handleGlobalScopeToggle}
-                        id="scope-switch"
-                        title={`Current scope: ${globalScope}`}
-                      >
-                        {/* Background label */}
-                        <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-white pointer-events-none select-none">
-                          {globalScope === 'public' ? 'Public' : 'Private'}
-                        </span>
+      <div className="flex resizable-container gap-0" style={{ height: "calc(100vh - 230px)" }}>
+        {/* Available Chats Sidebar - Dynamic width */}
+        <div className="flex-shrink-0" style={{ width: `${chatSidebarWidth}%` }}>
+          <Card className="bg-background-card shadow-card border-gray-800 h-full flex flex-col mr-0">
+            <CardHeader className="py-3 px-4 border-b border-gray-800 overflow-hidden">
+              <div className="flex justify-between items-center min-w-0 w-full max-w-full">
+                <CardTitle className="text-sm font-medium truncate flex-1 min-w-0 mr-2">
+                  Available Chats ({chatSessions.length})
+                </CardTitle>
+                <div className="flex items-center gap-1 flex-shrink-0 max-w-fit">
+                  {/* Global Scope Toggle */}
+                  <Switch.Root
+                    className="relative w-20 h-5 rounded-full bg-gray-600 data-[state=checked]:bg-[#03DAC6] transition-colors cursor-pointer flex-shrink-0"
+                    checked={globalScope === 'public'}
+                    onCheckedChange={handleGlobalScopeToggle}
+                    id="scope-switch"
+                    title={`Current scope: ${globalScope}`}
+                  >
+                    {/* Background label */}
+                    <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-white pointer-events-none select-none">
+                      {globalScope === 'public' ? 'Public' : 'Private'}
+                    </span>
 
-                        {/* Switch thumb */}
-                        <Switch.Thumb
-                          className="absolute top-[1px] left-[1px] h-4 w-4 rounded-full bg-white transition-transform duration-300 z-10 transform data-[state=checked]:translate-x-[60px]"
-                        />
-                      </Switch.Root>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
-                        <Users className="h-3 w-3" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-6 w-6 p-0 text-[#03DAC6] hover:bg-[#03DAC6] hover:bg-opacity-20 flex-shrink-0" 
-                        onClick={handleAddFlowClick}
-                        title="Add new chat from flow"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0 flex-grow">
-                  {chatSessions.length === 0 ? (
-                    <div className="p-4 text-center text-gray-400 text-sm">
-                      No chat sessions available
-                    </div>
-                  ) : (
-                    <div className="h-full max-h-[75vh] overflow-y-auto py-2">
-                      {chatSessions.map((session) => (
-                        <motion.div
-                          key={session.id}
-                          className={`group px-4 py-3 border-l-2 cursor-pointer ${
-                            selectedSession?.id === session.id
-                              ? "border-[#8A2BE2] bg-[#8A2BE2] bg-opacity-10"
-                              : "border-transparent hover:bg-background-surface"
-                          } ${
-                            !session.blueprintExists 
-                              ? "opacity-50 bg-gray-800/30" 
-                              : ""
-                          }`}
-                          onClick={() => handleSessionSelect(session)}
-                          whileHover={{ x: 2 }}
-                          transition={{ duration: 0.1 }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center min-w-0 flex-1">
-                              <MessageSquare className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
-                              <span className="text-sm font-medium truncate">
-                                {session.title}
-                              </span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => handleDeleteChat(session, e)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <div className="mt-1 flex items-center text-xs text-gray-400">
-                            <Clock className="h-3 w-3 mr-1" />
-                            <span>{session.lastActive}</span>
-                          </div>
-                          <p className="mt-1 text-xs text-gray-500 truncate">
-                            {session.preview}
-                          </p>
-                        </motion.div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* ChatInterface with conditional className */}
-            <div className={`col-span-12 ${showExecutionStream ? 'md:col-span-4 lg:col-span-4' : 'md:col-span-8 lg:col-span-9'} h-full`}>
-              <ChatInterface
-                runId={selectedSession?.id || ''}
-                triggerExecution={triggerExecution}
-                initialMessages={currentSessionMessages}
-                blueprintExists={selectedSession?.blueprintExists ?? true}
-              />
-            </div>
-
-            {/* ExecutionStream only renders when showExecutionStream is true */}
-            {selectedSession && showExecutionStream && (
-              <div className="col-span-12 md:col-span-4 lg:col-span-5 h-full">
-                <ExecutionStream
-                  blueprintId={selectedSession.blueprintId}
-                  isLiveRequest={isLiveRequest}
-                />
+                    {/* Switch thumb */}
+                    <Switch.Thumb
+                      className="absolute top-[1px] left-[1px] h-4 w-4 rounded-full bg-white transition-transform duration-300 z-10 transform data-[state=checked]:translate-x-[60px]"
+                    />
+                  </Switch.Root>
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
+                    <Users className="h-3 w-3" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 w-6 p-0 text-[#03DAC6] hover:bg-[#03DAC6] hover:bg-opacity-20 flex-shrink-0" 
+                    onClick={handleAddFlowClick}
+                    title="Add new chat from flow"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
-            )}
-          </div>
+            </CardHeader>
+            <CardContent className="p-0 flex-grow">
+              {chatSessions.length === 0 ? (
+                <div className="p-4 text-center text-gray-400 text-sm">
+                  No chat sessions availableﬂ
+                </div>
+              ) : (
+                <div className="h-full max-h-[75vh] overflow-y-auto py-2">
+                  {chatSessions.map((session) => (
+                    <motion.div
+                      key={session.id}
+                      className={`group px-4 py-3 border-l-2 cursor-pointer ${
+                        selectedSession?.id === session.id
+                          ? "border-[hsl(var(--primary))] bg-[#8A2BE2] bg-opacity-10"
+                          : "border-transparent hover:bg-background-surface"
+                      } ${
+                        !session.blueprintExists 
+                          ? "opacity-50 bg-gray-800/30" 
+                          : ""
+                      }`}
+                      onClick={() => handleSessionSelect(session)}
+                      whileHover={{ x: 2 }}
+                      transition={{ duration: 0.1 }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center min-w-0 flex-1">
+                          <MessageSquare className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
+                          <span className="text-sm font-medium truncate">
+                            {session.title}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => handleDeleteChat(session, e)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="mt-1 flex items-center text-xs text-gray-400">
+                        <Clock className="h-3 w-3 mr-1" />
+                        <span>{session.lastActive}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 truncate">
+                        {session.preview}
+                      </p>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Blueprint Graph Visualization - 30% width */}
-        <div className="flex-shrink-0" style={{ width: "30%" }}>
-          <Card className="bg-background-card shadow-card border-gray-800 h-full flex flex-col">
-            <CardHeader className="py-3 px-4 border-b border-gray-800">
+        {/* First Resizable divider */}
+        <div
+          className={`w-1 cursor-col-resize transition-colors duration-200 flex-shrink-0 ${
+            isResizing && activeResizer === 'left' ? 'opacity-100' : 'opacity-50'
+          }`}
+          style={{
+            backgroundColor: 'hsl(var(--primary))',
+          }}
+          onMouseDown={handleMouseDown('left')}
+          title="Drag to resize panels"
+        />
+
+        {/* ChatInterface Area - Dynamic width */}
+        <div className="flex-shrink-0 flex flex-col" style={{ width: `${chatInterfaceWidth}%` }}>
+          <div className="flex-grow">
+            <ChatInterface
+              runId={selectedSession?.id || ''}
+              triggerExecution={triggerExecution}
+              initialMessages={currentSessionMessages}
+              blueprintExists={selectedSession?.blueprintExists ?? true}
+            />
+          </div>
+          
+          {/* ExecutionStream - conditionally rendered within ChatInterface area */}
+          {selectedSession && showExecutionStream && (
+            <div className="h-1/3 border-t border-gray-800 mt-2">
+              <ExecutionStream
+                blueprintId={selectedSession.blueprintId}
+                isLiveRequest={isLiveRequest}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Second Resizable divider */}
+        <div
+          className={`w-1 cursor-col-resize transition-colors duration-200 flex-shrink-0 ${
+            isResizing && activeResizer === 'right' ? 'opacity-100' : 'opacity-50'
+          }`}
+          style={{
+            backgroundColor: 'hsl(var(--primary))',
+          }}
+          onMouseDown={handleMouseDown('right')}
+          title="Drag to resize panels"
+        />
+
+        {/* Blueprint Graph Visualization - Dynamic width */}
+        <div className="flex-shrink-0" style={{ width: `${blueprintGraphWidth}%` }}>
+          <Card className="bg-background-card shadow-card border-gray-800 h-full flex flex-col ml-0">
+            {/* TODO: Add below general component that gets 'blueprintId' and showing his title and uid - can be called from multiple places */}
+            {/* <CardHeader className="py-3 px-4 border-b border-gray-800">
               {selectedSession && (
-                  <div className="mb-4 px-4 py-3 bg-[#8A2BE2] bg-opacity-10 border border-[#8A2BE2] rounded-md">
+                  <div className="mb-4 px-4 py-3 bg-[#8A2BE2] bg-opacity-10 border border-[hsl(var(--primary))] rounded-md">
                     <p className="text-sm">
-                      {/* TODO: Add below general component that gets 'blueprintId' and showing his title and uid - can be called from multiple places */}
                       <span className="font-medium">Active Graph:</span> {''} <span className="text-xs text-gray-400 ml-2">(ID: {selectedSession.blueprintId || 'N/A'})</span>
                     </p>
                   </div>
                 )}
-              {/* {selectedSession && (
+              {selectedSession && (
                 <p className="text-xs text-gray-400 mt-1">
                   Blueprint ID: {selectedSession.blueprintId || 'N/A'}
                 </p>
-              )} */}
-            </CardHeader>
+              )}
+            </CardHeader> */}
             <CardContent className="p-0 flex-grow">
               {selectedSession?.blueprintId ? (
                 <ReactFlowProvider key={`main-graph-${selectedSession.blueprintId}`}>

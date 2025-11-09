@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useGraphLogic } from "@/hooks/use-graph-logic";
 import GraphCanvas from "@/components/agentic-ai/graphs/GraphCanvas";
 import BuildingBlocksSidebar from "./BuildingBlocksSidebar";
@@ -44,6 +44,39 @@ export default function NewGraph({ onBack }: NewGraphProps) {
 
   const [saveModalOpen, setSaveModalOpen] = useState(false);
 
+  // Track which building blocks are currently used on the canvas
+  const usedElementIds = useMemo(() => {
+    const usedIds = new Set<string>();
+    
+    nodes.forEach(node => {
+      // 1. Track the node itself by workspaceData.rid
+      if (node.data?.workspaceData?.rid) {
+        const matchingBlock = [...buildingBlocksData, ...conditionsData].find(
+          block => block.workspaceData?.rid === node.data.workspaceData?.rid
+        );
+        if (matchingBlock) {
+          usedIds.add(matchingBlock.id);
+        }
+      }
+      
+      // 2. Track any conditions attached to this node
+      if (node.data?.referencedConditions && Array.isArray(node.data.referencedConditions)) {
+        node.data.referencedConditions.forEach((condition: any) => {
+          if (condition.workspaceData?.rid) {
+            const matchingCondition = conditionsData.find(
+              block => block.workspaceData?.rid === condition.workspaceData.rid
+            );
+            if (matchingCondition) {
+              usedIds.add(matchingCondition.id);
+            }
+          }
+        });
+      }
+    });
+    
+    return usedIds;
+  }, [nodes, buildingBlocksData, conditionsData]);
+
   const handleSaveGraph = async () => {
     setSaveModalOpen(true);
   };
@@ -61,6 +94,7 @@ export default function NewGraph({ onBack }: NewGraphProps) {
           conditions={conditionsData}
           isLoading={isLoadingBlocks}
           onDragStart={onDragStart}
+          usedElementIds={usedElementIds}
         />
       </div>
 

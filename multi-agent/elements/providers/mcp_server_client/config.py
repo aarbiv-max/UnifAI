@@ -7,12 +7,11 @@ from core.field_hints import ActionHint, HintType
 
 class McpProviderConfig(ProviderBaseConfig):
     """
-    Connects to a Model-Context-Protocol service that exposes both
-    WebSocket & SSE endpoints.
+    Connects to a Model-Context-Protocol service via HTTP Streamable transport.
     """
     type: Literal[Identifier.TYPE] = Identifier.TYPE
     sse_endpoint: HttpUrl = Field(
-        description="HTTP(S) endpoint that streams SSE events",
+        description="Streamable HTTP endpoint for MCP server communication",
         json_schema_extra=ActionHint(
             action_uid="mcp.validate_connection",
             hint_type=HintType.VALIDATE,

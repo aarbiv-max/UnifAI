@@ -7,7 +7,7 @@ and WorkloadService persistence.
 """
 
 from typing import Optional
-from .interfaces import IWorkloadService
+from .unified_service import IWorkloadService
 from .thread import Thread
 from .workspace import Workspace
 

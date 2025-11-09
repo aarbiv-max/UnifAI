@@ -42,6 +42,9 @@ class BaseIEMPacket(BaseModel):
         """Check if packet is acknowledged by given uid."""
         return uid in self.ack_by
 
+    def is_acknowledged(self):
+        return bool(self.ack_by)
+
 
 class TaskPacket(BaseIEMPacket):
     """

@@ -9,6 +9,7 @@ from elements.nodes.common.base_node import BaseNode
 from elements.nodes.common.capabilities.iem_capable import IEMCapableMixin
 from elements.nodes.common.capabilities.workload_capable import WorkloadCapableMixin
 from elements.nodes.common.workload import Task
+from elements.nodes.common.workload.thread import ThreadStatus
 from graph.state.graph_state import Channel
 from graph.state.state_view import StateView
 from elements.llms.common.chat.message import ChatMessage, Role
@@ -54,30 +55,53 @@ class UserQuestionNode(WorkloadCapableMixin, IEMCapableMixin, BaseNode):
 
     def _initiate_workflow(self, user_query: str, state: StateView) -> None:
         """
-        Create thread, workspace, and broadcast task to start workflow.
+        Create or reuse thread, workspace, and broadcast task to start workflow.
         
-        Enhanced workload management:
-        1. Create thread for this workflow
-        2. Copy conversation history to workspace
-        3. Add workflow facts to workspace
-        4. Create and broadcast task with thread context
+        Enhanced workload management with thread reuse:
+        1. Check for existing active thread by this initiator (user question node)
+        2. Reuse existing thread if found (conversation continuity)
+        3. Create new thread if none exists
+        4. Copy conversation history to workspace
+        5. Add workflow facts to workspace
+        6. Create and broadcast task with thread context
+        
+        Thread reuse ensures:
+        - Conversation continuity across multiple user inputs
+        - Orchestrator can reference previous work plans
+        - Context accumulates over the session
         """
-        # Create thread for this workflow
-        thread = self.create_thread(
-            title="User Query Processing",
-            objective=f"Process user query: {user_query[:50]}..."
-        )
+        # Try to find existing active thread for this user question node
+        existing_threads = self.threads.list_threads_by_initiator(self.uid)
+        active_thread = None
         
-        print(f"UserQuestion: Created thread {thread.thread_id} for workflow")
+        # Find most recent active root thread
+        for thread in existing_threads:
+            if thread.status == ThreadStatus.ACTIVE and not thread.parent_thread_id:
+                # Found an active root thread initiated by this node
+                active_thread = thread
+                print(f"🔄 [UserQuestion] Reusing existing thread {thread.thread_id} for conversation continuity")
+                break
         
-        # Copy current conversation to workspace
+        if active_thread:
+            # Reuse existing thread
+            thread = active_thread
+        else:
+            # Create new thread for this workflow
+            thread = self.threads.create_root_thread(
+                title="User Query Processing",
+                objective=f"Process user query: {user_query[:50]}...",
+                initiator=self.uid
+            )
+            print(f"📝 [UserQuestion] Created new thread {thread.thread_id} for workflow")
+        
+        # Copy current conversation to workspace using new SOLID API
         self.copy_graphstate_messages_to_workspace(thread.thread_id)
         
         # Add workflow context to workspace
-        self.add_fact_to_workspace(thread.thread_id, f"User query: {user_query}")
-        self.add_fact_to_workspace(thread.thread_id, f"Initiated by: {self.uid}")
-        self.set_workspace_variable(thread.thread_id, "workflow_type", "user_query_processing")
-        self.set_workspace_variable(thread.thread_id, "initiator", self.uid)
+        self.workspaces.add_fact(thread.thread_id, f"User query: {user_query}")
+        self.workspaces.add_fact(thread.thread_id, f"Initiated by: {self.uid}")
+        self.workspaces.set_variable(thread.thread_id, "workflow_type", "user_query_processing")
+        self.workspaces.set_variable(thread.thread_id, "initiator", self.uid)
 
         
         # Create clean, minimal task
@@ -92,5 +116,8 @@ class UserQuestionNode(WorkloadCapableMixin, IEMCapableMixin, BaseNode):
         packet_ids = self.broadcast_task(task)
         
         # Log workflow initiation with enhanced context
-        workspace_summary = self.get_workspace_summary(thread.thread_id)
-        print(f"UserQuestion: Initiated workflow {thread.thread_id}")
+        if active_thread:
+            print(f"🔄 [UserQuestion] Continued workflow in thread {thread.thread_id}")
+        else:
+            print(f"📝 [UserQuestion] Initiated new workflow {thread.thread_id}")
+

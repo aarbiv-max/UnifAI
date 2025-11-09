@@ -31,7 +31,7 @@ const GraphHeader: React.FC<GraphHeaderProps> = ({
               Back
             </Button>
           )}
-          <CardTitle className="text-lg font-heading">Graph Canvas</CardTitle>
+          <CardTitle className="text-lg font-heading">Workflow Canvas</CardTitle>
         </div>
         <div className="flex gap-2">
           <Button
@@ -49,7 +49,7 @@ const GraphHeader: React.FC<GraphHeaderProps> = ({
               className="bg-primary hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="h-4 w-4 mr-2" />
-              Save Graph
+              Save Workflow
             </Button>
         </div>
       </div>

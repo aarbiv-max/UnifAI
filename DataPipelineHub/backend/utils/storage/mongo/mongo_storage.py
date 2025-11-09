@@ -14,7 +14,11 @@ class MongoStorage:
         conn = MongoConnection(mongo_uri)
         
         self.sources = SourcesRepository(
-            conn.get_collection(Database.DATA_SOURCES.value, CollectionName.SOURCES.value, [("source_id", True)])
+            conn.get_collection(
+                Database.DATA_SOURCES.value,
+                CollectionName.SOURCES.value,
+                [("source_id", True), ("type_data.md5", False)]
+            )
         )
         self.pipelines = PipelinesRepository(
             conn.get_collection(Database.PIPELINE.value, CollectionName.PIPELINES.value, [("pipeline_id", True)])

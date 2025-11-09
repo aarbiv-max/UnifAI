@@ -152,7 +152,7 @@ export default function ExecutionStream({
           
           return updatedLogs;
         });
-      }, 200);
+      }, 100);
     }
   
     return () => {

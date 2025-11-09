@@ -2,7 +2,7 @@ from typing import Protocol, runtime_checkable, Mapping, Any, Iterator, TYPE_CHE
 
 if TYPE_CHECKING:
     from graph.state.state_view import StateView
-    from graph.step_context import StepContext
+    from graph.models import StepContext
 from abc import ABC, abstractmethod
 from .enums import ResourceCategory
 
