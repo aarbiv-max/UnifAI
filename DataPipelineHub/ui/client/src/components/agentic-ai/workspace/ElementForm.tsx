@@ -629,33 +629,8 @@ chmod +x local_mcp.sh
     const validationHint = fieldSchema.hints?.action?.hint_type === 'validate' ? fieldSchema.hints.action : null;
     const populateHint = fieldSchema.hints?.action?.hint_type === 'populate' ? fieldSchema.hints.action : null;
 
-    // Debug logging for 'kind' field
-    if (fieldName === 'kind') {
-      console.log('[KIND FIELD DEBUG] Full analysis:', {
-        fieldName,
-        fieldSchema,
-        hasEnum: !!fieldSchema.enum,
-        hasAnyOf: !!fieldSchema.anyOf,
-        hasAllOf: !!fieldSchema.allOf,
-        value,
-        '$defs': elementSchema?.config_schema?.$defs,
-      });
-      
-      // Check if allOf path exists
-      if (fieldSchema.allOf) {
-        const refPath = fieldSchema.allOf.find((item: any) => item.$ref)?.$ref;
-        console.log('[KIND FIELD DEBUG] allOf refPath:', refPath);
-        if (refPath && elementSchema?.config_schema?.$defs) {
-          const defName = refPath.split('/').pop();
-          console.log('[KIND FIELD DEBUG] defName:', defName);
-          console.log('[KIND FIELD DEBUG] enumDef:', elementSchema.config_schema.$defs[defName]);
-        }
-      }
-    }
-
     // Handle direct $ref to enum definitions (Pydantic Enum types)
     if (fieldSchema.$ref && elementSchema?.config_schema?.$defs) {
-      // Extract definition name from $ref path (e.g., "#/$defs/McpKind" -> "McpKind")
       const defName = fieldSchema.$ref.split('/').pop();
       const enumDef = elementSchema.config_schema.$defs[defName];
       
@@ -693,7 +668,6 @@ chmod +x local_mcp.sh
     if (fieldSchema.allOf && Array.isArray(fieldSchema.allOf)) {
       const refPath = fieldSchema.allOf.find((item: any) => item.$ref)?.$ref;
       if (refPath && elementSchema?.config_schema?.$defs) {
-        // Extract definition name from $ref path (e.g., "#/$defs/McpKind" -> "McpKind")
         const defName = refPath.split('/').pop();
         const enumDef = elementSchema.config_schema.$defs[defName];
         

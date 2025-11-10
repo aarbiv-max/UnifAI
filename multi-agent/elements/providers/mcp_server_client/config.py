@@ -1,5 +1,5 @@
 from typing import Literal, List, Optional
-from .identifiers import Identifier, McpKind
+from .identifiers import Identifier, McpServerType
 from pydantic import Field, HttpUrl
 from elements.providers.common.base_config import ProviderBaseConfig
 from core.field_hints import ActionHint, HintType
@@ -10,8 +10,8 @@ class McpProviderConfig(ProviderBaseConfig):
     Connects to a Model-Context-Protocol service via HTTP Streamable transport.
     """
     type: Literal[Identifier.TYPE] = Identifier.TYPE
-    kind: McpKind = Field(
-        default=McpKind.GENERIC,
+    server_type: McpServerType = Field(
+        default=McpServerType.GENERIC,
         description="Type of MCP server (generic or Google Workspace)"
     )
     sse_endpoint: HttpUrl = Field(

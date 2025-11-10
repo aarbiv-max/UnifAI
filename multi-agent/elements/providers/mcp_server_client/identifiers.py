@@ -8,7 +8,7 @@ class Identifier(str, Enum):
     TYPE = "mcp_server"
 
 
-class McpKind(str, Enum):
+class McpServerType(str, Enum):
     """Types of MCP servers supported."""
     GENERIC = "generic"
     GOOGLE_WORKSPACE = "google-workspace"
