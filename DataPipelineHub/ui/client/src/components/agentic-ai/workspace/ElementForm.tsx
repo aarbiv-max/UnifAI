@@ -27,7 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Info, ExternalLink } from "lucide-react";
+import { Info, ExternalLink, ChevronDown, ChevronRight, Copy, Check } from "lucide-react";
 import {
   ElementType,
   ElementSchema,
@@ -63,8 +63,31 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   );
   const [fieldValidationStates, setFieldValidationStates] = useState<{ [fieldName: string]: boolean }>({});
   const [populateResults, setPopulateResults] = useState<{ [fieldName: string]: string[] }>({});
+  const [expandedStep, setExpandedStep] = useState<number | null>(null);
+  const [commandCopied, setCommandCopied] = useState(false);
 
   const { fetchResourcesForCategory } = useWorkspaceData();
+
+  const toggleStep = (stepIndex: number) => {
+    setExpandedStep(expandedStep === stepIndex ? null : stepIndex);
+  };
+
+  const copyCommandToClipboard = () => {
+    const command = `cd ~/Downloads
+mv local_mcp.txt local_mcp.sh
+chmod +x local_mcp.sh
+./local_mcp.sh \\
+  --client_id "YOUR_CLIENT_ID" \\
+  --client_secret "YOUR_CLIENT_SECRET" \\
+  --user_email "your-email@example.com"`;
+    
+    navigator.clipboard.writeText(command).then(() => {
+      setCommandCopied(true);
+      setTimeout(() => setCommandCopied(false), 2000);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+    });
+  };
 
   const handleValidationChange = (fieldName: string, isValid: boolean) => {
     setFieldValidationStates(prev => ({
@@ -606,6 +629,17 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     const validationHint = fieldSchema.hints?.action?.hint_type === 'validate' ? fieldSchema.hints.action : null;
     const populateHint = fieldSchema.hints?.action?.hint_type === 'populate' ? fieldSchema.hints.action : null;
 
+    // Debug logging for 'kind' field
+    if (fieldName === 'kind') {
+      console.log('[KIND FIELD DEBUG]', {
+        fieldName,
+        fieldSchema,
+        hasEnum: !!fieldSchema.enum,
+        hasAnyOf: !!fieldSchema.anyOf,
+        value,
+      });
+    }
+
     // Handle array fields with $ref items (multi-select dropdown)
     if (isArrayWithRefItems(fieldSchema)) {
       const itemsSchema = getArrayItemsSchema(fieldSchema);
@@ -830,6 +864,73 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       );
     }
 
+    // Handle enum fields (Pydantic Enum types)
+    if (fieldSchema.enum && Array.isArray(fieldSchema.enum)) {
+      console.log(`[ENUM FIELD] ${fieldName}:`, fieldSchema);
+      return (
+        <div key={fieldName} className="space-y-2">
+          <Label htmlFor={fieldName}>
+            {fieldName} {isRequired && <span className="text-red-400">*</span>}
+          </Label>
+          <Select
+            value={value || fieldSchema.default || fieldSchema.enum[0]}
+            onValueChange={(newValue) => handleInputChange(fieldName, newValue)}
+          >
+            <SelectTrigger className="bg-background-dark">
+              <SelectValue placeholder={`Select ${fieldName}`} />
+            </SelectTrigger>
+            <SelectContent>
+              {fieldSchema.enum.map((option: string) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {fieldSchema.description && (
+            <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+          )}
+        </div>
+      );
+    }
+
+    // Handle enum/Literal fields with anyOf structure (Pydantic Literal types)
+    if (fieldSchema.anyOf && Array.isArray(fieldSchema.anyOf)) {
+      // Check if this is an enum-like anyOf (all options have 'const' values)
+      const enumValues = fieldSchema.anyOf
+        .filter((option: any) => option.const !== undefined)
+        .map((option: any) => option.const);
+      
+      if (enumValues.length > 0) {
+        console.log(`[ANYOF ENUM FIELD] ${fieldName}:`, fieldSchema, 'values:', enumValues);
+        return (
+          <div key={fieldName} className="space-y-2">
+            <Label htmlFor={fieldName}>
+              {fieldName} {isRequired && <span className="text-red-400">*</span>}
+            </Label>
+            <Select
+              value={value || fieldSchema.default || enumValues[0]}
+              onValueChange={(newValue) => handleInputChange(fieldName, newValue)}
+            >
+              <SelectTrigger className="bg-background-dark">
+                <SelectValue placeholder={`Select ${fieldName}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {enumValues.map((option: string) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldSchema.description && (
+              <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+            )}
+          </div>
+        );
+      }
+    }
+
     // Handle boolean fields
     if (fieldSchema.type === "boolean") {
       return (
@@ -1033,40 +1134,193 @@ export const ElementForm: React.FC<ElementFormProps> = ({
         {fieldSchema.description && (
             <p className="text-xs text-gray-400">{fieldSchema.description}</p>
           )}
-        {fieldName === "sse_endpoint" && (
-          <div className="flex items-start gap-2 p-2 bg-primary/5 border border-primary/20 rounded-md">
-            <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-muted-foreground">
-              Need help setting up a Google Workspace MCP server?{" "}
+        {fieldName === "sse_endpoint" && formData.kind === "google-workspace" && (
+          <div className="mt-3 p-4 bg-primary/5 border border-primary/20 rounded-md space-y-3">
+            <div className="flex items-start gap-2">
+              <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-foreground font-medium">
+                Need help setting up a Google Workspace MCP server? Follow below steps
+              </p>
+            </div>
+
+            {/* Step 1: Google Client Setup */}
+            <div className="border border-gray-700 rounded-md overflow-hidden">
               <button
                 type="button"
-                onClick={() => {
-                  const guidePath = "/guides/mcp-server-setup-guide.md";
-                  fetch(guidePath)
-                    .then((response) => {
-                      if (!response.ok) throw new Error("File not found");
-                      return response.blob();
-                    })
-                    .then((blob) => {
-                      const url = window.URL.createObjectURL(blob);
-                      const link = document.createElement("a");
-                      link.href = url;
-                      link.download = "mcp-server-setup-guide.md";
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      window.URL.revokeObjectURL(url);
-                    })
-                    .catch(() => {
-                      // Try opening in new tab as fallback
-                      window.open(guidePath, "_blank");
-                    });
-                }}
-                className="text-primary hover:text-primary/80 underline font-medium"
+                onClick={() => toggleStep(0)}
+                className="w-full flex items-center justify-between p-3 bg-background-dark hover:bg-background-dark/80 transition-colors"
               >
-                Download setup guide
+                <span className="text-sm font-medium text-foreground">
+                  Step 1: Google Client Setup
+                </span>
+                {expandedStep === 0 ? (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                )}
               </button>
-            </p>
+              {expandedStep === 0 && (
+                <div className="p-3 bg-background-card border-t border-gray-700 space-y-4">
+                  {/* Create Google Cloud Project */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">✅ Create a Google Cloud Project</h4>
+                    <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
+                      <li>Go to: <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">https://console.cloud.google.com/</a></li>
+                      <li>Click <strong>Create Project</strong></li>
+                      <li>Note your:
+                        <ul className="ml-6 mt-1 list-disc list-inside">
+                          <li><strong>Project Name</strong></li>
+                          <li><strong>Project Location</strong> (default is fine)</li>
+                        </ul>
+                      </li>
+                    </ol>
+                  </div>
+
+                  {/* Configure OAuth Credentials */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">🔑 Configure OAuth Credentials</h4>
+                    <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
+                      <li>Go to: <strong>APIs & Services → Credentials</strong></li>
+                      <li>Click: <strong>Create Credentials → OAuth Client ID</strong></li>
+                      <li>Select <strong>Web Application</strong></li>
+                      <li>Set the following:
+                        <div className="mt-2 ml-6 text-xs">
+                          <div className="bg-background-dark p-2 rounded space-y-1">
+                            <div><strong>Authorized JavaScript origins:</strong> <code className="text-primary">http://localhost:8000</code></div>
+                            <div><strong>Authorized redirect URIs:</strong> <code className="text-primary">http://localhost:8000/oauth2callback</code></div>
+                          </div>
+                        </div>
+                      </li>
+                      <li className="mt-2">Click <strong>Create</strong></li>
+                      <li><strong>Download the OAuth JSON file</strong></li>
+                    </ol>
+                  </div>
+
+                  {/* Enable Required APIs */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">📌 Enable Required Google APIs</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Navigate to: <strong>APIs & Services → Library</strong> and enable the required APIs 
+                      (Calendar, Drive, Gmail, Docs, Sheets, Slides, Forms, Tasks, Chat, Search)
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Step 2: Download & Run Script */}
+            <div className="border border-gray-700 rounded-md overflow-hidden">
+              <button
+                type="button"
+                onClick={() => toggleStep(1)}
+                className="w-full flex items-center justify-between p-3 bg-background-dark hover:bg-background-dark/80 transition-colors"
+              >
+                <span className="text-sm font-medium text-foreground">
+                  Step 2: Download & Run the Script
+                </span>
+                {expandedStep === 1 ? (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                )}
+              </button>
+              {expandedStep === 1 && (
+                <div className="p-3 bg-background-card border-t border-gray-700 space-y-4">
+                  {/* Extract OAuth Credentials */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">📋 Extract OAuth Credentials</h4>
+                    <p className="text-sm text-muted-foreground mb-2">Open the OAuth JSON file downloaded in Step 1 and extract:</p>
+                    <ul className="text-sm text-muted-foreground space-y-1 ml-6 list-disc list-inside">
+                      <li><strong>client_id</strong>: Found in the JSON under <code className="px-1 py-0.5 bg-background-dark rounded">web.client_id</code></li>
+                      <li><strong>client_secret</strong>: Found in the JSON under <code className="px-1 py-0.5 bg-background-dark rounded">web.client_secret</code></li>
+                      <li><strong>user_email</strong>: Your Google account email address</li>
+                    </ul>
+                  </div>
+
+                  {/* Download & Run Setup Script */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">💻 Download & Run Setup Script</h4>
+                    <p className="text-sm text-muted-foreground mb-2"><strong>Prerequisites:</strong> Ensure Docker (or Podman) and Docker Compose are installed</p>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const scriptPath = "/guides/local_mcp.sh";
+                        fetch(scriptPath)
+                          .then((response) => {
+                            if (!response.ok) {
+                              throw new Error(`File not found: ${response.status}`);
+                            }
+                            return response.text();
+                          })
+                          .then((scriptContent) => {
+                            // Download as .txt to avoid browser blocking
+                            const blob = new Blob([scriptContent], { type: "text/plain" });
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement("a");
+                            link.href = url;
+                            link.download = "local_mcp.txt";
+                            link.style.display = "none";
+                            document.body.appendChild(link);
+                            link.click();
+                            
+                            setTimeout(() => {
+                              document.body.removeChild(link);
+                              window.URL.revokeObjectURL(url);
+                            }, 100);
+                          })
+                          .catch((error) => {
+                            console.error("Download failed:", error);
+                          });
+                      }}
+                      className="mb-2 px-3 py-1.5 text-sm bg-primary hover:bg-primary/80 text-white rounded"
+                    >
+                      Download local_mcp.txt
+                    </button>
+
+                    <p className="text-sm text-muted-foreground mb-1">After downloading, rename, provide the <b>client id </b>, <b>client secret</b> and <b>user email</b> and run the script:</p>
+                    <div className="relative bg-background-dark p-2 rounded mb-2">
+                      <button
+                        type="button"
+                        onClick={copyCommandToClipboard}
+                        className="absolute top-2 right-2 p-1.5 rounded hover:bg-gray-700 transition-colors"
+                        title="Copy command"
+                      >
+                        {commandCopied ? (
+                          <Check className="w-4 h-4 text-green-400" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-gray-400" />
+                        )}
+                      </button>
+                      <code className="text-xs text-primary">
+                        cd ~/Downloads<br />
+                        mv local_mcp.txt local_mcp.sh<br />
+                        chmod +x local_mcp.sh<br />
+                        ./local_mcp.sh \<br />
+                        &nbsp;&nbsp;--client_id "YOUR_CLIENT_ID" \<br />
+                        &nbsp;&nbsp;--client_secret "YOUR_CLIENT_SECRET" \<br />
+                        &nbsp;&nbsp;--user_email "your-email@example.com"
+                      </code>
+                    </div>
+                    <p className="text-sm text-muted-foreground">The script will automatically clone the repository, configure the environment, and start the MCP server.</p>
+                  </div>
+
+                  {/* Connect to UniFAI */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">🔗 Connect UniFAI to Your Local MCP Server</h4>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      After the script completes successfully, you'll need to provide your machine's public IP address.
+                    </p>
+                    <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
+                      <li>The SSE endpoint format is: <code className="px-1 py-0.5 bg-background-dark rounded text-primary">http://YOUR_PUBLIC_IP:8000/mcp</code></li>
+                      <li>Replace <code className="px-1 py-0.5 bg-background-dark rounded">YOUR_PUBLIC_IP</code> with your machine's actual IP address</li>
+                      <li>Enter the complete SSE endpoint URL in the field above, and wait for the validation to complete</li>
+                      <li>Click <strong>Save</strong> to complete the setup</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

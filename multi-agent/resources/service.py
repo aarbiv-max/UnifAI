@@ -50,7 +50,7 @@ class ResourcesService:
         )
         return self._store.create(doc)
 
-    def update(self, rid: str, *, config: dict, name: str = None) -> ResourceDoc:
+    def update(self, rid: str, *, config: dict, name: Optional[str] = None) -> ResourceDoc:
         # 1. fetch immutable meta
         doc = self._store.get(rid)  # existing ResourceDoc
         model_cls = self.element_registry.get_schema(
