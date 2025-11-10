@@ -1190,38 +1190,6 @@ chmod +x local_mcp.sh
             </TooltipProvider>
           
         </div>
-        <Input
-          id={fieldName}
-          value={value}
-          onChange={(e) => handleInputChange(fieldName, e.target.value)}
-          className="bg-background-dark"
-          placeholder={fieldSchema.description}
-          readOnly={!!populateHint}
-          disabled={!!populateHint}
-        />
-        {validationHint && (
-          <FieldValidation
-            fieldName={fieldName}
-            fieldValue={value}
-            validationHint={validationHint}
-            elementActions={elementActions}
-            selectedElementType={elementType}
-            onValidationChange={handleValidationChange}
-          />
-        )}
-        {populateHint && (
-          <FieldPopulation
-            fieldName={fieldName}
-            populateHint={populateHint}
-            elementActions={elementActions}
-            selectedElementType={elementType}
-            formData={formData}
-            onPopulateResult={handlePopulateResult}
-          />
-        )}
-        {fieldSchema.description && (
-            <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-          )}
         {fieldName === "sse_endpoint" && formData.kind === "google-workspace" && (
           <div className="mt-3 p-4 bg-primary/5 border border-primary/20 rounded-md space-y-3">
             <div className="flex items-start gap-2">
@@ -1411,6 +1379,39 @@ chmod +x local_mcp.sh
             </div>
           </div>
         )}
+        <Input
+          id={fieldName}
+          value={value}
+          onChange={(e) => handleInputChange(fieldName, e.target.value)}
+          className="bg-background-dark"
+          placeholder={fieldSchema.description}
+          readOnly={!!populateHint}
+          disabled={!!populateHint}
+        />
+        {validationHint && (
+          <FieldValidation
+            fieldName={fieldName}
+            fieldValue={value}
+            validationHint={validationHint}
+            elementActions={elementActions}
+            selectedElementType={elementType}
+            onValidationChange={handleValidationChange}
+          />
+        )}
+        {populateHint && (
+          <FieldPopulation
+            fieldName={fieldName}
+            populateHint={populateHint}
+            elementActions={elementActions}
+            selectedElementType={elementType}
+            formData={formData}
+            onPopulateResult={handlePopulateResult}
+          />
+        )}
+        {fieldSchema.description && (
+            <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+          )}
+        
       </div>
     );
   };

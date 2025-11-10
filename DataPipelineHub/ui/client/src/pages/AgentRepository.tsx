@@ -168,16 +168,14 @@ export default function UserWorkspace() {
                         Manage your {selectedElementType.name.toLowerCase()} configurations
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={handleCreateNew}
-                        className="bg-primary hover:bg-opacity-80"
-                        disabled={!elementSchema}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create New
-                      </Button>
-                    </div>
+                    <Button 
+                      onClick={handleCreateNew}
+                      className="bg-primary hover:bg-opacity-80"
+                      disabled={!elementSchema}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create New
+                    </Button>
                   </div>
                 )}
 
