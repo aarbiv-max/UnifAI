@@ -15,7 +15,6 @@ export default function UserWorkspace() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedElementType, setSelectedElementType] = useState<ElementType | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isGoogleMcpFormOpen, setIsGoogleMcpFormOpen] = useState(false);
   const [editingElement, setEditingElement] = useState<ElementInstance | null>(null);
 
   const {
@@ -50,66 +49,6 @@ export default function UserWorkspace() {
   const handleCreateNew = () => {
     setEditingElement(null);
     setIsFormOpen(true);
-  };
-
-  const handleCreateGoogleMcp = async () => {
-    try {
-      console.log('handleCreateGoogleMcp called');
-      console.log('Categories:', categories);
-      
-      // If we already have mcp_server selected, use it directly
-      if (selectedElementType?.type === 'mcp_server' && elementSchema) {
-        setIsGoogleMcpFormOpen(true);
-        return;
-      }
-      
-      // Otherwise, find the mcp_server element type
-      // Note: category is "providers" (plural) according to ResourceCategory enum
-      const providerCategory = categories.find(cat => cat.category === 'providers' || cat.category === 'provider');
-      console.log('Provider category:', providerCategory);
-      
-      const mcpServerType = providerCategory?.elements.find(el => el.type === 'mcp_server');
-      console.log('MCP Server type:', mcpServerType);
-      
-      // Use the actual category from the found category or default to "providers"
-      // Normalize to "providers" (plural) as that's what ResourceCategory expects
-      let actualCategory = providerCategory?.category || 'providers';
-      if (actualCategory === 'providers') {
-        actualCategory = 'providers';
-      }
-      
-      if (mcpServerType) {
-        // Normalize the category to "providers" (plural) in the element type
-        const normalizedElementType = {
-          ...mcpServerType,
-          category: actualCategory === 'providers' ? 'providers' : actualCategory
-        };
-        setSelectedCategory(actualCategory);
-        setSelectedElementType(normalizedElementType);
-        await Promise.all([
-          fetchElementSchema(actualCategory, 'mcp_server'),
-          fetchElementActions(actualCategory, 'mcp_server')
-        ]);
-        setIsGoogleMcpFormOpen(true);
-      } else {
-        console.error('MCP Server type not found in categories');
-        // Fallback: try to load schema and open form anyway
-        setSelectedCategory(actualCategory);
-        await Promise.all([
-          fetchElementSchema(actualCategory, 'mcp_server'),
-          fetchElementActions(actualCategory, 'mcp_server')
-        ]);
-        // Create a minimal element type for the form with normalized category
-        setSelectedElementType({
-          category: actualCategory === 'providers' ? 'providers' : actualCategory,
-          type: 'mcp_server',
-          name: 'MCP Server'
-        });
-        setIsGoogleMcpFormOpen(true);
-      }
-    } catch (error) {
-      console.error('Error in handleCreateGoogleMcp:', error);
-    }
   };
 
   const handleEditElement = (element: ElementInstance) => {
