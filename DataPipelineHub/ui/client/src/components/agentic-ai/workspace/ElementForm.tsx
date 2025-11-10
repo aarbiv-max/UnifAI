@@ -631,13 +631,101 @@ chmod +x local_mcp.sh
 
     // Debug logging for 'kind' field
     if (fieldName === 'kind') {
-      console.log('[KIND FIELD DEBUG]', {
+      console.log('[KIND FIELD DEBUG] Full analysis:', {
         fieldName,
         fieldSchema,
         hasEnum: !!fieldSchema.enum,
         hasAnyOf: !!fieldSchema.anyOf,
+        hasAllOf: !!fieldSchema.allOf,
         value,
+        '$defs': elementSchema?.config_schema?.$defs,
       });
+      
+      // Check if allOf path exists
+      if (fieldSchema.allOf) {
+        const refPath = fieldSchema.allOf.find((item: any) => item.$ref)?.$ref;
+        console.log('[KIND FIELD DEBUG] allOf refPath:', refPath);
+        if (refPath && elementSchema?.config_schema?.$defs) {
+          const defName = refPath.split('/').pop();
+          console.log('[KIND FIELD DEBUG] defName:', defName);
+          console.log('[KIND FIELD DEBUG] enumDef:', elementSchema.config_schema.$defs[defName]);
+        }
+      }
+    }
+
+    // Handle direct $ref to enum definitions (Pydantic Enum types)
+    if (fieldSchema.$ref && elementSchema?.config_schema?.$defs) {
+      // Extract definition name from $ref path (e.g., "#/$defs/McpKind" -> "McpKind")
+      const defName = fieldSchema.$ref.split('/').pop();
+      const enumDef = elementSchema.config_schema.$defs[defName];
+      
+      if (enumDef?.enum && Array.isArray(enumDef.enum)) {
+        console.log(`[DIRECT REF ENUM FIELD] ${fieldName}:`, enumDef);
+        return (
+          <div key={fieldName} className="space-y-2">
+            <Label htmlFor={fieldName}>
+              {fieldName} {isRequired && <span className="text-red-400">*</span>}
+            </Label>
+            <Select
+              value={value || fieldSchema.default || enumDef.enum[0]}
+              onValueChange={(newValue) => handleInputChange(fieldName, newValue)}
+            >
+              <SelectTrigger className="bg-background-dark">
+                <SelectValue placeholder={`Select ${fieldName}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {enumDef.enum.map((option: string) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldSchema.description && (
+              <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+            )}
+          </div>
+        );
+      }
+    }
+
+    // Handle allOf with $ref to enum definitions (Pydantic Enum types)
+    if (fieldSchema.allOf && Array.isArray(fieldSchema.allOf)) {
+      const refPath = fieldSchema.allOf.find((item: any) => item.$ref)?.$ref;
+      if (refPath && elementSchema?.config_schema?.$defs) {
+        // Extract definition name from $ref path (e.g., "#/$defs/McpKind" -> "McpKind")
+        const defName = refPath.split('/').pop();
+        const enumDef = elementSchema.config_schema.$defs[defName];
+        
+        if (enumDef?.enum && Array.isArray(enumDef.enum)) {
+          console.log(`[ALLOF ENUM FIELD] ${fieldName}:`, enumDef);
+          return (
+            <div key={fieldName} className="space-y-2">
+              <Label htmlFor={fieldName}>
+                {fieldName} {isRequired && <span className="text-red-400">*</span>}
+              </Label>
+              <Select
+                value={value || fieldSchema.default || enumDef.enum[0]}
+                onValueChange={(newValue) => handleInputChange(fieldName, newValue)}
+              >
+                <SelectTrigger className="bg-background-dark">
+                  <SelectValue placeholder={`Select ${fieldName}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {enumDef.enum.map((option: string) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldSchema.description && (
+                <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+              )}
+            </div>
+          );
+        }
+      }
     }
 
     // Handle array fields with $ref items (multi-select dropdown)
