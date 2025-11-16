@@ -58,9 +58,9 @@ llms:
     type: openai
     config:
       type: openai
-      model_name: gemini-2.5-pro
-      api_key: AIzaSyCnplFW816wfu0jNAyoxQQSQkNdX8yxgQc
-      base_url: https://generativelanguage.googleapis.com/v1beta/openai
+      model_name: claude-sonnet-4-5-20250929
+      api_key: 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
+      base_url: https://api.anthropic.com/v1/
 conditions:
   - rid: router_direct
     name: target_router

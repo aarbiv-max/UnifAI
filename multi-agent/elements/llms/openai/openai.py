@@ -112,10 +112,11 @@ class OpenAILLM(BaseLLM, SupportsStreaming):
         """
         # Create a shallow copy of the current instance
         new_llm = copy.copy(self)
-        
+        if not tools:
+            return new_llm
         # Create a new client with tools bound (LangChain's bind_tools returns a copy)
         new_llm.client = self.client.bind_tools(LangChainToolsConverter.to_lc(tools))
-        
+
         return new_llm
 
     @property
