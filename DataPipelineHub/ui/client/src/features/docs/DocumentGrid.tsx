@@ -72,8 +72,6 @@ const getActions = (
 
 export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry, footer}: DocumentGridProps) => {
   
-  const { user } = useAuth();
-
   return (
     <>
       <div className="p-6">
