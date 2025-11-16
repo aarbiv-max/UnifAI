@@ -103,7 +103,6 @@ export default function Documents() {
           variant={viewMode === "list" ? "default" : "outline"}
           size="icon"
           onClick={() => { setViewMode("list"); setActiveDoc(null) }}
-          data-umami-event="document-view-mode-button" data-umami-event-user-id={user?.name}
         >
           <FaList />
         </Button>
