@@ -1,11 +1,11 @@
 from flask import Blueprint, jsonify
 from shared.logger import logger
-from providers.vector_stats import get_chunks_counts as _get_chunks_counts
 from providers.umami import get_website_id as _get_website_id
 
-vector_bp = Blueprint("umami", __name__)
+# we might want this as a "settings bp and not umami only"
+umami_bp = Blueprint("umami", __name__)
 
-@vector_bp.route("/get.website.id", methods=["GET"])
+@umami_bp.route("/get.website.id", methods=["GET"])
 def get_website_id():
     """Return website ID from Umami website."""
     try:
