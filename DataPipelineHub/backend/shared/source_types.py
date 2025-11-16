@@ -68,6 +68,7 @@ class DocumentTypeData(BaseModel):
     page_count: int = Field(default=0, description="Number of pages in the document")
     full_text: str = Field(default="", description="Full text content")
     file_size: int = Field(default=0, description="File size in bytes")
+    md5: Optional[str] = Field(default=None, description="MD5 checksum of the file for deduplication")
     
     # Optional user-defined metadata fields that can be added from frontend
     dateRange: Optional[Dict[str, Any]] = Field(default=None, description="User-defined date range settings")
@@ -94,11 +95,11 @@ class RegistrationResponse(BaseModel):
     """
     Pydantic model for registration task response.
     
-    This model represents the response returned by the register_sources_task
-    containing the status and list of registered sources.
+    This model represents containing the status and list of registered sources.
     """
     status: str = Field(..., description="Registration status")
     registered_sources: List[RegisteredSource] = Field(..., description="List of successfully registered sources")
+    issues: List[Dict[str, Any]] = Field(default_factory=list, description="List of sources that failed registration with issue details")
 
 
 class PipelineExecutionResult(BaseModel):

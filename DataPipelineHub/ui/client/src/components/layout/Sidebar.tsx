@@ -6,7 +6,7 @@ import {
   FaChartLine, FaUserShield, FaCog, FaSignOutAlt,
   FaRobot, FaFile, FaChevronLeft, FaChevronRight 
 } from "react-icons/fa";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Info } from "lucide-react";
 import { FaJira, FaSlack, FaBars } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -157,7 +157,8 @@ export default function Sidebar() {
             label="Agentic AI Workflows" 
             to="/agentic-ai"
             isActive={location === '/agentic-ai'}
-            status="New"
+            status={null}
+            // status="New"
             isCollapsed={isCollapsed}
           />
           <NavItem 
@@ -196,12 +197,22 @@ export default function Sidebar() {
             isActive={location === '/analytics'}
             status={null}
             isCollapsed={isCollapsed}
+            disabled={true}
           />
           <NavItem 
             icon={<FaUserShield className="sidebar-icon" />} 
             label="User Management" 
             to="/users"
             isActive={location === '/users'}
+            status={null}
+            isCollapsed={isCollapsed}
+            disabled={true}
+          />
+          <NavItem 
+            icon={<Info className="sidebar-icon" />} 
+            label="How-To Guides" 
+            to="/guides"
+            isActive={location === '/guides'}
             status={null}
             isCollapsed={isCollapsed}
           />
@@ -212,6 +223,7 @@ export default function Sidebar() {
             isActive={location === '/settings'}
             status={null}
             isCollapsed={isCollapsed}
+            disabled={true}
           />
         </ul>
       </nav>
@@ -259,20 +271,23 @@ interface NavItemProps {
   isActive: boolean;
   status: string | null;
   isCollapsed: boolean;
+  disabled?: boolean;
 }
 
-function NavItem({ icon, label, to, isActive, status, isCollapsed }: NavItemProps) {
+function NavItem({ icon, label, to, isActive, status, isCollapsed, disabled = false }: NavItemProps) {
   const content = (
     <div 
       className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} py-2.5 ${
-        isActive 
-          ? "text-white bg-primary bg-opacity-20 border-l-2 border-primary" 
-          : "text-gray-400 hover:text-gray-800 dark:hover:text-white hover:bg-white hover:bg-opacity-5"
-      } transition-all cursor-pointer`}
+        disabled
+          ? "text-gray-600 opacity-50 cursor-not-allowed"
+          : isActive 
+            ? "text-white bg-primary bg-opacity-20 border-l-2 border-primary" 
+            : "text-gray-400 hover:text-gray-800 dark:hover:text-white hover:bg-white hover:bg-opacity-5"
+      } transition-all ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
     >
       <div className={`flex items-center ${isCollapsed ? '' : 'space-x-3'}`}>
         {React.cloneElement(icon as React.ReactElement, { 
-          className: `sidebar-icon ${isActive ? 'text-secondary' : 'text-gray-400'}`
+          className: `sidebar-icon ${disabled ? 'text-gray-600' : isActive ? 'text-secondary' : 'text-gray-400'}`
         })}
         {!isCollapsed && (
           <motion.span
@@ -295,6 +310,20 @@ function NavItem({ icon, label, to, isActive, status, isCollapsed }: NavItemProp
       )}
     </div>
   );
+
+  if (disabled) {
+    return (
+      <li className="sidebar-item">
+        {isCollapsed ? (
+          <SimpleTooltip content={<p>{label} (Coming Soon)</p>}>
+            {content}
+          </SimpleTooltip>
+        ) : (
+          content
+        )}
+      </li>
+    );
+  }
 
   if (isCollapsed) {
     return (

@@ -1,0 +1,138 @@
+#This template file is a backup of the original nginx template supporting http only.
+# it is not being used and if desired to move to https the ui image should be rebuilt with this file instead of ../nginx.conf.template
+
+# For more information on configuration, see:
+#   * Official English Documentation: http://nginx.org/en/docs/
+
+
+worker_processes auto;
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+
+# Load dynamic modules. See /usr/share/doc/nginx/README.dynamic.
+include /usr/share/nginx/modules/*.conf;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    log_format  main  '${DOLLAR}remote_addr - ${DOLLAR}remote_user [${DOLLAR}time_local] "${DOLLAR}request" '
+                      '${DOLLAR}status ${DOLLAR}body_bytes_sent "${DOLLAR}http_referer" '
+                      '"${DOLLAR}http_user_agent" "${DOLLAR}http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile            on;
+    tcp_nopush          on;
+    tcp_nodelay         on;
+    keepalive_timeout   65;
+    types_hash_max_size 4096;
+
+    include             /etc/nginx/mime.types;
+    default_type        application/octet-stream;
+
+    # Load modular configuration files from the /etc/nginx/conf.d directory.
+    # See http://nginx.org/en/docs/ngx_core_module.html#include
+    # for more information.
+    include /opt/app-root/etc/nginx.d/*.conf;
+
+    server {
+        listen       ${NGINX_PORT} default_server;
+        listen       [::]:${NGINX_PORT} default_server;
+        server_name  _;
+        root         /usr/share/nginx/html  ;
+        client_max_body_size 75M;
+
+        # Load configuration files for the default server block.
+        include /opt/app-root/etc/nginx.default.d/*.conf;
+
+        location ~ /api3/(.*)$ {
+           return 307 ${SSO_BACKEND_HOST}/api/${DOLLAR}1${DOLLAR}is_args${DOLLAR}args;
+        }
+
+        location /api1/ {
+           proxy_pass http://${DATAFLOW_IP}:${DATAFLOW_PORT}/api/;
+           proxy_set_header X-Real-IP ${DOLLAR}remote_addr;
+           proxy_set_header X-Forwarded-For ${DOLLAR}proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto ${DOLLAR}scheme;
+           proxy_cookie_path / /;
+        }
+
+        location /api2/ {
+           proxy_pass  http://${MULTIAGENT_IP}:${MULTIAGENT_PORT}/api/;
+           proxy_set_header X-Real-IP ${DOLLAR}remote_addr;
+           proxy_set_header X-Forwarded-For ${DOLLAR}proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto ${DOLLAR}scheme;
+           proxy_cookie_path / /;
+        }
+
+        location / {
+            index index.html;
+            try_files ${DOLLAR}uri /index.html;
+        }
+
+        # For static assets (JS/CSS/images/fonts) → cache long term
+        location ~* \.(?:ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg)$ {
+            root /usr/share/nginx/html;
+            access_log off;
+            add_header Cache-Control "public, max-age=31536000, immutable";
+        }
+
+        # For index.html → always fetch latest
+        location = /index.html {
+            root /usr/share/nginx/html;
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+        }
+
+        location = /404.html {
+        }
+
+    }
+    # the section below might be unnecessary as we dont' directly access the be through the NGINX, we need to find the cases if we do.
+#    server {
+#        listen       ${DATAPIPELINEHUB_PORT} default_server;
+#        listen       [::]:${DATAPIPELINEHUB_PORT} default_server;
+#        server_name  _;
+#        index index.html index.htm;
+#
+#        location / {
+#            proxy_pass "http://${DATAPIPELINEHUB_HOST}:${DATAPIPELINEHUB_PORT}$request_uri";
+#        }
+#
+#    }
+
+#    server {
+#        listen       ${MULTIAGENT_PORT} default_server;
+#        listen       [::]:${MULTIAGENT_PORT} default_server;
+#        server_name  _;
+#
+#        location / {
+#            proxy_pass "http://${MULTIAGENT_HOST}:${MULTIAGENT_PORT}$request_uri";
+#        }
+#
+#
+#    }
+
+# Settings for a TLS enabled server.
+#
+#    server {
+#        listen       443 ssl http2;
+#        listen       [::]:443 ssl http2;
+#        server_name  _;
+#        root         /opt/app-root/src;
+#
+#        ssl_certificate "/etc/pki/nginx/server.crt";
+#        ssl_certificate_key "/etc/pki/nginx/private/server.key";
+#        ssl_session_cache shared:SSL:1m;
+#        ssl_session_timeout  10m;
+#        ssl_ciphers PROFILE=SYSTEM;
+#        ssl_prefer_server_ciphers on;
+#
+#        # Load configuration files for the default server block.
+#        include /opt/app-root/etc/nginx.default.d/*.conf;
+#
+#
+#    }
+
+}

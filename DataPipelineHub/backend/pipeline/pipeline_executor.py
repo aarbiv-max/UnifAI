@@ -68,7 +68,7 @@ class PipelineExecutor:
             pipeline=self.pipeline,
             new_status=PipelineStatus.DONE.value
         )
-        self.repo.register_data_source(
+        self.repo.upsert_source(
             pipeline=self.pipeline,
             summary=self.pipeline.summary()
         )

@@ -1,54 +1,38 @@
 from elements.llms.common.chat.message import ChatMessage, Role
-from typing import Any, TypeVar, Generic, List, ClassVar
+from typing import Any, TypeVar, Generic, List, ClassVar, Optional
 from core.contracts import SupportsStreaming
 from elements.llms.common.base_llm import BaseLLM
 from elements.tools.common.base_tool import BaseTool
 
-# -----------------------------------------------------------------------------
-# Type variable bound to the minimal "SupportsStreaming" Protocol.
-# TSupportStream represents any class that implements the streaming interface:
-#  - |_stream(payload: Mapping[str, Any]) -> None
-#  - |is_streaming() -> bool
-# This ensures static type checkers know `self` has streaming capability.
-# -----------------------------------------------------------------------------
 TSupportStream = TypeVar("TSupportStream", bound=SupportsStreaming)
 
 
 class LlmCapableMixin(Generic[TSupportStream]):
-    """LLM mixin channels - automatically included in any LLM node"""
-    MIXIN_READS: ClassVar[set[str]] = {}
-    MIXIN_WRITES: ClassVar[set[str]] = {}
     """
-    Mixin: Adds LLM-chat capability that leverages existing streaming support.
-
-    Generic[TSupportStream]:
-        - Declares that `self` must implement the SupportsStreaming protocol.
-        - Enables static analyzers to recognize ._stream() and .is_streaming().
-
+    Clean LLM capability mixin with streaming support.
+    
+    Provides chat functionality with optional tool binding, supporting both
+    streaming and non-streaming modes. Designed for composition with other
+    node capabilities.
+    
     Responsibilities:
-      1. Enforce at subclass-definition that the host class implements streaming.
-      2. Initialize LLM-related attributes (`llm`, `system_message`, `retries`).
-      3. Provide `_chat()` which:
-         - Uses `is_streaming()` / `_stream()` if streaming is available.
-         - Falls back to synchronous `llm.chat()` otherwise.
-
-    Requirements on `self` (from SupportsStreaming Protocol):
-      - `is_streaming() -> bool`
-      - `_stream(payload: Mapping[str, Any]) -> None`
+    - LLM chat with optional dynamic tool binding
+    - Streaming token forwarding when enabled
+    - Clean separation between sync and async operations
+    
+    Requirements:
+    - Host class must implement SupportsStreaming (_stream, is_streaming)
     """
+
+    MIXIN_READS: ClassVar[set[str]] = set()
+    MIXIN_WRITES: ClassVar[set[str]] = set()
 
     def __init_subclass__(cls) -> None:
-        """
-        At subclass definition time, ensure the concrete class implements
-        the streaming protocol and declares required channels.
-        """
+        """Verify that host class implements required streaming interface."""
         if not issubclass(cls, SupportsStreaming):
             raise TypeError(
                 f"{cls.__name__} requires streaming support (_stream + is_streaming)."
             )
-        
-        # Chat context channels are now automatically included via MIXIN_READS/MIXIN_WRITES
-            
         super().__init_subclass__()
 
     def __init__(
@@ -59,88 +43,109 @@ class LlmCapableMixin(Generic[TSupportStream]):
             **kwargs: Any,
     ):
         """
-        Initialize the LLM mixin.
+        Initialize LLM capability.
 
-        :param llm:            Object providing `.stream()` and `.chat()`.
-        :param system_message: Optional system prompt for the LLM.
-        :param retries:        Minimum number of retries for LLM calls.
+        Args:
+            llm: LLM instance providing chat() and stream() methods
+            system_message: Optional system prompt for conversations
         """
-        super().__init__(**kwargs)  # cooperative MRO
+        super().__init__(**kwargs)
         self.llm = llm
         self.system_message = system_message
 
-    def _llm_stream(
+    # -------------------------------------------------------------------------
+    # Public API - Core Methods
+    # -------------------------------------------------------------------------
+
+    def chat(
             self: TSupportStream,
-            messages: list[ChatMessage],
-            *,
-            event_type: str = "llm_token",
+            messages: List[ChatMessage],
+            tools: Optional[List[BaseTool]] = None
     ) -> ChatMessage:
         """
-        Consume `BaseLLM.stream()` which yields either:
-            • str  – incremental token
-            • ChatMessage – ONE final assistant message (may include tool_calls)
+        Primary chat interface with optional dynamic tool binding.
+        
+        Supports both streaming and non-streaming modes. When tools are provided,
+        creates a temporary LLM instance with tools bound for this specific call.
+        
+        Args:
+            messages: Conversation messages to send to LLM
+            tools: Optional tools to bind for this specific chat
+            
+        Returns:
+            ChatMessage response from LLM
+        """
+        # Print compact chat history before LLM call
+        print(f"\n💬 Chat ({len(messages)} messages):")
+        for i, msg in enumerate(messages, 1):
+            role_icon = "👤" if msg.role.value == "user" else "🤖" if msg.role.value == "assistant" else "⚙️"
+            # Show very compact: first 80 chars only
+            content = msg.content.replace('\n', ' ')[:80]
+            if len(msg.content) > 80:
+                content += "..."
+            print(f"   {i}. {role_icon} {content}")
+        
+        llm_instance = self.llm.bind_tools(tools)
 
-        Behaviour
-        ---------
-        • Forward each token via `self._stream(...)` when streaming is enabled.
-        • Upon receiving ChatMessage:
-            ↳ emit an optional “msg_complete” event then *return* it.
-        • If no ChatMessage occurs, return a ChatMessage built from tokens.
+        if self.is_streaming():
+            return self._stream_chat(messages, llm_instance)
+        else:
+            return llm_instance.chat(messages)
+
+    def bind_tools(self, tools: List[BaseTool]) -> None:
+        """
+        Permanently bind tools to this instance's LLM.
+        
+        Creates a new LLM instance with tools bound, replacing the current one.
+        Use sparingly - prefer dynamic binding via chat(tools=...) for most use cases.
+        
+        Args:
+            tools: Tools to bind permanently to this LLM instance
+        """
+        self.llm = self.llm.bind_tools(tools)
+
+    def _stream_chat(
+            self: TSupportStream,
+            messages: List[ChatMessage],
+            llm_instance: BaseLLM,
+            *,
+            event_type: str = "llm_token"
+    ) -> ChatMessage:
+        """
+        Handle streaming chat with any LLM instance.
+        
+        Processes streaming responses and forwards tokens via _stream() when
+        streaming is enabled. Handles both token streams and complete messages.
+        
+        Args:
+            messages: Messages to send to LLM
+            llm_instance: LLM instance to use (may have tools bound)
+            event_type: Event type for streaming tokens
+            
+        Returns:
+            Final ChatMessage from LLM
         """
         accumulated_text = ""
-        assistant_msg: ChatMessage | None = None
+        final_message: Optional[ChatMessage] = None
 
-        for chunk in self.llm.stream(messages):
-            # ---------- Token path ----------------------------------------
+        for chunk in llm_instance.stream(messages):
             if isinstance(chunk, str):
+                # Token chunk - accumulate and stream
                 accumulated_text += chunk
                 if self.is_streaming():
                     self._stream({"type": event_type, "chunk": chunk})
-                continue
 
-            # ---------- Aggregated assistant (tool call) ------------------
-            if isinstance(chunk, ChatMessage):
-                assistant_msg = chunk
+            elif isinstance(chunk, ChatMessage):
+                # Complete message (possibly with tool calls)
+                final_message = chunk
                 break
             else:
-                # Unexpected object -> surface immediately
                 raise TypeError(
-                    f"BaseLLM.stream returned unsupported chunk type: {type(chunk)}"
+                    f"LLM stream returned unexpected type: {type(chunk)}"
                 )
 
-        # ---------- Return value to caller -------------------------------
-        if assistant_msg:
-            return assistant_msg  # tool_call reply
-
-        # Plain-text reply case
-        return ChatMessage(role=Role.ASSISTANT, content=accumulated_text)
-
-    def _llm_sync_chat(self, messages: list[ChatMessage]) -> ChatMessage:
-        """ Synchronous chat with the LLM for a list of ChatMessage."""
-        return self.llm.chat(messages)
-
-    def _chat(
-            self: TSupportStream,
-            messages: list[ChatMessage]) -> ChatMessage:
-        """
-        Send a list of ChatMessage to the LLM.
-
-        - If streaming is active, forward each chunk via `self._stream()`.
-        - Otherwise, return the full response from `llm.chat()`.
-
-        :param messages:   List of ChatMessage (role + content).
-        :param event_type: Identifier for streaming events.
-        :returns:          The complete generated response.
-        """
-        if self.is_streaming():
-            return self._llm_stream(messages)
-        return self._llm_sync_chat(messages)
-
-    def _bind_tools(self, tools: List[BaseTool]) -> None:
-        """
-        Bind tools to this node's LLM instance, creating an isolated copy to avoid cross-contamination.
-        
-        This creates a new LLM instance with tools bound, ensuring each node has its own
-        tool-bound LLM without affecting other nodes that share the same base LLM.
-        """
-        self.llm = self.llm.bind_tools(tools)
+        # Return final message or construct from accumulated tokens
+        return final_message or ChatMessage(
+            role=Role.ASSISTANT,
+            content=accumulated_text
+        )

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Users, Network, Play, Plus, LoaderCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // Agentic AI components
 import AgentFlowGraph from "@/components/agentic-ai/AgentFlowGraph";
@@ -32,6 +33,7 @@ export default function AgenticAI() {
   const [showGraphBuilder, setShowGraphBuilder] = useState(false);
   const [isLoadingFlow, setIsLoadingFlow] = useState(false);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const handleLoadFlow = async () => {
     if (isLoadingFlow) return; // Prevent multiple calls
@@ -61,6 +63,11 @@ export default function AgenticAI() {
       window.location.href = "/agentic-chats";
     } catch (error) {
       console.error("Error create new graph session:", error);
+      toast({
+        title: "Failed to load current workflow",
+        description: `Error: ${error.response.data.error}`,
+        variant: "destructive",
+      });
     } finally {
       setIsLoadingFlow(false);
     }
@@ -97,7 +104,7 @@ export default function AgenticAI() {
                 <Card className="bg-background-card shadow-card border-gray-800 mb-6">
                   <CardHeader className="py-2 px-6 flex flex-row justify-between items-center">
                     <CardTitle className="text-lg font-heading">
-                      Agent Flow Configuration
+                      Agent Workflow Configuration
                     </CardTitle>
                     <div className="flex gap-2">
                       <Button
@@ -111,7 +118,7 @@ export default function AgenticAI() {
                         data-umami-event-flow-name={selectedFlow?.name}
                       >
                         <LoaderCircle className={`h-4 w-4 ${isLoadingFlow ? 'animate-spin' : ''}`} />
-                        {isLoadingFlow ? 'Loading...' : 'Load Flow'}
+                        {isLoadingFlow ? 'Loading...' : 'Load Workflow'}
                       </Button>
                       <Button
                         className="bg-primary hover:bg-opacity-80 flex items-center gap-2"
@@ -119,15 +126,15 @@ export default function AgenticAI() {
                         onClick={handleBuildGraph}
                       >
                         <Plus className="h-4 w-4" />
-                        Build Graph
+                        Build Workflow
                       </Button>
                     </div>
                   </CardHeader>
                   <CardContent className="pt-2 px-4 pb-4">
                     <p className="text-sm text-gray-400">
                       Configure your agent workflow. Select a pre-existing
-                      flow and click "Load Flow" to execute it, or click
-                      "Build Graph" to create a custom graph with
+                      flow and click "Load Workflow" to execute it, or click
+                      "Build Workflow" to create a custom workflow with
                       drag-and-drop components.
                     </p>
                   </CardContent>

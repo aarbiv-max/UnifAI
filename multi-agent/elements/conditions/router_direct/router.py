@@ -2,48 +2,52 @@ from ..common.base_condition import BaseCondition
 from ..common.models import ConditionOutputSchema, BranchType, DirectBranchDef
 from graph.state.state_view import StateView
 from graph.state.graph_state import Channel
-from typing import Optional
+from core.iem.utils import get_outgoing_targets
 
 
 class RouterDirectCondition(BaseCondition):
     """
-    Router direct condition that reads target_branch from state and returns it directly.
-    Returns node UIDs directly for branching.
+    IEM-based router condition that routes to nodes receiving packets.
     """
-    
-    # Declare what channels this condition reads
-    READS = {Channel.TARGET_BRANCH}
 
-    def __init__(self, default_target: Optional[str] = None):
-        super().__init__()
-        self.default_target = default_target
+    READS = {Channel.INTER_PACKETS}
 
-    def run(self, state: StateView) -> str:
+    def run(self, state: StateView):
         """
-        Reads target_branch from state and returns it directly.
-        Falls back to default_target if not found.
+        Route to nodes that have been receiving packets from this node.
+        
+        Returns:
+            - Node UID(s) if targets exist
+            - END if no targets (graceful termination instead of None crash)
         """
-        target_branch = state[Channel.TARGET_BRANCH]
-        
-        if target_branch is None:
-            if self.default_target is not None:
-                return self.default_target
-            raise ValueError("target_branch not found in state and no default_target configured")
-        
-        return str(target_branch)
+        if not self.context:
+            print("⚠️ [ROUTER] No context available - ending graph")
+            return "END"
+
+        targets = get_outgoing_targets(state, self.context)
+        print(targets)
+        if not targets:
+            print("⚠️ [ROUTER] No outgoing targets found - ending graph gracefully")
+            return "END"
+
+        if len(targets) == 1:
+            return list(targets)[0]
+
+        # Return as tuple for multiple targets
+        return tuple(sorted(targets))
 
     def __repr__(self) -> str:
-        return f"<RouterDirectCondition: target_branch -> direct routing (default: {self.default_target})>"
+        return "<RouterDirectCondition: IEM-based routing>"
 
     @classmethod
     def get_output_schema(cls) -> ConditionOutputSchema:
         """
-        RouterDirectCondition returns direct node UIDs for branching.
+        RouterDirectCondition returns direct node UIDs based on IEM analysis.
         """
         return ConditionOutputSchema(
             branch_type=BranchType.DIRECT,
             direct_config=DirectBranchDef(
-                description="Routes directly to the target branch specified in state"
+                description="Routes to nodes based on IEM communication patterns"
             ),
-            description="Direct router condition that reads target_branch and routes to that node UID"
+            description="IEM-based router that follows actual packet communication"
         )

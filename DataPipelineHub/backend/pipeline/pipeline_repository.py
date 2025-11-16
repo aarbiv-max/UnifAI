@@ -74,13 +74,13 @@ class PipelineRepository:
         )
         return str(existing["_id"])
 
-    def register_data_source(
+    def upsert_source(
         self,
         pipeline: Pipeline,
         summary: Dict[str, Any] = {}
     ) -> None:
         """
-        Register or update a data source in the sources collection.
+        Insert or update the data source in the sources collection (upsert).
         Equivalent to upsert_source_summary for data_sources.sources.
         """
         now = datetime.now()

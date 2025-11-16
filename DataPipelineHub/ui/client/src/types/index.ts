@@ -82,6 +82,7 @@ export interface Document {
     page_count: number;
     full_text: string;
     file_size: string;
+    md5?: string;
   };
   upload_by: string;
   pipeline_stats: {

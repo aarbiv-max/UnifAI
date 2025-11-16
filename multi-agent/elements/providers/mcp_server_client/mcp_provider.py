@@ -37,7 +37,7 @@ class McpProvider:
         create_sync() is called to perform tool discovery.
         
         Args:
-            sse_endpoint: MCP server endpoint URL for SSE communication
+            sse_endpoint: MCP server endpoint URL for HTTP communication
             tool_names: Specific tool names to create (None discovers all)
         """
         self.sse_endpoint = sse_endpoint
@@ -187,7 +187,7 @@ class McpProvider:
         Async factory method for creating a fully initialized McpProvider.
         
         Args:
-            sse_endpoint: HTTP(S) endpoint that streams SSE events
+            sse_endpoint: HTTP(S) endpoint for MCP server communication
             tool_names: List of specific tool names to use from the MCP server
             
         Returns:
@@ -204,7 +204,7 @@ class McpProvider:
         Uses AsyncBridge internally to handle the async initialization.
         
         Args:
-            sse_endpoint: HTTP(S) endpoint that streams SSE events
+            sse_endpoint: HTTP(S) endpoint for MCP server communication
             tool_names: List of specific tool names to use from the MCP server
         
         Returns:

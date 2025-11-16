@@ -180,7 +180,7 @@ class McpProxyTool(BaseTool):
         
         Args:
             mcp_tool_name: Name of the MCP tool to proxy
-            sse_endpoint: MCP server SSE endpoint
+            sse_endpoint: MCP server HTTP endpoint
             
         Returns:
             Fully initialized McpProxyTool instance
@@ -202,7 +202,7 @@ class McpProxyTool(BaseTool):
         
         Args:
             mcp_tool_name: Name of the MCP tool to proxy
-            sse_endpoint: MCP server SSE endpoint
+            sse_endpoint: MCP server HTTP endpoint
             
         Returns:
             Fully initialized McpProxyTool instance
@@ -219,7 +219,7 @@ class McpProxyTool(BaseTool):
         
         Args:
             mcp_tool_name: Name of the MCP tool to proxy
-            sse_endpoint: MCP server SSE endpoint
+            sse_endpoint: MCP server HTTP endpoint
             tool_info: Pre-fetched Tool object with schema information
             
         Returns:

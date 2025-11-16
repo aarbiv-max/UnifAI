@@ -102,11 +102,11 @@ class LLMMergerNode(WorkloadCapableMixin, IEMCapableMixin, LlmCapableMixin, Base
 
     def _merge_results_for_thread(self, thread_id: str, results: List[AgentResult]) -> AgentResult:
         """Complete merge logic for results - returns merged AgentResult."""
-        # Get workspace context for conversation history
-        workspace_context = self.get_workspace_context(thread_id)
+        # Get conversation history from workspace
+        conversation_history = self.workspaces.get_conversation_history(thread_id)
         
         # Build conversation context for merging
-        conversation_context = self._build_conversation_context_for_merge(workspace_context, results)
+        conversation_context = self._build_conversation_context_for_merge(conversation_history, results)
         
         # Process with LLM
         assistant_response = self._process_with_llm(conversation_context)
@@ -121,7 +121,7 @@ class LLMMergerNode(WorkloadCapableMixin, IEMCapableMixin, LlmCapableMixin, Base
         
         return agent_result
 
-    def _build_conversation_context_for_merge(self, workspace_context, results: List[AgentResult]) -> List[ChatMessage]:
+    def _build_conversation_context_for_merge(self, conversation_history: List[ChatMessage], results: List[AgentResult]) -> List[ChatMessage]:
         """
         Build conversation context for merging:
         1. Get workspace conversation history
@@ -132,8 +132,8 @@ class LLMMergerNode(WorkloadCapableMixin, IEMCapableMixin, LlmCapableMixin, Base
         context_messages = []
         
         # 1. Get workspace conversation history
-        if workspace_context.conversation_history:
-            context_messages.extend(deepcopy(workspace_context.conversation_history[-10:]))  # Last 10 messages
+        # if conversation_history:
+        #     context_messages.extend(deepcopy(conversation_history[-10:]))  # Last 10 messages
         
         # 2. Add system message at the start if configured
         if self.system_message:
@@ -166,7 +166,7 @@ class LLMMergerNode(WorkloadCapableMixin, IEMCapableMixin, LlmCapableMixin, Base
 
     def _process_with_llm(self, conversation_context: List[ChatMessage]) -> ChatMessage:
         """Process conversation with LLM."""
-        return self._chat(conversation_context)
+        return self.chat(conversation_context)
 
     def _create_agent_result(self, assistant_response: ChatMessage, original_results: List[AgentResult]) -> AgentResult:
         """Create AgentResult from merged response."""
@@ -174,7 +174,8 @@ class LLMMergerNode(WorkloadCapableMixin, IEMCapableMixin, LlmCapableMixin, Base
             content=assistant_response.content,
             agent_id=self.uid,
             agent_name=getattr(self, 'name', self.uid),
-            artifacts={
+            artifacts=[],  # No artifact files produced by merger
+            execution_metadata={
                 "merged_count": len(original_results),
                 "source_agents": [result.agent_name for result in original_results],
                 "merge_type": "llm_merge"
@@ -188,7 +189,7 @@ class LLMMergerNode(WorkloadCapableMixin, IEMCapableMixin, LlmCapableMixin, Base
 
     def _add_agent_result_to_workspace(self, thread_id: str, agent_result: AgentResult) -> None:
         """Add merged agent result to workspace."""
-        self.add_result_to_workspace(thread_id, agent_result)
+        self.workspaces.add_result(thread_id, agent_result)
 
     def _broadcast_merged_task_for_thread(self, thread_id: str, agent_result: AgentResult) -> None:
         """Broadcast merged task for a specific thread."""

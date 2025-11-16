@@ -170,7 +170,7 @@ const CustomNode: React.FC<CustomNodeProps> = ({ id, data, selected }) => {
       {/* Inner reference elements */}
       {Object.keys(references).length > 0 && (
         <div className="mt-2 space-y-1">
-          <div className="text-xs text-gray-400 mb-1">References:</div>
+          <div className="text-xs text-gray-400 mb-1">Resources:</div>
           <div className="flex flex-wrap gap-1">
             {Object.entries(references).map(([key, refId]) => (
               <InnerRefElement
