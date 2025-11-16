@@ -301,7 +301,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                         <Button disabled={selectedFiles.length === 0} 
                                 onClick={handleSubmit} 
                                 data-umami-event="document-upload-submit-button" 
-                                data-umami-event-user-id={user?.name}>
+                                data-umami-event-user-id={user?.username}>
                             Submit
                         </Button>
                     </div>

@@ -746,7 +746,7 @@ export default function ChatInterface({
               disabled={inputMessage.trim() === "" || isTyping || !blueprintExists}
               className="bg-primary hover:bg-[#7525c9] mb-0"
               data-umami-event="agent-chat-send-message-button" 
-              data-umami-event-user-id={user?.name}
+              data-umami-event-user-id={user?.usernamename}
               data-umami-event-flow-name={runId}
             >
               <Send className="h-4 w-4" />

@@ -98,7 +98,7 @@ const SaveBlueprintModal: React.FC<SaveBlueprintModalProps> = ({
             disabled={!isFormValid || isLoading}
             className="bg-primary hover:bg-primary/80"
             data-umami-event="agent-graphs-save-blueprint-button" 
-            data-umami-event-user-id={user?.name}
+            data-umami-event-user-id={user?.username}
             data-umami-event-blueprint-name={name}
           >
             {isLoading ? (

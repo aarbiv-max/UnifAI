@@ -97,7 +97,7 @@ export default function Documents() {
 
   const viewButtons = (
     <div className="flex items-center space-x-4">
-      <Button onClick={() => setShowUploadModal(true)} data-umami-event="upload-document-button" data-umami-event-user-id={user?.name}>Upload Document</Button>
+      <Button onClick={() => setShowUploadModal(true)} data-umami-event="upload-document-button" data-umami-event-user-id={user?.username}>Upload Document</Button>
       <div className="flex">
         <Button
           variant={viewMode === "list" ? "default" : "outline"}
