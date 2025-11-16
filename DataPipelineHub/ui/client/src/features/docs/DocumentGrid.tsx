@@ -6,7 +6,6 @@ import { Document } from "@/types";
  
 import { DocumentData } from "./DocumentData";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
-import { useAuth } from "@/contexts/AuthContext"; // for user id
 
 interface DocumentGridProps {
   paginatedDocuments: Document[];
@@ -55,11 +54,11 @@ const getActions = (
   onDeleteConfirmed: (id: string) => void
 ) => [
   {
-    icon: <FaEye data-umami-event="document-view-button"/>,
+    icon: <FaEye />,
     onClick: () => setActiveDoc(doc === activeDoc ? null : doc),
   },
   {
-    icon: <FaTrash className="h-3 w-3" data-umami-event="document-delete-button"/>,
+    icon: <FaTrash className="h-3 w-3" />,
     onClick: () => {},
     confirm: {
       title: "Delete Document",
