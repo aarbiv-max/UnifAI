@@ -39,7 +39,6 @@ export function DocumentFilters({fileTypeFilter, setFileTypeFilter, searchQuery,
         className="w-64 bg-background-dark"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
-        data-umami-event="document-filter-input" data-umami-event-user-id={user?.name}
       />
     </div>
   );
