@@ -847,32 +847,29 @@ export default function ReactFlowGraph({
         const allRefIds = new Set<string>();
         graphFlow.nodes?.forEach((node: { config: any; }) => node.config && extractAllReferences(node.config, allRefIds));
 
-        // Helper to create BuildingBlock from resource data
-        const createBlock = (data: any, id: string): BuildingBlock => ({
-          id: data.rid || id,
-          type: data.type || 'unknown',
-          label: data.name || id,
-          color: "#FFB300",
-          description: "",
-          workspaceData: {
-            rid: data.rid,
-            name: data.name,
-            category: data.category,
-            type: data.type,
-            config: data.cfg_dict,
-            version: data.version,
-            created: data.created,
-            updated: data.updated,
-            nested_refs: data.nested_refs,
-          }
-        });
-
         // Fetch all referenced resources in parallel
         const fetchedBlocks = allRefIds.size > 0 ? (await Promise.all(
           Array.from(allRefIds).map(async (refId) => {
             try {
-              const resourceData = await fetchResourceById(refId);
-              return resourceData ? createBlock(resourceData, refId) : null;
+              const data = await fetchResourceById(refId);
+              return data ? {
+                id: data.rid || refId,
+                type: data.type || 'unknown',
+                label: data.name || refId,
+                color: "#FFB300",
+                description: "",
+                workspaceData: {
+                  rid: data.rid,
+                  name: data.name,
+                  category: data.category,
+                  type: data.type,
+                  config: data.cfg_dict,
+                  version: data.version,
+                  created: data.created,
+                  updated: data.updated,
+                  nested_refs: data.nested_refs,
+                }
+              } as BuildingBlock : null;
             } catch (error) {
               console.error(`Failed to fetch referenced resource ${refId}:`, error);
               return null;
@@ -881,7 +878,14 @@ export default function ReactFlowGraph({
         )).filter((block): block is BuildingBlock => block !== null) : [];
 
         // Combine with existing nodes from graphFlow
-        const existingBlocks = graphFlow.nodes?.map((node: { rid: any; }) => createBlock(node, node.rid || '')) || [];
+        const existingBlocks = graphFlow.nodes?.map((node: NodeDefinition) => ({
+          id: node.rid || '',
+          type: node.type || 'unknown',
+          label: node.name || '',
+          color: "#FFB300",
+          description: "",
+          workspaceData: node
+        })) as BuildingBlock[] || [];
         const allBlocks = [...existingBlocks, ...fetchedBlocks];
 
         // Now parse the graph with pre-fetched resources
