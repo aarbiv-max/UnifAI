@@ -852,17 +852,16 @@ export default function ReactFlowGraph({
           Array.from(allRefIds).map(async (refId) => {
             try {
               const data = await fetchResourceById(refId);
-              return data ? {
-                id: data.rid || refId,
-                type: data.type || 'unknown',
-                label: data.name || refId,
+              if (!data) return null;
+              const { rid, name, type, cfg_dict, ...rest } = data;
+              return {
+                id: rid || refId,
+                type: type || 'unknown',
+                label: name || refId,
                 color: "#FFB300",
                 description: "",
-                workspaceData: {
-                  ...data,
-                  config: data.cfg_dict,
-                }
-              } as BuildingBlock : null;
+                workspaceData: { ...rest, rid, name, type, config: cfg_dict }
+              } as BuildingBlock;
             } catch (error) {
               console.error(`Failed to fetch referenced resource ${refId}:`, error);
               return null;
@@ -872,9 +871,9 @@ export default function ReactFlowGraph({
 
         // Combine with existing nodes from graphFlow
         const existingBlocks = graphFlow.nodes?.map((node: NodeDefinition) => ({
-          id: node.rid || '',
-          type: node.type || 'unknown',
-          label: node.name || '',
+          id: node.rid,
+          type: node.type,
+          label: node.name,
           color: "#FFB300",
           description: "",
           workspaceData: node
