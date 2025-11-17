@@ -859,15 +859,8 @@ export default function ReactFlowGraph({
                 color: "#FFB300",
                 description: "",
                 workspaceData: {
-                  rid: data.rid,
-                  name: data.name,
-                  category: data.category,
-                  type: data.type,
+                  ...data,
                   config: data.cfg_dict,
-                  version: data.version,
-                  created: data.created,
-                  updated: data.updated,
-                  nested_refs: data.nested_refs,
                 }
               } as BuildingBlock : null;
             } catch (error) {
