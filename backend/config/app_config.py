@@ -32,3 +32,9 @@ class AppConfig(SharedConfig):
     # qdrant_ip: str = "http://a467739e076d04bf1b15aa68187cbc05-1112405490.us-east-1.elb.amazonaws.com"
     # mongodb_ip: str = "ae8f0dd8e6cd046539c3f0b7c6a75f13-508991814.us-east-1.elb.amazonaws.com"
     # rabbitmq_ip: str = "a509af714a5fa4810bf879cfc8823456-1634716882.us-east-1.elb.amazonaws.com"
+
+    # Umami Configuration - to be moved to creds repository
+    umami_url: str = "http://umami-route-tag-ai--runtime-int.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
+    umami_website_name: str = "unifai"
+    umami_username: str = "admin"
+    umami_password: str = "umami"

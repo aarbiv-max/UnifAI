@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FaSearch } from "react-icons/fa";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DocumentFiltersProps {
   fileTypeFilter: string;
@@ -12,6 +13,9 @@ interface DocumentFiltersProps {
 }
 
 export function DocumentFilters({fileTypeFilter, setFileTypeFilter, searchQuery, setSearchQuery}: DocumentFiltersProps) {
+  
+  const { user } = useAuth();
+  
   return (
     <div className="flex items-center space-x-2">
       <Select value={fileTypeFilter} onValueChange={setFileTypeFilter}>
