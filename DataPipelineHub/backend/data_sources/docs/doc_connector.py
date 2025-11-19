@@ -28,8 +28,10 @@ class DocumentConnector(DataConnector):
         super().__init__(config_manager)
         
         # Initialize the docling service client
-        timeout = self._config_manager.get_config_value("timeout_seconds", 300)
-        self._service_client = DoclingServiceClient(timeout=timeout)
+        # Timeout is read from AppConfig.docling_service_timeout by default
+        # DocConfigManager can override if timeout_seconds is explicitly set
+        config_timeout = self._config_manager.get_config_value("timeout_seconds")
+        self._service_client = DoclingServiceClient(timeout=config_timeout)
         
         # Store conversion results for metadata extraction
         self._conversion_results: Dict[str, Dict[str, Any]] = {}
@@ -128,9 +130,6 @@ class DocumentConnector(DataConnector):
             
         except DoclingProcessingError:
             raise
-        except PdfiumError:
-            # PDF cannot be opened/parsed by PDFium
-            raise DoclingProcessingError("The PDF appears to be corrupted or invalid. Please upload a valid PDF.")
         except Exception as e:
             logger.error(f"Error processing document {document_path}: {str(e)}")
             raise DoclingProcessingError(str(e))
@@ -208,9 +207,6 @@ class DocumentConnector(DataConnector):
             
         except DoclingProcessingError:
             raise
-        except PdfiumError:
-            # PDF from URL cannot be opened/parsed
-            raise DoclingProcessingError("The PDF at the provided URL appears to be corrupted or invalid. Please try another file or re-upload it.")
         except Exception as e:
             logger.error(f"Error processing document from URL {document_url}: {str(e)}")
             raise DoclingProcessingError(str(e))
