@@ -13,3 +13,4 @@ Authlib
 PyJWT
 python-dotenv
 pydantic
+umami-analytics
