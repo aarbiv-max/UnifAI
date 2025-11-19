@@ -44,19 +44,32 @@ export const UploadTab: React.FC<UploadTabProps> = ({
         return supportedExtensions.includes(extension);
     };
     
-    const validateFiles = (files: FileList): { validFiles: File[], invalidFiles: string[] } => {
+    const MAX_FILE_SIZE_MB = 50;
+    const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024; // 50 MB in bytes
+
+    const validateFiles = (files: FileList): { validFiles: File[], invalidFiles: string[], sizeErrors: string[] } => {
         const validFiles: File[] = [];
         const invalidFiles: string[] = [];
+        const sizeErrors: string[] = [];
         
         Array.from(files).forEach(file => {
-            if (isFileExtensionSupported(file.name)) {
-                validFiles.push(file);
-            } else {
+            // Check file extension
+            if (!isFileExtensionSupported(file.name)) {
                 invalidFiles.push(file.name);
+                return;
             }
+            
+            // Check file size
+            if (file.size > MAX_FILE_SIZE_BYTES) {
+                const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                sizeErrors.push(`${file.name} (${fileSizeMB} MB)`);
+                return;
+            }
+            
+            validFiles.push(file);
         });
         
-        return { validFiles, invalidFiles };
+        return { validFiles, invalidFiles, sizeErrors };
     };
     
     const handleDragEnter = (e: React.DragEvent) => {
@@ -80,13 +93,23 @@ export const UploadTab: React.FC<UploadTabProps> = ({
     };
 
     const handleFiles = (files: FileList) => {
-        const { validFiles, invalidFiles } = validateFiles(files);
+        const { validFiles, invalidFiles, sizeErrors } = validateFiles(files);
+        
+        const errorMessages: string[] = [];
         
         if (invalidFiles.length > 0) {
             const invalidExtensions = Array.from(new Set(invalidFiles.map(file => 
                 file.substring(file.lastIndexOf('.')).toLowerCase()
             )));
-            setError(`The following file extensions are not supported: ${invalidExtensions.join(', ')}. These files will be ignored.`);
+            errorMessages.push(`The following file extensions are not supported: ${invalidExtensions.join(', ')}. These files will be ignored.`);
+        }
+        
+        if (sizeErrors.length > 0) {
+            errorMessages.push(`The following files exceed the maximum size of ${MAX_FILE_SIZE_MB} MB: ${sizeErrors.join(', ')}. These files will be ignored.`);
+        }
+        
+        if (errorMessages.length > 0) {
+            setError(errorMessages.join('\n'));
         } else {
             setError(""); // Clear any previous errors if no invalid files
         }
@@ -169,17 +192,34 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                 issues.forEach((issue: any) => {
                     const issueType = String(issue.issue_type || "");
                     const message = String(issue.message || "");
+                    const docName = String(issue.doc_name || "");
                     const titleText = issueType ? issueType.toUpperCase() : "Upload issue";
-                    const descParts = [] as string[];
-                    if (message) descParts.push(message);
-                    const description = descParts.join(" — ");
+                    
+                    // Format description with document name and error message
+                    let description = "";
+                    if (docName) {
+                        description = `Document "${docName}"`;
+                    }
+                    if (message) {
+                        // Check if message contains file size error
+                        if (message.toLowerCase().includes("file size") || message.toLowerCase().includes("exceeds maximum")) {
+                            // Extract file size and max size from message if available
+                            const sizeMatch = message.match(/File size \(([\d.]+) MB\) exceeds maximum allowed size \(([\d.]+) MB\)/i);
+                            if (sizeMatch) {
+                                const [, fileSize, maxSize] = sizeMatch;
+                                description = `${description ? description + " " : ""}embedding failed: file size (${fileSize} MB) exceeds the allowed size (${maxSize} MB).`;
+                            } else {
+                                description = `${description ? description + " " : ""}embedding failed: ${message}`;
+                            }
+                        } else {
+                            description = `${description ? description + " " : ""}${message}`;
+                        }
+                    }
 
                     const isDuplicate = issueType.toLowerCase().includes("dup")
                     const title: React.ReactNode = (
                         <span className="inline-flex items-center gap-2">
-                            {isDuplicate && (
-                                <CircleX className="h-4 w-4 text-red-500" />
-                            )}
+                            <CircleX className="h-4 w-4 text-red-500" />
                             <span>{titleText}</span>
                         </span>
                     );
@@ -187,7 +227,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                     toast({
                         variant: "destructive",
                         title,
-                        description,
+                        description: description || "An error occurred during embedding.",
                     });
                 });
             }
@@ -338,7 +378,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                         )}
                         {error && (
                             <div className="px-4 pb-4">
-                                <p className="text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">{error}</p>
+                                <p className="text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2 whitespace-pre-line">{error}</p>
                             </div>
                         )}
                     </div>
