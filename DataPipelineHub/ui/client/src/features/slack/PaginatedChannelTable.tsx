@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FaSync, FaPlus } from "react-icons/fa";
+import { FaSync, FaPlus, FaTrash } from "react-icons/fa";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { EmbedChannel } from "@/types";
@@ -19,6 +19,9 @@ export interface PaginatedChannelTableProps {
   activeEmbeddingIds?: string[];
   rowSelection?: RowSelectionState;
   onRowSelectionChange?: (selection: RowSelectionState) => void;
+  onBulkDelete?: () => void;
+  bulkDeleteLoading?: boolean;
+  selectedCount?: number;
 }
 
 export function PaginatedChannelTable({
@@ -32,6 +35,9 @@ export function PaginatedChannelTable({
   activeEmbeddingIds = [],
   rowSelection,
   onRowSelectionChange,
+  onBulkDelete,
+  bulkDeleteLoading = false,
+  selectedCount = 0,
 }: PaginatedChannelTableProps) {
   const [, navigate] = useLocation();
 
@@ -73,6 +79,17 @@ export function PaginatedChannelTable({
               Channel Status Dashboard
             </h3>
             <div className="flex items-center space-x-3">
+              {onBulkDelete && (
+                <Button
+                  variant="destructive"
+                  onClick={onBulkDelete}
+                  disabled={bulkDeleteLoading || !!deletingChannelId || selectedCount === 0}
+                  className="px-4 py-2 rounded-lg font-medium transition-all duration-200"
+                >
+                  <FaTrash className="mr-2 h-3 w-3" />
+                  Delete {selectedCount} Selected
+                </Button>
+              )}
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
