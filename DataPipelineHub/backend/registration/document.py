@@ -5,6 +5,7 @@ import uuid
 from typing import Any, Dict, Tuple
 from functools import cached_property
 from dataclasses import dataclass
+from werkzeug.utils import secure_filename
 from backend.registration.base import BaseSourceData
 from backend.registration.base import RegistrationBase
 from config.app_config import AppConfig
@@ -32,14 +33,18 @@ class DocumentRegistration(RegistrationBase):
 
     @cached_property
     def source_data(self) -> DocumentSourceData:
-        name = self.instance.get("source_name", "")
-        path = os.path.join(self.upload_folder, name)
+        # Get the original name for display purposes
+        original_name = self.instance.get("source_name", "")
+        # Use secure_filename to get the actual filename on disk (spaces -> underscores)
+        # This matches what upload_docs() does when saving the file
+        secure_name = secure_filename(original_name)
+        path = os.path.join(self.upload_folder, secure_name)
         md5 = compute_file_md5(path)
         sid = str(uuid.uuid4())
         pid = f"{DataSource.DOCUMENT.value}_{sid}"
         form_data = self.instance.get("metadata", {})
         return DocumentSourceData(
-            source_name=name,
+            source_name=original_name,
             source_id=sid,
             pipeline_id=pid,
             doc_path=path,
