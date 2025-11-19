@@ -15,6 +15,7 @@ import { deleteDoc, fetchDocuments } from "@/api/docs";
 import { RowSelectionState } from "@tanstack/react-table";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -100,13 +101,47 @@ export default function Documents() {
     </div>
   );
 
+  const handleSelectAll = () => {
+    const allFilteredIds = filteredDocuments.reduce((acc, doc) => {
+      acc[doc.source_id] = true;
+      return acc;
+    }, {} as RowSelectionState);
+    
+    const allSelected = filteredDocuments.length > 0 && 
+      filteredDocuments.every(doc => rowSelection[doc.source_id]);
+    
+    if (allSelected) {
+      // Deselect all filtered documents
+      const newSelection = { ...rowSelection };
+      filteredDocuments.forEach(doc => {
+        delete newSelection[doc.source_id];
+      });
+      setRowSelection(newSelection);
+    } else {
+      // Select all filtered documents
+      setRowSelection({ ...rowSelection, ...allFilteredIds });
+    }
+  };
+
   const filters = (
-    <DocumentFilters
-      fileTypeFilter={fileTypeFilter}
-      setFileTypeFilter={setFileTypeFilter}
-      searchQuery={searchQuery}
-      setSearchQuery={setSearchQuery}
-    />
+    <div className="flex items-center space-x-4">
+      <DocumentFilters
+        fileTypeFilter={fileTypeFilter}
+        setFileTypeFilter={setFileTypeFilter}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+      />
+      {viewMode === "grid" && filteredDocuments.length > 0 && (
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            checked={filteredDocuments.length > 0 && filteredDocuments.every(doc => rowSelection[doc.source_id])}
+            onCheckedChange={handleSelectAll}
+            aria-label="Select all filtered documents"
+          />
+          <span className="text-sm text-foreground">Select All</span>
+        </div>
+      )}
+    </div>
   );
 
   const selectedCount = Object.keys(rowSelection).length;
@@ -270,6 +305,8 @@ export default function Documents() {
                         retrying={retrying}
                         handleRetry={handleRetry}
                         footer={footer}
+                        rowSelection={rowSelection}
+                        onRowSelectionChange={setRowSelection}
                       />
                     ) : (
                       <>

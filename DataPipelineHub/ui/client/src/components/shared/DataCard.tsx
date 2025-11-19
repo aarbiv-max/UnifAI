@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PipelineStatus } from "@/constants/pipelineStatus";
 import { StatusBadge } from "./StatusBadge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export interface CardAction {
   icon: React.ReactNode;
@@ -34,6 +35,9 @@ interface DataCardProps {
   selected?: boolean;
   hoverable?: boolean;
   className?: string;
+  showCheckbox?: boolean;
+  checkboxChecked?: boolean;
+  onCheckboxChange?: (checked: boolean) => void;
 }
 
 export const DataCard: React.FC<DataCardProps> = ({
@@ -51,6 +55,9 @@ export const DataCard: React.FC<DataCardProps> = ({
   selected = false,
   hoverable = true,
   className = "",
+  showCheckbox = false,
+  checkboxChecked = false,
+  onCheckboxChange,
 }) => {
   const [confirmAction, setConfirmAction] = useState<CardAction | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -73,6 +80,20 @@ export const DataCard: React.FC<DataCardProps> = ({
         {/* Icon + Title/Subtitle */}
         <div className="flex items-start justify-between">
           <div className="flex items-start">
+            {showCheckbox && (
+              <div 
+                className="mr-2 mt-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Checkbox
+                  checked={checkboxChecked}
+                  onCheckedChange={(checked) => {
+                    onCheckboxChange?.(checked === true);
+                  }}
+                  aria-label="Select card"
+                />
+              </div>
+            )}
             {(icon || iconRenderer) && (
               <div className={`mr-3 p-2 rounded-md shrink-0 ${iconBgClass}`}>
                 {icon || (iconRenderer && iconRenderer())}

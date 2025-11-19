@@ -3,6 +3,7 @@ import { DataCard } from "@/components/shared/DataCard";
 import { fileByColors, getDataToDisplay, getFileIcon, isEmbeddingActivelyProcessing } from "@/features/helpers";
 import { InlineLoader } from "@/components/shared/InlineLoader";
 import { Document } from "@/types";
+import { RowSelectionState } from "@tanstack/react-table";
  
 import { DocumentData } from "./DocumentData";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
@@ -16,6 +17,8 @@ interface DocumentGridProps {
   retrying: boolean;
   handleRetry: (id: string) => void;
   footer?: React.ReactNode;
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: (selection: RowSelectionState) => void;
 }
 
 const getFooterText = (doc: Document) => {
@@ -71,7 +74,29 @@ const getActions = (
   },
 ];
 
-export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry, footer}: DocumentGridProps) => {
+export const DocumentGrid = ({
+  paginatedDocuments, 
+  activeDoc, 
+  setActiveDoc, 
+  deleteLoading, 
+  onDeleteConfirmed, 
+  retrying, 
+  handleRetry, 
+  footer,
+  rowSelection = {},
+  onRowSelectionChange
+}: DocumentGridProps) => {
+  const handleCardCheckboxChange = (docId: string, checked: boolean) => {
+    if (!onRowSelectionChange) return;
+    const newSelection = { ...rowSelection };
+    if (checked) {
+      newSelection[docId] = true;
+    } else {
+      delete newSelection[docId];
+    }
+    onRowSelectionChange(newSelection);
+  };
+
   return (
     <>
       <div className="p-6">
@@ -92,6 +117,9 @@ export const DocumentGrid = ({paginatedDocuments, activeDoc, setActiveDoc, delet
                 }
                 selected={doc === activeDoc}
                 onClick={() => setActiveDoc(doc === activeDoc ? null : doc)}
+                showCheckbox={!!onRowSelectionChange}
+                checkboxChecked={rowSelection[doc.source_id] === true}
+                onCheckboxChange={(checked) => handleCardCheckboxChange(doc.source_id, checked)}
                 // extraTopRight={getExtraTopRight(doc, handleRetry, retrying)}
                 actions={getActions(doc, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed)}
               />
