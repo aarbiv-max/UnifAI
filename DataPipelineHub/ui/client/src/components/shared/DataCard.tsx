@@ -8,7 +8,7 @@ import { StatusBadge } from "./StatusBadge";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export interface CardAction {
-  icon?: React.ReactNode;
+  icon: React.ReactNode;
   onClick: () => void;
   confirm?: {
     title: string;
