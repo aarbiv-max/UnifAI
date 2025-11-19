@@ -1,12 +1,13 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FaSync, FaPlus, FaTrash } from "react-icons/fa";
+import { FaSync, FaPlus } from "react-icons/fa";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { EmbedChannel } from "@/types";
 import { DataTable } from "@/components/shared/DataTable";
 import { getColumns } from "./ChannelTable";
 import { RowSelectionState } from "@tanstack/react-table";
+import { BulkDeleteButton } from "@/components/shared/BulkDeleteButton";
 
 export interface PaginatedChannelTableProps {
   allChannels: EmbedChannel[];
@@ -80,15 +81,13 @@ export function PaginatedChannelTable({
             </h3>
             <div className="flex items-center space-x-3">
               {onBulkDelete && (
-                <Button
-                  variant="destructive"
+                <BulkDeleteButton
+                  selectedCount={selectedCount || 0}
                   onClick={onBulkDelete}
-                  disabled={bulkDeleteLoading || !!deletingChannelId || selectedCount === 0}
+                  disabled={bulkDeleteLoading || !!deletingChannelId}
+                  itemName="Selected"
                   className="px-4 py-2 rounded-lg font-medium transition-all duration-200"
-                >
-                  <FaTrash className="mr-2 h-3 w-3" />
-                  Delete {selectedCount} Selected
-                </Button>
+                />
               )}
               <motion.div
                 whileHover={{ scale: 1.02 }}

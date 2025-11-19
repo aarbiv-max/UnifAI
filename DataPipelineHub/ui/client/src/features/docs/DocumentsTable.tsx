@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaEye, FaTrash, FaSync } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { InlineLoader } from "@/components/shared/InlineLoader";
@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { RowSelectionState } from "@tanstack/react-table";
 import { SelectAllCheckbox } from "@/components/shared/SelectAllCheckbox";
 import { RowSelectionCheckbox } from "@/components/shared/RowSelectionCheckbox";
+import { getSupportedFileExtensions } from "@/api/docs";
 
 interface DocumentTableProps {
   documents: Document[];
@@ -38,6 +39,23 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
 }) => {
   const [confirmDoc, setConfirmDoc] = useState<Document | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [fileTypeFilterOptions, setFileTypeFilterOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    const loadSupportedExtensions = async () => {
+      try {
+        const extensions = await getSupportedFileExtensions();
+        // Transform extensions: remove dot and convert to uppercase (e.g., ".pdf" -> "PDF")
+        const filterOptions = extensions.map(ext => ext.substring(1).toUpperCase());
+        setFileTypeFilterOptions(filterOptions);
+      } catch (err) {
+        console.error("Failed to load supported extensions:", err);
+        // Fallback to common extensions if API fails
+        setFileTypeFilterOptions(["PDF", "DOCX", "PPTX", "MD"]);
+      }
+    };
+    loadSupportedExtensions();
+  }, []);
 
   const columns: DataTableColumn<Document>[] = React.useMemo(() => [
     {
@@ -96,7 +114,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       meta: {
         align: "center",
         filterType: "select",
-        filterOptions: ["PDF", "DOCX", "TXT", "XLSX", "OTHER"],
+        filterOptions: fileTypeFilterOptions,
       },
     },
     {
@@ -186,7 +204,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       },
       meta: { align: "right" },
     },
-  ], [activeDoc, setActiveDoc, rowSelection, onRowSelectionChange]);
+  ], [activeDoc, setActiveDoc, rowSelection, onRowSelectionChange, fileTypeFilterOptions]);
 
   return (
     <div className="w-full">

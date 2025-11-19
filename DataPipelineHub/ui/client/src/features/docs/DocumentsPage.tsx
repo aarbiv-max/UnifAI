@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { FaTh, FaList, FaTrash } from "react-icons/fa";
+import { FaTh, FaList } from "react-icons/fa";
 import { useState, useEffect } from "react";
 import { Document } from "@/types";
 import { UploadTab } from "./UploadTab";
@@ -17,6 +17,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
 import { isEmbeddingActivelyProcessing } from "@/features/helpers";
 import { useBulkDelete } from "@/hooks/useBulkDelete";
+import { BulkDeleteButton } from "@/components/shared/BulkDeleteButton";
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -138,14 +139,12 @@ export default function Documents() {
 
   const viewButtons = (
     <div className="flex items-center space-x-4">
-      <Button
-        variant="destructive"
+      <BulkDeleteButton
+        selectedCount={selectedCount}
         onClick={() => {handleDeleteSelectedBase(rowSelection)}}
-        disabled={bulkDeleteLoading || deleteLoading || selectedCount === 0}
-      >
-        <FaTrash className="mr-2 h-3 w-3" />
-        Delete {selectedCount} Selected
-      </Button>
+        disabled={bulkDeleteLoading || deleteLoading}
+        itemName="Selected"
+      />
       <Button onClick={() => setShowUploadModal(true)}>Upload Document</Button>
       <div className="flex">
         <Button
