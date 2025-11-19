@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { EmbedChannel } from "@/types";
 import { DataTable } from "@/components/shared/DataTable";
 import { getColumns } from "./ChannelTable";
+import { RowSelectionState } from "@tanstack/react-table";
 
 export interface PaginatedChannelTableProps {
   allChannels: EmbedChannel[];
@@ -16,6 +17,8 @@ export interface PaginatedChannelTableProps {
   isLoading?: boolean;
   deletingChannelId?: string;
   activeEmbeddingIds?: string[];
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: (selection: RowSelectionState) => void;
 }
 
 export function PaginatedChannelTable({
@@ -27,6 +30,8 @@ export function PaginatedChannelTable({
   isLoading = false,
   deletingChannelId,
   activeEmbeddingIds = [],
+  rowSelection,
+  onRowSelectionChange,
 }: PaginatedChannelTableProps) {
   const [, navigate] = useLocation();
 
@@ -106,6 +111,10 @@ export function PaginatedChannelTable({
               enableSorting={true}
               enableColumnFilters={true}
               enablePagination={true}
+              enableRowSelection={true}
+              rowSelection={rowSelection}
+              onRowSelectionChange={onRowSelectionChange}
+              getRowId={(row) => row.channel_id}
               initialState={{
                 pagination: { pageIndex: 0, pageSize: 8 },
                 sorting: [],
