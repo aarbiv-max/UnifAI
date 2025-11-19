@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { FaTh, FaList } from "react-icons/fa";
+import { FaTh, FaList, FaTrash } from "react-icons/fa";
 import { useState, useEffect } from "react";
 import { Document } from "@/types";
 import { UploadTab } from "./UploadTab";
@@ -12,6 +12,9 @@ import { DocumentTable } from "./DocumentsTable";
 import { PageLoader } from "@/components/shared/PageLoader";
 import { DocumentGrid } from "./DocumentGrid";
 import { deleteDoc, fetchDocuments } from "@/api/docs";
+import { RowSelectionState } from "@tanstack/react-table";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -22,7 +25,11 @@ export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<{ open: boolean; count: number }>({ open: false, count: 0 });
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { currentPage, setPage, resetPage, itemsPerPage, } = usePaginationStore();
 
@@ -45,6 +52,11 @@ export default function Documents() {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
     }
   }, [showUploadModal, queryClient]);
+
+  // Clear selection when filters change to avoid confusion
+  useEffect(() => {
+    setRowSelection({});
+  }, [fileTypeFilter, searchQuery]);
 
   const filteredDocuments = documents.filter((doc) => {
     const matchesType = fileTypeFilter === "all" || doc.type_data.file_type === fileTypeFilter;
@@ -97,8 +109,29 @@ export default function Documents() {
     />
   );
 
+  const selectedCount = Object.keys(rowSelection).length;
+
+  const handleDeleteSelected = () => {
+    const selectedIds = Object.keys(rowSelection);
+    if (selectedIds.length === 0) return;
+    setBulkDeleteConfirm({ 
+      open: true, 
+      count: selectedIds.length
+    });
+  };
+
   const viewButtons = (
     <div className="flex items-center space-x-4">
+      {selectedCount > 0 && (
+        <Button
+          variant="destructive"
+          onClick={handleDeleteSelected}
+          disabled={bulkDeleteLoading || deleteLoading}
+        >
+          <FaTrash className="mr-2 h-3 w-3" />
+          Delete {selectedCount} Selected
+        </Button>
+      )}
       <Button onClick={() => setShowUploadModal(true)}>Upload Document</Button>
       <div className="flex">
         <Button
@@ -125,12 +158,68 @@ export default function Documents() {
       await deleteDoc(source_id);
       // Invalidate queries to refresh the list after successful deletion
       queryClient.invalidateQueries({ queryKey: ['documents'] });
+      toast({
+        title: "✅ Document Deleted",
+        description: "The document has been successfully deleted.",
+        variant: "default",
+      });
     } catch (error) {
       console.error("Error deleting document:", error);
+      toast({
+        title: "❌ Deletion Failed",
+        description: error instanceof Error ? error.message : "Failed to delete document.",
+        variant: "destructive",
+      });
       throw error; // Re-throw to let the modal handle the error state
     } finally {
       setDeleteLoading(false);
       setActiveDoc(null);
+    }
+  };
+
+  const handleBulkDelete = async (ids: string[]) => {
+    try {
+      setBulkDeleteLoading(true);
+      // Delete all selected documents in parallel
+      await Promise.all(ids.map(id => deleteDoc(id)));
+      
+      // Clear selection and refresh
+      setRowSelection({});
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      
+      toast({
+        title: "✅ Documents Deleted",
+        description: `Successfully deleted ${ids.length} document${ids.length > 1 ? 's' : ''}.`,
+        variant: "default",
+      });
+    } catch (error) {
+      console.error("Error deleting documents:", error);
+      toast({
+        title: "❌ Bulk Deletion Failed",
+        description: error instanceof Error ? error.message : "Failed to delete some documents.",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setBulkDeleteLoading(false);
+      // Don't close modal here - let confirmBulkDelete handle it after success
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    try {
+      setBulkDeleteLoading(true);
+      // Delete selected documents
+      const idsToDelete = Object.keys(rowSelection);
+      
+      await handleBulkDelete(idsToDelete);
+      // Only close modal after successful deletion
+      setBulkDeleteConfirm({ open: false, count: 0 });
+    } catch (error) {
+      // Error already handled in handleBulkDelete - keep modal open on error
+      console.error("Bulk delete failed:", error);
+    } finally {
+      setBulkDeleteLoading(false);
     }
   };
 
@@ -193,6 +282,8 @@ export default function Documents() {
                             onDeleteConfirmed={onDeleteConfirmed}
                             retrying={retrying}
                             handleRetry={handleRetry}
+                            rowSelection={rowSelection}
+                            onRowSelectionChange={setRowSelection}
                           />
 
                         </div>
@@ -207,6 +298,22 @@ export default function Documents() {
           )}
         </div>
       </div>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={bulkDeleteConfirm.open}
+        title="Delete Selected Documents"
+        message={`Are you sure you want to delete ${bulkDeleteConfirm.count} selected document${bulkDeleteConfirm.count > 1 ? 's' : ''}? This action cannot be undone.`}
+        confirmLabel="Yes, Delete"
+        cancelLabel="Cancel"
+        loading={bulkDeleteLoading}
+        onCancel={() => {
+          if (!bulkDeleteLoading) {
+            setBulkDeleteConfirm({ open: false, count: 0 });
+          }
+        }}
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   );
 }

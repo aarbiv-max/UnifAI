@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { DocumentData } from "./DocumentData";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { RowSelectionState } from "@tanstack/react-table";
 
 interface DocumentTableProps {
   documents: Document[];
@@ -18,9 +19,21 @@ interface DocumentTableProps {
   onDeleteConfirmed?: (id: string) => void;
   retrying?: boolean;
   handleRetry?: (id: string) => void;
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: (selection: RowSelectionState) => void;
 }
 
-export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed, retrying, handleRetry}) => {
+export const DocumentTable: React.FC<DocumentTableProps> = ({
+  documents, 
+  activeDoc, 
+  setActiveDoc, 
+  deleteLoading, 
+  onDeleteConfirmed, 
+  retrying, 
+  handleRetry,
+  rowSelection,
+  onRowSelectionChange
+}) => {
   const [confirmDoc, setConfirmDoc] = useState<Document | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
@@ -174,6 +187,10 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
         enableGlobalFilter={false}
         enableColumnFilters={true}
         enablePagination={true}
+        enableRowSelection={true}
+        rowSelection={rowSelection}
+        onRowSelectionChange={onRowSelectionChange}
+        getRowId={(row) => row.source_id}
         initialState={{
           pagination: { pageIndex: 0, pageSize: 15 }
         }}

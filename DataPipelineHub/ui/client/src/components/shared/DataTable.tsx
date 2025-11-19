@@ -11,6 +11,7 @@ import {
   SortingFn,
   SortingState,
   useReactTable,
+  RowSelectionState,
 } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
 import {
@@ -37,6 +38,7 @@ import {
   TableHead,
   TableCell,
 } from '../ui/table'
+import { Checkbox } from '../ui/checkbox'
 
 // ─── 1. SORT HELPERS ───────────────────────────────────────────────────────
 
@@ -95,11 +97,16 @@ interface DataTableProps<T extends object> {
   enableGlobalFilter?: boolean
   enableColumnFilters?: boolean
   enablePagination?: boolean
+  enableRowSelection?: boolean
+  rowSelection?: RowSelectionState
+  onRowSelectionChange?: (selection: RowSelectionState) => void
+  getRowId?: (row: T) => string
   initialState?: Partial<{
     sorting: SortingState
     globalFilter: string
     columnFilters: ColumnFiltersState
     pagination: { pageIndex: number; pageSize: number }
+    rowSelection: RowSelectionState
   }>
   onSortingChange?: (updater: SortingState) => void
   expendedRow?: any;
@@ -113,6 +120,10 @@ export function DataTable<T extends object>({
   enableGlobalFilter = false,
   enableColumnFilters = true,
   enablePagination = true,
+  enableRowSelection = false,
+  rowSelection: controlledRowSelection,
+  onRowSelectionChange,
+  getRowId,
   initialState,
   onSortingChange,
   expendedRow,
@@ -132,9 +143,15 @@ export function DataTable<T extends object>({
     pageIndex: initialState?.pagination?.pageIndex ?? 0,
     pageSize: initialState?.pagination?.pageSize ?? 10,
   })
+  const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>(
+    initialState?.rowSelection ?? {}
+  )
+  
+  const rowSelection = controlledRowSelection ?? internalRowSelection
+  const setRowSelection = onRowSelectionChange ?? setInternalRowSelection
 
   // ─── Auto‐assign sortingFns
-  const processedColumns = React.useMemo(() => {
+  const baseProcessedColumns = React.useMemo(() => {
     return columns.map(col => {
       if (col.enableSorting === false) return col
       if (col.sortingFn) return col
@@ -150,16 +167,86 @@ export function DataTable<T extends object>({
     })
   }, [columns, data])
 
+  // ─── Create selection column after we have rowSelection state
+  const processedColumns = React.useMemo(() => {
+    if (!enableRowSelection) {
+      return baseProcessedColumns
+    }
+    
+    // Create selection column that will use the table instance when rendered
+    const selectionColumn: ColumnDef<T> = {
+      id: 'select',
+      header: ({ table }) => {
+        const filteredRows = table.getFilteredRowModel().rows
+        const isAllFilteredSelected = filteredRows.length > 0 && filteredRows.every(row => {
+          const rowId = getRowId ? getRowId(row.original) : row.id
+          return rowSelection[rowId]
+        })
+        
+        return (
+          <Checkbox
+            checked={isAllFilteredSelected}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                // Select all filtered rows
+                const newSelection: RowSelectionState = { ...rowSelection }
+                filteredRows.forEach(row => {
+                  const rowId = getRowId ? getRowId(row.original) : row.id
+                  newSelection[rowId] = true
+                })
+                setRowSelection(newSelection)
+              } else {
+                // Deselect all filtered rows
+                const newSelection: RowSelectionState = { ...rowSelection }
+                filteredRows.forEach(row => {
+                  const rowId = getRowId ? getRowId(row.original) : row.id
+                  delete newSelection[rowId]
+                })
+                setRowSelection(newSelection)
+              }
+            }}
+            aria-label="Select all filtered rows"
+          />
+        )
+      },
+      cell: ({ row }) => {
+        const rowId = getRowId ? getRowId(row.original) : row.id
+        return (
+          <Checkbox
+            checked={rowSelection[rowId] === true}
+            onCheckedChange={(checked) => {
+              const newSelection = { ...rowSelection }
+              if (checked) {
+                newSelection[rowId] = true
+              } else {
+                delete newSelection[rowId]
+              }
+              setRowSelection(newSelection)
+            }}
+            aria-label={`Select row ${rowId}`}
+          />
+        )
+      },
+      enableSorting: false,
+      enableHiding: false,
+    }
+    return [selectionColumn, ...baseProcessedColumns]
+  }, [baseProcessedColumns, enableRowSelection, rowSelection, setRowSelection, getRowId])
+
   // ─── TanStack Table instance
   const table = useReactTable({
     data,
     columns: processedColumns,
     filterFns,
+    getRowId: getRowId as any,
+    enableRowSelection: enableRowSelection,
+    onRowSelectionChange: setRowSelection,
     state: {
       sorting: enableSorting ? sorting : [],
       globalFilter: enableGlobalFilter ? globalFilter : undefined,
       columnFilters: enableColumnFilters ? columnFilters : [],
       pagination: enablePagination ? pagination : undefined,
+      rowSelection: enableRowSelection ? rowSelection : undefined,
     },
     enableSorting,
     enableGlobalFilter,
@@ -188,6 +275,7 @@ export function DataTable<T extends object>({
       globalFilter: initialState?.globalFilter ?? '',
       columnFilters: initialState?.columnFilters ?? [],
       pagination: initialState?.pagination ?? { pageIndex: 0, pageSize: 10 },
+      rowSelection: initialState?.rowSelection ?? {},
     },
   })
 
