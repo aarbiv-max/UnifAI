@@ -5,6 +5,7 @@ import JiraIntegration from "@/pages/JiraIntegration";
 import AgenticAI from "@/pages/AgenticAI";
 import AgentRepository from "@/pages/AgentRepository";
 import AgenticChats from "@/pages/AgenticChats";
+import ChatOnlyPage from "@/pages/ChatOnlyPage";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { ProjectProvider } from '@/contexts/ProjectContext';
@@ -39,6 +40,7 @@ function App() {
                   <Route path="/inventory" component={AgentRepository} />
                   <Route path="/agentic-ai" component={AgenticAI} />
                   <Route path="/agentic-chats" component={AgenticChats} />
+                  <Route path="/chat/:token" component={ChatOnlyPage} />
                   <Route path="/slack/add-source" component={SlackAddSourcePage} />
                   <Route path="/configuration" component={Configuration} />
                   <Route path="/guides" component={GuidesPage} />

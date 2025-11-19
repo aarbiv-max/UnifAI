@@ -35,6 +35,7 @@ interface ChatInterfaceProps {
   blueprintExists?: boolean;
   onToggleBlueprintGraph?: () => void;
   isBlueprintGraphHidden?: boolean;
+  isChatOnlyMode?: boolean; // If true, hide agent thinking and workflow details
 }
 
 export default function ChatInterface({
@@ -44,6 +45,7 @@ export default function ChatInterface({
   blueprintExists = true,
   onToggleBlueprintGraph,
   isBlueprintGraphHidden = false,
+  isChatOnlyMode = false,
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
@@ -629,12 +631,14 @@ export default function ChatInterface({
     ) {
       return (
         <div className="space-y-3 w-full">
-          {/* Stream logs display */}
-          <StreamLogDisplay
-            message={messageWithStreamingData}
-            onToggleExpansion={toggleNodeExpansion}
-            onToggleWorkPlanExpansion={toggleWorkPlanExpansion}
-          />
+          {/* Stream logs display - hidden in chat-only mode */}
+          {!isChatOnlyMode && (
+            <StreamLogDisplay
+              message={messageWithStreamingData}
+              onToggleExpansion={toggleNodeExpansion}
+              onToggleWorkPlanExpansion={toggleWorkPlanExpansion}
+            />
+          )}
 
           {/* Final answer with markdown rendering */}
           {message.finalAnswer && (
@@ -677,28 +681,32 @@ export default function ChatInterface({
       <CardHeader className="py-4 px-6 flex flex-row justify-between items-center flex-shrink-0">
         <CardTitle className="text-lg font-heading">AI Assistant</CardTitle>
         <div className="flex space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearChat}
-            className="text-gray-400 hover:text-gray-100"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-          {onToggleBlueprintGraph && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onToggleBlueprintGraph}
-              className="text-gray-400 hover:text-gray-100"
-              title={isBlueprintGraphHidden ? "Show Blueprint Graph" : "Hide Blueprint Graph"}
-            >
-              {isBlueprintGraphHidden ? (
-                <ChevronLeft className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
+          {!isChatOnlyMode && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearChat}
+                className="text-gray-400 hover:text-gray-100"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+              {onToggleBlueprintGraph && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onToggleBlueprintGraph}
+                  className="text-gray-400 hover:text-gray-100"
+                  title={isBlueprintGraphHidden ? "Show Blueprint Graph" : "Hide Blueprint Graph"}
+                >
+                  {isBlueprintGraphHidden ? (
+                    <ChevronLeft className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </Button>
               )}
-            </Button>
+            </>
           )}
         </div>
       </CardHeader>

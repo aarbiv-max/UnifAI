@@ -12,14 +12,24 @@ sessions_bp = Blueprint("sessions", __name__)
 @from_body({
     "blueprint_id": fields.Str(data_key="blueprintId", required=True),
     "user_id": fields.Str(data_key="userId", required=True),
-    "metadata": fields.Dict(data_key="metadata", required=False, load_default=lambda: {}, dump_default=lambda: {})
+    "metadata": fields.Dict(data_key="metadata", required=False, load_default=lambda: {}, dump_default=lambda: {}),
+    "from_shared_link": fields.Bool(data_key="fromSharedLink", required=False, load_default=False)
 })
-def create_user_session(blueprint_id, user_id, metadata):
+def create_user_session(blueprint_id, user_id, metadata, from_shared_link):
     try:
+        from session.models import SessionMeta
+        
+        # Add from_shared_link flag to metadata if provided
+        if from_shared_link:
+            metadata['from_shared_link'] = True
+        
+        # Create metadata from dict
+        session_meta = SessionMeta.from_dict(metadata)
+        
         session_svc = current_app.container.session_service
         session = session_svc.create(user_id=user_id,
                                      blueprint_id=blueprint_id,
-                                     metadata=metadata)
+                                     metadata=session_meta)
         return jsonify(session.get_run_id()), 200
     except BlueprintNotFoundError as e:
         return jsonify({

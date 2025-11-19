@@ -26,6 +26,7 @@ import {
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { GraphFlow, FlowObject } from "./graphs/interfaces";
 import ReactFlowGraph from "./graphs/ReactFlowGraph";
+import ShareWorkflow from "./ShareWorkflow";
 import axios from "../../http/axiosAgentConfig";
 
 // Helper function to convert GraphFlow to FlowObject
@@ -326,14 +327,23 @@ export default function AvailableFlows({
           </div>
         </div>
 
-        {/* Graph Visualization */}
-        <div className="flex-grow min-h-0 overflow-hidden">
+        {/* Graph Visualization and Share Section */}
+        <div className="flex-grow min-h-0 overflow-hidden flex flex-col">
           {selectedFlow ? (
-            <ReactFlowGraph
-              blueprintId={selectedFlow.id}
-              height="100%"
-              {...graphProps}
-            />
+            <>
+              {/* Share Section */}
+              <div className="border-b border-gray-800 bg-background-surface p-4">
+                <ShareWorkflow blueprintId={selectedFlow.id} />
+              </div>
+              {/* Graph Visualization */}
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ReactFlowGraph
+                  blueprintId={selectedFlow.id}
+                  height="100%"
+                  {...graphProps}
+                />
+              </div>
+            </>
           ) : (
             <div className="flex items-center justify-center h-full text-gray-400">
               Select a flow to view its visualization

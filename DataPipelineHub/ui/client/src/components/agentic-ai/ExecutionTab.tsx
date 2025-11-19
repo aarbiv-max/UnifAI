@@ -62,6 +62,7 @@ interface ChatSession {
   preview: string;
   messages: ChatMessage[];
   blueprintExists: boolean;
+  fromSharedLink?: boolean; // Indicates if session was created from a public chat link
 }
 
 export type SessionPayload = {
@@ -265,19 +266,21 @@ export default function ExecutionTab({
       const id = sessionData.session_id || generateRandomId();
       const blueprintId = sessionData.blueprint_id;
       const blueprintExists = sessionData.blueprint_exists;
+      const fromSharedLink = sessionData.metadata?.from_shared_link || false;
       const timestamp = new Date(sessionData.started_at);
       const lastActive = formatTimestamp(sessionData.started_at);
-      const preview = 'Click to load messages...';
+      const preview = fromSharedLink ? 'From chat experience' : 'Click to load messages...';
       
       return {
         id,
         blueprintId,
-        title,
+        title: fromSharedLink ? `${title} (Shared Link)` : title,
         lastActive,
         timestamp,
         preview,
         messages: [], // Messages will be loaded separately when session is selected
-        blueprintExists,  
+        blueprintExists,
+        fromSharedLink,
       };
     });
   };
@@ -863,7 +866,12 @@ export default function ExecutionTab({
               )}
             </CardHeader> */}
             <CardContent className="p-0 flex-grow">
-              {selectedSession?.blueprintId ? (
+              {selectedSession?.fromSharedLink ? (
+                <div className="flex items-center justify-center h-full text-gray-400 text-sm flex-col">
+                  <p className="mb-2">This session was created from a shared chat link</p>
+                  <p className="text-xs text-gray-500">Workflow details are not available in shared link sessions</p>
+                </div>
+              ) : selectedSession?.blueprintId ? (
                 <ReactFlowProvider key={`main-graph-${selectedSession.blueprintId}`}>
                   <ReactFlowGraph
                     blueprintId={selectedSession.blueprintId}

@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, current_app
 from global_utils.helpers.apiargs import from_body, from_query
 from webargs import fields
 from sharing.models import ShareItemKind, ShareStatus
+from config.app_config import AppConfig
 
 shares_bp = Blueprint("shares", __name__)
 
@@ -165,5 +166,129 @@ def get_share(share_id, user_id="alice"):
 
     except KeyError:
         return jsonify({"error": "Share invitation not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ========== Public Chat Sharing Endpoints ==========
+
+@shares_bp.route("/public-chat.enable", methods=["POST"])
+@from_body({
+    "blueprint_id": fields.Str(data_key="blueprintId", required=True),
+    "user_id": fields.Str(data_key="userId", required=True),
+})
+def enable_public_chat(blueprint_id, user_id):
+    """Enable public chat sharing for a blueprint."""
+    try:
+        bp_service = current_app.container.blueprint_service
+        bp_service.enable_public_chat(blueprint_id, user_id)
+        
+        # Generate the share link (using blueprint_id as token)
+        config = AppConfig.get_instance()
+        frontend_url = config.get('frontend_url', 'http://localhost:5000')
+        share_link = f"{frontend_url}/chat/{blueprint_id}"
+        
+        return jsonify({
+            "status": "success",
+            "enabled": True,
+            "share_link": share_link,
+            "blueprint_id": blueprint_id
+        }), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except KeyError as e:
+        return jsonify({"error": f"Blueprint not found: {blueprint_id}"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@shares_bp.route("/public-chat.disable", methods=["POST"])
+@from_body({
+    "blueprint_id": fields.Str(data_key="blueprintId", required=True),
+    "user_id": fields.Str(data_key="userId", required=True),
+})
+def disable_public_chat(blueprint_id, user_id):
+    """Disable public chat sharing for a blueprint."""
+    try:
+        bp_service = current_app.container.blueprint_service
+        bp_service.disable_public_chat(blueprint_id, user_id)
+        
+        return jsonify({
+            "status": "success",
+            "enabled": False
+        }), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except KeyError as e:
+        return jsonify({"error": f"Blueprint not found: {blueprint_id}"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@shares_bp.route("/public-chat.status.get", methods=["GET"])
+@from_query({
+    "blueprint_id": fields.Str(data_key="blueprintId", required=True),
+})
+def get_public_chat_status(blueprint_id):
+    """Get public chat sharing status for a blueprint."""
+    try:
+        bp_service = current_app.container.blueprint_service
+        enabled = bp_service.is_public_chat_enabled(blueprint_id)
+        
+        # Generate the share link if enabled
+        config = AppConfig.get_instance()
+        frontend_url = config.get('frontend_url', 'http://localhost:5000')
+        share_link = f"{frontend_url}/chat/{blueprint_id}" if enabled else None
+        
+        return jsonify({
+            "enabled": enabled,
+            "share_link": share_link,
+            "blueprint_id": blueprint_id
+        }), 200
+    except KeyError as e:
+        return jsonify({
+            "enabled": False,
+            "share_link": None
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@shares_bp.route("/public-chat.validate", methods=["GET"])
+@from_query({
+    "blueprint_id": fields.Str(data_key="blueprintId", required=True),
+})
+def validate_public_chat_token(blueprint_id):
+    """Validate a public chat token (blueprint_id) and return blueprint info if valid."""
+    try:
+        bp_service = current_app.container.blueprint_service
+        
+        # Check if blueprint exists and public chat is enabled
+        if not bp_service.exists(blueprint_id):
+            return jsonify({
+                "valid": False,
+                "error": "Blueprint not found"
+            }), 404
+        
+        if not bp_service.is_public_chat_enabled(blueprint_id):
+            return jsonify({
+                "valid": False,
+                "error": "Public chat sharing is disabled for this blueprint"
+            }), 404
+        
+        # Get blueprint info
+        bp_doc = bp_service.get_blueprint_draft_doc(blueprint_id)
+        bp_name = bp_doc.get("spec_dict", {}).get("name", "Unnamed Workflow")
+        
+        return jsonify({
+            "valid": True,
+            "blueprint_id": blueprint_id,
+            "blueprint_name": bp_name
+        }), 200
+    except KeyError as e:
+        return jsonify({
+            "valid": False,
+            "error": "Blueprint not found"
+        }), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
