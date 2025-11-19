@@ -10,7 +10,8 @@ import { DocumentData } from "./DocumentData";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { RowSelectionState } from "@tanstack/react-table";
-import { Checkbox } from "@/components/ui/checkbox";
+import { SelectAllCheckbox } from "@/components/shared/SelectAllCheckbox";
+import { RowSelectionCheckbox } from "@/components/shared/RowSelectionCheckbox";
 
 interface DocumentTableProps {
   documents: Document[];
@@ -137,47 +138,20 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
     {
       id: "actions",
       header: ({ table }) => {
-        if (!onRowSelectionChange) return "";
-        const filteredRows = table.getFilteredRowModel().rows;
-        const isAllFilteredSelected = filteredRows.length > 0 && filteredRows.every(row => {
-          const doc = row.original;
-          return rowSelection?.[doc.source_id];
-        });
-        
+        if (!onRowSelectionChange || !rowSelection) return "";
         return (
-          <div className="flex items-center justify-end">
-            <div 
-              className="flex items-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Checkbox
-                checked={isAllFilteredSelected}
-                onCheckedChange={(checked) => {
-                  if (!onRowSelectionChange) return;
-                  const newSelection = { ...rowSelection };
-                  if (checked) {
-                    filteredRows.forEach(row => {
-                      const doc = row.original;
-                      newSelection[doc.source_id] = true;
-                    });
-                  } else {
-                    filteredRows.forEach(row => {
-                      const doc = row.original;
-                      delete newSelection[doc.source_id];
-                    });
-                  }
-                  onRowSelectionChange(newSelection);
-                }}
-                aria-label="Select all filtered documents"
-              />
-            </div>
-          </div>
+          <SelectAllCheckbox
+            table={table}
+            rowSelection={rowSelection}
+            onRowSelectionChange={onRowSelectionChange}
+            getRowId={(doc) => doc.source_id}
+            align="right"
+          />
         );
       },
       cell: ({ row }) => {
         const doc = row.original;
         const isActive = activeDoc?.pipeline_id === doc.pipeline_id;
-        const isSelected = rowSelection?.[doc.source_id] === true;
         return (
           <div className="flex items-center space-x-2 justify-end">
             {/* {doc.status === PIPELINE_STATUS.FAILED && (
@@ -199,26 +173,13 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
             >
               <FaEye className={isActive ? "text-primary" : ""} />
             </Button>
-            {onRowSelectionChange && (
-              <div 
-                className="flex items-center"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={(checked) => {
-                    if (!onRowSelectionChange) return;
-                    const newSelection = { ...rowSelection };
-                    if (checked) {
-                      newSelection[doc.source_id] = true;
-                    } else {
-                      delete newSelection[doc.source_id];
-                    }
-                    onRowSelectionChange(newSelection);
-                  }}
-                  aria-label={`Select document ${doc.source_name}`}
-                />
-              </div>
+            {onRowSelectionChange && rowSelection && (
+              <RowSelectionCheckbox
+                rowId={doc.source_id}
+                rowSelection={rowSelection}
+                onRowSelectionChange={onRowSelectionChange}
+                ariaLabel={`Select document ${doc.source_name}`}
+              />
             )}
           </div>
         );

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useBulkDelete } from "@/hooks/useBulkDelete";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import StatusBar from "@/components/layout/StatusBar";
@@ -69,11 +70,27 @@ export default function SlackIntegration() {
   const [channelToDelete, setChannelToDelete] = useState<EmbedChannel | null>(null);
   const [activeEmbedding, setActiveEmbedding] = useState<Set<string>>(new Set());
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<{ open: boolean; count: number }>({ open: false, count: 0 });
-  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const {
+    bulkDeleteConfirm,
+    setBulkDeleteConfirm,
+    bulkDeleteLoading,
+    handleDeleteSelected: handleDeleteSelectedBase,
+    confirmBulkDelete: confirmBulkDeleteBase,
+  } = useBulkDelete({
+    deleteFunction: deleteSlackChannel,
+    queryKeys: ["embeddedSlackChannels", "embeddedSlackChannelsStats"],
+    itemName: "channel",
+    onSuccess: () => setRowSelection({}),
+    getError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete some channels.";
+      const apiError = (error as any)?.response?.data?.error;
+      return apiError || errorMessage;
+    },
+  });
 
   const hasActiveOperations = (channels: EmbedChannel[] | undefined) => {
     if (!channels || !Array.isArray(channels)) return false;
@@ -167,62 +184,12 @@ export default function SlackIntegration() {
     }
   };
 
-  const handleBulkDelete = async (channelIds: string[]) => {
-    try {
-      setBulkDeleteLoading(true);
-      // Delete all selected channels in parallel
-      await Promise.all(channelIds.map(id => deleteSlackChannel(id)));
-      
-      // Clear selection and refresh
-      setRowSelection({});
-      queryClient.invalidateQueries({ queryKey: ["embeddedSlackChannels"] });
-      queryClient.invalidateQueries({ queryKey: ["embeddedSlackChannelsStats"] });
-      
-      toast({
-        title: "✅ Channels Deleted Successfully",
-        description: `Successfully deleted ${channelIds.length} channel${channelIds.length > 1 ? 's' : ''}.`,
-        variant: "default",
-      });
-    } catch (error) {
-      console.error("Error deleting channels:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete some channels.";
-      const apiError = (error as any)?.response?.data?.error;
-      toast({
-        title: "❌ Bulk Deletion Failed",
-        description: `Unable to delete channels: ${apiError || errorMessage}`,
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setBulkDeleteLoading(false);
-      // Don't close modal here - let confirmBulkDelete handle it after success
-    }
-  };
-
   const handleDeleteSelected = () => {
-    const selectedIds = Object.keys(rowSelection);
-    if (selectedIds.length === 0) return;
-    setBulkDeleteConfirm({ 
-      open: true, 
-      count: selectedIds.length
-    });
+    handleDeleteSelectedBase(rowSelection);
   };
 
   const confirmBulkDelete = async () => {
-    try {
-      setBulkDeleteLoading(true);
-      // Delete selected channels
-      const idsToDelete = Object.keys(rowSelection);
-      
-      await handleBulkDelete(idsToDelete);
-      // Only close modal after successful deletion
-      setBulkDeleteConfirm({ open: false, count: 0 });
-    } catch (error) {
-      // Error already handled in handleBulkDelete - keep modal open on error
-      console.error("Bulk delete failed:", error);
-    } finally {
-      setBulkDeleteLoading(false);
-    }
+    await confirmBulkDeleteBase(rowSelection);
   };
 
   const selectedCount = Object.keys(rowSelection).length;

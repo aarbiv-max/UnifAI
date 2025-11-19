@@ -17,9 +17,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { isEmbeddingActivelyProcessing } from "../helpers";
-import { Checkbox } from "@/components/ui/checkbox";
 import { RowSelectionState } from "@tanstack/react-table";
+import { SelectAllCheckbox } from "@/components/shared/SelectAllCheckbox";
+import { RowSelectionCheckbox } from "@/components/shared/RowSelectionCheckbox";
 
 export function isChannelNew(createdAt: Date): boolean {
   const now = new Date()
@@ -313,65 +313,29 @@ export function getColumns(
   });
 
   // Add select column at the end if row selection is enabled
-  if (onRowSelectionChange) {
+  if (onRowSelectionChange && rowSelection) {
     columns.push({
       id: "select",
-      header: ({ table }) => {
-        const filteredRows = table.getFilteredRowModel().rows;
-        const isAllFilteredSelected = filteredRows.length > 0 && filteredRows.every(row => {
-          const ch = row.original;
-          return rowSelection?.[ch.channel_id];
-        });
-        
-        return (
-          <div 
-            className="flex items-center justify-center w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Checkbox
-              checked={isAllFilteredSelected}
-              onCheckedChange={(checked) => {
-                if (!onRowSelectionChange) return;
-                const newSelection = { ...rowSelection };
-                if (checked) {
-                  filteredRows.forEach(row => {
-                    const ch = row.original;
-                    newSelection[ch.channel_id] = true;
-                  });
-                } else {
-                  filteredRows.forEach(row => {
-                    const ch = row.original;
-                    delete newSelection[ch.channel_id];
-                  });
-                }
-                onRowSelectionChange(newSelection);
-              }}
-              aria-label="Select all filtered channels"
-            />
-          </div>
-        );
-      },
+      header: ({ table }) => (
+        <div className="flex items-center justify-center w-full">
+          <SelectAllCheckbox
+            table={table}
+            rowSelection={rowSelection}
+            onRowSelectionChange={onRowSelectionChange}
+            getRowId={(ch) => ch.channel_id}
+            align="center"
+          />
+        </div>
+      ),
       cell: ({ row }) => {
         const ch = row.original;
-        const isSelected = rowSelection?.[ch.channel_id] === true;
         return (
-          <div 
-            className="flex items-center justify-center w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={(checked) => {
-                if (!onRowSelectionChange) return;
-                const newSelection = { ...rowSelection };
-                if (checked) {
-                  newSelection[ch.channel_id] = true;
-                } else {
-                  delete newSelection[ch.channel_id];
-                }
-                onRowSelectionChange(newSelection);
-              }}
-              aria-label={`Select channel ${ch.name}`}
+          <div className="flex items-center justify-center w-full">
+            <RowSelectionCheckbox
+              rowId={ch.channel_id}
+              rowSelection={rowSelection}
+              onRowSelectionChange={onRowSelectionChange}
+              ariaLabel={`Select channel ${ch.name}`}
             />
           </div>
         );

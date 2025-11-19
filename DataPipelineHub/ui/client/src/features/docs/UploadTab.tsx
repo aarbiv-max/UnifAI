@@ -9,6 +9,8 @@ import { ProcessingOptions } from "./ProcessingOptions";
 import { embedDocs, uploadDocs, getSupportedFileExtensions } from "@/api/docs";
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from "@/hooks/use-toast";
+import { validateFiles, formatFileSizeErrors, formatExtensionErrors, MAX_FILE_SIZE_MB } from "@/utils/fileValidation";
+import { formatPipelineError } from "@/utils/errorFormatting";
 
 interface UploadTabProps {
     setShowUploadModal: (showUploadModal: boolean) => void;
@@ -44,34 +46,6 @@ export const UploadTab: React.FC<UploadTabProps> = ({
         return supportedExtensions.includes(extension);
     };
     
-    const MAX_FILE_SIZE_MB = 50;
-    const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024; // 50 MB in bytes
-
-    const validateFiles = (files: FileList): { validFiles: File[], invalidFiles: string[], sizeErrors: string[] } => {
-        const validFiles: File[] = [];
-        const invalidFiles: string[] = [];
-        const sizeErrors: string[] = [];
-        
-        Array.from(files).forEach(file => {
-            // Check file extension
-            if (!isFileExtensionSupported(file.name)) {
-                invalidFiles.push(file.name);
-                return;
-            }
-            
-            // Check file size
-            if (file.size > MAX_FILE_SIZE_BYTES) {
-                const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
-                sizeErrors.push(`${file.name} (${fileSizeMB} MB)`);
-                return;
-            }
-            
-            validFiles.push(file);
-        });
-        
-        return { validFiles, invalidFiles, sizeErrors };
-    };
-    
     const handleDragEnter = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(true);
@@ -93,19 +67,16 @@ export const UploadTab: React.FC<UploadTabProps> = ({
     };
 
     const handleFiles = (files: FileList) => {
-        const { validFiles, invalidFiles, sizeErrors } = validateFiles(files);
+        const { validFiles, invalidFiles, sizeErrors } = validateFiles(files, isFileExtensionSupported);
         
         const errorMessages: string[] = [];
         
         if (invalidFiles.length > 0) {
-            const invalidExtensions = Array.from(new Set(invalidFiles.map(file => 
-                file.substring(file.lastIndexOf('.')).toLowerCase()
-            )));
-            errorMessages.push(`The following file extensions are not supported: ${invalidExtensions.join(', ')}. These files will be ignored.`);
+            errorMessages.push(formatExtensionErrors(invalidFiles));
         }
         
         if (sizeErrors.length > 0) {
-            errorMessages.push(`The following files exceed the maximum size of ${MAX_FILE_SIZE_MB} MB: ${sizeErrors.join(', ')}. These files will be ignored.`);
+            errorMessages.push(formatFileSizeErrors(sizeErrors));
         }
         
         if (errorMessages.length > 0) {
@@ -190,33 +161,8 @@ export const UploadTab: React.FC<UploadTabProps> = ({
             if (issues.length > 0) {
                 // Backend provides: { doc_name, issue_type, message }
                 issues.forEach((issue: any) => {
-                    const issueType = String(issue.issue_type || "");
-                    const message = String(issue.message || "");
-                    const docName = String(issue.doc_name || "");
-                    const titleText = issueType ? issueType.toUpperCase() : "Upload issue";
+                    const { title: titleText, description } = formatPipelineError(issue);
                     
-                    // Format description with document name and error message
-                    let description = "";
-                    if (docName) {
-                        description = `Document "${docName}"`;
-                    }
-                    if (message) {
-                        // Check if message contains file size error
-                        if (message.toLowerCase().includes("file size") || message.toLowerCase().includes("exceeds maximum")) {
-                            // Extract file size and max size from message if available
-                            const sizeMatch = message.match(/File size \(([\d.]+) MB\) exceeds maximum allowed size \(([\d.]+) MB\)/i);
-                            if (sizeMatch) {
-                                const [, fileSize, maxSize] = sizeMatch;
-                                description = `${description ? description + " " : ""}embedding failed: file size (${fileSize} MB) exceeds the allowed size (${maxSize} MB).`;
-                            } else {
-                                description = `${description ? description + " " : ""}embedding failed: ${message}`;
-                            }
-                        } else {
-                            description = `${description ? description + " " : ""}${message}`;
-                        }
-                    }
-
-                    const isDuplicate = issueType.toLowerCase().includes("dup")
                     const title: React.ReactNode = (
                         <span className="inline-flex items-center gap-2">
                             <CircleX className="h-4 w-4 text-red-500" />
@@ -227,7 +173,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                     toast({
                         variant: "destructive",
                         title,
-                        description: description || "An error occurred during embedding.",
+                        description,
                     });
                 });
             }

@@ -16,6 +16,7 @@ import { RowSelectionState } from "@tanstack/react-table";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
 import { isEmbeddingActivelyProcessing } from "@/features/helpers";
+import { useBulkDelete } from "@/hooks/useBulkDelete";
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -27,10 +28,21 @@ export default function Documents() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<{ open: boolean; count: number }>({ open: false, count: 0 });
-  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const {
+    bulkDeleteConfirm,
+    setBulkDeleteConfirm,
+    bulkDeleteLoading,
+    handleDeleteSelected: handleDeleteSelectedBase,
+    confirmBulkDelete: confirmBulkDeleteBase,
+  } = useBulkDelete({
+    deleteFunction: deleteDoc,
+    queryKeys: ['documents'],
+    itemName: 'document',
+    onSuccess: () => setRowSelection({}),
+  });
 
   const { currentPage, setPage, resetPage, itemsPerPage, } = usePaginationStore();
 
@@ -124,20 +136,11 @@ export default function Documents() {
 
   const selectedCount = Object.keys(rowSelection).length;
 
-  const handleDeleteSelected = () => {
-    const selectedIds = Object.keys(rowSelection);
-    if (selectedIds.length === 0) return;
-    setBulkDeleteConfirm({ 
-      open: true, 
-      count: selectedIds.length
-    });
-  };
-
   const viewButtons = (
     <div className="flex items-center space-x-4">
       <Button
         variant="destructive"
-        onClick={handleDeleteSelected}
+        onClick={() => {handleDeleteSelectedBase(rowSelection)}}
         disabled={bulkDeleteLoading || deleteLoading || selectedCount === 0}
       >
         <FaTrash className="mr-2 h-3 w-3" />
@@ -188,50 +191,8 @@ export default function Documents() {
     }
   };
 
-  const handleBulkDelete = async (ids: string[]) => {
-    try {
-      setBulkDeleteLoading(true);
-      // Delete all selected documents in parallel
-      await Promise.all(ids.map(id => deleteDoc(id)));
-      
-      // Clear selection and refresh
-      setRowSelection({});
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
-      
-      toast({
-        title: "✅ Documents Deleted",
-        description: `Successfully deleted ${ids.length} document${ids.length > 1 ? 's' : ''}.`,
-        variant: "default",
-      });
-    } catch (error) {
-      console.error("Error deleting documents:", error);
-      toast({
-        title: "❌ Bulk Deletion Failed",
-        description: error instanceof Error ? error.message : "Failed to delete some documents.",
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setBulkDeleteLoading(false);
-      // Don't close modal here - let confirmBulkDelete handle it after success
-    }
-  };
-
   const confirmBulkDelete = async () => {
-    try {
-      setBulkDeleteLoading(true);
-      // Delete selected documents
-      const idsToDelete = Object.keys(rowSelection);
-      
-      await handleBulkDelete(idsToDelete);
-      // Only close modal after successful deletion
-      setBulkDeleteConfirm({ open: false, count: 0 });
-    } catch (error) {
-      // Error already handled in handleBulkDelete - keep modal open on error
-      console.error("Bulk delete failed:", error);
-    } finally {
-      setBulkDeleteLoading(false);
-    }
+    await confirmBulkDeleteBase(rowSelection);
   };
 
   const handleRetry = async (id: string) => {
