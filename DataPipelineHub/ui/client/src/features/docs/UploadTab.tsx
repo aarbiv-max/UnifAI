@@ -12,7 +12,7 @@ import { toast } from "@/hooks/use-toast";
 
 interface UploadTabProps {
     setShowUploadModal: (showUploadModal: boolean) => void;
-    fetchDocuments: any;
+    fetchDocuments: () => Promise<any>;
 }
 
 export const UploadTab: React.FC<UploadTabProps> = ({
@@ -137,6 +137,8 @@ export const UploadTab: React.FC<UploadTabProps> = ({
             }
 
             setIsUploading(false);
+            // Refetch documents immediately after upload to show new documents
+            await fetchDocuments();
             setShowUploadModal(false);
         } catch (err) {
             console.error("Upload failed", err);
@@ -216,6 +218,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
         }
         const docs = selectedFiles.map((file) => ({source_name: file.name}));
         await startPipeline(docs);
+        // Refetch documents immediately after pipeline starts to show new documents
         await fetchDocuments();
         setSelectedFiles([]);
     };

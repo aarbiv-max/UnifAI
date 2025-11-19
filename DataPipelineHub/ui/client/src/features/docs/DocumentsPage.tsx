@@ -15,6 +15,7 @@ import { deleteDoc, fetchDocuments } from "@/api/docs";
 import { RowSelectionState } from "@tanstack/react-table";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
+import { isEmbeddingActivelyProcessing } from "@/features/helpers";
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -33,23 +34,35 @@ export default function Documents() {
 
   const { currentPage, setPage, resetPage, itemsPerPage, } = usePaginationStore();
 
+  const hasActiveOperations = (docs: Document[] | undefined) => {
+    if (!docs || !Array.isArray(docs)) return false;
+    return docs.some(doc => isEmbeddingActivelyProcessing(doc));
+  };
+
   const { data: documents = [], isLoading, isError, error, refetch } = useQuery<Document[]>({
     queryKey: ['documents'],
     queryFn: fetchDocuments,
-    staleTime: 15 * 1000, // Consider data fresh for 15 seconds
+    staleTime: 15 * 1000,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
-    refetchInterval: false, // Disable automatic polling - only refetch when needed
+    refetchInterval: (query) => {
+      const data = query.state.data as Document[] | undefined;
+      const hasActive = hasActiveOperations(data);
+      return hasActive ? 5000 : false;
+    },
   });
 
   useEffect(() => {
     resetPage();
   }, []);
 
-  // Invalidate queries when upload modal closes to refresh the list
+  // Refetch documents immediately when upload modal closes to show new documents
   useEffect(() => {
     if (!showUploadModal) {
-      queryClient.invalidateQueries({ queryKey: ['documents'] });
+      // Force immediate refetch to show newly uploaded documents
+      queryClient.refetchQueries({ queryKey: ['documents'] });
+      // Also switch to list view to show the documents
+      setViewMode("list");
     }
   }, [showUploadModal, queryClient]);
 
@@ -242,7 +255,7 @@ export default function Documents() {
 
         <div className="flex-1 overflow-auto px-6 pb-6">
           {showUploadModal ? (
-            <UploadTab setShowUploadModal={setShowUploadModal} fetchDocuments={fetchDocuments} />
+            <UploadTab setShowUploadModal={setShowUploadModal} fetchDocuments={refetch} />
           ) : (
             <div className="mt-6">
               {isLoading ? (
