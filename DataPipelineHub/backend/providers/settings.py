@@ -1,7 +1,6 @@
 import requests
 from config.app_config import AppConfig
 from shared.logger import logger
-from flask import jsonify
 import umami
 
 
@@ -19,8 +18,8 @@ def get_umami_settings(website_name: str = "unifai"):
         websites = umami.websites()
         website_info = next(w for w in websites if w.name == umami_website_name)
         website_id = website_info.id
-        return jsonify({"umami_url": umami_url, "website_id": website_id}), 200
+        return {"umami_url": umami_url, "website_id": website_id}
     except Exception as e:
         logger.error(f"Failed to get Umami website ID: {website_name}: {e}")
-        return jsonify({"error": str(e)}), 500
+        raise
 
