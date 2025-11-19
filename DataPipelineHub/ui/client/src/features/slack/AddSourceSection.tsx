@@ -1,4 +1,5 @@
 import React, { FC, useState, useMemo, useCallback, forwardRef, useImperativeHandle, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FaSearch, FaSpinner } from 'react-icons/fa';
 import { HiOutlineLockClosed } from 'react-icons/hi';
@@ -6,6 +7,7 @@ import { HiOutlineLockClosed } from 'react-icons/hi';
 import { fetchAvailableSlackChannels, fetchEmbeddedSlackChannels, PaginatedChannelsResponse } from '@/api/slack';
 import type { EmbedChannel, Channel } from '@/types';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -80,9 +82,11 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
   const [lastSelectedChannel, setLastSelectedChannel] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
 
   // Debounced search effect
   useEffect(() => {
+    
     // Clear existing timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -384,6 +388,7 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
   return (
     <Card className="bg-background-card shadow-card border-gray-800">
       <CardContent className="p-4 space-y-4">
+        
         <h3 className="text-lg font-semibold">Channel Selection</h3>
 
         <div className="flex items-center justify-between">
@@ -458,6 +463,7 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
           )}
         </div>
 
+        <TooltipProvider>
         <div 
           ref={scrollContainerRef}
           className="border border-gray-800 rounded-md h-48 overflow-y-auto bg-background-dark"
@@ -484,11 +490,12 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
           {filteredChannels.map(c => {
             const isEmbedded = isChannelEmbedded(c);
             const uniqueId = getChannelUniqueId(c);
+            const notMember = c.is_app_member === false || c.is_app_member === null;
             return (
               <div 
                 key={uniqueId} 
                 className={`flex items-center justify-between p-3 border-b border-gray-800 ${
-                  isEmbedded ? 'opacity-60 cursor-not-allowed' : 'hover:bg-background-surface cursor-pointer'
+                  (isEmbedded) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-background-surface cursor-pointer'
                 }`}
                 onClick={() => !isEmbedded && handleToggleChannel(c)}
               >
@@ -536,6 +543,7 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
             </div>
           )}
         </div>
+        </TooltipProvider>
 
         <div className="flex justify-between items-center">
           <span className="text-sm">{selectedChannels.length} channel{selectedChannels.length !== 1 && 's'} selected</span>
