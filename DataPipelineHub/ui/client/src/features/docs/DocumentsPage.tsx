@@ -5,7 +5,7 @@ import { Document } from "@/types";
 import { UploadTab } from "./UploadTab";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePaginationStore } from "@/stores/usePaginationStore";
 import { DocumentFilters } from "./DocumentFilters";
 import { DocumentTable } from "./DocumentsTable";
@@ -22,24 +22,29 @@ export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const queryClient = useQueryClient();
 
   const { currentPage, setPage, resetPage, itemsPerPage, } = usePaginationStore();
 
-  const { data: documents = [], isLoading, isError, error } = useQuery<Document[]>({
+  const { data: documents = [], isLoading, isError, error, refetch } = useQuery<Document[]>({
     queryKey: ['documents'],
     queryFn: fetchDocuments,
-    refetchInterval: 10000,
-    refetchOnMount: true, 
-    refetchOnWindowFocus: true, 
+    staleTime: 15 * 1000, // Consider data fresh for 15 seconds
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: false, // Disable automatic polling - only refetch when needed
   });
 
   useEffect(() => {
     resetPage();
   }, []);
 
+  // Invalidate queries when upload modal closes to refresh the list
   useEffect(() => {
-    fetchDocuments();
-  }, [showUploadModal, activeDoc])
+    if (!showUploadModal) {
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    }
+  }, [showUploadModal, queryClient]);
 
   const filteredDocuments = documents.filter((doc) => {
     const matchesType = fileTypeFilter === "all" || doc.type_data.file_type === fileTypeFilter;
@@ -118,8 +123,11 @@ export default function Documents() {
     try {
       setDeleteLoading(true);
       await deleteDoc(source_id);
+      // Invalidate queries to refresh the list after successful deletion
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
     } catch (error) {
       console.error("Error deleting document:", error);
+      throw error; // Re-throw to let the modal handle the error state
     } finally {
       setDeleteLoading(false);
       setActiveDoc(null);
@@ -178,7 +186,7 @@ export default function Documents() {
                       <>
                         <div className="w-full">
                           <DocumentTable
-                            documents={documents}
+                            documents={filteredDocuments}
                             activeDoc={activeDoc}
                             setActiveDoc={setActiveDoc}
                             deleteLoading={deleteLoading}

@@ -195,9 +195,11 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({documents, activeDo
             try {
               setConfirmLoading(true);
               await onDeleteConfirmed?.(confirmDoc.source_id);
+              // Only close modal after successful deletion
               setConfirmDoc(null);
             } catch (err) {
               console.error("Delete failed:", err);
+              // Keep modal open on error so user can see the issue
             } finally {
               setConfirmLoading(false);
             }

@@ -104,7 +104,7 @@ def delete_data_source(source_id: str):
             }
         }
     except Exception as e:
-        logger.error(f"Failed to delete channel {source_id}: {e}")
+        logger.error(f"Failed to delete source {source_id}: {e}")
         raise e
 
 def get_data_source_by_id(pipeline_id: str, source_type: str = None):
