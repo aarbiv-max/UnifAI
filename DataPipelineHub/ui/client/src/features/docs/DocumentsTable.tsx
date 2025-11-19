@@ -10,6 +10,7 @@ import { DocumentData } from "./DocumentData";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { RowSelectionState } from "@tanstack/react-table";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface DocumentTableProps {
   documents: Document[];
@@ -37,7 +38,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
   const [confirmDoc, setConfirmDoc] = useState<Document | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
-  const columns: DataTableColumn<Document>[] = [
+  const columns: DataTableColumn<Document>[] = React.useMemo(() => [
     {
       accessorKey: "source_name",
       header: "Name",
@@ -135,10 +136,48 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
     },
     {
       id: "actions",
-      header: "",
+      header: ({ table }) => {
+        if (!onRowSelectionChange) return "";
+        const filteredRows = table.getFilteredRowModel().rows;
+        const isAllFilteredSelected = filteredRows.length > 0 && filteredRows.every(row => {
+          const doc = row.original;
+          return rowSelection?.[doc.source_id];
+        });
+        
+        return (
+          <div className="flex items-center justify-end">
+            <div 
+              className="flex items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Checkbox
+                checked={isAllFilteredSelected}
+                onCheckedChange={(checked) => {
+                  if (!onRowSelectionChange) return;
+                  const newSelection = { ...rowSelection };
+                  if (checked) {
+                    filteredRows.forEach(row => {
+                      const doc = row.original;
+                      newSelection[doc.source_id] = true;
+                    });
+                  } else {
+                    filteredRows.forEach(row => {
+                      const doc = row.original;
+                      delete newSelection[doc.source_id];
+                    });
+                  }
+                  onRowSelectionChange(newSelection);
+                }}
+                aria-label="Select all filtered documents"
+              />
+            </div>
+          </div>
+        );
+      },
       cell: ({ row }) => {
         const doc = row.original;
         const isActive = activeDoc?.pipeline_id === doc.pipeline_id;
+        const isSelected = rowSelection?.[doc.source_id] === true;
         return (
           <div className="flex items-center space-x-2 justify-end">
             {/* {doc.status === PIPELINE_STATUS.FAILED && (
@@ -160,24 +199,33 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
             >
               <FaEye className={isActive ? "text-primary" : ""} />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 p-0"
-              onClick={() => {
-                setConfirmDoc(doc);
-                setConfirmLoading(false);
-              }}
-              disabled={deleteLoading || confirmLoading}
-            >
-              <FaTrash className="h-3 w-3" />
-            </Button>
+            {onRowSelectionChange && (
+              <div 
+                className="flex items-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={(checked) => {
+                    if (!onRowSelectionChange) return;
+                    const newSelection = { ...rowSelection };
+                    if (checked) {
+                      newSelection[doc.source_id] = true;
+                    } else {
+                      delete newSelection[doc.source_id];
+                    }
+                    onRowSelectionChange(newSelection);
+                  }}
+                  aria-label={`Select document ${doc.source_name}`}
+                />
+              </div>
+            )}
           </div>
         );
       },
       meta: { align: "right" },
     },
-  ];
+  ], [activeDoc, setActiveDoc, rowSelection, onRowSelectionChange]);
 
   return (
     <div className="w-full">
@@ -187,9 +235,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
         enableGlobalFilter={false}
         enableColumnFilters={true}
         enablePagination={true}
-        enableRowSelection={true}
-        rowSelection={rowSelection}
-        onRowSelectionChange={onRowSelectionChange}
+        enableRowSelection={false}
         getRowId={(row) => row.source_id}
         initialState={{
           pagination: { pageIndex: 0, pageSize: 15 }

@@ -355,16 +355,14 @@ export default function SlackIntegration() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-foreground">System Statistics</h3>
               <div className="flex items-center space-x-3">
-                {selectedCount > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={handleDeleteSelected}
-                    disabled={bulkDeleteLoading || !!deletingChannelId}
-                  >
-                    <FaTrash className="mr-2 h-3 w-3" />
-                    Delete {selectedCount} Selected
-                  </Button>
-                )}
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteSelected}
+                  disabled={bulkDeleteLoading || !!deletingChannelId || selectedCount === 0}
+                >
+                  <FaTrash className="mr-2 h-3 w-3" />
+                  Delete {selectedCount} Selected
+                </Button>
                 {(() => {
                   const activeCount = Array.isArray(embedChannels)
                     ? embedChannels.filter((c) => isEmbeddingActivelyProcessing(c)).length

@@ -8,7 +8,7 @@ import { StatusBadge } from "./StatusBadge";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export interface CardAction {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   onClick: () => void;
   confirm?: {
     title: string;
@@ -18,6 +18,9 @@ export interface CardAction {
     onConfirm: () => Promise<void>;
     loading?: boolean;
   };
+  isCheckbox?: boolean;
+  checked?: boolean;
+  onCheckboxChange?: (checked: boolean) => void;
 }
 
 interface DataCardProps {
@@ -80,20 +83,6 @@ export const DataCard: React.FC<DataCardProps> = ({
         {/* Icon + Title/Subtitle */}
         <div className="flex items-start justify-between">
           <div className="flex items-start">
-            {showCheckbox && (
-              <div 
-                className="mr-2 mt-1"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Checkbox
-                  checked={checkboxChecked}
-                  onCheckedChange={(checked) => {
-                    onCheckboxChange?.(checked === true);
-                  }}
-                  aria-label="Select card"
-                />
-              </div>
-            )}
             {(icon || iconRenderer) && (
               <div className={`mr-3 p-2 rounded-md shrink-0 ${iconBgClass}`}>
                 {icon || (iconRenderer && iconRenderer())}
@@ -129,25 +118,43 @@ export const DataCard: React.FC<DataCardProps> = ({
             {footer && <div className="text-gray-400">{footer}</div>}
             {actions.length > 0 && (
               <div className="flex items-center space-x-2">
-                {actions.map((action, idx) => (
-                  <Button
-                    key={idx}
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (action.confirm) {
-                        setConfirmAction(action);
-                        setConfirmLoading(false);
-                      } else {
-                        action.onClick();
-                      }
-                    }}
-                  >
-                    {action.icon}
-                  </Button>
-                ))}
+                {actions.map((action, idx) => {
+                  if (action.isCheckbox) {
+                    return (
+                      <div
+                        key={idx}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Checkbox
+                          checked={action.checked || false}
+                          onCheckedChange={(checked) => {
+                            action.onCheckboxChange?.(checked === true);
+                          }}
+                          aria-label="Select card"
+                        />
+                      </div>
+                    );
+                  }
+                  return (
+                    <Button
+                      key={idx}
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (action.confirm) {
+                          setConfirmAction(action);
+                          setConfirmLoading(false);
+                        } else {
+                          action.onClick();
+                        }
+                      }}
+                    >
+                      {action.icon}
+                    </Button>
+                  );
+                })}
               </div>
             )}
           </div>

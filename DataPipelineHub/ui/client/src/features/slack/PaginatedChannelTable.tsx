@@ -106,14 +106,12 @@ export function PaginatedChannelTable({
               [&_tbody_tr]:!border-b-[0.5px] [&_tbody_tr]:!border-gray-500/15"
           >
             <DataTable
-              columns={getColumns(onSettingsClick, onDeleteClick, deletingChannelId, activeEmbeddingIds)}
+              columns={getColumns(onSettingsClick, onDeleteClick, deletingChannelId, activeEmbeddingIds, rowSelection, onRowSelectionChange)}
               data={allChannels}
               enableSorting={true}
               enableColumnFilters={true}
               enablePagination={true}
-              enableRowSelection={true}
-              rowSelection={rowSelection}
-              onRowSelectionChange={onRowSelectionChange}
+              enableRowSelection={false}
               getRowId={(row) => row.channel_id}
               initialState={{
                 pagination: { pageIndex: 0, pageSize: 8 },

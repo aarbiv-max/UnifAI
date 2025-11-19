@@ -52,27 +52,38 @@ const getActions = (
   doc: Document,
   activeDoc: Document | null,
   setActiveDoc: (doc: Document | null) => void,
-  deleteLoading: boolean,
-  onDeleteConfirmed: (id: string) => void
-) => [
-  {
-    icon: <FaEye />,
-    onClick: () => setActiveDoc(doc === activeDoc ? null : doc),
-  },
-  {
-    icon: <FaTrash className="h-3 w-3" />,
-    onClick: () => {},
-    confirm: {
-      title: "Delete Document",
-      message: `Are you sure you want to delete "${doc.source_name}"?`,
-      onConfirm: async () => {
-        await onDeleteConfirmed(doc.source_id);
-      },
-      loading: deleteLoading,
-      confirmLabel: "Yes, Delete",
+  rowSelection: RowSelectionState,
+  onRowSelectionChange?: (selection: RowSelectionState) => void
+) => {
+  const actions = [
+    {
+      icon: <FaEye />,
+      onClick: () => setActiveDoc(doc === activeDoc ? null : doc),
     },
-  },
-];
+  ];
+
+  // Add checkbox action if selection is enabled
+  if (onRowSelectionChange) {
+    const isSelected = rowSelection[doc.source_id] === true;
+    actions.push({
+      icon: null, // Will be replaced with checkbox
+      onClick: () => {},
+      isCheckbox: true,
+      checked: isSelected,
+      onCheckboxChange: (checked: boolean) => {
+        const newSelection = { ...rowSelection };
+        if (checked) {
+          newSelection[doc.source_id] = true;
+        } else {
+          delete newSelection[doc.source_id];
+        }
+        onRowSelectionChange(newSelection);
+      },
+    } as any);
+  }
+
+  return actions;
+};
 
 export const DocumentGrid = ({
   paginatedDocuments, 
@@ -86,17 +97,6 @@ export const DocumentGrid = ({
   rowSelection = {},
   onRowSelectionChange
 }: DocumentGridProps) => {
-  const handleCardCheckboxChange = (docId: string, checked: boolean) => {
-    if (!onRowSelectionChange) return;
-    const newSelection = { ...rowSelection };
-    if (checked) {
-      newSelection[docId] = true;
-    } else {
-      delete newSelection[docId];
-    }
-    onRowSelectionChange(newSelection);
-  };
-
   return (
     <>
       <div className="p-6">
@@ -117,11 +117,9 @@ export const DocumentGrid = ({
                 }
                 selected={doc === activeDoc}
                 onClick={() => setActiveDoc(doc === activeDoc ? null : doc)}
-                showCheckbox={!!onRowSelectionChange}
-                checkboxChecked={rowSelection[doc.source_id] === true}
-                onCheckboxChange={(checked) => handleCardCheckboxChange(doc.source_id, checked)}
+                showCheckbox={false}
                 // extraTopRight={getExtraTopRight(doc, handleRetry, retrying)}
-                actions={getActions(doc, activeDoc, setActiveDoc, deleteLoading, onDeleteConfirmed)}
+                actions={getActions(doc, activeDoc, setActiveDoc, rowSelection, onRowSelectionChange)}
               />
             ))}
           </div>
