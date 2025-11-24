@@ -13,7 +13,7 @@ import {
   ElementSchema,
   ElementInstance,
 } from "../../../types/workspace";
-import { useWorkspaceData } from "../../../hooks/useWorkspaceData";
+import { useWorkspaceData } from "../../../hooks/use-workspace-data";
 import { FieldRenderer } from "./FieldRenderer";
 
 interface ElementFormProps {

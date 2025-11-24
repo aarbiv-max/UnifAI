@@ -7,7 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { CategorySidebar } from '../components/agentic-ai/workspace/CategorySidebar';
 import { ElementGrid } from '../components/agentic-ai/workspace/ElementGrid';
 import { ElementForm } from '../components/agentic-ai/workspace/ElementForm';
-import { useWorkspaceData } from '../hooks/useWorkspaceData';
+import { useWorkspaceData } from '../hooks/use-workspace-data';
 import { ElementType, ElementInstance } from '../types/workspace';
 
 export default function UserWorkspace() {

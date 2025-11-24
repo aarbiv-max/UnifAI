@@ -27,7 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useStreamingData } from "../StreamingDataContext";
 import { BuildingBlock } from "../../../types/graph";
 import InnerRefElement from "./InnerRefElement";
-import { useWorkspaceData } from "../../../hooks/useWorkspaceData";
+import { useWorkspaceData } from "../../../hooks/use-workspace-data";
 import axios from "../../../http/axiosAgentConfig";
 
 // Node status enum

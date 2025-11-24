@@ -182,13 +182,13 @@ The application uses a **nested provider pattern** to manage global state:
 - **AuthProvider**: User authentication, session handling
 - **NotificationProvider**: Share invites, periodic polling (30s), notification counts
 - **SharedProvider**: Shared panel visibility state
-- **ProjectContext**: Current project selection
+- **ProjectContext**: Current project selection (not fully implemented)
 
 ### 2. **Multi-Backend API Architecture**
 
 The system communicates with **3 separate backends** via Vite proxy configuration:
 
-| Proxy Path | Backend Service | Purpose | Base URL |
+| Proxy Path | Backend Service | Purpose | Port |
 |------------|----------------|---------|----------|
 | `/api1` | Data Pipeline Hub | Document/Slack pipelines, embeddings | Port 13457 |
 | `/api2` | Multi-Agent System | Agentic workflows, sessions, blueprints | Port 8002 |
@@ -196,6 +196,13 @@ The system communicates with **3 separate backends** via Vite proxy configuratio
 
 **HTTP Client Configuration:**
 ```typescript
+// api1 - RAG System (main application backend)
+const axiosBEConfig = axios.create({
+  baseURL: '/api1',
+  timeout: 20000, // 20 seconds
+  withCredentials: true, // Important: This ensures cookies are sent with requests
+});
+
 // api2 - Multi-Agent System (main agentic AI backend)
 const axiosAgentConfig = axios.create({
   baseURL: '/api2',
@@ -1712,4 +1719,5 @@ For questions about this architecture document or UI conventions:
 **Document Version:** 1.0  
 **Last Updated:** November 23, 2025  
 **Maintainer:** UnifAI Development Team
+
 
