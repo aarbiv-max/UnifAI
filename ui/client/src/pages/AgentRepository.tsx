@@ -4,10 +4,10 @@ import Header from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import { Plus, Info } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { CategorySidebar } from '../components/agentic-ai/workspace/CategorySidebar';
 import { ElementGrid } from '../components/agentic-ai/workspace/ElementGrid';
 import { ElementForm } from '../components/agentic-ai/workspace/ElementForm';
-import { useWorkspaceData } from '../hooks/useWorkspaceData';
 import { ElementType, ElementInstance } from '../types/workspace';
 import { useAuth } from "@/contexts/AuthContext";
 

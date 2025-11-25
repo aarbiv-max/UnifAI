@@ -7,13 +7,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { Button } from "@/components/ui/button";
 import {
   ElementType,
   ElementSchema,
   ElementInstance,
 } from "../../../types/workspace";
-import { useWorkspaceData } from "../../../hooks/useWorkspaceData";
 import { FieldRenderer } from "./FieldRenderer";
 import { useAuth } from "@/contexts/AuthContext";
 
