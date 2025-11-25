@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -14,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldValidation } from "./FieldValidation";
 import { FieldPopulation } from "./FieldPopulation";
+import { ElementMetadata } from "./ElementMetadata";
 import { ElementType } from "../../../types/workspace";
 import { maskSecretValue } from "../../../utils/maskSecretFields";
 
@@ -125,14 +125,15 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
 
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName}>
-          {fieldName} {isRequired && <span className="text-red-400">*</span>}
-          {category && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              {category}
-            </Badge>
-          )}
-        </Label>
+        <ElementMetadata
+          fieldName={fieldName}
+          fieldSchema={fieldSchema}
+          isRequired={isRequired}
+          fieldType={fieldType}
+          validationHint={validationHint}
+          populateHint={populateHint}
+          category={category}
+        />
         <div className="space-y-2">
           <Select
             value=""
@@ -196,9 +197,6 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             </div>
           )}
         </div>
-        {fieldSchema.description && (
-          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-        )}
       </div>
     );
   }
@@ -219,14 +217,15 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
 
       return (
         <div key={fieldName} className="space-y-2">
-          <Label htmlFor={fieldName}>
-            {fieldName} {isRequired && <span className="text-red-400">*</span>}
-            {category && (
-              <Badge variant="outline" className="ml-2 text-xs">
-                {category}
-              </Badge>
-            )}
-          </Label>
+          <ElementMetadata
+            fieldName={fieldName}
+            fieldSchema={fieldSchema}
+            isRequired={isRequired}
+            fieldType={fieldType}
+            validationHint={validationHint}
+            populateHint={populateHint}
+            category={category}
+          />
           <Select
             value={value && value !== "" ? value : undefined}
             onValueChange={(newValue) => {
@@ -249,10 +248,6 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               )}
             </SelectContent>
           </Select>
-
-          {fieldSchema.description && (
-            <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-          )}
         </div>
       );
     }
@@ -262,9 +257,14 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   if (fieldSchema.type === "object") {
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName}>
-          {fieldName} {isRequired && <span className="text-red-400">*</span>}
-        </Label>
+        <ElementMetadata
+          fieldName={fieldName}
+          fieldSchema={fieldSchema}
+          isRequired={isRequired}
+          fieldType={fieldType}
+          validationHint={validationHint}
+          populateHint={populateHint}
+        />
         <Textarea
           id={fieldName}
           value={
@@ -283,9 +283,6 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           className="bg-background-dark resize-none font-mono text-sm"
           placeholder="Enter JSON object (e.g., {})"
         />
-        {fieldSchema.description && (
-          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-        )}
       </div>
     );
   }
@@ -302,9 +299,14 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
 
     return (
       <div key={fieldName} className="space-y-2">
-        <Label>
-          {fieldName} {isRequired && <span className="text-red-400">*</span>}
-        </Label>
+        <ElementMetadata
+          fieldName={fieldName}
+          fieldSchema={fieldSchema}
+          isRequired={isRequired}
+          fieldType={fieldType}
+          validationHint={validationHint}
+          populateHint={populateHint}
+        />
         <div className="space-y-2">
           {(value || []).map((item: any, index: number) => (
             <div key={index} className="flex gap-2">
@@ -333,9 +335,6 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             Add {fieldName}
           </Button>
         </div>
-        {fieldSchema.description && (
-          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-        )}
       </div>
     );
   }
@@ -350,14 +349,17 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             checked={value}
             onCheckedChange={(checked) => onInputChange(fieldName, checked)}
           />
-          <Label htmlFor={fieldName}>
-            {fieldName}{" "}
-            {isRequired && <span className="text-red-400">*</span>}
-          </Label>
+          <ElementMetadata
+            fieldName={fieldName}
+            fieldSchema={fieldSchema}
+            isRequired={isRequired}
+            fieldType={fieldType}
+            validationHint={validationHint}
+            populateHint={populateHint}
+            htmlFor={fieldName}
+            labelClassName="cursor-pointer"
+          />
         </div>
-        {fieldSchema.description && (
-          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-        )}
       </div>
     );
   }
@@ -375,9 +377,14 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   if (isNumberField) {
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName}>
-          {fieldName} {isRequired && <span className="text-red-400">*</span>}
-        </Label>
+        <ElementMetadata
+          fieldName={fieldName}
+          fieldSchema={fieldSchema}
+          isRequired={isRequired}
+          fieldType={fieldType}
+          validationHint={validationHint}
+          populateHint={populateHint}
+        />
         <Input
           id={fieldName}
           type="number"
@@ -390,9 +397,6 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           className="bg-background-dark"
           placeholder={fieldSchema.description}
         />
-        {fieldSchema.description && (
-          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-        )}
       </div>
     );
   }
@@ -405,24 +409,14 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   ) {
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName}>
-          {fieldName} {isRequired && <span className="text-red-400">*</span>}
-          {isSecret && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              secret
-            </Badge>
-          )}
-          {validationHint && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              validation
-            </Badge>
-          )}
-          {populateHint && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              populate
-            </Badge>
-          )}
-        </Label>
+        <ElementMetadata
+          fieldName={fieldName}
+          fieldSchema={fieldSchema}
+          isRequired={isRequired}
+          fieldType={fieldType}
+          validationHint={validationHint}
+          populateHint={populateHint}
+        />
         <Textarea
           id={fieldName}
           value={value}
@@ -453,9 +447,6 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             onPopulateResult={onPopulateResult}
           />
         )}
-        {fieldSchema.description && (
-          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-        )}
       </div>
     );
   }
@@ -465,24 +456,14 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
 
   return (
     <div key={fieldName} className="space-y-2">
-      <Label htmlFor={fieldName}>
-        {fieldName} {isRequired && <span className="text-red-400">*</span>}
-        {isSecret && (
-          <Badge variant="outline" className="ml-2 text-xs">
-            secret
-          </Badge>
-        )}
-        {validationHint && (
-          <Badge variant="outline" className="ml-2 text-xs">
-            validation
-          </Badge>
-        )}
-        {populateHint && (
-          <Badge variant="outline" className="ml-2 text-xs">
-            populate
-          </Badge>
-        )}
-      </Label>
+      <ElementMetadata
+        fieldName={fieldName}
+        fieldSchema={fieldSchema}
+        isRequired={isRequired}
+        fieldType={fieldType}
+        validationHint={validationHint}
+        populateHint={populateHint}
+      />
       <Input
         id={fieldName}
         type={secretProps.inputType}
@@ -513,9 +494,6 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           formData={formData}
           onPopulateResult={onPopulateResult}
         />
-      )}
-      {fieldSchema.description && (
-        <p className="text-xs text-gray-400">{fieldSchema.description}</p>
       )}
     </div>
   );
