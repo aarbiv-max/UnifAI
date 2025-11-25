@@ -56,7 +56,7 @@ export default function AgenticAI() {
 
       // Navigate to Agentic Chats page
       window.location.href = "/agentic-chats";
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error create new graph session:", error);
       toast({
         title: "Failed to load current workflow",

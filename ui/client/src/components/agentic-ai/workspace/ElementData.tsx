@@ -10,7 +10,7 @@ interface ElementDataProps {
   elementType: ElementType;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  elementSchema: ElementSchema | null;
+  elementSchema: ElementSchema | null | undefined;
 }
 
 export const ElementData: React.FC<ElementDataProps> = ({
