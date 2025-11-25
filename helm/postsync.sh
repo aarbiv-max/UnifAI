@@ -59,6 +59,11 @@ RMQ_PORT=$(wait_for_port rabbitmq)
 MONGO_IP=$(wait_for_service_name mongodb)
 RMQ_IP=$(wait_for_service_name rabbitmq)
 
+UMAMI_URL=$umami_url
+UMAMI_WEBSITE_NAME=$umami_website_name
+UMAMI_USERNAME=$umami_username
+UMAMI_PASSWORD=$umami_password
+
 #If adding ext ips, add them here and add this to the new configmap below.
   # --from-literal=MONGO_EXT_ADDR="$MONGODB_ADDR" \
   # --from-literal=RABBITMQ_EXT_ADDR="$RABBITMQ_ADDR" \
@@ -71,4 +76,8 @@ kubectl create configmap shared-config \
   --from-literal=RABBITMQ_PORT="$RMQ_PORT" \
   --from-literal=MONGODB_IP="$MONGO_IP" \
   --from-literal=RABBITMQ_IP="$RMQ_IP" \
+  --from-literal=UMAMI_URL="$UMAMI_URL" \
+  --from-literal=UMAMI_WEBSITE_NAME="$UMAMI_WEBSITE_NAME" \
+  --from-literal=UMAMI_USERNAME="$UMAMI_USERNAME" \
+  --from-literal=UMAMI_PASSWORD="$UMAMI_PASSWORD" \
   --dry-run=client -o yaml | kubectl apply -f -
