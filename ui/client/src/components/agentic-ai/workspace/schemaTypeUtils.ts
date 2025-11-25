@@ -163,3 +163,38 @@ export const getPopulateHint = (fieldSchema: any): any | null => {
     : null;
 };
 
+/**
+ * Get default value for a field based on its schema type.
+ * Respects the schema's default property if present, otherwise returns type-appropriate defaults.
+ */
+export const getDefaultValue = (fieldSchema: any): any => {
+  // If schema has an explicit default, use it
+  if (fieldSchema?.default !== undefined) {
+    return fieldSchema.default;
+  }
+
+  // Determine default based on field type
+  const fieldType = getFieldType(fieldSchema);
+  
+  switch (fieldType) {
+    case 'array':
+      return [];
+    case 'boolean':
+      return false;
+    case 'object':
+      return {};
+    case 'number':
+    case 'integer':
+      return null; // Numbers should be null initially, not 0
+    case 'string':
+      return "";
+    case 'null':
+      return null;
+    default:
+      // For unknown types or no type, default to empty string
+      // This handles cases where type might be undefined or in anyOf/oneOf/allOf
+      return "";
+  }
+};
+
+

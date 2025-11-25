@@ -37,8 +37,7 @@ import {
   isStringField,
   hasAnyOfArrayType,
   hasAnyOfStringType,
-  isBooleanField,
-  isObjectField,
+  getDefaultValue,
 } from "./schemaTypeUtils";
 
 interface ElementFormProps {
@@ -102,17 +101,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             return;
           }
           
-          if (property.default !== undefined) {
-            initialData[key] = property.default;
-          } else if (isArrayField(property)) {
-            initialData[key] = [];
-          } else if (isBooleanField(property)) {
-            initialData[key] = false;
-          } else if (isObjectField(property)) {
-            initialData[key] = {};
-          } else {
-            initialData[key] = "";
-          }
+          initialData[key] = getDefaultValue(property);
         },
       );
 
