@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 // Agentic AI components
 import AgentFlowGraph from "@/components/agentic-ai/AgentFlowGraph";
 import NewGraph from "../workspace/NewGraph";
-import axios from "../http/axiosAgentConfig";
+import { createUserSession } from "../api/sessions";
 
 // Create a ReactFlow provider wrapper
 import { ReactFlowProvider } from "reactflow";
@@ -48,16 +48,11 @@ export default function AgenticAI() {
       setBuiltGraphId(graphId);
       setBuiltGraphName(graphName);
 
-      const selectedBlueprint = {
+      const runId = await createUserSession({
         blueprintId: graphId,
         userId: user?.username || "default",
-      };
-
-      const response = await axios.post(
-        "/sessions/user.session.create",
-        selectedBlueprint,
-      );
-      setSelectedGraphId(response.data);
+      });
+      setSelectedGraphId(runId);
 
       // Navigate to Agentic Chats page
       window.location.href = "/agentic-chats";

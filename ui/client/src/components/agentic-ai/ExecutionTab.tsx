@@ -12,27 +12,31 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Users, Clock, ArrowUpRight, SplitSquareVertical, Trash2, Plus, X } from "lucide-react";
+import { motion } from "framer-motion";
+import { MessageSquare, Users, Clock, SplitSquareVertical, Trash2, Plus, X } from "lucide-react";
 import ChatInterface from "./chat/ChatInterface";
 import ExecutionStream from "./ExecutionStream";
 import ReactFlowGraph from "./graphs/ReactFlowGraph";
-import { GraphNode } from "../../pages/AgenticAI"
 import axios from '../../http/axiosAgentConfig'
 import { useStreamingData } from './StreamingDataContext'
+import {
+  createUserSession,
+  getSessionState,
+  getUserChatSessions,
+  deleteSession,
+} from '../../api/sessions'
 import { EnhancedStreamReader } from '@/components/shared/stream/StreamJsonParser'
 import { useAuth } from "@/contexts/AuthContext";
 import AvailableFlows from "./AvailableFlows";
 import { ReactFlowProvider } from "reactflow";
 import {
   Dialog,
-  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   CustomDialogContent,
 } from "@/components/ui/dialog";
-import { GraphFlow, FlowObject } from "./graphs/interfaces";
+import { FlowObject } from "./graphs/interfaces";
 
 // Types for the API response
 interface ChatMessage {
@@ -282,16 +286,7 @@ export default function ExecutionTab({
     });
   };
 
-  // Fetch session state (messages) for a specific session
-  const fetchSessionState = async (sessionId: string): Promise<SessionStateData | null> => {
-    try {
-      const response = await axios.get(`/sessions/session.state.get?sessionId=${sessionId}`);
-      return response.data;
-    } catch (err) {
-      console.error('Error fetching session state:', err);
-      return null;
-    }
-  };
+
 
   // Fetch chat sessions from API
   const fetchChatSessions = async () => {
@@ -300,8 +295,8 @@ export default function ExecutionTab({
       setError(null);
 
       const userId = user?.username || "default";
-      const response = await axios.get(`/sessions/session.user.chat.get?userId=${userId}`);
-      const transformedSessions = transformApiDataToSessions(response.data);
+      const apiData = await getUserChatSessions(userId);
+      const transformedSessions = transformApiDataToSessions(apiData);
 
       // sort chat sessions based on the latest date
       const sortedSessions = transformedSessions.sort((firstSession, secondSession) => secondSession.timestamp.getTime() - firstSession.timestamp.getTime());
@@ -313,7 +308,7 @@ export default function ExecutionTab({
         setSelectedSession(firstSession);
         
         // Fetch the state for the first session
-        const stateData = await fetchSessionState(firstSession.id);
+        const stateData = await getSessionState(firstSession.id);
         if (stateData && stateData.messages) {
           setCurrentSessionMessages(stateData.messages);
           
@@ -348,7 +343,7 @@ export default function ExecutionTab({
       setCurrentSessionMessages(session.messages);
     } else {
       // Otherwise, fetch the session state
-      const stateData = await fetchSessionState(session.id);
+      const stateData = await getSessionState(session.id);
       if (stateData && stateData.messages) {
         setCurrentSessionMessages(stateData.messages);
         
@@ -380,8 +375,7 @@ export default function ExecutionTab({
 
     setIsDeleting(true);
     try {
-      const userId = user?.username || "default";
-      await axios.delete(`/sessions/session.delete?sessionId=${chatToDelete.id}`);
+      await deleteSession(chatToDelete.id);
 
       // Remove the deleted session from the list
       setChatSessions(prevSessions => prevSessions.filter(session => session.id !== chatToDelete.id));
@@ -423,15 +417,10 @@ export default function ExecutionTab({
     try {
       const graphId = selectedFlowForModal.id || `graph-${Date.now()}`;
 
-      const selectedBlueprint = {
+      await createUserSession({
         blueprintId: graphId,
         userId: user?.username || "default",
-      };
-
-      const response = await axios.post(
-        "/sessions/user.session.create",
-        selectedBlueprint,
-      );
+      });
 
       await fetchChatSessions();
 

@@ -15,6 +15,31 @@ import {
   ElementInstance,
 } from "../../../types/workspace";
 import { FieldRenderer } from "./FieldRenderer";
+import {
+  isArrayWithRefItems,
+  getArrayItemsSchema,
+  extractCategoryFromField,
+  extractRefCategories,
+} from "./schemaHelpers";
+import {
+  isFirstLevelField,
+  isSystemField,
+  isGuiManagedField,
+  isCfgDictField,
+  FIRST_LEVEL_REQUIRED_FIELDS,
+} from "./fieldConstants";
+import {
+  isHiddenField,
+  isSecretField,
+  getValidationHint,
+  getPopulateHint,
+  isArrayField,
+  isStringField,
+  hasAnyOfArrayType,
+  hasAnyOfStringType,
+  isBooleanField,
+  isObjectField,
+} from "./schemaTypeUtils";
 
 interface ElementFormProps {
   isOpen: boolean;
@@ -41,7 +66,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     {},
   );
   const [fieldValidationStates, setFieldValidationStates] = useState<{ [fieldName: string]: boolean }>({});
-  const [populateResults, setPopulateResults] = useState<{ [fieldName: string]: string[] }>({});
 
   const { fetchResourcesForCategory } = useWorkspaceData();
 
@@ -53,11 +77,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   };
 
   const handlePopulateResult = (fieldName: string, results: string[], multiSelect: boolean) => {
-    setPopulateResults(prev => ({
-      ...prev,
-      [fieldName]: results
-    }));
-    
     // Update form data with populated results
     if (multiSelect) {
       // For multi-select, set the array of selected values
@@ -79,17 +98,17 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       Object.entries(elementSchema.config_schema.properties).forEach(
         ([key, property]: [string, any]) => {
           // Skip hidden fields - don't initialize them
-          if (property?.hints?.hidden?.hint_type === "hidden") {
+          if (isHiddenField(property)) {
             return;
           }
           
           if (property.default !== undefined) {
             initialData[key] = property.default;
-          } else if (property.type === "array") {
+          } else if (isArrayField(property)) {
             initialData[key] = [];
-          } else if (property.type === "boolean") {
+          } else if (isBooleanField(property)) {
             initialData[key] = false;
-          } else if (property.type === "object") {
+          } else if (isObjectField(property)) {
             initialData[key] = {};
           } else {
             initialData[key] = "";
@@ -111,7 +130,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             const fieldSchema = elementSchema.config_schema.properties[key];
             
             // Skip hidden fields - don't populate them in edit mode
-            if (fieldSchema?.hints?.hidden?.hint_type === "hidden") {
+            if (isHiddenField(fieldSchema)) {
               return;
             }
             
@@ -147,7 +166,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
           const fieldSchema = elementSchema?.config_schema.properties[key];
           
           // Skip hidden fields - don't re-apply them
-          if (fieldSchema?.hints?.hidden?.hint_type === "hidden") {
+          if (isHiddenField(fieldSchema)) {
             return;
           }
           
@@ -169,176 +188,13 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     }
   }, [refOptions, editingElement]);
 
-  // Helper function to check if a field is an array with $ref items
-  const isArrayWithRefItems = (fieldSchema: any) => {
-    // Direct array type
-    if (
-      fieldSchema.type === "array" &&
-      fieldSchema.items &&
-      fieldSchema.items.$ref
-    ) {
-      return true;
-    }
-    // anyOf structure (like tools field)
-    if (fieldSchema.anyOf && Array.isArray(fieldSchema.anyOf)) {
-      return fieldSchema.anyOf.some(
-        (option: any) =>
-          option.type === "array" && option.items && option.items.$ref,
-      );
-    }
-    return false;
-  };
-
-  // Helper function to get array items schema from anyOf or direct structure
-  const getArrayItemsSchema = (fieldSchema: any) => {
-    if (fieldSchema.type === "array" && fieldSchema.items) {
-      return fieldSchema.items;
-    }
-    if (fieldSchema.anyOf && Array.isArray(fieldSchema.anyOf)) {
-      const arrayOption = fieldSchema.anyOf.find(
-        (option: any) => option.type === "array" && option.items,
-      );
-      return arrayOption?.items;
-    }
-    return null;
-  };
-
-  // Helper function to parse JSON path from reference string
-  const parseJsonPath = (ref: string): string[] | null => {
-    if (!ref || typeof ref !== 'string' || !ref.startsWith('#/')) {
-      return null;
-    }
-
-    // Remove the '#/' prefix and split by '/'
-    const pathString = ref.substring(2);
-    if (!pathString) {
-      return null;
-    }
-
-    return pathString.split('/').filter(segment => segment.length > 0);
-  };
-
-  // Generic helper function to resolve JSON path in an object
-  const resolveJsonPath = (obj: any, pathSegments: string[]): any | null => {
-    if (!obj || !pathSegments || pathSegments.length === 0) {
-      return null;
-    }
-
-    let current = obj;
-    for (const segment of pathSegments) {
-      if (!current || typeof current !== 'object' || !(segment in current)) {
-        return null;
-      }
-      current = current[segment];
-    }
-
-    return current;
-  };
-
-  // Helper function to find definition in schema by reference path
-  const findDefinitionByRef = (ref: string): any | null => {
-    const pathSegments = parseJsonPath(ref);
-    if (!pathSegments || !elementSchema?.config_schema) {
-      return null;
-    }
-
-    return resolveJsonPath(elementSchema.config_schema, pathSegments);
-  };
-
-  // Helper function to resolve $ref to actual definition with full details
-  const resolveRef = (ref: string): any | null => {
-    const definition = findDefinitionByRef(ref);
-    if (definition) {
-      console.log(`Resolved $ref ${ref} to:`, definition);
-      return definition;
-    }
-
-    console.warn(`Could not resolve $ref: ${ref}`);
-    return null;
-  };
-
-  // Helper function to extract category from resolved definition
-  const extractCategoryFromDefinition = (definition: any): string | null => {
-    if (!definition || typeof definition !== 'object') {
-      return null;
-    }
-
-    // Direct category property
-    if (definition.category && typeof definition.category === 'string') {
-      return definition.category;
-    }
-
-    return null;
-  };
-
-  // Helper function to extract category from $ref field or anyOf structure
-  const extractCategoryFromField = (fieldSchema: any): string | null => {
-    // Handle direct $ref by resolving it
-    if (fieldSchema.$ref) {
-      const resolved = resolveRef(fieldSchema.$ref);
-      const category = extractCategoryFromDefinition(resolved);
-      if (category) {
-        return category;
-      }
-    }
-
-    // Handle items with $ref (for arrays)
-    if (fieldSchema.items && fieldSchema.items.$ref) {
-      const resolved = resolveRef(fieldSchema.items.$ref);
-      const category = extractCategoryFromDefinition(resolved);
-      if (category) {
-        return category;
-      }
-    }
-
-    // Category from anyOf structure
-    if (fieldSchema.anyOf && Array.isArray(fieldSchema.anyOf)) {
-      // Check for direct $ref in anyOf
-      for (const option of fieldSchema.anyOf) {
-        if (option.$ref) {
-          const resolved = resolveRef(option.$ref);
-          const category = extractCategoryFromDefinition(resolved);
-          if (category) {
-            return category;
-          }
-        }
-
-        // Check for array with $ref items in anyOf
-        if (option.type === "array" && option.items && option.items.$ref) {
-          const resolved = resolveRef(option.items.$ref);
-          const category = extractCategoryFromDefinition(resolved);
-          if (category) {
-            return category;
-          }
-        }
-      }
-    }
-    return null; // Return null if no category is found
-  };
-
   // Load reference options for $ref fields
   useEffect(() => {
     if (elementSchema && isOpen) {
-      const refFields = Object.entries(
+      const refCategories = extractRefCategories(
         elementSchema.config_schema.properties,
-      ).filter(
-        ([, property]: [string, any]) =>
-          property.$ref ||
-          (property.items && property.items.$ref) ||
-          (property.type === "array" &&
-            property.items &&
-            property.items.$ref) ||
-          isArrayWithRefItems(property) ||
-          (property.anyOf && property.anyOf.some((option: any) => option.$ref)),
+        elementSchema.config_schema
       );
-
-      const refCategories = new Set<string>();
-      refFields.forEach(([, property]: [string, any]) => {
-        const category = extractCategoryFromField(property);
-        if (category) {
-          refCategories.add(category);
-        }
-      });
 
       // Fetch actual reference options from Resources API
       const loadRefOptions = async () => {
@@ -406,14 +262,14 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       const fieldSchema = elementSchema.config_schema.properties[field];
       
       // Skip validation for hidden fields
-      if (fieldSchema?.hints?.hidden?.hint_type === "hidden") {
+      if (isHiddenField(fieldSchema)) {
         return true;
       }
       
       const value = formData[field];
       
       // Check if field has validation hint
-      const hasValidationHint = fieldSchema?.hints?.action?.hint_type === 'validate';
+      const hasValidationHint = !!getValidationHint(fieldSchema);
       
       // Basic value validation
       let hasValue = false;
@@ -444,7 +300,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
         const fieldSchema = elementSchema.config_schema.properties[field];
         
         // Skip validation for hidden fields
-        if (fieldSchema?.hints?.hidden?.hint_type === "hidden") {
+        if (isHiddenField(fieldSchema)) {
           return false;
         }
         
@@ -469,22 +325,13 @@ export const ElementForm: React.FC<ElementFormProps> = ({
         const fieldSchema = elementSchema.config_schema.properties[fieldName];
 
         // Skip hidden fields - don't include them in save payload
-        if (fieldSchema?.hints?.hidden?.hint_type === "hidden") {
+        if (isHiddenField(fieldSchema)) {
           return;
         }
 
-        // Define which fields are first-level fields from resource schema
-        const firstLevelResourceFields = ['name', 'category', 'type', 'cfg_dict', 'version', 'created', 'updated', 'nested_refs', 'rid', 'user_id'];
-
-        // Only include 'name' as a first-level field for saving (exclude version and system fields)
-        const isFirstLevelField = fieldName === 'name';
-
-        // System fields that should never be included in save payload
-        const systemFields = ['version', 'created', 'updated', 'nested_refs', 'rid', 'user_id', 'category', 'type', 'cfg_dict'];
-
-        if (isFirstLevelField) {
+        if (isFirstLevelField(fieldName)) {
           saveData[fieldName] = typeof value === "string" ? value.trim() : value;
-        } else if (!systemFields.includes(fieldName)) {
+        } else if (!isSystemField(fieldName)) {
           // This is a config field
           let processedValue = value;
 
@@ -516,8 +363,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             // Handle empty values based on field type
             else {
               // For array fields, ensure empty arrays instead of empty strings or null
-              if (fieldSchema.type === "array" || 
-                  (fieldSchema.anyOf && fieldSchema.anyOf.some((option: any) => option.type === "array"))) {
+              if (isArrayField(fieldSchema) || hasAnyOfArrayType(fieldSchema)) {
                 if (!value || value === "" || (Array.isArray(value) && value.length === 0)) {
                   processedValue = [];
                 } else if (Array.isArray(value)) {
@@ -527,8 +373,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
                 }
               }
               // For string fields, ensure empty strings instead of null
-              else if (fieldSchema.type === "string" || 
-                       (fieldSchema.anyOf && fieldSchema.anyOf.some((option: any) => option.type === "string"))) {
+              else if (isStringField(fieldSchema) || hasAnyOfStringType(fieldSchema)) {
                 if (value === null || value === undefined) {
                   processedValue = "";
                 } else {
@@ -580,9 +425,13 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   const renderFormField = (fieldName: string, fieldSchema: any) => {
     const isRequired = elementSchema.config_schema.required?.includes(fieldName);
     const value = formData[fieldName] || "";
-    const validationHint = fieldSchema.hints?.action?.hint_type === 'validate' ? fieldSchema.hints.action : null;
-    const populateHint = fieldSchema.hints?.action?.hint_type === 'populate' ? fieldSchema.hints.action : null;
-    const isSecret = fieldSchema?.hints?.secret?.hint_type === "secret";
+    const validationHint = getValidationHint(fieldSchema);
+    const populateHint = getPopulateHint(fieldSchema);
+    const fieldType = isSecretField(fieldSchema) ? "secret" : "public";
+
+    // Create wrapper functions that pass configSchema to helpers
+    const extractCategoryWrapper = (schema: any) => 
+      extractCategoryFromField(schema, elementSchema.config_schema);
 
     return (
       <FieldRenderer
@@ -597,10 +446,10 @@ export const ElementForm: React.FC<ElementFormProps> = ({
         elementType={elementType}
         formData={formData}
         refOptions={refOptions}
-        fieldType={isSecret ? "secret" : "public"}
+        fieldType={fieldType}
         isArrayWithRefItems={isArrayWithRefItems}
         getArrayItemsSchema={getArrayItemsSchema}
-        extractCategoryFromField={extractCategoryFromField}
+        extractCategoryFromField={extractCategoryWrapper}
         onInputChange={handleInputChange}
         onArrayChange={handleArrayChange}
         onAddArrayItem={addArrayItem}
@@ -633,34 +482,24 @@ export const ElementForm: React.FC<ElementFormProps> = ({
           {/* Render fields from combined schema */}
           {Object.entries(elementSchema.config_schema.properties)
             .filter(([fieldName, fieldSchema]) => {
-              // Always exclude category and type (handled by GUI)
-              if (['category', 'type'].includes(fieldName)) {
+              // Always exclude GUI-managed fields (category, type)
+              if (isGuiManagedField(fieldName)) {
                 return false;
               }
 
-              // Filter out hidden fields - check if field has hints.hidden.hint_type === "hidden"
-              if (fieldSchema?.hints?.hidden?.hint_type === "hidden") {
+              // Filter out hidden fields
+              if (isHiddenField(fieldSchema)) {
                 return false;
               }
 
-              // For both Create New and Edit mode: show only first-level required fields (name) + all cfg_dict fields
               // Show first-level required fields (name is required from resource.schema)
-              const firstLevelRequiredFields = ['name'];
-              if (firstLevelRequiredFields.includes(fieldName)) {
+              if (FIRST_LEVEL_REQUIRED_FIELDS.includes(fieldName as any)) {
                 return true;
               }
 
               // Show all cfg_dict fields (element-specific config fields)
               // These are fields that are NOT first-level fields from resource.schema
-              const firstLevelFields = ['name', 'category', 'type', 'cfg_dict', 'version', 'created', 'updated', 'nested_refs', 'rid', 'user_id'];
-              const isCfgDictField = !firstLevelFields.includes(fieldName);
-              return isCfgDictField;
-
-              // Comment out the old edit mode logic that showed extra fields
-              // // For Edit mode: show all fields (except category/type)
-              // if (editingElement) {
-              //   return true;
-              // }
+              return isCfgDictField(fieldName);
             })
             .map(([fieldName, fieldSchema]) => renderFormField(fieldName, fieldSchema))}
 
