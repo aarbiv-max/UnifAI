@@ -34,7 +34,7 @@ class AppConfig(SharedConfig):
     # rabbitmq_ip: str = "a509af714a5fa4810bf879cfc8823456-1634716882.us-east-1.elb.amazonaws.com"
 
     # Umami Configuration - to be moved to creds repository
-    #umami_url: str = "http://umami-route-tag-ai--runtime-int.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
-    #umami_website_name: str = "unifai"
-    #umami_username: str = "admin"
-    #umami_password: str = "umami"
+    umami_url: str = "0.0.0.0"
+    umami_website_name: str = "unifai"
+    umami_username: str = ""
+    umami_password: str = ""
