@@ -1,44 +1,12 @@
 import React, { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
 import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { Button } from "@/components/ui/button";
-import {
-  ElementType,
-  ElementSchema,
-  ElementInstance,
-} from "../../../types/workspace";
+import {ElementType, ElementSchema, ElementInstance} from "@/types/workspace";
 import { FieldRenderer } from "./FieldRenderer";
-import {
-  isArrayWithRefItems,
-  getArrayItemsSchema,
-  extractCategoryFromField,
-  extractRefCategories,
-} from "./schemaHelpers";
-import {
-  isFirstLevelField,
-  isSystemField,
-  isGuiManagedField,
-  isCfgDictField,
-  FIRST_LEVEL_REQUIRED_FIELDS,
-} from "./fieldConstants";
-import {
-  isHiddenField,
-  isSecretField,
-  getValidationHint,
-  getPopulateHint,
-  isArrayField,
-  isStringField,
-  hasAnyOfArrayType,
-  hasAnyOfStringType,
-  getDefaultValue,
-} from "./schemaTypeUtils";
+import {isArrayWithRefItems, getArrayItemsSchema, extractCategoryFromField, extractRefCategories} from "./schemaHelpers";
+import {isFirstLevelField, isSystemField,isGuiManagedField, isCfgDictField, FIRST_LEVEL_REQUIRED_FIELDS} from "./fieldConstants";
+import {isHiddenField, isSecretField, getDefaultValue, isFieldType, hasAnyOfType, getHint} from "./schemaTypeUtils";
 
 interface ElementFormProps {
   isOpen: boolean;
@@ -258,7 +226,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
       const value = formData[field];
       
       // Check if field has validation hint
-      const hasValidationHint = !!getValidationHint(fieldSchema);
+      const hasValidationHint = !!getHint(fieldSchema, 'validate');
       
       // Basic value validation
       let hasValue = false;
@@ -352,7 +320,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             // Handle empty values based on field type
             else {
               // For array fields, ensure empty arrays instead of empty strings or null
-              if (isArrayField(fieldSchema) || hasAnyOfArrayType(fieldSchema)) {
+              if (isFieldType(fieldSchema, 'array') || hasAnyOfType(fieldSchema, 'array')) {
                 if (!value || value === "" || (Array.isArray(value) && value.length === 0)) {
                   processedValue = [];
                 } else if (Array.isArray(value)) {
@@ -362,7 +330,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
                 }
               }
               // For string fields, ensure empty strings instead of null
-              else if (isStringField(fieldSchema) || hasAnyOfStringType(fieldSchema)) {
+              else if (isFieldType(fieldSchema, 'string') || hasAnyOfType(fieldSchema, 'string')) {
                 if (value === null || value === undefined) {
                   processedValue = "";
                 } else {
@@ -414,8 +382,8 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   const renderFormField = (fieldName: string, fieldSchema: any) => {
     const isRequired = elementSchema.config_schema.required?.includes(fieldName);
     const value = formData[fieldName] || "";
-    const validationHint = getValidationHint(fieldSchema);
-    const populateHint = getPopulateHint(fieldSchema);
+    const validationHint = getHint(fieldSchema, 'validate');
+    const populateHint = getHint(fieldSchema, 'populate');
     const fieldType = isSecretField(fieldSchema) ? "secret" : "public";
 
     // Create wrapper functions that pass configSchema to helpers

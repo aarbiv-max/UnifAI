@@ -57,42 +57,6 @@ export const isFieldType = (fieldSchema: any, type: string): boolean => {
 };
 
 /**
- * Check if a field is an array type
- */
-export const isArrayField = (fieldSchema: any): boolean => {
-  return isFieldType(fieldSchema, 'array');
-};
-
-/**
- * Check if a field is an object type
- */
-export const isObjectField = (fieldSchema: any): boolean => {
-  return isFieldType(fieldSchema, 'object');
-};
-
-/**
- * Check if a field is a string type
- */
-export const isStringField = (fieldSchema: any): boolean => {
-  return isFieldType(fieldSchema, 'string');
-};
-
-/**
- * Check if a field is a number type (including integer)
- */
-export const isNumberField = (fieldSchema: any): boolean => {
-  const fieldType = getFieldType(fieldSchema);
-  return fieldType === 'number' || fieldType === 'integer';
-};
-
-/**
- * Check if a field is a boolean type
- */
-export const isBooleanField = (fieldSchema: any): boolean => {
-  return isFieldType(fieldSchema, 'boolean');
-};
-
-/**
  * Check if a field has anyOf with specific type
  */
 export const hasAnyOfType = (fieldSchema: any, type: string): boolean => {
@@ -100,27 +64,6 @@ export const hasAnyOfType = (fieldSchema: any, type: string): boolean => {
     return false;
   }
   return fieldSchema.anyOf.some((option: any) => option.type === type);
-};
-
-/**
- * Check if a field has anyOf with number or integer type
- */
-export const hasAnyOfNumberType = (fieldSchema: any): boolean => {
-  return hasAnyOfType(fieldSchema, 'number') || hasAnyOfType(fieldSchema, 'integer');
-};
-
-/**
- * Check if a field has anyOf with array type
- */
-export const hasAnyOfArrayType = (fieldSchema: any): boolean => {
-  return hasAnyOfType(fieldSchema, 'array');
-};
-
-/**
- * Check if a field has anyOf with string type
- */
-export const hasAnyOfStringType = (fieldSchema: any): boolean => {
-  return hasAnyOfType(fieldSchema, 'string');
 };
 
 /**
@@ -146,19 +89,10 @@ export const isSecretField = (fieldSchema: any): boolean => {
 };
 
 /**
- * Get validation hint from field schema
+ * Get hint from field schema
  */
-export const getValidationHint = (fieldSchema: any): any | null => {
-  return fieldSchema?.hints?.action?.hint_type === 'validate' 
-    ? fieldSchema.hints.action 
-    : null;
-};
-
-/**
- * Get populate hint from field schema
- */
-export const getPopulateHint = (fieldSchema: any): any | null => {
-  return fieldSchema?.hints?.action?.hint_type === 'populate' 
+export const getHint = (fieldSchema: any, fieldName: any): any | null => {
+  return fieldSchema?.hints?.action?.hint_type === fieldName
     ? fieldSchema.hints.action 
     : null;
 };

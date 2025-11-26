@@ -7,34 +7,13 @@
  * First-level fields from resource schema.
  * These are fields that exist at the top level of a resource, not in cfg_dict.
  */
-export const FIRST_LEVEL_RESOURCE_FIELDS = [
-  'name',
-  'category',
-  'type',
-  'cfg_dict',
-  'version',
-  'created',
-  'updated',
-  'nested_refs',
-  'rid',
-  'user_id'
-] as const;
+export const FIRST_LEVEL_RESOURCE_FIELDS = ['name', 'category','type','cfg_dict', 'version', 'created', 'updated', 'nested_refs','rid','user_id'] as const;
 
 /**
  * System fields that should never be included in save payload.
  * These are read-only or system-managed fields.
  */
-export const SYSTEM_FIELDS = [
-  'version',
-  'created',
-  'updated',
-  'nested_refs',
-  'rid',
-  'user_id',
-  'category',
-  'type',
-  'cfg_dict'
-] as const;
+export const SYSTEM_FIELDS = ['version', 'created', 'updated', 'nested_refs', 'rid', 'user_id', 'category', 'type', 'cfg_dict'] as const;
 
 /**
  * First-level fields that are required and should be shown in forms.
