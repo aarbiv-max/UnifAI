@@ -19,10 +19,11 @@ properties([
 
 def buildParams = [
     LogLevel           : "ALL",
-    MainRepoURL        : "gitlab.cee.redhat.com",
-    MainRepoProject    : "ai_tools/unifai",
+    MainRepoURL        : "github.com",
+    MainRepoProject    : "redhat-community-ai-tools/UnifAI",
     MainRepoBranch     : "${params.BRANCH}",
-    CredentialsId      : "gitlab-genie",
+    CredentialsId      : "github-unifai-token",
+    CredMainRepoURL    : "gitlab.cee.redhat.com",
     CredMainRepoProject: "ai_tools/genie-cred-data", 
     CredMainRepoBranch : "main",
     CredCredentialsId  : "gitlab-genie",
@@ -187,7 +188,7 @@ pipeline {
                         submoduleCfg: [],
                         userRemoteConfigs: [[
                             credentialsId: "${buildParams.CredCredentialsId}",
-                            url: "https://${buildParams.MainRepoURL}/${buildParams.CredMainRepoProject}.git"
+                            url: "https://${buildParams.CredMainRepoURL}/${buildParams.CredMainRepoProject}.git"
                         ]]
                     ])
                 }
