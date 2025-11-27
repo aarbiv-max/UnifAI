@@ -62,6 +62,7 @@ interface ChatSession {
   preview: string;
   messages: ChatMessage[];
   blueprintExists: boolean;
+  mode: 'persistent' | 'ephemeral';
 }
 
 export type SessionPayload = {
@@ -115,6 +116,7 @@ export default function ExecutionTab({
   const [showAddFlowModal, setShowAddFlowModal] = useState(false);
   const [selectedFlowForModal, setSelectedFlowForModal] = useState<FlowObject | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [createSessionMode, setCreateSessionMode] = useState<'persistent' | 'ephemeral'>('persistent');
   const [isLoadingFlowsForModal, setIsLoadingFlowsForModal] = useState(false);
   // Three panel widths: Available Chats, ChatInterface, Blueprint Graph
   const [chatSidebarWidth, setChatSidebarWidth] = useState(20);
@@ -268,6 +270,7 @@ export default function ExecutionTab({
       const timestamp = new Date(sessionData.started_at);
       const lastActive = formatTimestamp(sessionData.started_at);
       const preview = 'Click to load messages...';
+      const mode = (sessionData.metadata?.mode as 'persistent' | 'ephemeral') || 'persistent';
       
       return {
         id,
@@ -278,8 +281,9 @@ export default function ExecutionTab({
         preview,
         messages: [], // Messages will be loaded separately when session is selected
         blueprintExists,  
+        mode
       };
-    });
+    }).filter(session => session.mode !== 'ephemeral');
   };
 
   // Fetch session state (messages) for a specific session
@@ -408,7 +412,8 @@ export default function ExecutionTab({
   };
 
   // Handle add flow modal
-  const handleAddFlowClick = () => {
+  const handleAddFlowClick = (mode: 'persistent' | 'ephemeral' = 'persistent') => {
+    setCreateSessionMode(mode);
     setShowAddFlowModal(true);
   };
 
@@ -426,6 +431,7 @@ export default function ExecutionTab({
       const selectedBlueprint = {
         blueprintId: graphId,
         userId: user?.username || "default",
+        mode: createSessionMode
       };
 
       const response = await axios.post(
@@ -479,6 +485,36 @@ export default function ExecutionTab({
       setSelectedFlowForModal(null);
     }
   }, [showAddFlowModal]);
+
+  // Cleanup ephemeral sessions on unmount or session switch
+  useEffect(() => {
+    // Handler for browser tab close/refresh
+    const handleBeforeUnload = () => {
+      if (selectedSession?.mode === 'ephemeral' && selectedSession?.id) {
+        // Use fetch with keepalive: true for reliable execution during page unload
+        // Note: We manually add /api2 prefix since we aren't using the axios instance
+        fetch(`/api2/sessions/session.delete?sessionId=${selectedSession.id}`, {
+          method: 'DELETE',
+          keepalive: true,
+        }).catch(console.error);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+
+      if (selectedSession?.mode === 'ephemeral') {
+        // Fire-and-forget delete
+        const idToRemove = selectedSession.id;
+        axios.delete(`/sessions/session.delete?sessionId=${idToRemove}`).catch(console.error);
+        
+        // Remove from UI immediately to prevent stale state
+        setChatSessions(prev => prev.filter(s => s.id !== idToRemove));
+      }
+    };
+  }, [selectedSession?.id, selectedSession?.mode]); // Re-run when session ID or mode changes
 
   // Tracks each node's streaming state.
   // Aggregates chunks per node.
@@ -727,11 +763,22 @@ export default function ExecutionTab({
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
                     <Users className="h-3 w-3" />
                   </Button>
+                  
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     className="h-6 w-6 p-0 text-[#03DAC6] hover:bg-[#03DAC6] hover:bg-opacity-20 flex-shrink-0" 
-                    onClick={handleAddFlowClick}
+                    onClick={() => handleAddFlowClick('ephemeral')}
+                    title="Add one-time chat (10m TTL)"
+                  >
+                    <Clock className="h-3 w-3" />
+                  </Button>
+
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-6 w-6 p-0 text-[#03DAC6] hover:bg-[#03DAC6] hover:bg-opacity-20 flex-shrink-0" 
+                    onClick={() => handleAddFlowClick('persistent')}
                     title="Add new chat from flow"
                   >
                     <Plus className="h-3 w-3" />
@@ -815,6 +862,7 @@ export default function ExecutionTab({
               blueprintExists={selectedSession?.blueprintExists ?? true}
               onToggleBlueprintGraph={toggleBlueprintGraph}
               isBlueprintGraphHidden={isBlueprintGraphHidden}
+              mode={selectedSession?.mode}
             />
           </div>
           
@@ -892,7 +940,9 @@ export default function ExecutionTab({
           className="bg-background-card border-gray-800 max-w-[95vw] w-[95vw] h-[85vh] max-h-[85vh] flex flex-col overflow-hidden"
         >
           <DialogHeader className="flex-shrink-0 pb-4">
-            <DialogTitle className="text-lg">Add New Chat from Flow</DialogTitle>
+            <DialogTitle className="text-lg">
+              Add New {createSessionMode === 'ephemeral' ? 'One-Time ' : ''}Chat from Flow
+            </DialogTitle>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-hidden">
             <ReactFlowProvider key={`new-chat-graph-${showAddFlowModal}`}>

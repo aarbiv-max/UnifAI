@@ -41,7 +41,7 @@ class SessionExecutor:
         set_current_context(ctx)
         session.graph_state.update(inputs)
         session.update_status(SessionStatus.RUNNING)
-        self._repo.save(session)
+        self._repo.save(session, upsert=False)
 
     def _post_run(self, session: WorkflowSession, final_state) -> None:
         """
@@ -55,7 +55,7 @@ class SessionExecutor:
         session.run_context = session.run_context.mark_finished()
         set_current_context(session.run_context)
         session.update_status(SessionStatus.COMPLETED)
-        self._repo.save(session)
+        self._repo.save(session, upsert=False)
 
     def _error_run(self, session: WorkflowSession, error: Exception) -> None:
         """
@@ -66,7 +66,7 @@ class SessionExecutor:
         """
         session.run_context = session.run_context.mark_finished()
         session.update_status(SessionStatus.FAILED)
-        self._repo.save(session)
+        self._repo.save(session, upsert=False)
 
     def run(
             self,

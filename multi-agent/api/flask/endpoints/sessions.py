@@ -4,6 +4,7 @@ from webargs import fields
 import json
 from pydantic.json import pydantic_encoder
 from session.exceptions import BlueprintNotFoundError
+from session.models import SessionMeta, SessionMode
 
 sessions_bp = Blueprint("sessions", __name__)
 
@@ -12,14 +13,25 @@ sessions_bp = Blueprint("sessions", __name__)
 @from_body({
     "blueprint_id": fields.Str(data_key="blueprintId", required=True),
     "user_id": fields.Str(data_key="userId", required=True),
-    "metadata": fields.Dict(data_key="metadata", required=False, load_default=lambda: {}, dump_default=lambda: {})
+    "metadata": fields.Dict(data_key="metadata", required=False, load_default=lambda: {}, dump_default=lambda: {}),
+    "mode": fields.Str(
+        data_key="mode", 
+        load_default=SessionMode.PERSISTENT.value,
+        validate=lambda p: p in {m.value for m in SessionMode}
+    )
 })
-def create_user_session(blueprint_id, user_id, metadata):
-    try:
+def create_user_session(blueprint_id, user_id, metadata, mode):
+    try:        
+        session_meta = SessionMeta(
+            title=metadata.get("title"),
+            tags=metadata.get("tags") if isinstance(metadata.get("tags"), dict) else {},
+            mode=SessionMode(mode)
+        )
+
         session_svc = current_app.container.session_service
         session = session_svc.create(user_id=user_id,
                                      blueprint_id=blueprint_id,
-                                     metadata=metadata)
+                                     metadata=session_meta)
         return jsonify(session.get_run_id()), 200
     except BlueprintNotFoundError as e:
         return jsonify({

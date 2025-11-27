@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Send, Trash2, ChevronLeft, ChevronRight, Clock } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -35,6 +35,7 @@ interface ChatInterfaceProps {
   blueprintExists?: boolean;
   onToggleBlueprintGraph?: () => void;
   isBlueprintGraphHidden?: boolean;
+  mode?: 'persistent' | 'ephemeral';
 }
 
 export default function ChatInterface({
@@ -44,6 +45,7 @@ export default function ChatInterface({
   blueprintExists = true,
   onToggleBlueprintGraph,
   isBlueprintGraphHidden = false,
+  mode = 'persistent',
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
@@ -675,7 +677,15 @@ export default function ChatInterface({
   return (
     <Card className="bg-background-card shadow-card border-gray-800 flex flex-col h-full max-h-[82.5vh]">
       <CardHeader className="py-4 px-6 flex flex-row justify-between items-center flex-shrink-0">
-        <CardTitle className="text-lg font-heading">AI Assistant</CardTitle>
+        <CardTitle className="text-lg font-heading flex items-center gap-2">
+          AI Assistant   
+          {mode === 'ephemeral' && (
+            <>
+               <span className="text-sm font-normal text-gray-400">Temporary Chat</span>
+              <Clock className="h-4 w-4 text-gray-400" />
+            </>
+          )}
+        </CardTitle>
         <div className="flex space-x-2">
           <Button
             variant="ghost"

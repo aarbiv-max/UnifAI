@@ -1,5 +1,11 @@
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any
+from enum import Enum
+
+
+class SessionMode(str, Enum):
+    PERSISTENT = "persistent"
+    EPHEMERAL = "ephemeral"
 
 
 @dataclass(frozen=True)
@@ -14,6 +20,7 @@ class RuntimeElement:
 class SessionMeta:
     title: str | None = None
     tags: Dict[str, str] = field(default_factory=dict)
+    mode: SessionMode = SessionMode.PERSISTENT
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

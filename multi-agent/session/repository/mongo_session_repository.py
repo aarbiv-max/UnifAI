@@ -1,8 +1,10 @@
 import pymongo
 from pymongo.collection import Collection
 from typing import List, Mapping, Any
+from datetime import datetime, timezone
 from session.repository.repository import SessionRepository
 from session.workflow_session import WorkflowSession
+from session.models import SessionMode
 
 
 class MongoSessionRepository(SessionRepository):
@@ -34,8 +36,12 @@ class MongoSessionRepository(SessionRepository):
             [("user_id", pymongo.ASCENDING), ("run_id", pymongo.ASCENDING)],
             unique=True
         )
+        self._col.create_index(
+            [("last_message_at", pymongo.ASCENDING)],
+            expireAfterSeconds=100  # 10 minutes
+        )
 
-    def save(self, session: WorkflowSession) -> None:
+    def save(self, session: WorkflowSession, upsert: bool = True) -> None:
         ctx = session.run_context
 
         doc = {
@@ -48,10 +54,18 @@ class MongoSessionRepository(SessionRepository):
             "status": session.get_status(),
         }
 
+        # handle one-time chat TTL
+        if session.metadata.mode == SessionMode.EPHEMERAL:
+            doc["last_message_at"] = datetime.now(timezone.utc)
+        else:
+            # ensure it's unset so it doesn't expire
+             if "last_message_at" in doc:
+                del doc["last_message_at"]
+
         self._col.replace_one(
             {"user_id": ctx.user_id, "run_id": ctx.run_id},
             doc,
-            upsert=True
+            upsert=upsert
         )
 
     def fetch(self, run_id: str) -> Mapping[str, Any]:

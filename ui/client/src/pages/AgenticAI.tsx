@@ -6,10 +6,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Users, Network, Play, Plus, LoaderCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+  import { Users, Network, Play, Plus, LoaderCircle, Clock } from "lucide-react";
+  import { useToast } from "@/hooks/use-toast";
+  import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+  } from "@/components/ui/tooltip";
 
-// Agentic AI components
+  // Agentic AI components
 import AgentFlowGraph from "@/components/agentic-ai/AgentFlowGraph";
 import NewGraph from "../workspace/NewGraph";
 import axios from "../http/axiosAgentConfig";
@@ -35,7 +41,7 @@ export default function AgenticAI() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const handleLoadFlow = async () => {
+  const handleLoadFlow = async (mode: 'persistent' | 'ephemeral' = 'persistent') => {
     if (isLoadingFlow) return; // Prevent multiple calls
     
     setIsLoadingFlow(true);
@@ -51,6 +57,7 @@ export default function AgenticAI() {
       const selectedBlueprint = {
         blueprintId: graphId,
         userId: user?.username || "default",
+        mode: mode
       };
 
       const response = await axios.post(
@@ -107,16 +114,61 @@ export default function AgenticAI() {
                       Agent Workflow Configuration
                     </CardTitle>
                     <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleLoadFlow}
-                        disabled={isLoadingFlow}
-                        className="bg-primary hover:bg-[#7525c9] text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <LoaderCircle className={`h-4 w-4 ${isLoadingFlow ? 'animate-spin' : ''}`} />
-                        {isLoadingFlow ? 'Loading...' : 'Load Workflow'}
-                      </Button>
+                      <div className="flex items-center bg-primary rounded-md overflow-hidden border border-primary">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleLoadFlow('ephemeral')}
+                                disabled={isLoadingFlow}
+                                className="h-9 w-9 p-0 rounded-none hover:bg-[#7525c9] text-white disabled:opacity-50"
+                              >
+                                <Clock className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>One-time Chat (Auto-deletes in 10m)</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        
+                        <div className="w-[1px] h-full bg-[#7525c9]" />
+                        
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleLoadFlow('persistent')}
+                                disabled={isLoadingFlow}
+                                className="h-9 w-9 p-0 rounded-none hover:bg-[#7525c9] text-white disabled:opacity-50"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>New Persistent Chat</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        <div className="w-[1px] h-full bg-[#7525c9]" />
+
+                        <div className="px-3 flex items-center justify-center h-9 text-sm font-medium text-white select-none">
+                           {isLoadingFlow ? (
+                            <>
+                              <LoaderCircle className="h-4 w-4 mr-2 animate-spin" />
+                              Loading...
+                            </>
+                          ) : (
+                            "Load Workflow"
+                          )}
+                        </div>
+                      </div>
+
                       <Button
                         className="bg-primary hover:bg-opacity-80 flex items-center gap-2"
                         size="sm"

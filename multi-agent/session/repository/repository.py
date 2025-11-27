@@ -9,7 +9,7 @@ class SessionRepository(ABC):
     """
 
     @abstractmethod
-    def save(self, session: WorkflowSession) -> None:
+    def save(self, session: WorkflowSession, upsert: bool = True) -> None:
         """Persist the given session (create or update)."""
         ...
 
