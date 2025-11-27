@@ -23,15 +23,16 @@ properties([
 
 def buildParams = [
     LogLevel           : "ALL",
-    MainRepoURL        : "gitlab.cee.redhat.com",
-    MainRepoProject    : "ai_tools/unifai",
-    CredentialsId      : "gitlab-genie",
+    MainRepoURL        : "github.com",
+    MainRepoProject    : "redhat-community-ai-tools/UnifAI",
+    CredentialsId      : "github-unifai-token",
     NodeToRun          : "tag-slave",
     DevRoot            : "/root/workspace/${env.JOB_NAME}",
     ImageRegistry      : "images.paas.redhat.com",
     ImageRegistryPath  : "unifai",
     ImageRegistryCreds : "images.paas.registry-unifai",
 
+    CredMainRepoURL    : "gitlab.cee.redhat.com",
     CredMainRepoProject: "ai_tools/genie-cred-data", 
     CredMainRepoBranch : "main",
     CredCredentialsId  : "gitlab-genie",
@@ -136,7 +137,7 @@ pipeline {
                         submoduleCfg: [],
                         userRemoteConfigs: [[
                             credentialsId: "${buildParams.CredCredentialsId}",
-                            url: "https://${buildParams.MainRepoURL}/${buildParams.CredMainRepoProject}.git"
+                            url: "https://${buildParams.CredMainRepoURL}/${buildParams.CredMainRepoProject}.git"
                         ]]
                     ])
                 }
@@ -234,7 +235,7 @@ pipeline {
                     def modulesToDeploy = modules.join(',')
 
                     echo "Triggering deployment pipeline with MODULES_TO_DEPLOY = ${modulesToDeploy}"
-                    build job: 'app-deployer',
+                    build job: 'unifai-app-deployer',
                     parameters: [
                         string(name: 'PIPELINE_BRANCH', value: params.PIPELINE_BRANCH),
                         string(name: 'deploy_location', value: params.deploy_location),
