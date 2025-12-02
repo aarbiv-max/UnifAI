@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   ReactFlowProvider,
   ReactFlow,
@@ -17,9 +17,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import CustomNode from "./CustomNode";
 import CustomEdge from "./CustomEdge";
-import BidirectionalOffsetEdge from "./BidirectionalOffsetEdge";
+import BidirectionalEdge from "./BidirectionalEdge";
 import GraphHeader from "./GraphHeader";
 import * as yaml from 'js-yaml';
+import { useTheme } from "@/contexts/ThemeContext";
+import { getPaletteColor } from "@/lib/colorUtils";
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
@@ -27,83 +29,134 @@ const nodeTypes: NodeTypes = {
 
 const edgeTypes: EdgeTypes = {
   custom: CustomEdge,
-  bidirectionalOffset: BidirectionalOffsetEdge,
+  bidirectional: BidirectionalEdge, // Only used when one edge is conditional
 };
 
-// Helper function to detect and mark bidirectional edge pairs
+// Helper function to detect and replace bidirectional edge pairs with a single bidirectional edge
 const processBidirectionalEdges = (edges: Edge[]): Edge[] => {
+  if (!edges || edges.length === 0) return [];
+  
   const edgeMap = new Map<string, Edge[]>();
   const processedEdges: Edge[] = [];
 
-  // Group edges by node pairs (regardless of direction)
+  // First pass: collect edges that should be skipped (already bidirectional)
+  // Note: We now include conditional edges in bidirectional detection
+  const regularEdges: Edge[] = [];
+  const conditionalEdges: Edge[] = [];
+  
   edges.forEach(edge => {
-    const key1 = `${edge.source}-${edge.target}`;
-    const key2 = `${edge.target}-${edge.source}`;
-    
-    // Check if reverse edge already exists
-    const existingKey = edgeMap.has(key1) ? key1 : edgeMap.has(key2) ? key2 : key1;
-    
-    if (!edgeMap.has(existingKey)) {
-      edgeMap.set(existingKey, []);
+    // Skip edges that are already bidirectional
+    if (edge.id.startsWith('bidirectional-')) {
+      processedEdges.push(edge);
+      return;
     }
-    edgeMap.get(existingKey)!.push(edge);
+    
+    // Separate conditional and regular edges for processing
+    if (edge.id.includes('-branch-')) {
+      conditionalEdges.push(edge);
+    } else {
+      regularEdges.push(edge);
+    }
+  });
+    
+  // Second pass: group ALL edges (regular + conditional) by node pairs (regardless of direction)
+  // This allows bidirectional detection between regular edges, conditional edges, or mixed
+  const allEdgesForPairing = [...regularEdges, ...conditionalEdges];
+  
+  allEdgesForPairing.forEach(edge => {
+    // Create canonical key (smaller node ID first) to identify the pair
+    const node1 = edge.source < edge.target ? edge.source : edge.target;
+    const node2 = edge.source < edge.target ? edge.target : edge.source;
+    const canonicalKey = `${node1}-${node2}`;
+    
+    if (!edgeMap.has(canonicalKey)) {
+      edgeMap.set(canonicalKey, []);
+    }
+    edgeMap.get(canonicalKey)!.push(edge);
   });
 
-  // Process each edge group
-  edgeMap.forEach((edgeGroup, key) => {
+  // Third pass: process each edge group
+  edgeMap.forEach((edgeGroup, canonicalKey) => {
     if (edgeGroup.length === 2) {
-      // Bidirectional pair detected - keep both edges but mark them
+      // Bidirectional pair detected - replace with a single bidirectional edge
       const [edge1, edge2] = edgeGroup;
       
-      // Determine which edge goes "up" and which goes "down" based on node positions
-      // For now, we'll use a simple rule: first edge gets offset to the right, second to the left
+      // Verify they are actually opposite directions
+      const isBidirectional = 
+        (edge1.source === edge2.target && edge1.target === edge2.source) ||
+        (edge1.target === edge2.source && edge1.source === edge2.target);
       
-      const offsetEdge1: Edge = {
+      if (isBidirectional) {
+        // Check if at least one edge is conditional (has -branch- in ID)
+        const edge1IsConditional = edge1.id.includes('-branch-');
+        const edge2IsConditional = edge2.id.includes('-branch-');
+        const hasConditionalEdge = edge1IsConditional || edge2IsConditional;
+        
+        // Only create bidirectional edge if one of the edges is conditional
+        if (hasConditionalEdge) {
+          // Create a single bidirectional edge using the first edge's source/target
+          const bidirectionalEdge: Edge = {
         ...edge1,
-        type: 'bidirectionalOffset',
+            id: `bidirectional-${edge1.source}-${edge1.target}`, // New unique ID
+            type: 'bidirectional',
         data: {
           ...edge1.data,
-          bidirectionalPair: true,
-          offsetDirection: 'right', // Offset to the right
-          pairId: edge2.id,
+              bidirectional: true,
+              originalEdgeIds: [edge1.id, edge2.id], // Keep track of original edges for deletion
+              hasConditional: true, // Mark that this bidirectional edge involves a conditional
         },
         style: {
-          stroke: '#10B981',
-          strokeWidth: 2.5,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 20,
-          height: 20,
-          color: '#10B981',
-        },
-      };
-      
-      const offsetEdge2: Edge = {
-        ...edge2,
-        type: 'bidirectionalOffset',
-        data: {
-          ...edge2.data,
-          bidirectionalPair: true,
-          offsetDirection: 'left', // Offset to the left
-          pairId: edge1.id,
-        },
-        style: {
-          stroke: '#10B981',
-          strokeWidth: 2.5,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 20,
-          height: 20,
-          color: '#10B981',
-        },
-      };
-      
-      processedEdges.push(offsetEdge1, offsetEdge2);
+              // Color will be set by BidirectionalEdge component using primary palette
+              strokeWidth: 4, // Thicker than regular edges
+            },
+            // Remove markerEnd since we'll have arrows on both ends
+            markerEnd: undefined,
+          };
+          
+          processedEdges.push(bidirectionalEdge);
+        } else {
+          // Both edges are regular - keep them as separate edges
+          edgeGroup.forEach(edge => {
+            processedEdges.push({
+              ...edge,
+              type: edge.type === 'default' ? 'custom' : (edge.type || 'custom'),
+            });
+          });
+        }
+      } else {
+        // Not actually bidirectional - add both as separate edges
+        edgeGroup.forEach(edge => {
+          // Conditional edges should use 'custom' type, regular edges too
+          const edgeType = edge.id.includes('-branch-') 
+            ? (edge.type === 'default' ? 'custom' : (edge.type || 'custom'))
+            : (edge.type === 'default' ? 'custom' : (edge.type || 'custom'));
+          processedEdges.push({
+            ...edge,
+            type: edgeType,
+          });
+        });
+      }
     } else if (edgeGroup.length === 1) {
-      // Single directional edge - keep as is
-      processedEdges.push(edgeGroup[0]);
+      // Single directional edge - keep as is, ensure it uses 'custom' type if it was 'default'
+      const edge = edgeGroup[0];
+      const edgeType = edge.id.includes('-branch-')
+        ? (edge.type === 'default' ? 'custom' : (edge.type || 'custom'))
+        : (edge.type === 'default' ? 'custom' : (edge.type || 'custom'));
+      processedEdges.push({
+        ...edge,
+        type: edgeType,
+      });
+    } else if (edgeGroup.length > 2) {
+      // More than 2 edges between same nodes - add all as separate edges
+      edgeGroup.forEach(edge => {
+        const edgeType = edge.id.includes('-branch-')
+          ? (edge.type === 'default' ? 'custom' : (edge.type || 'custom'))
+          : (edge.type === 'default' ? 'custom' : (edge.type || 'custom'));
+        processedEdges.push({
+          ...edge,
+          type: edgeType,
+        });
+      });
     }
   });
 
@@ -146,9 +199,19 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   isGraphValid = false,
 }) => {
   const [showYamlDebug, setShowYamlDebug] = useState(false);
+  const { primaryHex } = useTheme();
+  
+  // Get primary color for edges - use useMemo to recalculate when primaryHex changes
+  const primaryEdgeColor = useMemo(() => getPaletteColor(primaryHex, 0, 6), [primaryHex]);
   
   // Process edges to detect and transform bidirectional connections
-  const processedEdges = processBidirectionalEdges(edges);
+  // This must run on every edges change to detect new bidirectional pairs
+  const processedEdges = useMemo(() => {
+    if (!edges || edges.length === 0) return [];
+    // Process edges to detect bidirectional pairs
+    const result = processBidirectionalEdges(edges);
+    return result;
+  }, [edges]);
 
   return (
     <div className="flex-1 relative">
@@ -190,14 +253,18 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
             <ReactFlowProvider>
               <ReactFlow
                 nodes={nodes}
-                edges={processedEdges.map(edge => ({
+                edges={processedEdges.map(edge => {
+                  // Ensure bidirectional edges keep their type, others default to 'custom'
+                  const edgeType = edge.type === 'bidirectional' ? 'bidirectional' : (edge.type || 'custom');
+                  return {
                   ...edge,
-                  type: edge.type || 'custom',
+                    type: edgeType,
                   data: {
                     ...edge.data,
                     onDelete: onDeleteEdge,
                   }
-                }))}
+                  };
+                })}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
@@ -211,12 +278,12 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
                 defaultEdgeOptions={{
                   type: "custom",
                   animated: true,
-                  style: { stroke: "#8A2BE2", strokeWidth: 2 },
+                  style: { stroke: primaryEdgeColor, strokeWidth: 2 },
                   markerEnd: {
                     type: MarkerType.ArrowClosed,
                     width: 20,
                     height: 20,
-                    color: "#8A2BE2",
+                    color: primaryEdgeColor,
                   },
                 }}
               >

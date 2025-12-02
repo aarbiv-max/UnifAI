@@ -63,7 +63,7 @@ const CustomNode: React.FC<CustomNodeProps> = ({ id, data, selected }) => {
     onDelete, 
     referencedConditions = [],
     onAttachCondition,
-    onRemoveCondition 
+    onRemoveCondition
   } = data;
 
   const [isDragOver, setIsDragOver] = useState(false);

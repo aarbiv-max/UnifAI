@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactFlow, {
   Node,
   Edge,
@@ -6,6 +6,7 @@ import ReactFlow, {
   Background,
   MiniMap,
   NodeTypes,
+  EdgeTypes,
   useNodesState,
   useEdgesState,
   MarkerType,
@@ -28,7 +29,10 @@ import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { useStreamingData } from "../StreamingDataContext";
 import { BuildingBlock } from "../../../types/graph";
 import InnerRefElement from "./InnerRefElement";
+import BidirectionalEdge from "./BidirectionalEdge";
 import axios from "../../../http/axiosAgentConfig";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getPaletteColor } from "@/lib/colorUtils";
 
 // Node status enum
 type NodeStatus = "IDLE" | "PROGRESS" | "DONE";
@@ -304,6 +308,10 @@ const nodeTypes: NodeTypes = {
   agent: AgentNode,
 };
 
+const edgeTypes: EdgeTypes = {
+  bidirectional: BidirectionalEdge, // Only used when one edge is conditional
+};
+
 // Helper function to extract UID from $ref: format
 const extractUidFromRef = (value: string): string => {
   if (typeof value === 'string' && value.startsWith('$ref:')) {
@@ -372,33 +380,34 @@ const getNodeStyle = (nodeType: string): string => {
 // Function to generate edge color based on source node type
 const getEdgeStyle = (
   sourceNodeType: string,
+  primaryHex?: string
 ): { stroke: string; color: string } => {
-  if (sourceNodeType === "user_question_node") {
-    return { stroke: "#003f5c", color: "#003f5c" };
-  } else if (sourceNodeType === "final_answer_node") {
-    return { stroke: "#003f5c", color: "#003f5c" };
-  } else {
-    return { stroke: "hsl(var(--primary))", color: "hsl(var(--primary))" };
-  }
+  // Use primary color from palette for all edges, including user_question_node and final_answer_node
+  const edgeColor = primaryHex ? getPaletteColor(primaryHex, 0, 6) : "hsl(var(--primary))";
+  return { stroke: edgeColor, color: edgeColor };
 };
 
 // Function to generate conditional edge styling - matches node gradient colors
 const getConditionalEdgeStyle = (
   sourceNodeType: string,
+  primaryHex?: string
 ): { stroke: string; color: string; strokeDasharray: string } => {
   if (sourceNodeType === "user_question_node") {
     return { stroke: "hsl(var(--accent))", color: "hsl(var(--accent))", strokeDasharray: "5,5" };
   } else if (sourceNodeType === "final_answer_node") {
     return { stroke: "hsl(var(--accent))", color: "hsl(var(--accent))", strokeDasharray: "5,5" };
   } else {
-    return { stroke: "hsl(var(--primary))", color: "hsl(var(--primary))", strokeDasharray: "5,5" };
+    // Use primary color from palette if available
+    const edgeColor = primaryHex ? getPaletteColor(primaryHex, 2, 6) : "hsl(var(--primary))";
+    return { stroke: edgeColor, color: edgeColor, strokeDasharray: "5,5" };
   }
 };
 
 // Function to parse the JSON graph flow into ReactFlow nodes and edges
 const parseGraphFlow = (
   graphFlow: GraphFlow,
-  fetchResourceByIdFn?: (refId: string) => Promise<any>
+  fetchResourceByIdFn?: (refId: string) => Promise<any>,
+  primaryHex?: string
 ): { nodes: Node<EnhancedNodeData>[]; edges: Edge[] } => {
   if (!graphFlow || !graphFlow.plan) {
     return { nodes: [], edges: [] };
@@ -600,7 +609,7 @@ const parseGraphFlow = (
       predecessors.forEach((predecessorId) => {
         const sourceNodeType =
           nodeTypeMap[predecessorId] || "custom_agent_node";
-        const edgeStyle = getEdgeStyle(sourceNodeType);
+        const edgeStyle = getEdgeStyle(sourceNodeType, primaryHex);
 
         edges.push({
           id: `${predecessorId}-to-${item.uid}`,
@@ -626,7 +635,7 @@ const parseGraphFlow = (
     // Handle conditional edges (branches)
     if (item.branches) {
       const sourceNodeType = nodeTypeMap[item.uid] || "custom_agent_node";
-      const conditionalEdgeStyle = getConditionalEdgeStyle(sourceNodeType);
+      const conditionalEdgeStyle = getConditionalEdgeStyle(sourceNodeType, primaryHex);
 
       // Create edges for each branch target
       Object.entries(item.branches).forEach(([branchKey, targetNodeId]) => {
@@ -663,34 +672,71 @@ const parseGraphFlow = (
     }
   });
 
-  // Detect and update bidirectional edges to use smoothstep type
-  const edgeMap = new Map<string, Edge>();
-  const bidirectionalPairs = new Set<string>();
+  // Detect and replace bidirectional edge pairs with a single bidirectional edge
+  const edgeMap = new Map<string, Edge[]>();
+  const processedPairs = new Set<string>();
 
-  // Create a map of edges by their connection pair
+  // Group edges by node pairs (regardless of direction)
   edges.forEach(edge => {
     const key1 = `${edge.source}-${edge.target}`;
     const key2 = `${edge.target}-${edge.source}`;
     
-    edgeMap.set(key1, edge);
+    // Use a canonical key (smaller node ID first) to identify the pair
+    const canonicalKey = edge.source < edge.target ? key1 : key2;
     
-    // Check if reverse edge exists
-    if (edgeMap.has(key2)) {
-      bidirectionalPairs.add(key1);
-      bidirectionalPairs.add(key2);
+    if (!edgeMap.has(canonicalKey)) {
+      edgeMap.set(canonicalKey, []);
     }
+    edgeMap.get(canonicalKey)!.push(edge);
   });
 
-  // Update bidirectional edges to use smoothstep type
-  const updatedEdges = edges.map(edge => {
-    const edgeKey = `${edge.source}-${edge.target}`;
-    if (bidirectionalPairs.has(edgeKey)) {
-      return {
-        ...edge,
-        type: "smoothstep",
-      };
+  // Process edges: replace bidirectional pairs with single bidirectional edge
+  const updatedEdges: Edge[] = [];
+  
+  edgeMap.forEach((edgeGroup, canonicalKey) => {
+    if (edgeGroup.length === 2) {
+      // Bidirectional pair detected
+      const [edge1, edge2] = edgeGroup;
+      
+      // Check if at least one edge is conditional (has -branch- in ID)
+      const edge1IsConditional = edge1.id.includes('-branch-');
+      const edge2IsConditional = edge2.id.includes('-branch-');
+      const hasConditionalEdge = edge1IsConditional || edge2IsConditional;
+
+      // Only create bidirectional edge if one of the edges is conditional
+      if (hasConditionalEdge) {
+        // Mark both original edges as processed
+        processedPairs.add(edge1.id);
+        processedPairs.add(edge2.id);
+        
+        // Create a single bidirectional edge using the first edge's source/target
+        const bidirectionalEdge: Edge = {
+          ...edge1,
+          id: `bidirectional-${edge1.source}-${edge1.target}`, // New unique ID
+          type: 'bidirectional',
+          data: {
+            ...edge1.data,
+            bidirectional: true,
+            originalEdgeIds: [edge1.id, edge2.id], // Keep track of original edges
+            hasConditional: true, // Mark that this bidirectional edge involves a conditional
+          },
+          style: {
+            // Color will be set by BidirectionalEdge component using primary palette
+            strokeWidth: 4, // Thicker than regular edges
+          },
+          // Remove markerEnd since we'll have arrows on both ends
+          markerEnd: undefined,
+        };
+        
+        updatedEdges.push(bidirectionalEdge);
+      } else {
+        // Both edges are regular - keep them as separate edges
+        updatedEdges.push(edge1, edge2);
     }
-    return edge;
+    } else if (edgeGroup.length === 1) {
+      // Single directional edge - keep as is
+      updatedEdges.push(edgeGroup[0]);
+    }
   });
 
   return { nodes, edges: updatedEdges };
@@ -730,6 +776,13 @@ export default function ReactFlowGraph({
   const prevNodeListRef = useRef<Map<string, any>>(new Map());
   const { user } = useAuth();
   const { fetchResourceById } = useWorkspaceData();
+  const { primaryHex } = useTheme();
+  
+  // Store the current graph flow data to re-parse when primaryHex changes
+  const currentGraphFlowRef = useRef<any>(null);
+  
+  // Get primary color for edges - use useMemo to recalculate when primaryHex changes
+  const primaryEdgeColor = useMemo(() => getPaletteColor(primaryHex, 0, 6), [primaryHex]);
 
   // Function to update node status based on streaming data
   const updateNodeStatuses = useCallback(() => {
@@ -826,8 +879,11 @@ export default function ReactFlowGraph({
       );
 
       if (targetBlueprintObj) {
+        // Store the graph flow data for re-parsing when primaryHex changes
+        currentGraphFlowRef.current = targetBlueprintObj.spec_dict;
+        
         const { nodes: newNodes, edges: newEdges } =
-          parseGraphFlow(targetBlueprintObj.spec_dict, fetchResourceById);
+          parseGraphFlow(targetBlueprintObj.spec_dict, fetchResourceById, primaryHex);
 
         setNodes(newNodes);
         setEdges(newEdges);
@@ -855,6 +911,18 @@ export default function ReactFlowGraph({
       convertGraphFlowToReactFlow(blueprintId);
     }
   }, [blueprintId]);
+
+  // Re-parse edges when primaryHex changes (to update colors)
+  useEffect(() => {
+    if (currentGraphFlowRef.current && blueprintId) {
+      // Re-parse the graph flow with the new primary color
+      const { nodes: newNodes, edges: newEdges } =
+        parseGraphFlow(currentGraphFlowRef.current, fetchResourceById, primaryHex);
+      
+      setNodes(newNodes);
+      setEdges(newEdges);
+    }
+  }, [primaryHex, blueprintId, fetchResourceById, setNodes, setEdges]);
 
   // Auto-fit view when nodes/edges are loaded
   useEffect(() => {
@@ -954,6 +1022,7 @@ export default function ReactFlowGraph({
         onNodesChange={interactive ? onNodesChange : undefined}
         onEdgesChange={interactive ? onEdgesChange : undefined}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         elementsSelectable={interactive}
         nodesConnectable={interactive}
@@ -962,12 +1031,12 @@ export default function ReactFlowGraph({
         defaultEdgeOptions={{
           type: "smoothstep",
           animated: true,
-          style: { stroke: "#8A2BE2", strokeWidth: 3 },
+          style: { stroke: primaryEdgeColor, strokeWidth: 3 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 20,
             height: 20,
-            color: "#8A2BE2",
+            color: primaryEdgeColor,
           },
         }}
         proOptions={{ hideAttribution: true }}

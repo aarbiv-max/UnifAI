@@ -15,6 +15,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import axios from "../http/axiosAgentConfig";
 import * as yaml from "js-yaml";
 import { useLocation } from "wouter";
+import { useTheme } from "@/contexts/ThemeContext";
+import { getPaletteColor } from "@/lib/colorUtils";
 
 interface YamlFlowNode {
   rid: string;
@@ -80,6 +82,7 @@ const defaulYmlState: YamlFlowState = {
 export const useGraphLogic = () => {
   const { toast } = useToast();
   const [location, setLocation] = useLocation();
+  const { primaryHex } = useTheme();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [nodeId, setNodeId] = useState(1);
@@ -293,12 +296,108 @@ export const useGraphLogic = () => {
         const edgeToDelete = currentEdges.find((edge) => edge.id === edgeId);
         if (!edgeToDelete) return currentEdges;
 
-        const updatedEdges = currentEdges.filter((edge) => edge.id !== edgeId);
+        // Check if this is a bidirectional edge being deleted
+        const isBidirectionalEdge = edgeToDelete.type === 'bidirectional' || edgeToDelete.id.startsWith('bidirectional-');
+        let originalEdgeIds: string[] = [];
+        
+        if (isBidirectionalEdge && edgeToDelete.data?.originalEdgeIds) {
+          // This is a bidirectional edge - we need to delete both original edges
+          originalEdgeIds = edgeToDelete.data.originalEdgeIds;
+        }
 
-        // Update YAML flow to remove the connection
+        // Remove the edge(s) from the edges array
+        let updatedEdges = currentEdges.filter((edge) => edge.id !== edgeId);
+        
+        // Also remove original edges if this was a bidirectional edge
+        if (originalEdgeIds.length > 0) {
+          updatedEdges = updatedEdges.filter((edge) => !originalEdgeIds.includes(edge.id));
+        }
+
+        // Check if this is a conditional edge (branch edge)
+        const isConditionalEdge = edgeId.includes('-branch-');
+        let branchKey: string | null = null;
+        
+        if (isConditionalEdge) {
+          // Extract branch key from edge ID format: ${source}-branch-${branchKey}-to-${target}
+          const match = edgeId.match(/-branch-(.+?)-to-/);
+          if (match && match[1]) {
+            branchKey = match[1];
+          }
+        }
+
+        // Update YAML flow to remove the connection(s)
         setYamlFlow((prevFlow) => {
           const updatedPlan = prevFlow.plan.map((step) => {
-            if (step.uid === edgeToDelete.target) {
+            // Handle bidirectional edges - need to remove both directions
+            if (isBidirectionalEdge && originalEdgeIds.length === 2) {
+              // Find the two original edges to get their source/target
+              const edge1 = currentEdges.find(e => e.id === originalEdgeIds[0]);
+              const edge2 = currentEdges.find(e => e.id === originalEdgeIds[1]);
+              
+              if (edge1 && edge2) {
+                // Remove edge1 direction: remove edge1.source from edge1.target's after
+                if (step.uid === edge1.target) {
+              if (step.after) {
+                if (Array.isArray(step.after)) {
+                      const updatedAfter = step.after.filter((afterId) => afterId !== edge1.source);
+                  if (updatedAfter.length === 0) {
+                    const { after, ...stepWithoutAfter } = step;
+                    return stepWithoutAfter;
+                  } else if (updatedAfter.length === 1) {
+                    return { ...step, after: updatedAfter[0] };
+                  } else {
+                    return { ...step, after: updatedAfter };
+                  }
+                    } else if (step.after === edge1.source) {
+                  const { after, ...stepWithoutAfter } = step;
+                  return stepWithoutAfter;
+                }
+                  }
+                }
+                
+                // Remove edge2 direction: remove edge2.source from edge2.target's after
+                if (step.uid === edge2.target) {
+                  if (step.after) {
+                    if (Array.isArray(step.after)) {
+                      const updatedAfter = step.after.filter((afterId) => afterId !== edge2.source);
+                      if (updatedAfter.length === 0) {
+                        const { after, ...stepWithoutAfter } = step;
+                        return stepWithoutAfter;
+                      } else if (updatedAfter.length === 1) {
+                        return { ...step, after: updatedAfter[0] };
+                      } else {
+                        return { ...step, after: updatedAfter };
+                      }
+                    } else if (step.after === edge2.source) {
+                      const { after, ...stepWithoutAfter } = step;
+                      return stepWithoutAfter;
+                    }
+                  }
+                }
+              }
+              }
+
+            // Handle conditional branches - need to check the SOURCE step (orchestrator)
+            if (isConditionalEdge && branchKey && step.uid === edgeToDelete.source) {
+              if (step.branches) {
+                const updatedBranches = { ...step.branches };
+                // Remove the branch key from branches
+                if (updatedBranches[branchKey]) {
+                    delete updatedBranches[branchKey];
+                  }
+                
+                // If no branches remain, remove the branches property
+                if (Object.keys(updatedBranches).length === 0) {
+                  const { branches, ...stepWithoutBranches } = step;
+                  return stepWithoutBranches;
+                } else {
+                  return { ...step, branches: updatedBranches };
+                }
+              }
+            }
+            
+            // Handle regular edges (after dependencies) - check the TARGET step
+            if (!isConditionalEdge && !isBidirectionalEdge && step.uid === edgeToDelete.target) {
               if (step.after) {
                 if (Array.isArray(step.after)) {
                   // Remove the source from the array
@@ -321,25 +420,8 @@ export const useGraphLogic = () => {
                   return stepWithoutAfter;
                 }
               }
-
-              // Handle conditional branches if they exist
-              if (step.branches) {
-                const updatedBranches = { ...step.branches };
-                Object.keys(updatedBranches).forEach((branchKey) => {
-                  if (updatedBranches[branchKey] === edgeToDelete.target) {
-                    delete updatedBranches[branchKey];
-                  }
-                });
-                
-                // If no branches remain, remove the branches property
-                if (Object.keys(updatedBranches).length === 0) {
-                  const { branches, ...stepWithoutBranches } = step;
-                  return stepWithoutBranches;
-                } else {
-                  return { ...step, branches: updatedBranches };
-                }
-              }
             }
+            
             return step;
           });
 
@@ -1077,21 +1159,27 @@ export const useGraphLogic = () => {
 
 
   const createConditionalEdge = (params: Connection, branchConfig: any) => {
+    // Use primary color palette for conditional edges
+    const conditionalEdgeColor = getPaletteColor(primaryHex, 2, 6);
+    
     const edgeStyle = {
       strokeDasharray: "5,5",
-      stroke: "#10b981",
+      stroke: conditionalEdgeColor,
     };
 
-    const edgeId = `${params.source}-${params.target}-${branchConfig.branch || Date.now()}`;
+    // Use the same ID format as ReactFlowGraph: ${source}-branch-${branchKey}-to-${target}
+    // This ensures deletion works correctly
+    const branchKey = branchConfig.branch || params.target || Date.now().toString();
+    const edgeId = `${params.source}-branch-${branchKey}-to-${params.target}`;
     const newEdge = {
       id: edgeId,
       source: params.source!,
       target: params.target!,
-      type: "default",
+      type: "custom", // Use 'custom' type so it gets the delete button
       style: edgeStyle,
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: "#10b981",
+        color: conditionalEdgeColor,
       },
       data: {
         ...branchConfig,
