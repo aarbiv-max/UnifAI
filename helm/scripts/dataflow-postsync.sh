@@ -4,7 +4,7 @@ set +e
 echo "Starting dataflow postsync hook..."
 
 # Source common functions
-source "$(dirname "$0")/postsync/common.sh"
+source "$(dirname "$0")/common.sh"
 
 # Get service details
 DATAFLOW_ADDR=$(wait_for_ip unifai-dataflow-server)

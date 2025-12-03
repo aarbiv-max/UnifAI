@@ -1,4 +1,3 @@
-
 #!/bin/bash
 # Shared functions for postsync hooks
 
@@ -30,7 +29,7 @@ wait_for_service_name() {
     sleep 10
   done
   echo "Error: Timed out waiting for $svc" >&2
-  exit 1 
+  exit 1
 }
 
 wait_for_ip() {
@@ -46,7 +45,7 @@ wait_for_ip() {
     sleep 10
   done
   echo "Error: Timed out waiting for $svc" >&2
-  exit 1 
+  exit 1
 }
 
 # Optional: Helper to reduce configmap boilerplate
