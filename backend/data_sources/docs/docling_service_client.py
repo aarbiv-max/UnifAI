@@ -7,22 +7,12 @@ It replaces the internal docling library usage with HTTP calls to the service.
 
 import os
 import requests
-from typing import Dict, Any, Optional, Annotated
-from pydantic import AliasChoices, AliasPath, BaseModel, BeforeValidator, Field
+from typing import Dict, Any, Optional
+from pydantic import AliasChoices, AliasPath, BaseModel, Field
 from shared.logger import logger
 from .pdf_chunker_strategy import DoclingProcessingError
 from config.app_config import AppConfig
-
-
-def coerce_to_str(v: Any) -> str:
-    """Convert None or non-string values to empty string."""
-    if v is None:
-        return ""
-    return str(v)
-
-
-# Type alias for string fields that should coerce None to empty string
-CoercedStr = Annotated[str, BeforeValidator(coerce_to_str)]
+from global_utils.validators import CoercedStr
 
 
 class DoclingResponse(BaseModel):
@@ -88,21 +78,17 @@ class DoclingServiceClient:
     instead of using the internal docling library.
     """
     
-    def __init__(self, base_url: Optional[str] = None, timeout: Optional[int] = None):
+    def __init__(self, timeout: Optional[int] = None):
         """
         Initialize the docling service client.
         
         Args:
-            base_url: Base URL of the docling service. If not provided, reads from 
-                     app_config.docling_service_url.
             timeout: Request timeout in seconds. If not provided, reads from 
                     app_config.docling_service_timeout (default: 300).
         """
-        app_config = AppConfig.get_instance()
-        self.base_url = base_url or app_config.docling_service_url
-        # Ensure base_url doesn't end with a slash
-        self.base_url = self.base_url.rstrip('/')
-        self.timeout = timeout if timeout is not None else app_config.docling_service_timeout
+        self.app_config = AppConfig.get_instance()
+        self.base_url = self.app_config.docling_service_url.rstrip('/')
+        self.timeout = timeout if timeout is not None else self.app_config.docling_service_timeout
         logger.info(f"DoclingServiceClient initialized with base URL: {self.base_url}, timeout: {self.timeout}s")
     
     def convert_file(
