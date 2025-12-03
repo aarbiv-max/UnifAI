@@ -15,7 +15,8 @@ wait_for_port() {
     echo "Waiting for $svc Port..."
     sleep 10
   done
-  echo "pending"
+  echo "Error: Timed out waiting for $svc" >&2
+  exit 1
 }
 
 wait_for_service_name() {
@@ -30,7 +31,8 @@ wait_for_service_name() {
     echo "Waiting for $svc LoadBalancer IP..."
     sleep 10
   done
-  echo "pending"
+  echo "Error: Timed out waiting for $svc" >&2
+  exit 1
 }
 
 # wait_for_ext_ip() {
