@@ -56,6 +56,45 @@ class DocumentConnector(DataConnector):
         """
         return self._service_client.test_connection()
     
+    def _read_text_file(self, file_path: str) -> Dict[str, Any]:
+        """
+        Read a plain text file directly without using the docling service.
+        
+        The docling service does not support .txt files, so we read them directly.
+        
+        Args:
+            file_path: Path to the text file
+            
+        Returns:
+            Dictionary containing text content
+            
+        Raises:
+            DoclingProcessingError: If file cannot be read
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text_content = f.read()
+            
+            return {
+                "text": text_content,
+                "markdown": text_content,  # Plain text is valid markdown
+                "filename": os.path.basename(file_path)
+            }
+        except UnicodeDecodeError:
+            # Try with latin-1 encoding as fallback
+            try:
+                with open(file_path, 'r', encoding='latin-1') as f:
+                    text_content = f.read()
+                return {
+                    "text": text_content,
+                    "markdown": text_content,
+                    "filename": os.path.basename(file_path)
+                }
+            except Exception as e:
+                raise DoclingProcessingError(f"Failed to read text file '{os.path.basename(file_path)}': {str(e)}")
+        except Exception as e:
+            raise DoclingProcessingError(f"Failed to read text file '{os.path.basename(file_path)}': {str(e)}")
+
     def process_document(self, document_path: str, upload_by: str = "default") -> Optional[Dict[str, Any]]:
         """
         Process a document file and extract text and metadata.
@@ -90,8 +129,13 @@ class DocumentConnector(DataConnector):
         try:
             logger.info(f"Processing document: {document_path}")
             
-            # Process the document with docling service
-            result = self._service_client.convert_file(document_path, to_formats=["md", "text"])
+            # Handle .txt files directly - docling service doesn't support plain text
+            if file_extension.lower() == '.txt':
+                logger.info(f"Reading text file directly (docling doesn't support .txt): {document_path}")
+                result = self._read_text_file(document_path)
+            else:
+                # Use docling service for PDF, DOCX, MD, etc.
+                result = self._service_client.convert_file(document_path, to_formats=["md", "text"])
             
             # Store the conversion result for future reference
             self._conversion_results[document_path] = result
