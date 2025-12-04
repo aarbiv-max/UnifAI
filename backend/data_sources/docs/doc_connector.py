@@ -100,17 +100,6 @@ class DocumentConnector(DataConnector):
             text_content = result.get("text", "")
             markdown_content = result.get("markdown", "")
             
-            # Validate that we extracted content
-            if not text_content or not text_content.strip():
-                # If no text, try to use markdown as fallback
-                if markdown_content and markdown_content.strip():
-                    text_content = markdown_content
-                else:
-                    logger.error(f"Docling service failed to extract text content from document: {document_path}")
-                    raise DoclingProcessingError(
-                        f"Docling service was unable to process the provided document "
-                        f"'{os.path.basename(document_path)}'. Failed to extract text content from the document."
-                    )
        
             document_data = {
                 "text": text_content,
@@ -122,7 +111,7 @@ class DocumentConnector(DataConnector):
             # Add metadata if requested
             if self._config_manager.get_config_value("include_metadata"):
                 document_data["metadata"] = self._extract_metadata(
-                    result, upload_by, file_size_mb, text_content
+                    result, upload_by, file_size_mb
                 )
                 
             logger.info(f"Document processed successfully: {document_path}")
@@ -185,17 +174,6 @@ class DocumentConnector(DataConnector):
             text_content = result.get("text", "")
             markdown_content = result.get("markdown", "")
             
-            # Validate that we extracted meaningful content
-            if not text_content or not text_content.strip():
-                # If no text, try to use markdown as fallback
-                if markdown_content and markdown_content.strip():
-                    text_content = markdown_content
-                else:
-                    logger.error(f"Docling service failed to extract text content from document URL: {document_url}")
-                    raise DoclingProcessingError(
-                        f"Docling service was unable to process the provided document from URL "
-                        f"'{document_url}'. Failed to extract text content from the document."
-                    )
                         
             document_data = {
                 "text": text_content,
@@ -206,7 +184,7 @@ class DocumentConnector(DataConnector):
             # Add metadata if requested
             if self._config_manager.get_config_value("include_metadata"):
                 document_data["metadata"] = self._extract_metadata(
-                    result, upload_by=upload_by, file_size=0, text_content=text_content
+                    result, upload_by=upload_by, file_size=0
                 )
                 
             logger.info(f"Document from URL processed successfully: {document_url}")
@@ -223,7 +201,6 @@ class DocumentConnector(DataConnector):
         conversion_result: Dict[str, Any], 
         upload_by: str = "default", 
         file_size: float = 0,
-        text_content: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Extract metadata from a conversion result.
@@ -244,9 +221,6 @@ class DocumentConnector(DataConnector):
             if "metadata" in conversion_result and isinstance(conversion_result["metadata"], dict):
                 metadata.update(conversion_result["metadata"])
 
-            # Extract title from metadata or use default
-            metadata["title"] = metadata.get("title", "Untitled")
-
             # Extract uploader
             metadata["upload_by"] = upload_by
             
@@ -254,7 +228,7 @@ class DocumentConnector(DataConnector):
             metadata["file_size"] = f"{file_size:.2f} MB" if file_size > 0 else "Unknown size"
                 
             # Extract content statistics
-            text = text_content or conversion_result.get("text", "")
+            text = conversion_result.text
             if text:
                 metadata["character_count"] = len(text)
                 metadata["word_count"] = len(text.split())
@@ -269,13 +243,8 @@ class DocumentConnector(DataConnector):
                     estimated_pages = max(1, len(text) // 2000)
                     metadata["page_count"] = estimated_pages
                 else:
-                    metadata["page_count"] = 1
+                    metadata["page_count"] = 0
             
-            # Extract table and image counts from metadata if available
-            if "table_count" not in metadata:
-                metadata["table_count"] = 0
-            if "image_count" not in metadata:
-                metadata["image_count"] = 0
                 
         except Exception as e:
             logger.warning(f"Error extracting metadata: {str(e)}")
@@ -299,12 +268,13 @@ class DocumentConnector(DataConnector):
         try:
             result = self._conversion_results[document_path]
             structure = {
-                "title": result.get("metadata", {}).get("title", "Untitled"),
+                "title": "Untitled",
                 "sections": []
             }
             
             # Extract sections from markdown if available
             # This is a simplified version - the service may not provide detailed structure
+            # TODO: Implement a more robust section extraction strategy
             markdown = result.get("markdown", "")
             if markdown:
                 # Try to extract headers from markdown
