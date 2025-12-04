@@ -14,6 +14,8 @@ from typing import (
 from pydantic import BaseModel
 from core.enums import ResourceCategory
 from .base_factory import BaseFactory
+from .card.interface import CardBuilder
+from .card.default import DefaultCardBuilder
 from graph.state.graph_state import Channel
 
 
@@ -38,6 +40,9 @@ class BaseElementSpec(ABC):
     version: ClassVar[str] = "1.0.0"
     tags: ClassVar[List[str]] = []
     hints: ClassVar[List[Any]] = []
+    # ── card building ────────────────────────────────────────────────────
+    capability_names: ClassVar[List[str]] = []
+    card_builder_cls: ClassVar[Type[CardBuilder]] = DefaultCardBuilder
 
     # ─────────────────────────────────────────────────────────────────────
     # compile‑time validation

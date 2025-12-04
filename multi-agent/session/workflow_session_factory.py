@@ -63,7 +63,7 @@ class WorkflowSessionFactory:
         session_registry = self._session_builder.build(blueprint_spec)
 
         # 3. Compose abstract plan ———
-        rt_graph_plan = RTGraphPlan(logical_plan, session_registry)
+        rt_graph_plan = RTGraphPlan(logical_plan, session_registry, self._elements)
 
         # 4. Compile to executable graph ———
         _engine_builder = GraphBuilderFactory(GraphState).create(self._engine_name)

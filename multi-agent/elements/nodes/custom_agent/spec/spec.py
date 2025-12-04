@@ -3,6 +3,7 @@ from core.enums import ResourceCategory
 from ..config import CustomAgentNodeConfig
 from ..custom_agent import CustomAgentNode
 from ..custom_agent_node_factory import CustomAgentNodeFactory
+from ..card_builder import CustomAgentCardBuilder
 from ..identifiers import Identifier, META
 
 
@@ -15,6 +16,7 @@ class CustomAgentNodeElementSpec(BaseElementSpec):
     description = META.description
     config_schema = CustomAgentNodeConfig
     factory_cls = CustomAgentNodeFactory
+    card_builder_cls = CustomAgentCardBuilder
     reads = CustomAgentNode.total_reads()
     writes = CustomAgentNode.total_writes()
     tags = META.tags

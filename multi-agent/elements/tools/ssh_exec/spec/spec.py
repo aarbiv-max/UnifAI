@@ -1,4 +1,5 @@
 from elements.common.base_element_spec import BaseElementSpec
+from elements.tools.common.card_builder import ToolCardBuilder
 from core.enums import ResourceCategory
 from ..config import SshExecToolConfig
 from ..ssh_exec_factory import SshExecToolFactory
@@ -14,4 +15,5 @@ class SshExecToolElementSpec(BaseElementSpec):
     description = META.description
     config_schema = SshExecToolConfig
     factory_cls = SshExecToolFactory
+    card_builder_cls = ToolCardBuilder
     tags = META.tags

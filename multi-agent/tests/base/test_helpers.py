@@ -94,7 +94,7 @@ def create_test_element_card(uid: str, name: str = None, description: str = None
         uid: Unique identifier
         name: Display name (defaults to uid)
         description: Description (defaults to "Test node {uid}")
-        capabilities: Set of capabilities (defaults to empty)
+        capabilities: Set of capability names (defaults to empty)
         type_key: Element type (defaults to "test_node")
         
     Returns:
@@ -103,21 +103,20 @@ def create_test_element_card(uid: str, name: str = None, description: str = None
     Example:
         card = create_test_element_card("agent1", capabilities={"analysis", "reporting"})
     """
-    from core.models import ElementCard
+    from elements.common.card import ElementCard, Capability
     from core.enums import ResourceCategory
+    
+    cap_list = [Capability(name=cap) for cap in (capabilities or set())]
     
     return ElementCard(
         uid=uid,
-        category=ResourceCategory.NODE,  # Default to NODE for testing
+        category=ResourceCategory.NODE,
         type_key=type_key,
         name=name or uid,
         description=description or f"Test node {uid}",
-        capabilities=capabilities or set(),
-        reads=set(),
-        writes=set(),
-        instance=None,  # Not needed for most tests
-        config=None,    # Not needed for most tests
-        skills={},      # Empty skills for testing
+        capabilities=cap_list,
+        skills=[],
+        configuration={},
         metadata=None
     )
 

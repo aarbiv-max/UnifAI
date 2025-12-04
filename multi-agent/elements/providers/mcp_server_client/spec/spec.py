@@ -3,6 +3,7 @@ from elements.common.base_element_spec import BaseElementSpec
 from core.enums import ResourceCategory
 from ..config import McpProviderConfig
 from ..mcp_provider_factory import McpProviderFactory
+from ..card_builder import McpProviderCardBuilder
 from ..identifiers import Identifier, META
 
 
@@ -20,4 +21,5 @@ class McpProviderElementSpec(BaseElementSpec):
     description = META.description
     config_schema = McpProviderConfig
     factory_cls = McpProviderFactory
+    card_builder_cls = McpProviderCardBuilder
     tags = META.tags

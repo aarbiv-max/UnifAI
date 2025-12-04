@@ -369,7 +369,7 @@ class TestMessengerFactory:
         assert messenger1._is_adjacent("new_node") is False
         
         # Create new context with additional node (immutable approach)
-        from core.models import ElementCard
+        from elements.common.card import ElementCard
         from core.enums import ResourceCategory
         new_card = ElementCard(
             uid="new_node",
@@ -377,12 +377,10 @@ class TestMessengerFactory:
             type_key="test",
             name="New Node",
             description="Test node",
-            capabilities=set(),
-            reads=set(),
-            writes=set(),
-            instance=None,
-            config={},
-            skills={}
+            capabilities=[],
+            skills=[],
+            configuration={},
+            metadata=None
         )
         
         # Create new context with the additional node

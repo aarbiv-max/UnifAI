@@ -1,8 +1,10 @@
 from elements.common.base_element_spec import BaseElementSpec
+from elements.retrievers.common.card_builder import RetrieverCardBuilder
 from core.enums import ResourceCategory
 from ..config import DocsRetrieverConfig
 from ..docs_retriever_factory import DocsRetrieverFactory
 from ..identifiers import Identifier, META
+
 
 class DocsRetrieverElementSpec(BaseElementSpec):
     """Element specification for Docs Retriever."""
@@ -13,4 +15,5 @@ class DocsRetrieverElementSpec(BaseElementSpec):
     description = META.description
     config_schema = DocsRetrieverConfig
     factory_cls = DocsRetrieverFactory
+    card_builder_cls = RetrieverCardBuilder
     tags = META.tags

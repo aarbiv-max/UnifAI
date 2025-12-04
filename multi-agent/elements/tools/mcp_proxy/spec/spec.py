@@ -1,4 +1,5 @@
 from elements.common.base_element_spec import BaseElementSpec
+from elements.tools.common.card_builder import ToolCardBuilder
 from core.enums import ResourceCategory
 from ..config import McpProxyToolConfig
 from ..mcp_proxy_factory import McpProxyToolFactory
@@ -14,4 +15,5 @@ class McpProxyToolElementSpec(BaseElementSpec):
     description = META.description
     config_schema = McpProxyToolConfig
     factory_cls = McpProxyToolFactory
+    card_builder_cls = ToolCardBuilder
     tags = META.tags

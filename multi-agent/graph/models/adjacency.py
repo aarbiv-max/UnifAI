@@ -6,7 +6,7 @@ Clean Pydantic models for managing adjacent nodes in a SOLID way.
 
 from typing import Dict, List, Set, Optional
 from pydantic import BaseModel, Field
-from core.models import ElementCard
+from elements.common.card import ElementCard
 
 
 class AdjacentNodes(BaseModel):

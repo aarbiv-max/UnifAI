@@ -1,4 +1,5 @@
 from elements.common.base_element_spec import BaseElementSpec
+from elements.retrievers.common.card_builder import RetrieverCardBuilder
 from core.enums import ResourceCategory
 from ..config import SlackRetrieverConfig
 from ..slack_retriever_factory import SlackRetrieverFactory
@@ -14,4 +15,5 @@ class SlackRetrieverElementSpec(BaseElementSpec):
     description = META.description
     config_schema = SlackRetrieverConfig
     factory_cls = SlackRetrieverFactory
+    card_builder_cls = RetrieverCardBuilder
     tags = META.tags

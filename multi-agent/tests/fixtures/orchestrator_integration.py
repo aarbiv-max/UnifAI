@@ -240,7 +240,7 @@ def create_step_context_local(uid: str, adjacent_nodes: List[str] = None):
     """
     from graph.models import StepContext
     from graph.models import AdjacentNodes
-    from core.models import ElementCard
+    from elements.common.card import ElementCard
     from core.enums import ResourceCategory
     from blueprints.models.blueprint import StepMeta
     
@@ -256,12 +256,10 @@ def create_step_context_local(uid: str, adjacent_nodes: List[str] = None):
             type_key="test_node",
             name=node_uid,
             description=f"Test node {node_uid}",
-            capabilities=set(),
-            reads=set(),
-            writes=set(),
-            instance=None,
-            config={},
-            skills={}
+            capabilities=[],
+            skills=[],
+            configuration={},
+            metadata=None
         )
         adjacent_nodes_dict[node_uid] = card
     

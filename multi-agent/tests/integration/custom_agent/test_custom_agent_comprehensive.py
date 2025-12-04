@@ -32,7 +32,7 @@ from graph.state.state_view import StateView
 from graph.topology.models import StepTopology
 from graph.state.graph_state import Channel
 from core.iem.packets import TaskPacket
-from core.models import ElementCard
+from elements.common.card import ElementCard, Skill, Capability
 from core.enums import ResourceCategory
 from elements.nodes.common.agent.constants import StrategyType
 from elements.tools.common.base_tool import BaseTool
@@ -686,9 +686,10 @@ class TestCustomAgentOrchestrationIntegration:
                 type_key="custom_agent_node",
                 name=spec.replace('_', ' ').title(),
                 description=f"{spec.replace('_', ' ')} specialist",
-                capabilities={spec, "specialized_processing"},
-                reads=set(), writes=set(), instance=Mock(), config={},
-                skills={"tools": [{"name": f"{spec}_tool", "description": f"{spec} operations"}]}
+                capabilities=[Capability(name=spec), Capability(name="specialized_processing")],
+                skills=[Skill(name=f"{spec}_tool", description=f"{spec} operations")],
+                configuration={},
+                metadata=None
             )
 
         # Process through orchestrator (using new flow - no immediate cycle)
@@ -888,9 +889,10 @@ class TestCustomAgentOrchestrationIntegration:
                 type_key="custom_agent_node",
                 name="Initiator Agent",
                 description="Workflow initiating agent",
-                capabilities={"workflow_initiation", "coordination_requests"},
-                reads=set(), writes=set(), instance=Mock(), config={},
-                skills={"tools": [{"name": "initiate_workflow", "description": "Initiates workflows"}]}
+                capabilities=[Capability(name="workflow_initiation"), Capability(name="coordination_requests")],
+                skills=[Skill(name="initiate_workflow", description="Initiates workflows")],
+                configuration={},
+                metadata=None
             )
         }):
             with patch.object(orchestrator, 'send_task', side_effect=track_orchestrator_response):

@@ -8,7 +8,7 @@ which adjacent nodes can receive delegated work.
 import pytest
 from unittest.mock import Mock
 from graph.models import AdjacentNodes
-from core.models import ElementCard
+from elements.common.card import ElementCard
 from graph.topology.models import StepTopology, FinalizerPathInfo
 from elements.nodes.common.agent.delegation_policy import (
     DelegationPolicy,
