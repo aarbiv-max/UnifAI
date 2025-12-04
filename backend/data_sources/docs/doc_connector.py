@@ -146,21 +146,28 @@ class DocumentConnector(DataConnector):
         """
         logger.info(f"Processing batch of {len(document_paths)} documents")
         results = []
+        failed_count = 0
         
+        # Process each document individually, continue on failure to avoid blocking entire batch
         for doc_path in document_paths:
-            result = self.process_document(doc_path)
-            if result:
-                results.append(result)
+            try:
+                result = self.process_document(doc_path)
+                if result:
+                    results.append(result)
+            except DoclingProcessingError as e:
+                logger.error(f"Failed to process document {doc_path}: {str(e)}")
+                failed_count += 1
                 
-        logger.info(f"Batch processing complete. Processed {len(results)} out of {len(document_paths)} documents")
+        logger.info(f"Batch processing complete. Processed {len(results)} out of {len(document_paths)} documents. Failed: {failed_count}")
         return results
     
-    def process_document_url(self, document_url: str) -> Optional[Dict[str, Any]]:
+    def process_document_url(self, document_url: str, upload_by: str = "default") -> Optional[Dict[str, Any]]:
         """
         Process a document from a URL.
         
         Args:
             document_url: URL of the document
+            upload_by: User who uploaded the document
             
         Returns:
             Dictionary containing extracted text and metadata, or None if processing failed
@@ -199,7 +206,7 @@ class DocumentConnector(DataConnector):
             # Add metadata if requested
             if self._config_manager.get_config_value("include_metadata"):
                 document_data["metadata"] = self._extract_metadata(
-                    result, upload_by="default", file_size=0, text_content=text_content
+                    result, upload_by=upload_by, file_size=0, text_content=text_content
                 )
                 
             logger.info(f"Document from URL processed successfully: {document_url}")

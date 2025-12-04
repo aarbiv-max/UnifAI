@@ -48,7 +48,14 @@ class DoclingResponse(BaseModel):
             AliasPath("document", "filename"),
         )
     )
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    # Handle metadata from both root level and nested document.metadata paths
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        validation_alias=AliasChoices(
+            "metadata",
+            AliasPath("document", "metadata"),
+        )
+    )
     
     @property
     def has_content(self) -> bool:
