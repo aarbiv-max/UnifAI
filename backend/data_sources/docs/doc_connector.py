@@ -103,7 +103,7 @@ class DocumentConnector(DataConnector):
        
             document_data = {
                 "text": text_content,
-                "markdown": markdown_content if markdown_content else text_content,
+                "markdown": markdown_content,
                 "path": document_path,
                 "filename": os.path.basename(document_path),
             }
@@ -177,7 +177,7 @@ class DocumentConnector(DataConnector):
                         
             document_data = {
                 "text": text_content,
-                "markdown": markdown_content if markdown_content else text_content,
+                "markdown": markdown_content,
                 "url": document_url,
             }
             
