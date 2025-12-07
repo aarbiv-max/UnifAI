@@ -8,6 +8,7 @@ USER default
 # Copy all backend files (including entrypoint.sh) and global_utils
 ADD  --chown=default:root --chmod=777 ./backend $HOME/backend
 ADD  --chown=default:root --chmod=777 ./global_utils $HOME/global_utils
+ADD  --chown=default:root --chmod=777 ./tests $HOME/tests
 
 WORKDIR $HOME/backend
 
