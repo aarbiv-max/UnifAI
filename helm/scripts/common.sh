@@ -72,7 +72,7 @@ wait_for_ip() {
 create_or_update_configmap() {
   local cm_name=$1
   shift
-  kubectl delete configmap "$cm_name" 2>/dev/null
+  kubectl delete configmap "$cm_name" --ignore-not-found=true
   kubectl create configmap "$cm_name" "$@" \
     --dry-run=client -o yaml | kubectl apply -f -
 }
