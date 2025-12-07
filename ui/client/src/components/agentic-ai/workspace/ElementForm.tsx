@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo} from "react";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +65,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   };
 
   const { user } = useAuth();
+  const timestamp = useMemo(() => new Date().toISOString(), [isOpen]);
 
   // Initialize form data
   useEffect(() => {
@@ -693,6 +694,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
               data-umami-event="agent-repository-save-element-button" 
               data-umami-event-user-id={user?.username}
               data-umami-event-element-type={elementType.name}
+              data-umami-event-element-unique-id={`${elementType.name}-${timestamp}`}
             >
               {isSaving ? "Saving..." : "Save"}
             </Button>
