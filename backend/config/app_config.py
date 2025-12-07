@@ -15,10 +15,7 @@ class AppConfig(SharedConfig):
 
     qdrant_ip: str = "0.0.0.0"
     qdrant_port: str = "6333"
-    
-    docling_service_url: str = "http://docling-service:5001"
-    docling_service_timeout: int = 300
-    
+
     # Slack Configuration
     # When running locally, use the default slack tokens ( get it from genie-cred-data and use ENV to set it)
     default_slack_bot_token: str = ""
