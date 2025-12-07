@@ -7,7 +7,8 @@ env:
   ROLE: "celery"
   SHARED_STORAGE: "/app/shared"
   CELERY_QUEUES: "slack_queue,document_queue,slack_events_queue"
-  CELERY_WORKER: 1
+  # 2 workers: ~2.6GB RAM, optimal for embedding + HTTP conversion workload
+  CELERY_WORKER: 2
 
 debug: false
 
@@ -83,11 +84,11 @@ resources:
   limits:
     cpu: 2
     memory: 4Gi
-    nvidia.com/gpu: 1
+    #nvidia.com/gpu: 1
   requests:
     cpu: 2
     memory: 4Gi
-    nvidia.com/gpu: 1
+    #nvidia.com/gpu: 1
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following
