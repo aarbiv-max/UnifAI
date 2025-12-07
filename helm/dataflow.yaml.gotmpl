@@ -18,7 +18,7 @@ releases:
         showlogs: true
         command: bash
         args:
-          - "./dataflow-presync.sh"
+          - "./scripts/dataflow-presync.sh"
     values:
       - {{- toYaml .Values.unifai_dataflow_server | nindent 8 }}
       - ./values/global-config.yaml
