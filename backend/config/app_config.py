@@ -20,8 +20,9 @@ class AppConfig(SharedConfig):
     docling_service_timeout: int = 300
     
     # Slack Configuration
-    default_slack_bot_token: str = "xoxb-2253118358-8783454711008-P7XnZRur3OGpo6YIXOELahY1"
-    default_slack_user_token: str = "xoxp-2253118358-5985274029168-9985689955216-3ed225bbc2990579845542a1921563d4"
+    # When running locally, use the default slack tokens ( get it from genie-cred-data and use ENV to set it)
+    default_slack_bot_token: str = ""
+    default_slack_user_token: str = ""
 
     # Flask Configuration
     # secret_key=your-super-secret-key-change-this-in-production
