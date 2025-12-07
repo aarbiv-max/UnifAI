@@ -85,18 +85,21 @@ class DoclingServiceClient:
     instead of using the internal docling library.
     """
     
-    def __init__(self, timeout: Optional[int] = None):
+    def __init__(self, timeout: Optional[int] = None, image_export_mode: Optional[str] = None):
         """
         Initialize the docling service client.
         
         Args:
             timeout: Request timeout in seconds. If not provided, reads from 
                     app_config.docling_service_timeout (default: 300).
+            image_export_mode: Default mode for image export. "placeholder" excludes images from conversion.
+                              Can be overridden per request. Defaults to None (service default behavior).
         """
         self.app_config = AppConfig.get_instance()
         self.base_url = self.app_config.docling_service_url.rstrip('/')
         self.timeout = timeout if timeout is not None else self.app_config.docling_service_timeout
-        logger.info(f"DoclingServiceClient initialized with base URL: {self.base_url}, timeout: {self.timeout}s")
+        self.image_export_mode = image_export_mode
+        logger.info(f"DoclingServiceClient initialized with base URL: {self.base_url}, timeout: {self.timeout}s, image_export_mode: {self.image_export_mode}")
     
     def convert_file(
         self, 
@@ -141,6 +144,10 @@ class DoclingServiceClient:
                 form_data = []
                 for fmt in to_formats:
                     form_data.append(('to_formats', fmt))
+                
+                # Add image_export_mode if set (defaults to "placeholder" to exclude images)
+                if self.image_export_mode:
+                    form_data.append(('image_export_mode', self.image_export_mode))
                 
                 response = requests.post(
                     url,
@@ -209,6 +216,10 @@ class DoclingServiceClient:
                 "sources": [{"kind": "http", "url": document_url}],
                 "to_formats": to_formats
             }
+            
+            # Add image_export_mode if set (defaults to "placeholder" to exclude images)
+            if self.image_export_mode:
+                payload["image_export_mode"] = self.image_export_mode
             
             response = requests.post(
                 url,

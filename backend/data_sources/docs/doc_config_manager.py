@@ -18,6 +18,7 @@ class DocConfigManager(ConfigurationManager):
         "supported_extensions": [".pdf", ".docx", ".md"],
         "max_file_size_mb": 50,
         "timeout_seconds": 300,
+        "image_export_mode": "placeholder",  # Exclude images from conversion: "placeholder" excludes, other values may include
         # Note: The following parameters are kept for future use if the docling service adds these features
         # Currently the docling service may not support all these parameters
         "use_ocr": False,  # Not currently supported by docling service
@@ -77,6 +78,11 @@ class DocConfigManager(ConfigurationManager):
         for param in bool_params:
             if not isinstance(self._config.get(param), bool):
                 errors.append(f"{param} must be a boolean value")
+        
+        # Validate image_export_mode (currently only "placeholder" is used/tested)
+        image_export_mode = self._config.get("image_export_mode")
+        if image_export_mode and not isinstance(image_export_mode, str):
+            errors.append("image_export_mode must be a string value")
         
         # Validate path parameters
         if self._config.get("extract_images"):

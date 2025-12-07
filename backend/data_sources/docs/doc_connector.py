@@ -31,7 +31,9 @@ class DocumentConnector(DataConnector):
         # Timeout is read from AppConfig.docling_service_timeout by default
         # DocConfigManager can override if timeout_seconds is explicitly set
         config_timeout = self._config_manager.get_config_value("timeout_seconds")
-        self._service_client = DoclingServiceClient(timeout=config_timeout)
+        # Get image_export_mode from config once during initialization
+        image_export_mode = self._config_manager.get_config_value("image_export_mode")
+        self._service_client = DoclingServiceClient(timeout=config_timeout, image_export_mode=image_export_mode)
         
         # Store conversion results for metadata extraction
         self._conversion_results: Dict[str, Dict[str, Any]] = {}
