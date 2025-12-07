@@ -132,7 +132,7 @@ export default function Sidebar() {
             isActive={location === '/documents'}
             status={null}
             isCollapsed={isCollapsed}
-            disabled={true}
+            disabled={false}
           />
         </ul>
 

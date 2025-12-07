@@ -202,18 +202,18 @@ class QdrantStorage(VectorStorage):
         if filters:
             qdrant_filter = self._convert_filters_to_qdrant(filters)
         
-        # Perform the search
-        search_results = self.client.search(
+        # Perform the search using query_points (replaces deprecated search method in 1.16.x)
+        search_results = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_embedding.tolist(),
+            query=query_embedding.tolist(),
             limit=top_k,
             query_filter=qdrant_filter,
             with_payload=True
         )
         
-        # Convert to standard format
+        # Convert to standard format - query_points returns QueryResponse with .points
         results = []
-        for result in search_results:
+        for result in search_results.points:
             results.append({
                 "id": result.id,
                 "score": result.score,

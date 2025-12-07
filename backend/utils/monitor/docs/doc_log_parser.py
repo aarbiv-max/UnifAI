@@ -23,11 +23,11 @@ class DocLogParser(LogParser):
         """
         # Try to find document ID in "Processing document" or similar log entries
         patterns = [
-            r'Processing document: ([^/\s]+\.pdf|[^/\s]+\.docx|[^/\s]+\.txt)$',  # For direct filename references
-            r'Processing document: .*?/([^/]+\.(pdf|docx|txt))$',  # For path-based references
+            r'Processing document: ([^/\s]+\.pdf|[^/\s]+\.docx|[^/\s]+\.md)$',  # For direct filename references
+            r'Processing document: .*?/([^/]+\.(pdf|docx|md))$',  # For path-based references
             r'Processing document: .* \(ID: ([A-Za-z0-9_-]+)\)',  # For explicit ID references
-            r'document ([^/\s]+\.(pdf|docx|txt)) in',  # For references in processing time logs
-            r'Successfully processed document: ([^/\s]+\.(pdf|docx|txt))'  # For success logs
+            r'document ([^/\s]+\.(pdf|docx|md)) in',  # For references in processing time logs
+            r'Successfully processed document: ([^/\s]+\.(pdf|docx|md))'  # For success logs
         ]
         
         for pattern in patterns:
