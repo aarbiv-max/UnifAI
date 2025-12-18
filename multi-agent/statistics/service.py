@@ -6,6 +6,7 @@ from session.service import SessionService
 from resources.service import ResourcesService
 from core.dto import GroupedCount
 from .models import StatisticsResponse, ResourceCategoryStats, OverviewStatisticsResponse, TotalStats
+from .cache import MongoStatisticsCache
 
 
 class SessionStats(TypedDict):
@@ -50,6 +51,7 @@ class StatisticsService:
         self._blueprint_service = blueprint_service
         self._session_service = session_service
         self._resources_service = resources_service
+        self._cache: Optional[MongoStatisticsCache] = None
 
     def get_all(self, user_id: str) -> StatisticsResponse:
         """
@@ -217,10 +219,35 @@ class StatisticsService:
             for cat, data in category_data.items()
         ]
     
+    def _get_cache(self) -> Optional[MongoStatisticsCache]:
+        """
+        Lazy initialization of MongoDB cache.
+        Gets MongoDB connection from session repository to avoid app_container changes.
+        
+        Returns:
+            MongoStatisticsCache instance or None if initialization fails
+        """
+        if self._cache is None:
+            try:
+                session_repo = self._session_service._manager._repo
+                if hasattr(session_repo, '_col'):
+                    db = session_repo._col.database
+                    cache_collection = db["statistics_cache"]
+                    self._cache = MongoStatisticsCache(
+                        collection=cache_collection,
+                        default_ttl=300
+                    )
+            except Exception:
+                # If cache initialization fails, continue without cache (graceful degradation)
+                self._cache = None
+        return self._cache
+
     def get_overview(self, time_range: str = "all") -> OverviewStatisticsResponse:
         """
         Get comprehensive system-wide overview statistics.
         Returns all key metrics in a single response for the dashboard.
+        Results are cached in MongoDB to prevent duplicate expensive queries across Gunicorn workers.
+        Uses distributed locking to prevent thundering herd problem.
         
         Args:
             time_range: Time filter - 'today', '7days', '30days', or 'all' (default: 'all')
@@ -228,7 +255,57 @@ class StatisticsService:
         Returns:
             OverviewStatisticsResponse: Pydantic model containing all overview statistics
         """
-        # Get total statistics
+        cache = self._get_cache()
+        cache_key = f"overview:{time_range}"
+        
+        # Try to get from cache first
+        if cache:
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                # Cache hit - return immediately
+                return OverviewStatisticsResponse(**cached_data)
+            
+            # Cache miss - try to acquire lock to compute
+            if cache.acquire_compute_lock(cache_key):
+                # We acquired the lock - we'll compute
+                try:
+                    # Extend lock heartbeat before starting computation
+                    cache.extend_lock_heartbeat(cache_key)
+                    
+                    response = self._compute_overview_statistics(time_range)
+                    
+                    # Cache the result with TTL based on time_range
+                    ttl = 60 if time_range == "today" else (300 if time_range in ["7days", "30days"] else 600)
+                    cache.set(cache_key, response.model_dump(mode="json"), ttl=ttl)
+                    
+                    return response
+                finally:
+                    # Always release the lock
+                    cache.release_compute_lock(cache_key)
+            else:
+                # Another request is computing - wait for it to finish
+                cached_data = cache.wait_for_cache(cache_key)
+                if cached_data:
+                    return OverviewStatisticsResponse(**cached_data)
+                
+                # If wait timed out, fall through to compute ourselves
+                # (This handles edge cases where the computing request crashed)
+        
+        # Cache unavailable or wait timed out - compute directly
+        return self._compute_overview_statistics(time_range)
+    
+    def _compute_overview_statistics(self, time_range: str) -> OverviewStatisticsResponse:
+        """
+        Compute overview statistics (expensive operation).
+        This method is called when cache miss occurs and lock is acquired.
+        
+        Args:
+            time_range: Time filter - 'today', '7days', '30days', or 'all'
+        
+        Returns:
+            OverviewStatisticsResponse: Computed statistics
+        """
+        # Calculate statistics
         total_runs = self._session_service.count_system_wide(time_range=time_range)
         unique_users = len(self._session_service.get_distinct_users(time_range=time_range))
         avg_runs_per_user = round(total_runs / unique_users, 2) if unique_users > 0 else 0
