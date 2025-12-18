@@ -46,8 +46,8 @@ def get_overview(time_range, user_id=None):
     Get comprehensive system-wide overview statistics.
     Returns all key metrics in a single response for the dashboard.
     
-    Requires admin access if admin_allowed_users is configured in AppConfig.
-    If admin_allowed_users is empty
+    Requires admin access (user must be in admin_allowed_users list).
+    If admin_allowed_users is empty, Analytics is disabled and access is denied.
     
     Query params:
         time_range (str): Time range filter - 'today', '7days', '30days', or 'all' (default: 'all')
