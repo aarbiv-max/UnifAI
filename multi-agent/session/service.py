@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterator, List, Optional
 from .user_session_manager import UserSessionManager
 from .session_executor import SessionExecutor
 from .workflow_session import WorkflowSession
@@ -149,3 +149,75 @@ class SessionService:
         Delete a session by run_id. Returns True if deleted, False if not found.
         """
         return self._manager.delete_session(run_id)
+    
+    # ---------- system-wide statistics ----------
+    def group_count_system_wide(
+        self,
+        group_by: List[str],
+        filter: Dict[str, Any] = None,
+        time_range: Optional[str] = None
+    ) -> List[GroupedCount]:
+        """
+        Group sessions by specified fields across all users (system-wide).
+        Supports time-based filtering via time_range parameter.
+        
+        Args:
+            group_by: List of field names to group by (e.g., ["blueprint_id", "status"])
+            filter: Optional additional filter criteria
+            time_range: Optional time filter - "today", "7days", "30days", or "all"
+            
+        Returns:
+            List of GroupedCount DTOs with grouped field values and count.
+        """
+        return self._manager.group_count_system_wide(group_by, filter, time_range)
+    
+    def count_system_wide(
+        self,
+        filter: Dict[str, Any] = None,
+        time_range: Optional[str] = None
+    ) -> int:
+        """
+        Count sessions across all users (system-wide).
+        Supports time-based filtering via time_range parameter.
+        
+        Args:
+            filter: Optional additional filter criteria
+            time_range: Optional time filter - "today", "7days", "30days", or "all"
+            
+        Returns:
+            Total count of sessions matching the criteria
+        """
+        return self._manager.count_system_wide(filter, time_range)
+    
+    def get_distinct_users(
+        self,
+        filter: Dict[str, Any] = None,
+        time_range: Optional[str] = None
+    ) -> List[str]:
+        """
+        Get distinct user IDs across all sessions (system-wide).
+        Supports time-based filtering via time_range parameter.
+        
+        Args:
+            filter: Optional additional filter criteria
+            time_range: Optional time filter - "today", "7days", "30days", or "all"
+            
+        Returns:
+            List of distinct user IDs
+        """
+        return self._manager.get_distinct_users(filter, time_range)
+    
+    def get_time_series_activity(
+        self,
+        time_range: str = "all"
+    ) -> List[Dict[str, Any]]:
+        """
+        Get time series activity data grouped by appropriate time intervals.
+        
+        Args:
+            time_range: 'today', '7days', '30days', or 'all'
+        
+        Returns:
+            List of dicts with 'period' (time label) and 'count' (workflow executions)
+        """
+        return self._manager.get_time_series_activity(time_range)

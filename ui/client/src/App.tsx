@@ -7,6 +7,7 @@ import AgenticAI from "@/pages/AgenticAI";
 import AgentRepository from "@/pages/AgentRepository";
 import AgenticChats from "@/pages/AgenticChats";
 import GetToKnow from "@/pages/GetToKnow";
+import Analytics from "@/pages/Analytics";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { ProjectProvider } from '@/contexts/ProjectContext';
@@ -59,6 +60,7 @@ function App() {
                   <Route path="/get-to-know" component={GetToKnow} />
                   <Route path="/configuration" component={Configuration} />
                   <Route path="/guides" component={GuidesPage} />
+                  <Route path="/analytics" component={Analytics} />
                   <Route component={NotFound} />
                 </Switch>
               </ProtectedRoute>

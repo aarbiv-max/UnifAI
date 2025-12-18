@@ -224,7 +224,6 @@ export default function Sidebar() {
             isActive={location === '/analytics'}
             status={null}
             isCollapsed={isCollapsed}
-            disabled={true}
           />
           <NavItem 
             icon={<FaUserShield className="sidebar-icon" />} 
