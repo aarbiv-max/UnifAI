@@ -10,6 +10,6 @@ class AppConfig(SharedConfig):
     hostname: str = "0.0.0.0"
     port: str = "8002"
     version: str = "1.0.0"
-
+    admin_allowed_users: list = []  # Populate with usernames/emails to grant analytics access
     # Engine
     engine_name: str = "langgraph"

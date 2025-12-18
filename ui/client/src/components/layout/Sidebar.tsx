@@ -217,14 +217,16 @@ export default function Sidebar() {
             status={null}
             isCollapsed={isCollapsed}
           />
-          <NavItem 
-            icon={<FaChartLine className="sidebar-icon" />} 
-            label="Analytics" 
-            to="/analytics"
-            isActive={location === '/analytics'}
-            status={null}
-            isCollapsed={isCollapsed}
-          />
+          {user?.is_admin && (
+            <NavItem 
+              icon={<FaChartLine className="sidebar-icon" />} 
+              label="Analytics" 
+              to="/analytics"
+              isActive={location === '/analytics'}
+              status={null}
+              isCollapsed={isCollapsed}
+            />
+          )}
           <NavItem 
             icon={<FaUserShield className="sidebar-icon" />} 
             label="User Management" 

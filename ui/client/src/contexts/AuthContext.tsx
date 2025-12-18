@@ -7,7 +7,7 @@ export interface User {
   name: string;
   sub: string;
   token_expires_at: number;
-  can_access_analytics?: boolean;
+  is_admin?: boolean;  // Admin access (based on admin_allowed_users config)
 }
 
 export interface AuthContextType {

@@ -39,7 +39,7 @@ export default function Analytics() {
   const { primaryHex } = useTheme();
   const { user } = useAuth();
 
-  const hasAccess = user?.can_access_analytics || false;
+  const hasAccess = user?.is_admin || false;
 
   // Fetch analytics data
   const { data: analytics, isLoading, error, refetch, isFetching } = useQuery({
