@@ -209,3 +209,13 @@ class UserSessionManager:
             return self._repo.get_time_series_activity(time_range)
         else:
             raise NotImplementedError("Repository does not support time series queries")
+    
+    def get_database(self):
+        """
+        Get MongoDB database instance for advanced operations.
+        This is used by statistics service for cache initialization.
+        
+        Returns:
+            Database: MongoDB database instance
+        """
+        return self._repo.get_database()

@@ -222,21 +222,19 @@ class StatisticsService:
     def _get_cache(self) -> Optional[MongoStatisticsCache]:
         """
         Lazy initialization of MongoDB cache.
-        Gets MongoDB connection from session repository to avoid app_container changes.
+        Gets MongoDB connection from session manager to avoid app_container changes.
         
         Returns:
             MongoStatisticsCache instance or None if initialization fails
         """
         if self._cache is None:
             try:
-                session_repo = self._session_service._manager._repo
-                if hasattr(session_repo, '_col'):
-                    db = session_repo._col.database
-                    cache_collection = db["statistics_cache"]
-                    self._cache = MongoStatisticsCache(
-                        collection=cache_collection,
-                        default_ttl=300
-                    )
+                db = self._session_service._manager.get_database()
+                cache_collection = db["statistics_cache"]
+                self._cache = MongoStatisticsCache(
+                    collection=cache_collection,
+                    default_ttl=300
+                )
             except Exception:
                 # If cache initialization fails, continue without cache (graceful degradation)
                 self._cache = None

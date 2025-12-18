@@ -317,3 +317,13 @@ class MongoSessionRepository(SessionRepository):
             date_format = "%Y-%m-%d"  # Daily for all time
         
         return cutoff_date, date_format
+    
+    def get_database(self):
+        """
+        Get MongoDB database instance for advanced operations.
+        This is used by statistics service for cache initialization.
+        
+        Returns:
+            Database: MongoDB database instance
+        """
+        return self._col.database
