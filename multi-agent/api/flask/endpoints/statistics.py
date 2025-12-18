@@ -34,14 +34,10 @@ def get_all(user_id):
         load_default="all",
         validate=lambda x: x in ["today", "7days", "30days", "all"]
     ),
-    "user_id": fields.Str(
-        data_key="userId",
-        required=False,
-        load_default=None
-    )
+    "user_id": fields.Str( data_key="userId",required=True,load_default=None)
 })
 @require_admin_access
-def get_overview(time_range, user_id=None):
+def get_overview(time_range, user_id):
     """
     Get comprehensive system-wide overview statistics.
     Returns all key metrics in a single response for the dashboard.
