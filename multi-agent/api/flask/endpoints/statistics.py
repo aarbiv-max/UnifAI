@@ -34,7 +34,7 @@ def get_all(user_id):
         load_default="all",
         validate=lambda x: x in ["today", "7days", "30days", "all"]
     ),
-    "user_id": fields.Str( data_key="userId",required=True,load_default=None)
+    "user_id": fields.Str(data_key="userId", required=True)
 })
 @require_admin_access
 def get_overview(time_range, user_id):
@@ -47,7 +47,7 @@ def get_overview(time_range, user_id):
     
     Query params:
         time_range (str): Time range filter - 'today', '7days', '30days', or 'all' (default: 'all')
-        userId (str, optional): User ID for access control (required if admin_allowed_users is configured)
+        userId (str, required): User ID for access control (must be in admin_allowed_users list)
     """
     try:
         container = current_app.container

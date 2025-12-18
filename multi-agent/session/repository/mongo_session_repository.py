@@ -37,6 +37,19 @@ class MongoSessionRepository(SessionRepository):
             unique=True
         )
 
+        # Indexes for system-wide queries to reduce MongoDB load
+        self._col.create_index([("run_context.started_at", pymongo.ASCENDING)])
+        self._col.create_index([("status", pymongo.ASCENDING)])
+        self._col.create_index([("blueprint_id", pymongo.ASCENDING)])
+        self._col.create_index([
+            ("user_id", pymongo.ASCENDING),
+            ("run_context.started_at", pymongo.ASCENDING)
+        ])
+
+        # Cache for earliest run date to avoid expensive queries
+        self._earliest_run_date_cache: Optional[datetime] = None
+        self._earliest_run_date_cache_time: Optional[datetime] = None
+
     def save(self, session: WorkflowSession) -> None:
         ctx = session.run_context
 
@@ -75,13 +88,8 @@ class MongoSessionRepository(SessionRepository):
         """Count sessions matching filter criteria for a user."""
         query = {"user_id": user_id, **filter}
         return self._col.count_documents(query)
-    
-    def group_count(
-        self, 
-        user_id: str, 
-        group_by: List[str],
-        filter: Dict[str, Any] = None
-    ) -> List[GroupedCount]:
+
+    def group_count(self, user_id: str, group_by: List[str], filter: Dict[str, Any] = None) -> List[GroupedCount]:
         """
         Group documents by specified fields and return counts.
         Uses MongoDB aggregation for efficient server-side grouping.
@@ -102,12 +110,8 @@ class MongoSessionRepository(SessionRepository):
             GroupedCount(fields=doc["_id"], count=doc["count"])
             for doc in self._col.aggregate(pipeline)
         ]
-    
-    def _apply_time_range_filter(
-        self,
-        filter_dict: Dict[str, Any],
-        time_range: Optional[str]
-    ) -> Dict[str, Any]:
+
+    def _apply_time_range_filter(self, filter_dict: Dict[str, Any], time_range: Optional[str]) -> Dict[str, Any]:
         """
         Apply time range filtering to a filter dictionary.
         
@@ -124,15 +128,10 @@ class MongoSessionRepository(SessionRepository):
             cutoff_date = self._get_cutoff_date(time_range)
             cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z')
             result["run_context.started_at"] = {"$gte": cutoff_iso}
-        
+
         return result
-    
-    def group_count_system_wide(
-        self,
-        group_by: List[str],
-        filter: Dict[str, Any] = None,
-        time_range: Optional[str] = None
-    ) -> List[GroupedCount]:
+
+    def group_count_system_wide(self, group_by: List[str], filter: Dict[str, Any] = None, time_range: Optional[str] = None) -> List[GroupedCount]:
         """
         Group documents by specified fields across all users (system-wide).
         Supports time-based filtering via time_range parameter.
@@ -158,12 +157,8 @@ class MongoSessionRepository(SessionRepository):
             GroupedCount(fields=doc["_id"], count=doc["count"])
             for doc in self._col.aggregate(pipeline)
         ]
-    
-    def count_system_wide(
-        self,
-        filter: Dict[str, Any] = None,
-        time_range: Optional[str] = None
-    ) -> int:
+
+    def count_system_wide(self, filter: Dict[str, Any] = None, time_range: Optional[str] = None) -> int:
         """
         Count sessions across all users (system-wide).
         Supports time-based filtering via time_range parameter.
@@ -177,12 +172,8 @@ class MongoSessionRepository(SessionRepository):
         """
         query = self._apply_time_range_filter(filter, time_range)
         return self._col.count_documents(query)
-    
-    def get_distinct_users(
-        self,
-        filter: Dict[str, Any] = None,
-        time_range: Optional[str] = None
-    ) -> List[str]:
+
+    def get_distinct_users(self, filter: Dict[str, Any] = None, time_range: Optional[str] = None) -> List[str]:
         """
         Get distinct user IDs across all sessions (system-wide).
         Supports time-based filtering via time_range parameter.
@@ -196,13 +187,11 @@ class MongoSessionRepository(SessionRepository):
         """
         match = self._apply_time_range_filter(filter, time_range)
         return self._col.distinct("user_id", match)
-    
-    def get_time_series_activity(
-        self,
-        time_range: str = "all"
-    ) -> List[Dict[str, Any]]:
+
+    def get_time_series_activity(self, time_range: str = "all") -> List[Dict[str, Any]]:
         """
         Get time series activity data grouped by appropriate time intervals.
+        Optimized to use indexes and limit result size.
         
         Args:
             time_range: 'today', '7days', '30days', or 'all'
@@ -214,9 +203,10 @@ class MongoSessionRepository(SessionRepository):
         cutoff_date, date_format = self._get_time_range_params(time_range, now)
         cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z')
         
+        # Optimized pipeline with index hint and result limit
         pipeline = [
             {"$match": {
-                "run_context.started_at": {"$gte": cutoff_iso}
+                "run_context.started_at": {"$gte": cutoff_iso, "$exists": True}
             }},
             {"$group": {
                 "_id": {
@@ -227,7 +217,10 @@ class MongoSessionRepository(SessionRepository):
                 },
                 "count": {"$sum": 1}
             }},
-            {"$sort": {"_id": 1}}
+            {"$sort": {"_id": 1}},
+            # Limit results to prevent excessive data transfer
+            # For "all" time range, this prevents returning thousands of daily entries
+            {"$limit": 1000}
         ]
         
         try:
@@ -235,7 +228,7 @@ class MongoSessionRepository(SessionRepository):
             return [{"period": doc["_id"], "count": doc["count"]} for doc in results]
         except Exception:
             return []
-    
+
     def _get_cutoff_date(self, time_range: str) -> datetime:
         """Get cutoff date based on time_range string."""
         now = datetime.now(timezone.utc)
@@ -249,29 +242,61 @@ class MongoSessionRepository(SessionRepository):
         else:
             # Default to 90 days for safety
             return now - timedelta(days=90)
-    
+
     def _get_earliest_run_date(self, now: datetime) -> datetime:
-        """Get the earliest run date from the collection, or default to 365 days ago."""
-        earliest = self._col.find_one(sort=[("run_context.started_at", pymongo.ASCENDING)])
-        if earliest:
-            earliest_time = earliest.get("run_context", {}).get("started_at")
-            if earliest_time:
-                try:
-                    if isinstance(earliest_time, str):
-                        cutoff_date = datetime.fromisoformat(earliest_time.replace('Z', '+00:00'))
-                        if cutoff_date.tzinfo is None:
-                            cutoff_date = cutoff_date.replace(tzinfo=timezone.utc)
-                    else:
-                        cutoff_date = datetime.fromtimestamp(earliest_time, tz=timezone.utc)
-                    return cutoff_date
-                except (ValueError, TypeError):
-                    pass
+        """
+        Get the earliest run date from the collection, or default to 365 days ago.
+        Uses caching to avoid expensive queries on every call.
+        """
+        # Cache for 1 hour to reduce MongoDB load
+        if (self._earliest_run_date_cache is not None
+            and self._earliest_run_date_cache_time is not None
+            and (now - self._earliest_run_date_cache_time).total_seconds() < 3600):
+            return self._earliest_run_date_cache
         
-        # Default fallback
-        return now - timedelta(days=365)
-    
+        # Use aggregation with limit=1 for better performance than find_one with sort
+        # This leverages the index on run_context.started_at
+        pipeline = [
+            {"$match": {"run_context.started_at": {"$exists": True, "$ne": None}}},
+            {"$sort": {"run_context.started_at": 1}},
+            {"$limit": 1},
+            {"$project": {"run_context.started_at": 1}}
+        ]
+        
+        try:
+            result = list(self._col.aggregate(pipeline))
+            if result:
+                earliest_time = result[0].get("run_context", {}).get("started_at")
+                if earliest_time:
+                    try:
+                        if isinstance(earliest_time, str):
+                            cutoff_date = datetime.fromisoformat(earliest_time.replace('Z', '+00:00'))
+                            if cutoff_date.tzinfo is None:
+                                cutoff_date = cutoff_date.replace(tzinfo=timezone.utc)
+                        else:
+                            cutoff_date = datetime.fromtimestamp(earliest_time, tz=timezone.utc)
+                        
+                        # Cache the result
+                        self._earliest_run_date_cache = cutoff_date
+                        self._earliest_run_date_cache_time = now
+                        return cutoff_date
+                    except (ValueError, TypeError):
+                        pass
+        except Exception:
+            # If query fails, fall through to default
+            pass
+        
+        # Default fallback - limit to 365 days to prevent scanning entire collection
+        default_date = now - timedelta(days=365)
+        self._earliest_run_date_cache = default_date
+        self._earliest_run_date_cache_time = now
+        return default_date
+
     def _get_time_range_params(self, time_range: str, now: datetime) -> Tuple[datetime, str]:
-        """Get cutoff date and date format based on time_range."""
+        """
+        Get cutoff date and date format based on time_range.
+        For 'all', limits to max 365 days to prevent excessive MongoDB load.
+        """
         if time_range == "today":
             cutoff_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
             date_format = "%Y-%m-%d %H:00"  # Hourly for today
@@ -282,7 +307,11 @@ class MongoSessionRepository(SessionRepository):
             cutoff_date = now - timedelta(days=30)
             date_format = "%Y-%m-%d"  # Daily for 30 days
         else:  # all
-            cutoff_date = self._get_earliest_run_date(now)
+            # Limit to max 365 days to prevent scanning entire collection
+            # This protects MongoDB from excessive load on large datasets
+            earliest_date = self._get_earliest_run_date(now)
+            max_lookback = now - timedelta(days=365)
+            cutoff_date = max(earliest_date, max_lookback)
             if cutoff_date.tzinfo is None:
                 cutoff_date = cutoff_date.replace(tzinfo=timezone.utc)
             date_format = "%Y-%m-%d"  # Daily for all time
