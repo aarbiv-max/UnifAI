@@ -19,6 +19,10 @@ class AppConfig(SharedConfig):
     docling_service_url: str = "http://docling-service:5001"
     docling_service_timeout: int = 300
     
+    embedding_service_url: str = "http://embedding-service:5002"
+    embedding_service_timeout: int = 60
+    embedding_service_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    
     # Slack Configuration
     # When running locally, use the default slack tokens ( get it from genie-cred-data and use ENV to set it)
     default_slack_bot_token: str = ""

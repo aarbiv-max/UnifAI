@@ -1,32 +1,26 @@
-import torch
 from typing import Dict, Any
-from .sentence_transformer_embedding import SentenceTransformerEmbedding
+from .remote_embedding_generator import RemoteEmbeddingGenerator
 from .embedding_generator import EmbeddingGenerator
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Factory class for creating embedding generators
 class EmbeddingGeneratorFactory:
-    """Factory for creating embedding generator instances based on configuration."""
+    """Factory for creating remote embedding generator instances."""
     
     @staticmethod
     def create(config: Dict[str, Any]) -> EmbeddingGenerator:
         """
-        Create an embedding generator instance.
+        Create a remote embedding generator instance.
         
         Args:
             config: Configuration for the embedding generator
             
         Returns:
-            Initialized embedding generator
+            Initialized remote embedding generator
         """
-        generator_type = config.get("type", "sentence_transformer")
-        
-        if generator_type == "sentence_transformer":
-            return SentenceTransformerEmbedding(
-                model_name=config.get("model_name", "all-MiniLM-L6-v2"),
-                batch_size=config.get("batch_size", 32),
-                device=config.get("device", device)
-            )
-        else:
-            raise ValueError(f"Unknown embedding generator type: {generator_type}")
+        return RemoteEmbeddingGenerator(
+            service_url=config.get("service_url"),
+            timeout=config.get("timeout") if config.get("timeout", 0) > 0 else None,
+            model_name=config.get("model_name", "sentence-transformers/all-MiniLM-L6-v2"),
+            batch_size=config.get("batch_size", 32),
+            embedding_dim=config.get("embedding_dim", 384)
+        )
