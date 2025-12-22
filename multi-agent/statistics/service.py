@@ -371,11 +371,12 @@ class StatisticsService:
             # For custom days, we'll need to use filter directly
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z')
+            custom_filter = {"run_context.started_at": {"$gte": cutoff_iso}}
             user_counts = self._session_service.group_count_system_wide(
                 group_by=["user_id", "status"],
-                filter={"run_context.started_at": {"$gte": cutoff_iso}}
+                filter=custom_filter
             )
-            return self._process_user_counts(user_counts, days)
+            return self._process_user_counts(user_counts, days, custom_filter=custom_filter)
         
         # Group by user_id with status breakdown
         user_counts = self._session_service.group_count_system_wide(
@@ -421,18 +422,49 @@ class StatisticsService:
         
         return user_data
     
-    def _process_user_counts(self, user_counts: List[GroupedCount], days: int) -> List[Dict[str, Any]]:
+    def _process_user_counts(self, user_counts: List[GroupedCount], days: int, custom_filter: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """
         Process user counts into user activity dicts.
         
         Args:
             user_counts: List of GroupedCount DTOs grouped by user_id and status
             days: Number of days (for field naming)
+            custom_filter: Optional custom filter for blueprint query (used when days is not 1, 7, or 30)
         
         Returns:
             List of user activity dicts
         """
         user_data = self._aggregate_user_counts(user_counts, run_count_field="recent_runs")
+        
+        # Get unique blueprints per user for the same time range
+        # Map days to time_range for blueprint query
+        if days == 1:
+            time_range = "today"
+        elif days == 7:
+            time_range = "7days"
+        elif days == 30:
+            time_range = "30days"
+        else:
+            time_range = None
+        
+        blueprint_counts = self._session_service.group_count_system_wide(
+            group_by=["user_id", "blueprint_id"],
+            time_range=time_range,
+            filter=custom_filter
+        )
+        for item in blueprint_counts:
+            user_id = item.get("user_id")
+            if user_id in user_data:
+                if "unique_blueprints" not in user_data[user_id]:
+                    user_data[user_id]["unique_blueprints"] = set()
+                user_data[user_id]["unique_blueprints"].add(item.get("blueprint_id"))
+        
+        # Convert sets to counts
+        for user_id in user_data:
+            if "unique_blueprints" in user_data[user_id]:
+                user_data[user_id]["unique_blueprints"] = len(user_data[user_id]["unique_blueprints"])
+            else:
+                user_data[user_id]["unique_blueprints"] = 0
         
         # Sort by recent_runs descending
         result = sorted(user_data.values(), key=lambda x: x["recent_runs"], reverse=True)
