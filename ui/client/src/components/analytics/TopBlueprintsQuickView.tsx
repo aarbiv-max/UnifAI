@@ -1,8 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FaRocket } from "react-icons/fa";
-import GlassPanel from "@/components/ui/GlassPanel";
 import { useMemo } from "react";
 import { generateColorPalette } from "@/lib/colorUtils";
+import { AnalyticCard } from "./AnalyticCard";
 
 interface TopBlueprintsQuickViewProps {
   blueprints: Array<{
@@ -21,37 +20,25 @@ export function TopBlueprintsQuickView({ blueprints, totalBlueprints, colors }: 
 
   if (!blueprints || blueprints.length === 0) {
     return (
-      <GlassPanel>
-        <Card className="shadow-card border-gray-800 h-full flex flex-col bg-transparent border-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-heading flex items-center gap-2">
-              <FaRocket style={{ color: colors.primary }} />
-              Top Blueprints
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-              <FaRocket className="text-4xl mb-3 opacity-30" />
-              <p className="text-sm">No blueprint data available</p>
-            </div>
-          </CardContent>
-        </Card>
-      </GlassPanel>
+      <AnalyticCard
+        title="Top Blueprints"
+        icon={<FaRocket style={{ color: colors.primary }} />}
+      >
+        <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+          <FaRocket className="text-4xl mb-3 opacity-30" />
+          <p className="text-sm">No blueprint data available</p>
+        </div>
+      </AnalyticCard>
     );
   }
 
   const maxRuns = Math.max(...blueprints.map((bp) => bp.run_count), 1);
 
   return (
-    <GlassPanel>
-      <Card className="shadow-card border-gray-800 h-full flex flex-col bg-transparent border-0">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-heading flex items-center gap-2">
-            <FaRocket style={{ color: colors.primary }} />
-            Top Blueprints
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <AnalyticCard
+      title="Top Blueprints"
+      icon={<FaRocket style={{ color: colors.primary }} />}
+    >
           <div className="space-y-4">
             {blueprints.map((bp, idx) => {
               const percentage = (bp.run_count / maxRuns) * 100;
@@ -89,9 +76,7 @@ export function TopBlueprintsQuickView({ blueprints, totalBlueprints, colors }: 
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
-    </GlassPanel>
+    </AnalyticCard>
   );
 }
 

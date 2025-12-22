@@ -1,7 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { FaChartLine } from "react-icons/fa";
-import GlassPanel from "@/components/ui/GlassPanel";
+import { AnalyticCard } from "./AnalyticCard";
 
 type TimeRange = 'today' | '7days' | '30days' | 'all';
 
@@ -89,15 +88,10 @@ export function WorkflowExecutionChart({ timeSeriesData, timeRange, colors }: Wo
   };
 
   return (
-    <GlassPanel>
-      <Card className="shadow-card border-gray-800 h-full flex flex-col bg-transparent border-0">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-heading flex items-center gap-2">
-            <FaChartLine style={{ color: colors.primary }} />
-            {getChartTitle()}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <AnalyticCard
+      title={getChartTitle()}
+      icon={<FaChartLine style={{ color: colors.primary }} />}
+    >
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={chartData}>
@@ -143,9 +137,7 @@ export function WorkflowExecutionChart({ timeSeriesData, timeRange, colors }: Wo
               <p className="text-sm">No workflow execution data available for this period</p>
             </div>
           )}
-        </CardContent>
-      </Card>
-    </GlassPanel>
+    </AnalyticCard>
   );
 }
 

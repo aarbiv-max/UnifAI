@@ -1,7 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { FaUsers } from "react-icons/fa";
-import GlassPanel from "@/components/ui/GlassPanel";
+import { AnalyticCard } from "./AnalyticCard";
 
 interface TopUsersChartProps {
   topUsersData: Array<{
@@ -17,15 +16,10 @@ interface TopUsersChartProps {
 
 export function TopUsersChart({ topUsersData, colors }: TopUsersChartProps) {
   return (
-    <GlassPanel>
-      <Card className="shadow-card border-gray-800 h-full flex flex-col bg-transparent border-0">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-heading flex items-center gap-2">
-            <FaUsers style={{ color: colors.info }} />
-            Top Active Users
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <AnalyticCard
+      title="Top Active Users"
+      icon={<FaUsers style={{ color: colors.info }} />}
+    >
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={topUsersData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -46,9 +40,7 @@ export function TopUsersChart({ topUsersData, colors }: TopUsersChartProps) {
               <Bar dataKey="runs" fill={colors.primary} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
-    </GlassPanel>
+    </AnalyticCard>
   );
 }
 

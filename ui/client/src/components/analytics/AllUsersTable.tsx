@@ -1,7 +1,13 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import GlassPanel from "@/components/ui/GlassPanel";
-import { PaginationControls } from "./PaginationControls";
+import { AnalyticCard } from "./AnalyticCard";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface AllUsersTableProps {
   users: Array<{
@@ -15,13 +21,12 @@ interface AllUsersTableProps {
 }
 
 export function AllUsersTable({ users, page, setPage, itemsPerPage }: AllUsersTableProps) {
+  const totalPages = Math.ceil(users.length / itemsPerPage);
+  const startItem = page * itemsPerPage + 1;
+  const endItem = Math.min((page + 1) * itemsPerPage, users.length);
+
   return (
-    <GlassPanel>
-      <Card className="shadow-card border-gray-800 h-full flex flex-col bg-transparent border-0">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-heading">User Activity Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <AnalyticCard title="User Activity Summary">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -45,16 +50,37 @@ export function AllUsersTable({ users, page, setPage, itemsPerPage }: AllUsersTa
             </Table>
           </div>
           {users.length > itemsPerPage && (
-            <PaginationControls 
-              currentPage={page}
-              totalItems={users.length}
-              itemsPerPage={itemsPerPage}
-              onPageChange={setPage}
-            />
+            <div className="flex justify-between items-center mt-4 px-2">
+              <span className="text-sm text-gray-400">
+                Showing {startItem}-{endItem} of {users.length}
+              </span>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+                        e.preventDefault();
+                        setPage((p: number) => Math.max(0, p - 1));
+                      }}
+                      className={page === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+                        e.preventDefault();
+                        setPage((p: number) => p + 1);
+                      }}
+                      className={page >= totalPages - 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
-        </CardContent>
-      </Card>
-    </GlassPanel>
+    </AnalyticCard>
   );
 }
 

@@ -1,7 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
 import { FaCheckCircle } from "react-icons/fa";
-import GlassPanel from "@/components/ui/GlassPanel";
+import { AnalyticCard } from "./AnalyticCard";
 
 interface StatusBreakdownChartProps {
   statusData: Array<{
@@ -15,15 +14,10 @@ interface StatusBreakdownChartProps {
 
 export function StatusBreakdownChart({ statusData, totalRuns, colors }: StatusBreakdownChartProps) {
   return (
-    <GlassPanel>
-      <Card className="shadow-card border-gray-800 h-full flex flex-col bg-transparent border-0">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-heading flex items-center gap-2">
-            <FaCheckCircle className="text-success" />
-            Status Breakdown
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <AnalyticCard
+      title="Status Breakdown"
+      icon={<FaCheckCircle className="text-success" />}
+    >
           {statusData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
@@ -65,9 +59,7 @@ export function StatusBreakdownChart({ statusData, totalRuns, colors }: StatusBr
               <p className="text-sm">No workflow data available</p>
             </div>
           )}
-        </CardContent>
-      </Card>
-    </GlassPanel>
+    </AnalyticCard>
   );
 }
 

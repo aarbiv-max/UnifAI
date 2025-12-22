@@ -1,9 +1,16 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { FaFire } from "react-icons/fa";
-import GlassPanel from "@/components/ui/GlassPanel";
-import { PaginationControls } from "./PaginationControls";
+import { AnalyticCard } from "./AnalyticCard";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 type TimeRange = 'today' | '7days' | '30days' | 'all';
 
@@ -69,16 +76,15 @@ export function ActiveTodayTable({ users, page, setPage, itemsPerPage, timeRange
     }
   };
 
+  const totalPages = Math.ceil(users.length / itemsPerPage);
+  const startItem = page * itemsPerPage + 1;
+  const endItem = Math.min((page + 1) * itemsPerPage, users.length);
+
   return (
-    <GlassPanel>
-      <Card className="shadow-card border-gray-800 h-full flex flex-col bg-transparent border-0">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-heading flex items-center gap-2">
-            <FaFire className="text-warning" />
-            {getTitle()}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <AnalyticCard
+      title={getTitle()}
+      icon={<FaFire className="text-warning" />}
+    >
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -123,16 +129,37 @@ export function ActiveTodayTable({ users, page, setPage, itemsPerPage, timeRange
             </Table>
           </div>
           {users.length > itemsPerPage && (
-            <PaginationControls 
-              currentPage={page}
-              totalItems={users.length}
-              itemsPerPage={itemsPerPage}
-              onPageChange={setPage}
-            />
+            <div className="flex justify-between items-center mt-4 px-2">
+              <span className="text-sm text-gray-400">
+                Showing {startItem}-{endItem} of {users.length}
+              </span>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+                        e.preventDefault();
+                        setPage((p: number) => Math.max(0, p - 1));
+                      }}
+                      className={page === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+                        e.preventDefault();
+                        setPage((p: number) => p + 1);
+                      }}
+                      className={page >= totalPages - 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
-        </CardContent>
-      </Card>
-    </GlassPanel>
+    </AnalyticCard>
   );
 }
 
