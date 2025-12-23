@@ -144,3 +144,4 @@ class RemoteEmbeddingGenerator(EmbeddingGenerator):
             logger.error(f"Error generating query embedding: {str(e)}")
             raise ValueError(f"Failed to generate query embedding: {str(e)}")
 
+
