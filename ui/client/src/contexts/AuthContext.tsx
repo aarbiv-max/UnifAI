@@ -59,6 +59,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const checkUserApprovalStatus = async (username: string) => {
     if (!username) return;
     
+    // Check sessionStorage first - if user accepted in this session, don't show modal
+    const sessionKey = `ai_transparency_accepted_${username}`;
+    const sessionAccepted = sessionStorage.getItem(sessionKey);
+    if (sessionAccepted === 'true') {
+      // User already accepted in this session, don't show modal
+      return;
+    }
+    
     setIsCheckingApproval(true);
     try {
       const approvalStatus = await checkUserApproval(username);
@@ -77,16 +85,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Handle AI transparency modal approval
   const handleAITransparencyApproved = async (dontShowAgain: boolean) => {
     setShowAITransparencyModal(false);
-    // If user checked "don't show again", verify the approval was saved
-    if (dontShowAgain && user) {
-      try {
-        // Re-check approval status to verify it was saved
-        const approvalStatus = await checkUserApproval(user.username);
-        if (!approvalStatus.approved) {
-          console.warn("User approval was not saved properly");
+    
+    if (user) {
+      const sessionKey = `ai_transparency_accepted_${user.username}`;
+      
+      if (dontShowAgain) {
+        // User checked "don't show again" - saved to database
+        // Also save to sessionStorage as backup
+        sessionStorage.setItem(sessionKey, 'true');
+        
+        // Verify the approval was saved to database
+        try {
+          const approvalStatus = await checkUserApproval(user.username);
+          if (!approvalStatus.approved) {
+            console.warn("User approval was not saved properly");
+          }
+        } catch (error) {
+          console.error("Failed to verify user approval:", error);
         }
-      } catch (error) {
-        console.error("Failed to verify user approval:", error);
+      } else {
+        // User just accepted without "don't show again"
+        // Save to sessionStorage so it doesn't show again in this session
+        sessionStorage.setItem(sessionKey, 'true');
       }
     }
   };

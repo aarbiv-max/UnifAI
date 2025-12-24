@@ -50,7 +50,7 @@ export default function AITransparencyModal({
         // Show info toast for temporary acceptance
         toast({
           title: "Accepted",
-          description: "You can continue using the system. This notification will appear again on your next login.",
+          description: "You can continue using the system. This notification won't appear again during this session.",
           variant: "info",
         });
       }
@@ -123,7 +123,7 @@ export default function AITransparencyModal({
             htmlFor="dont-show-again"
             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
           >
-            Don't show this again
+            Don't show message again
           </label>
         </div>
         <DialogFooter>
