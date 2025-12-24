@@ -42,16 +42,16 @@ export default function AITransparencyModal({
         }
         // Show success toast
         toast({
-          title: "Preference saved",
+          title: "✅ Preference saved",
           description: "You won't see this notification again on future logins.",
-          variant: "success",
+          variant: "default",
         });
       } else {
         // Show info toast for temporary acceptance
         toast({
-          title: "Accepted",
+          title: "ℹ️ Accepted",
           description: "You can continue using the system. This notification won't appear again during this session.",
-          variant: "info",
+          variant: "default",
         });
       }
       onApproved?.(dontShowAgain);

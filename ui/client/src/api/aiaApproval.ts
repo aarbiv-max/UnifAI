@@ -18,11 +18,8 @@ export interface ApproveUserResponse {
 export async function checkUserApproval(username: string): Promise<UserApprovalStatus> {
   try {
     const response = await api.get(`aia_approval/check?username=${encodeURIComponent(username)}`);
-    console.log('Check approval response:', response.data);
     return response.data;
   } catch (error: any) {
-    console.error('Error checking user approval:', error);
-    console.error('Error details:', error.response?.data, error.response?.status);
     throw error;
   }
 }
@@ -32,13 +29,9 @@ export async function checkUserApproval(username: string): Promise<UserApprovalS
  */
 export async function approveUser(username: string): Promise<ApproveUserResponse> {
   try {
-    console.log('Approving user:', username);
     const response = await api.post('aia_approval/approve', { username });
-    console.log('Approve user response:', response.data);
     return response.data;
   } catch (error: any) {
-    console.error('Error approving user:', error);
-    console.error('Error details:', error.response?.data, error.response?.status, error.response?.config?.url);
     throw error;
   }
 }
