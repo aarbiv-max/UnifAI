@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { approveUser } from "@/api/aiaApproval";
+import { AlertTriangle } from "lucide-react";
 
 interface AITransparencyModalProps {
   open: boolean;
@@ -96,10 +97,19 @@ export default function AITransparencyModal({
         }}
       >
         <DialogHeader>
-          <DialogTitle>User notification</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            AI Disclosure
+          </DialogTitle>
           <DialogDescription className="pt-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              You are about to use a Red Hat tool that utilizes AI technology to provide you with relevant information. By proceeding to use the tool, you acknowledge that the tool and any output provided are only intended for internal use and that information should only be shared with those with a legitimate business purpose. Do not include any personal information or customer-specific information in your input. Responses provided by tools utilizing AI technology should be reviewed and verified prior to use.
+              You are about to use a Red Hat tool that utilizes AI technology to provide relevant information.
+              <br /><br />
+              By proceeding, you acknowledge that this tool and its outputs are for internal use only and may be shared only with individuals who have a legitimate business need.
+              <br /><br />
+              Do not include personal or customer-specific information in your input.
+              <br /><br />
+              All AI-generated responses must be reviewed and verified before use.
             </p>
           </DialogDescription>
         </DialogHeader>
