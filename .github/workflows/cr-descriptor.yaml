@@ -1,8 +1,7 @@
 name: Generate AI PR Description
 
 on:
-  pull_request:
-    types: [opened, synchronize]
+ workflow_dispatch:
 
 jobs:
   describe:
@@ -15,22 +14,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate PR Description
-        uses: coderabbitai/ai-pr-description
-        with:
-          custom_prompt: |
-            Review the code changes and write a PR description. 
-            Follow this format:
-            ## Summary
-            (Short overview including Business/Technical justification)
-            ## Impacted Areas
-            (Bullet points of components changed)
-            ## Architecture Overview
-            (Architecture overview of the project including ascii diagram where possible)
-            ## Files Changed
-            (List of files changed)
-            ## Configuration
-            (Configuration changes overview of the project)
+      # - name: Generate PR Description
+      #   uses: coderabbitai/ai-pr-description
+      #   with:
+      #     custom_prompt: |
+      #       Review the code changes and write a PR description. 
+      #       Follow this format:
+      #       ## Summary
+      #       (Short overview including Business/Technical justification)
+      #       ## Impacted Areas
+      #       (Bullet points of components changed)
+      #       ## Architecture Overview
+      #       (Architecture overview of the project including ascii diagram where possible)
+      #       ## Files Changed
+      #       (List of files changed)
+      #       ## Configuration
+      #       (Configuration changes overview of the project)
 
       # - name: Generate PR Description
       #   uses: coderabbitai/ai-pr-description
