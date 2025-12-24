@@ -3,6 +3,7 @@ from utils.storage.mongo.base import MongoConnection
 from utils.storage.mongo.pipelines_repository import PipelinesRepository
 from utils.storage.mongo.sources_repository import SourcesRepository
 from utils.storage.mongo.slack_channels_repository import SlackChannelsRepository
+from utils.storage.mongo.aia_user_approval_repository import AIAUserApprovalRepository
 from utils.storage.mongo.utils import make_json_safe
 from pymongo import UpdateOne
 from config.constants import Database, Collection as CollectionName
@@ -25,6 +26,9 @@ class MongoStorage:
         )
         self.slack_channels = SlackChannelsRepository(
             conn.get_collection(Database.DATA_SOURCES.value, CollectionName.SLACK_CHANNELS.value, [("project_id", False), ("channel_id", False)])
+        )
+        self.aia_user_approval = AIAUserApprovalRepository(
+            conn.get_collection(Database.UNIFAI.value, CollectionName.AIA_USER_APPROVAL.value, [("username", True)])
         )
         
         self._conn = conn

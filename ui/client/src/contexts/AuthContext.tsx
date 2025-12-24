@@ -1,5 +1,7 @@
 import { api } from '@/http/authClient';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { checkUserApproval } from '@/api/aiaApproval';
+import AITransparencyModal from '@/components/auth/AITransparencyModal';
 
 export interface User {
   username: string;
@@ -28,6 +30,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAITransparencyModal, setShowAITransparencyModal] = useState(false);
+  const [isCheckingApproval, setIsCheckingApproval] = useState(false);
 
   // Check authentication status
   const checkAuthStatus = async () => {
@@ -36,6 +40,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.data.authenticated && response.data.user) {
         setUser(response.data.user);
         setIsAuthenticated(true);
+        // Check if user has approved AI transparency notice
+        await checkUserApprovalStatus(response.data.user.username);
       } else {
         setUser(null);
         setIsAuthenticated(false);
@@ -46,6 +52,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Check if user has approved AI transparency notice
+  const checkUserApprovalStatus = async (username: string) => {
+    if (!username) return;
+    
+    setIsCheckingApproval(true);
+    try {
+      const approvalStatus = await checkUserApproval(username);
+      if (!approvalStatus.approved) {
+        setShowAITransparencyModal(true);
+      }
+    } catch (error) {
+      console.error('Failed to check user approval status:', error);
+      // If check fails, show modal to be safe
+      setShowAITransparencyModal(true);
+    } finally {
+      setIsCheckingApproval(false);
+    }
+  };
+
+  // Handle AI transparency modal approval
+  const handleAITransparencyApproved = async (dontShowAgain: boolean) => {
+    setShowAITransparencyModal(false);
+    // If user checked "don't show again", verify the approval was saved
+    if (dontShowAgain && user) {
+      try {
+        // Re-check approval status to verify it was saved
+        const approvalStatus = await checkUserApproval(user.username);
+        if (!approvalStatus.approved) {
+          console.warn("User approval was not saved properly");
+        }
+      } catch (error) {
+        console.error("Failed to verify user approval:", error);
+      }
     }
   };
 
@@ -137,6 +179,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   return (
     <AuthContext.Provider value={value}>
       {children}
+      {user && (
+        <AITransparencyModal
+          open={showAITransparencyModal}
+          onClose={() => setShowAITransparencyModal(false)}
+          username={user.username}
+          onApproved={handleAITransparencyApproved}
+        />
+      )}
     </AuthContext.Provider>
   );
 };

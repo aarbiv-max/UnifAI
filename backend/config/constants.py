@@ -4,6 +4,7 @@ class Database(Enum):
     """Database names"""
     DATA_SOURCES = "data_sources"
     PIPELINE = "pipeline_monitoring"
+    UNIFAI = "UnifAI"
 
 class Collection(Enum):
     """Collection names"""
@@ -11,6 +12,7 @@ class Collection(Enum):
     CHUNKS = "chunks"
     SLACK_CHANNELS = "slack_channels"
     PIPELINES = "pipelines"
+    AIA_USER_APPROVAL = "aia_user_approval"
 
 class DataSource(Enum):
     """Data source types with consistent naming"""
