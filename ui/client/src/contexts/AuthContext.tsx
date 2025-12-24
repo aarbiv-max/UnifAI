@@ -39,9 +39,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await api.get('/auth/user');
       if (response.data.authenticated && response.data.user) {
         setUser(response.data.user);
-        setIsAuthenticated(true);
-        // Check if user has approved AI transparency notice
+        // Check compliance BEFORE setting authenticated to prevent flash of content
         await checkUserApprovalStatus(response.data.user.username);
+        // Only set authenticated true after the modal state is determined
+        setIsAuthenticated(true);
       } else {
         setUser(null);
         setIsAuthenticated(false);
