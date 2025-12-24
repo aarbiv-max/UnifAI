@@ -35,7 +35,7 @@ jobs:
 
       - name: Run PR Description
         id: run_pr_description
-        if: on.pull_request.opened
+        if: github.event.action == 'opened'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
