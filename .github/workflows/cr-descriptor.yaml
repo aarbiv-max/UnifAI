@@ -1,0 +1,31 @@
+name: Generate AI PR Description
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  describe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate PR Description
+        uses: coderabbitai/ai-pr-description
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # You can provide your own prompt instructions here
+          custom_prompt: |
+            Review the code changes and write a PR description. 
+            Follow this format:
+            ## Summary
+            (One sentence overview)
+            ## Impacted Areas
+            (Bullet points of components changed)
+            ## Why this matters
+            (Business/Technical justification)
