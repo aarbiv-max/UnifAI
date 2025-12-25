@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Send, Trash2, ChevronLeft, ChevronRight, Sparkles, Info } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -566,14 +566,14 @@ export default function ChatInterface({
             role="status"
             aria-label="AI-generated content"
           >
-            <div className="flex items-center gap-1.5">
+            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border" style={{ borderColor: `hsl(var(--primary) / 0.3)` }}>
               <Sparkles 
                 className="h-3.5 w-3.5" 
                 style={{ color: `hsl(var(--primary) / 0.85)` }}
                 aria-hidden="true" 
               />
               <span className="text-xs font-medium text-gray-300/90 tracking-wide">
-                AI Assistant
+                AI Generated
               </span>
             </div>
           </div>
@@ -744,7 +744,7 @@ export default function ChatInterface({
                       role="status"
                       aria-label="AI-generated content"
                     >
-                      <div className="flex items-center gap-1.5">
+                      <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border" style={{ borderColor: `hsl(var(--primary) / 0.3)` }}>
                         <Sparkles 
                           className="h-3.5 w-3.5" 
                           style={{ color: `hsl(var(--primary) / 0.85)` }}
@@ -795,6 +795,12 @@ export default function ChatInterface({
             >
               <Send className="h-4 w-4" />
             </Button>
+          </div>
+          <div className="flex items-start gap-2 mt-2 px-1">
+            <Info className="h-3.5 w-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-gray-500">
+              AI agent responses may be inaccurate or incomplete. Verify important information.
+            </p>
           </div>
         </div>
       </CardContent>
