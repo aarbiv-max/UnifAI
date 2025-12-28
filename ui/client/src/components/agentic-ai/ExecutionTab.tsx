@@ -33,6 +33,8 @@ import {
   CustomDialogContent,
 } from "@/components/ui/dialog";
 import { GraphFlow, FlowObject } from "./graphs/interfaces";
+import { UmamiTrack } from '@/components/ui/umamitrack';
+import { UmamiEvents } from '@/config/umamiEvents';
 
 // Types for the API response
 interface ChatMessage {
@@ -686,15 +688,18 @@ export default function ExecutionTab({
             Interact with your AI assistant and monitor execution details
           </p>
         </div>
-        {/* Commenting the next part out due to Nir's request. If and when commenting back in need to take care of coloring. */}
+
+          {/* <UmamiTrack event={UmamiEvents.AGENT_CHAT_TOGGLE_EXECUTION_STREAM_BUTTON}> */}
+            {/* Commenting the next part out due to Nir's request. If and when commenting back in need to take care of coloring. */}
         {/* <Button
-          className={`flex items-center gap-2 ${isActiveChatSession ? "bg-[#03DAC6] hover:bg-opacity-80" : "bg-gray-700 text-gray-300 cursor-not-allowed"}`}
-          onClick={() => setShowExecutionStream(!showExecutionStream)}
-          disabled={!isActiveChatSession}
-        >
-          <SplitSquareVertical className="h-4 w-4" />
-          {showExecutionStream ? "Hide" : "Open"} Execution Stream
-        </Button> */}
+            className={`flex items-center gap-2 ${isActiveChatSession ? "bg-[#03DAC6] hover:bg-opacity-80" : "bg-gray-700 text-gray-300 cursor-not-allowed"}`}
+            onClick={() => setShowExecutionStream(!showExecutionStream)}
+            disabled={!isActiveChatSession}
+            >
+            <SplitSquareVertical className="h-4 w-4" />
+            {showExecutionStream ? "Hide" : "Open"} Execution Stream
+            </Button> */}
+          {/* </UmamiTrack> */}
       </div>
 
       <div className="flex resizable-container gap-0" style={{ height: "calc(100vh - 230px)" }}>
@@ -709,6 +714,7 @@ export default function ExecutionTab({
                 <div className="flex items-center gap-1 flex-shrink-0 max-w-fit">
                   {/* Commenting the next part out since it's related to our RAG system. If and when commenting back in need to take care of coloring. */}
                   {/* Global Scope Toggle */}
+                  {/* <UmamiTrack event={UmamiEvents.AGENT_CHAT_TOGGLE_GLOBAL_SCOPE_BUTTON}> */}
                   {/* <Switch.Root
                     className="relative w-20 h-5 rounded-full bg-gray-600 data-[state=checked]:bg-[#03DAC6] transition-colors cursor-pointer flex-shrink-0"
                     checked={globalScope === 'public'}
@@ -726,18 +732,22 @@ export default function ExecutionTab({
                       className="absolute top-[1px] left-[1px] h-4 w-4 rounded-full bg-white transition-transform duration-300 z-10 transform data-[state=checked]:translate-x-[60px]"
                     /> */}
                   {/* </Switch.Root> */}
+                  {/* </UmamiTrack> */}
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
                     <Users className="h-3 w-3" />
                   </Button>
+                  
+                  <UmamiTrack event={UmamiEvents.AGENT_CHAT_ADD_FLOW_BUTTON} includeUserData={false}>
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     className="h-6 w-6 p-0 text-[#03DAC6] hover:bg-[#03DAC6] hover:bg-opacity-20 flex-shrink-0" 
                     onClick={handleAddFlowClick}
                     title="Add new chat from flow"
-                  >
+                    >
                     <Plus className="h-3 w-3" />
                   </Button>
+                  </UmamiTrack>
                 </div>
               </div>
             </CardHeader>
@@ -771,14 +781,16 @@ export default function ExecutionTab({
                             {session.title}
                           </span>
                         </div>
+                        <UmamiTrack event={UmamiEvents.AGENT_CHAT_DELETE_CHAT_BUTTON} includeUserData={false}>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-6 w-6 p-0 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={(e) => handleDeleteChat(session, e)}
-                        >
+                          >
                           <Trash2 className="h-3 w-3" />
                         </Button>
+                        </UmamiTrack>
                       </div>
                       <div className="mt-1 flex items-center text-xs text-gray-400">
                         <Clock className="h-3 w-3 mr-1" />

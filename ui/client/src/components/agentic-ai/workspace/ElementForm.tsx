@@ -15,6 +15,8 @@ import {
   ElementInstance,
 } from "../../../types/workspace";
 import { FieldRenderer } from "./FieldRenderer";
+import { UmamiTrack } from '@/components/ui/umamitrack';
+import { UmamiEvents } from '@/config/umamiEvents';
 
 interface ElementFormProps {
   isOpen: boolean;
@@ -62,7 +64,6 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     // For single select, set the first (and only) selected value
     handleInputChange(fieldName, multiSelect || typeof results === 'object' ? results : results.length > 0 ? results[0] : "");
   };
-
 
 
   // Initialize form data
@@ -685,13 +686,17 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              className="bg-primary hover:bg-opacity-80"
-              disabled={isSaving || !isFormValid()}
+            <UmamiTrack 
+              event={UmamiEvents.AGENT_REPOSITORY_SAVE_ELEMENT_BUTTON}
             >
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
+              <Button
+                type="submit"
+                className="bg-primary hover:bg-opacity-80"
+                disabled={isSaving || !isFormValid()}
+              >
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+            </UmamiTrack>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -2,6 +2,7 @@ import { api } from '@/http/authClient';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { checkUserApproval } from '@/api/aiaApproval';
 import AITransparencyModal from '@/components/auth/AITransparencyModal';
+import { loadAnalytics } from '@/components/shared/LoadAnalytics';
 
 export interface User {
   username: string;
@@ -32,6 +33,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [showAITransparencyModal, setShowAITransparencyModal] = useState(false);
   const [isCheckingApproval, setIsCheckingApproval] = useState(false);
+
+  // Load analytics after authentication
+  loadAnalytics(isAuthenticated, user);
 
   // Check authentication status
   const checkAuthStatus = async () => {
@@ -151,7 +155,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       checkAuthStatus();
     }
   }, []);
-
+  
   // Set up token refresh and expiration checking
   useEffect(() => {
     if (!isAuthenticated || !user) return;

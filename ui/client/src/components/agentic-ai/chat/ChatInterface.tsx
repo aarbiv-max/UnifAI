@@ -21,6 +21,9 @@ import { useStreamingData } from "../StreamingDataContext";
 import { Message, StreamLogEntry, WorkPlanSnapshot } from "./types";
 import { StreamLogDisplay } from "./StreamLogDisplay";
 import { useToast } from "@/hooks/use-toast";
+import { UmamiTrack } from '@/components/ui/umamitrack';
+import { UmamiEvents } from '@/config/umamiEvents';
+
 
 // Backend message format
 interface BackendMessage {
@@ -788,13 +791,17 @@ export default function ChatInterface({
               rows={3}
               disabled={!blueprintExists}
             />
-            <Button
-              onClick={handleSendMessage}
-              disabled={inputMessage.trim() === "" || isTyping || !blueprintExists}
-              className="bg-primary hover:bg-[#7525c9] mb-0"
+            <UmamiTrack 
+              event={UmamiEvents.AGENT_CHAT_SEND_MESSAGE_BUTTON}
             >
-              <Send className="h-4 w-4" />
-            </Button>
+              <Button
+                onClick={handleSendMessage}
+                disabled={inputMessage.trim() === "" || isTyping || !blueprintExists}
+                className="bg-primary hover:bg-[#7525c9] mb-0"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </UmamiTrack>
           </div>
           <div className="flex items-start gap-2 mt-2 px-1">
             <Info className="h-3.5 w-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
