@@ -87,10 +87,7 @@ export async function fetchAnalyticsOverview(timeRange: 'today' | '7days' | '30d
   return response.data;
 }
 
-/**
- * Fetch active users for a specific time period
- * NOTE: This endpoint may not exist yet in the multi-agent service
- */
+
 export async function fetchActiveUsers(days: number = 7): Promise<{ active_users: ActiveUser[], count: number, days: number }> {
   const response = await axios.get<{ active_users: ActiveUser[], count: number, days: number }>(
     '/statistics/users/active',
@@ -99,10 +96,7 @@ export async function fetchActiveUsers(days: number = 7): Promise<{ active_users
   return response.data;
 }
 
-/**
- * Fetch user activity breakdown
- * NOTE: This endpoint may not exist yet in the multi-agent service
- */
+
 export async function fetchUserActivity(limit: number = 15): Promise<{ user_activity: UserActivity[], count: number }> {
   const response = await axios.get<{ user_activity: UserActivity[], count: number }>(
     '/statistics/users/activity',
@@ -111,10 +105,7 @@ export async function fetchUserActivity(limit: number = 15): Promise<{ user_acti
   return response.data;
 }
 
-/**
- * Fetch blueprint usage statistics
- * NOTE: This endpoint may not exist yet in the multi-agent service
- */
+
 export async function fetchBlueprintUsage(limit: number = 10): Promise<{ blueprint_usage: BlueprintUsage[], count: number }> {
   const response = await axios.get<{ blueprint_usage: BlueprintUsage[], count: number }>(
     '/statistics/blueprints/usage',
