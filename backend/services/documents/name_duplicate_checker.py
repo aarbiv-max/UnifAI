@@ -3,7 +3,7 @@ Name Duplicate Checker for Document Upload Operations
 
 This service provides the core logic for checking if a document with the same 
 normalized filename already exists for a user. It's used by both:
-- FileValidationService (pre-upload validation)
+- PreBatchValidator (pre-upload validation in validation layer)
 - NameDuplicateValidator (registration-time validation)
 
 A document is considered a blocking duplicate if:
@@ -150,4 +150,3 @@ class NameDuplicateChecker:
         normalized_name = self.normalize_filename(filename)
         existing_docs = self.get_existing_documents_for_user(username)
         return self.find_blocking_duplicate(normalized_name, existing_docs)
-

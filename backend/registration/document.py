@@ -10,6 +10,7 @@ from registration.base import RegistrationBase
 from global_utils.utils import secure_filename, compute_file_md5, cleanup_file
 from config.app_config import AppConfig
 from config.constants import DataSource
+from common.interfaces import ValidationStage
 from shared.source_types import DocumentMetadata, DocumentTypeData
 from validator.validator import Validator, DocValidators
 
@@ -42,8 +43,13 @@ class DocumentRegistration(RegistrationBase):
     ) -> None:
         super().__init__(mongo_storage, upload_by, instance, skip_validation)
         self.upload_folder = upload_folder
-        # Create validators based on skip_validation flag
-        self._validator = Validator(DocValidators().create_validators(skip_validation))
+        # Create validators for POST stage with skip_validation flag
+        self._validator = Validator(
+            DocValidators().create_validators(
+                stage=ValidationStage.POST,
+                skip_validation=skip_validation
+            )
+        )
 
     @cached_property
     def source_data(self) -> DocumentSourceData:

@@ -1,4 +1,23 @@
 from typing import Optional, Dict, Any, TypedDict, Tuple
+from enum import Enum
+
+
+class ValidationStage(Enum):
+    """
+    Validation stage for document validation pipeline.
+    
+    PRE: Pre-upload validation (metadata only, batch mode, UI-friendly errors)
+         - Uses file metadata (name, size) before files are uploaded
+         - Supports batch validation with cross-file duplicate detection
+         - Returns FileValidationResult for UI display
+         
+    POST: Post-upload validation (registration time, single item, has file content)
+         - Uses actual file on disk (can compute MD5, read file size)
+         - Single item validation during registration
+         - Returns ValidationIssue format
+    """
+    PRE = "pre"
+    POST = "post"
 
 
 class ValidationIssue(TypedDict):

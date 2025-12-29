@@ -10,7 +10,7 @@ from shared.logger import logger
 from global_utils.helpers.apiargs import from_query, from_body
 from global_utils.celery_app.helpers import send_task
 from providers.docs import get_best_match_results, upload_docs, get_available_docs
-from services.documents.file_validation_service import FileValidationService
+from validator.doc_validators import DocValidators
 
 docs_bp = Blueprint("docs", __name__)
 
@@ -74,8 +74,11 @@ def validate_files(files, username, check_duplicates):
         - Full validation will be performed during registration
     """
     try:
-        service = FileValidationService(username=username)
-        result = service.validate(files, check_duplicates=check_duplicates)
+        result = DocValidators().validate_pre_batch(
+            files=files,
+            username=username,
+            check_duplicates=check_duplicates
+        )
         return jsonify(result.to_dict()), 200
     except Exception as e:
         logger.error(f"Failed to validate files: {str(e)}")
