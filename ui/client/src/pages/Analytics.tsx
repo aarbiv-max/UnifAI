@@ -17,7 +17,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { AccessDenied } from "@/components/analytics/AccessDenied";
 import { LoadingSkeleton } from "@/components/analytics/LoadingSkeleton";
-import { ErrorDisplay } from "@/components/analytics/ErrorDisplay";
+import { ErrorDisplay } from "@/components/shared/ErrorDisplay";
 import { StatusBreakdownChart } from "@/components/analytics/StatusBreakdownChart";
 import { TopUsersChart } from "@/components/analytics/TopUsersChart";
 import { WorkflowExecutionChart } from "@/components/analytics/WorkflowExecutionChart";
@@ -150,7 +150,12 @@ export default function Analytics() {
 
   if (error) {
     const errorMessage = (error as Error).message;
-    const isAccessDenied = errorMessage.includes('Access denied') || errorMessage.includes('permission');
+    // Check for 403 status code or access denied/permission errors
+    const isAccessDenied = 
+      errorMessage.includes('403') || 
+      errorMessage.includes('Access denied') || 
+      errorMessage.includes('permission') ||
+      errorMessage.includes('Forbidden');
     
     return (
       <div className="flex h-screen overflow-hidden">
@@ -158,7 +163,7 @@ export default function Analytics() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header title="Analytics" onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
           <main className="flex-1 overflow-y-auto bg-background-dark">
-            {isAccessDenied ? <AccessDenied /> : <ErrorDisplay errorMessage={errorMessage} onRetry={refetch} />}
+            {isAccessDenied ? <AccessDenied /> : <ErrorDisplay errorMessage={errorMessage} title="Failed to Load Analytics" onRetry={refetch} />}
           </main>
           <StatusBar />
         </div>

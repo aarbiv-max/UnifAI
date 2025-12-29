@@ -18,7 +18,7 @@ export function AccessDenied() {
             You don't have permission to access Analytics. Please contact your administrator if you need access.
           </p>
           <Button 
-            onClick={() => setLocation('/agentic-ai')} 
+            onClick={() => setLocation('/get-to-know')} 
             className="bg-primary hover:bg-opacity-80"
           >
             Go to Home
