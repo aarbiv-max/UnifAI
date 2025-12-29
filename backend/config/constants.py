@@ -4,7 +4,7 @@ class Database(Enum):
     """Database names"""
     DATA_SOURCES = "data_sources"
     PIPELINE = "pipeline_monitoring"
-    UNIFAI = "UnifAI"
+    UNIFAI_USERS = "UnifAI_Users" 
 
 class Collection(Enum):
     """Collection names"""

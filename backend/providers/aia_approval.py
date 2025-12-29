@@ -30,33 +30,33 @@ def check_user_approval_status(username: str) -> Dict[str, Any]:
         logger.error(f"Failed to check user approval for {username}: {str(e)}")
         raise
 
-def approve_user_for_aia(username: str) -> Dict[str, Any]:
+def record_user_approval(username: str) -> Dict[str, Any]:
     """
-    Approve a user for AI transparency notice (add to approved list).
+    Record a user's approval of the AI transparency notice.
     
     Args:
-        username: Username of the current user
+        username: Username of the user who approved
         
     Returns:
-        Dictionary with user information indicating successful approval
+        Dictionary with user information indicating successful recording
         
     Raises:
-        Exception: If the approval operation fails
+        Exception: If the recording operation fails
     """
     try:
         mongo_storage = get_mongo_storage()
-        result = mongo_storage.aia_user_approval.approve_user(username)
+        result = mongo_storage.aia_user_approval.record_user_approval(username)
         
         if not result.get("success", False):
             error_msg = result.get("error", "Unknown error")
-            logger.error(f"Failed to approve user {username}: {error_msg}")
-            raise RuntimeError(f"Failed to approve user: {error_msg}")
+            logger.error(f"Failed to record user approval for {username}: {error_msg}")
+            raise RuntimeError(f"Failed to record user approval: {error_msg}")
         
         return {
             "username": username,
             "approved": True
         }
     except Exception as e:
-        logger.error(f"Failed to approve user {username}: {str(e)}")
+        logger.error(f"Failed to record user approval for {username}: {str(e)}")
         raise
 

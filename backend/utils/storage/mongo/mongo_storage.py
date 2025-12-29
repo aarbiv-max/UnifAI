@@ -28,7 +28,7 @@ class MongoStorage:
             conn.get_collection(Database.DATA_SOURCES.value, CollectionName.SLACK_CHANNELS.value, [("project_id", False), ("channel_id", False)])
         )
         self.aia_user_approval = AIAUserApprovalRepository(
-            conn.get_collection(Database.UNIFAI.value, CollectionName.AIA_USER_APPROVAL.value, [("username", True)])
+            conn.get_collection(Database.UNIFAI_USERS.value, CollectionName.AIA_USER_APPROVAL.value, [("username", True)])
         )
         
         self._conn = conn

@@ -18,8 +18,8 @@ class AIAUserApprovalRepository:
             logger.error(f"Error checking user approval for {username}: {e}")
             return False
 
-    def approve_user(self, username: str) -> Dict[str, Any]:
-        """Add a user to the approved list."""
+    def record_user_approval(self, username: str) -> Dict[str, Any]:
+        """Record a user's approval by creating their approval document."""
         try:
             now = datetime.utcnow()
             result = self.col.update_one(
@@ -36,7 +36,7 @@ class AIAUserApprovalRepository:
                 "approved": True
             }
         except Exception as e:
-            logger.error(f"Error approving user {username}: {e}")
+            logger.error(f"Error recording user approval for {username}: {e}")
             return {"success": False, "error": str(e)}
 
     def get_user_approval(self, username: str) -> Optional[Dict[str, Any]]:

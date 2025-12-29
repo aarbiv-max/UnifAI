@@ -1,4 +1,4 @@
-import { api } from '../http/queryClient';
+import { api } from '@/http/queryClient';
 
 export interface UserApprovalStatus {
   approved: boolean;
@@ -16,23 +16,25 @@ export interface ApproveUserResponse {
  * Check if a user has approved the AI transparency notice
  */
 export async function checkUserApproval(username: string): Promise<UserApprovalStatus> {
-  try {
-    const response = await api.get(`aia_approval/check?username=${encodeURIComponent(username)}`);
-    return response.data;
-  } catch (error: any) {
-    throw error;
-  }
+  const response = await api.get<UserApprovalStatus>(
+    'aia_approval/user.approval.status.get',
+    {
+      params: {
+        username
+      }
+    }
+  );
+  return response.data;
 }
 
 /**
- * Approve a user for AI transparency notice (add to approved list)
+ * Record a user's approval of the AI transparency notice
  */
 export async function approveUser(username: string): Promise<ApproveUserResponse> {
-  try {
-    const response = await api.post('aia_approval/approve', { username });
-    return response.data;
-  } catch (error: any) {
-    throw error;
-  }
+  const response = await api.post<ApproveUserResponse>(
+    'aia_approval/user.approval.record.post',
+    { username }
+  );
+  return response.data;
 }
 

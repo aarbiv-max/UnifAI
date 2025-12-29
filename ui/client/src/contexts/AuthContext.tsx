@@ -75,11 +75,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsCheckingApproval(true);
     try {
       const approvalStatus = await checkUserApproval(username);
+      
       if (!approvalStatus.approved) {
         setShowAITransparencyModal(true);
+      } else {
+        setShowAITransparencyModal(false); // Explicitly hide modal if user is approved
       }
     } catch (error) {
-      console.error('Failed to check user approval status:', error);
       // If check fails, show modal to be safe
       setShowAITransparencyModal(true);
     } finally {

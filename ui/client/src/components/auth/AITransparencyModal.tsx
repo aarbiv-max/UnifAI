@@ -36,7 +36,6 @@ export default function AITransparencyModal({
       if (dontShowAgain) {
         // Only call the API if user checked "don't show again"
         const result = await approveUser(username);
-        console.log("User approval result:", result);
         if (!result.approved) {
           throw new Error("Failed to approve user");
         }
@@ -57,7 +56,6 @@ export default function AITransparencyModal({
       onApproved?.(dontShowAgain);
       onClose();
     } catch (error: any) {
-      console.error("Failed to approve user:", error);
       // Show error toast
       toast({
         title: "Failed to save preference",
