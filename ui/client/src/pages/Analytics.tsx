@@ -11,7 +11,7 @@ import GlassPanel from "@/components/ui/GlassPanel";
 import { StatCard } from "@/components/ui/stat-card";
 import { 
   FaUsers, FaRocket, FaChartLine, FaCheckCircle, 
-  FaFire, FaSync, FaDownload
+  FaFire, FaSync
 } from "react-icons/fa";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -119,51 +119,6 @@ export default function Analytics() {
     }
   };
 
-  // Export to CSV
-  const handleExportCSV = () => {
-    if (!analytics) return;
-
-    const csvRows = [
-      'Workflow Analytics Report',
-      `Generated at: ${new Date().toLocaleString()}`,
-      '',
-      'OVERVIEW STATISTICS',
-      'Metric,Value',
-      `Total Runs,${analytics.total_stats.total_runs}`,
-      `Unique Users,${analytics.total_stats.unique_users}`,
-      `Success Rate,${successRate.toFixed(1)}%`,
-      `Active Today,${analytics.active_today.length}`,
-      '',
-      'STATUS BREAKDOWN',
-      'Status,Count,Percentage',
-      ...Object.entries(analytics.status_breakdown).map(([status, count]) => 
-        `${status},${count},${((count / totalRuns) * 100).toFixed(1)}%`
-      ),
-      '',
-      'TOP USERS',
-      'User ID,Total Runs,Unique Blueprints,Completed,Failed',
-      ...analytics.top_users.slice(0, 10).map(user => 
-        `${user.user_id},${user.total_runs},${user.unique_blueprints},${user.status_breakdown.COMPLETED || 0},${user.status_breakdown.FAILED || 0}`
-      ),
-      '',
-      'TOP BLUEPRINTS',
-      'Blueprint Name,Total Runs,Unique Users',
-      ...analytics.top_blueprints.map(bp => 
-        `"${bp.blueprint_name}",${bp.run_count},${bp.unique_users}`
-      ),
-    ];
-
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `workflow-analytics-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   // Render different states
   if (!hasAccess) {
     return (
@@ -228,16 +183,6 @@ export default function Analytics() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button 
-                onClick={handleExportCSV} 
-                variant="outline"
-                size="sm"
-                disabled={!analytics}
-                className="gap-2 border-gray-700 hover:bg-gray-800"
-              >
-                <FaDownload />
-                Export CSV
-              </Button>
               <Button 
                 onClick={() => refetch()} 
                 variant="outline"
