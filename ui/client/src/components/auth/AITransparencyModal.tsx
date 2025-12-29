@@ -62,27 +62,14 @@ export default function AITransparencyModal({
         description: error?.response?.data?.error || error?.message || "The modal will appear again on next login.",
         variant: "destructive",
       });
-      // Still close the modal - user can try again next time
       onClose();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Prevent closing the modal via backdrop click, escape key, or X button
-  // Only allow closing through the Accept button
-  const handleOpenChange = (newOpen: boolean) => {
-    // Prevent closing unless it's from the accept action
-    // Since onClose is only called from handleApprove, we can safely ignore other close attempts
-    if (!newOpen) {
-      // Don't allow closing through onOpenChange - only through handleApprove
-      // This prevents closing via backdrop click, escape key, or X button
-      return;
-    }
-  };
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open}>
       <DialogContent 
         className="bg-background-card border-gray-800 max-w-2xl [&>button]:hidden"
         onInteractOutside={(e) => {
