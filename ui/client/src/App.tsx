@@ -55,6 +55,7 @@ function AppRoutes() {
       <Route path="/get-to-know" component={GetToKnow} />
       <Route path="/configuration" component={Configuration} />
       <Route path="/guides" component={GuidesPage} />
+      <Route path="/analytics" component={Analytics} />
       <Route component={NotFound} />
     </Switch>
   );
