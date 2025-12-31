@@ -18,6 +18,8 @@ import { isEmbeddingActivelyProcessing } from "@/features/helpers";
 import { BulkDeleteButton } from "@/components/shared/BulkDeleteButton";
 import { useBulkDelete } from "@/hooks/use-bulk-delete";
 import { Pagination } from "@/components/shared/Pagination";
+import { UmamiTrack } from '@/components/ui/umamitrack';
+import { UmamiEvents } from '@/config/umamiEvents';
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -109,14 +111,15 @@ export default function Documents() {
 
   const viewButtons = (
     <div className="flex items-center space-x-4">
-      <BulkDeleteButton
-        selectedCount={selectedCount}
-        onClick={() => {handleDeleteSelectedBase(rowSelection)}}
-        disabled={bulkDeleteLoading || deleteLoading}
-        itemName="Selected"
-      />
+        <UmamiTrack 
+          event={UmamiEvents.UPLOAD_DOCUMENT_BUTTON}
+        >
       <Button onClick={() => setShowUploadModal(true)}>Upload Document</Button>
+      </UmamiTrack>
       <div className="flex">
+        <UmamiTrack 
+          event={UmamiEvents.VIEW_DOCUMENT_LIST_BUTTON}
+        >
         <Button
           variant={viewMode === "list" ? "default" : "outline"}
           size="icon"
@@ -124,6 +127,10 @@ export default function Documents() {
         >
           <FaList />
         </Button>
+        </UmamiTrack>
+        <UmamiTrack 
+          event={UmamiEvents.VIEW_DOCUMENT_GRID_BUTTON}
+        >
         <Button
           variant={viewMode === "grid" ? "default" : "outline"}
           size="icon"
@@ -131,6 +138,7 @@ export default function Documents() {
         >
           <FaTh />
         </Button>
+        </UmamiTrack>
       </div>
     </div>
   );
