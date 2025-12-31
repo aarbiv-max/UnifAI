@@ -1,8 +1,9 @@
 from flask import Blueprint, jsonify, current_app
 from global_utils.helpers.apiargs import from_query
-from webargs import fields
+from webargs import fields, validate
 from typing import Dict, Any, List
 from ..decorators import require_admin_access
+from statistics.constants import VALID_TIME_RANGES
 
 statistics_bp = Blueprint("statistics", __name__)
 
@@ -32,7 +33,7 @@ def get_all(user_id):
     "time_range": fields.Str(
         data_key="time_range",
         load_default="all",
-        validate=lambda x: x in ["today", "7days", "30days", "all"]
+        validate=validate.OneOf(VALID_TIME_RANGES, error="Time range must be one of {choices}")
     ),
     "user_id": fields.Str(data_key="userId", required=True)
 })
