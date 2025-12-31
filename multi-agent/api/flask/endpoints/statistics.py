@@ -27,7 +27,7 @@ def get_all(user_id):
         return jsonify({"error": str(e)}), 500
 
 
-@statistics_bp.route("/overview", methods=["GET"])
+@statistics_bp.route("/analytics", methods=["GET"])
 @from_query({
     "time_range": fields.Str(
         data_key="time_range",
@@ -37,10 +37,10 @@ def get_all(user_id):
     "user_id": fields.Str(data_key="userId", required=True)
 })
 @require_admin_access
-def get_overview(time_range, user_id):
+def get_analytics(time_range, user_id):
     """
-    Get comprehensive system-wide overview statistics.
-    Returns all key metrics in a single response for the dashboard.
+    Get comprehensive system-wide analytics statistics for workflows, users, and blueprints.
+    Returns all key metrics in a single response for the Analytics dashboard.
     
     Requires admin access (user must be in admin_allowed_users list).
     If admin_allowed_users is empty, Analytics is disabled and access is denied.
@@ -53,9 +53,9 @@ def get_overview(time_range, user_id):
         container = current_app.container
         statistics_service = container.statistics_service
         
-        overview = statistics_service.get_overview(time_range=time_range)
+        analytics = statistics_service.get_analytics(time_range=time_range)
         
-        return jsonify(overview.model_dump(mode="json")), 200
+        return jsonify(analytics.model_dump(mode="json")), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

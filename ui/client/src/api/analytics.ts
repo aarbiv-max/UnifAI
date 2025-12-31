@@ -14,14 +14,14 @@ import type {
 } from '@/types/analytics';
 
 /**
- * Fetch comprehensive analytics overview
+ * Fetch comprehensive system-wide analytics statistics (workflows, users, blueprints)
  */
 export async function fetchAnalyticsOverview(timeRange: 'today' | '7days' | '30days' | 'all' = 'all', userId?: string): Promise<AnalyticsOverview> {
   const params: any = { time_range: timeRange };
   if (userId) {
     params.userId = userId;
   }
-  const response = await axios.get<AnalyticsOverview>('/statistics/overview', { params });
+  const response = await axios.get<AnalyticsOverview>('/statistics/analytics', { params });
   return response.data;
 }
 

@@ -241,10 +241,10 @@ class StatisticsService:
                 self._cache = None
         return self._cache
 
-    def get_overview(self, time_range: str = "all") -> OverviewStatisticsResponse:
+    def get_analytics(self, time_range: str = "all") -> OverviewStatisticsResponse:
         """
-        Get comprehensive system-wide overview statistics.
-        Returns all key metrics in a single response for the dashboard.
+        Get comprehensive system-wide analytics statistics for workflows, users, and blueprints.
+        Returns all key metrics in a single response for the Analytics dashboard.
         Results are cached in MongoDB to prevent duplicate expensive queries across Gunicorn workers.
         Uses distributed locking to prevent thundering herd problem.
         
@@ -252,10 +252,10 @@ class StatisticsService:
             time_range: Time filter - 'today', '7days', '30days', or 'all' (default: 'all')
         
         Returns:
-            OverviewStatisticsResponse: Pydantic model containing all overview statistics
+            OverviewStatisticsResponse: Pydantic model containing all analytics statistics
         """
         cache = self._get_cache()
-        cache_key = f"overview:{time_range}"
+        cache_key = f"analytics:{time_range}"
         
         # Try to get from cache first
         if cache:
@@ -271,7 +271,7 @@ class StatisticsService:
                     # Extend lock heartbeat before starting computation
                     cache.extend_lock_heartbeat(cache_key)
                     
-                    response = self._compute_overview_statistics(time_range)
+                    response = self._compute_analytics_statistics(time_range)
                     
                     # Cache the result with TTL based on time_range
                     ttl = 60 if time_range == "today" else (300 if time_range in ["7days", "30days"] else 600)
@@ -291,11 +291,11 @@ class StatisticsService:
                 # (This handles edge cases where the computing request crashed)
         
         # Cache unavailable or wait timed out - compute directly
-        return self._compute_overview_statistics(time_range)
+        return self._compute_analytics_statistics(time_range)
     
-    def _compute_overview_statistics(self, time_range: str) -> OverviewStatisticsResponse:
+    def _compute_analytics_statistics(self, time_range: str) -> OverviewStatisticsResponse:
         """
-        Compute overview statistics (expensive operation).
+        Compute analytics statistics (expensive operation).
         This method is called when cache miss occurs and lock is acquired.
         
         Args:
