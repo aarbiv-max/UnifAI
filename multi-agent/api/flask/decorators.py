@@ -20,7 +20,7 @@ def require_admin_access(f):
     Returns:
         403 Forbidden if admin_allowed_users is empty (Analytics disabled).
         403 Forbidden if user is not in admin_allowed_users list.
-        403 Forbidden if user_id is missing.
+        401 Unauthorized if user_id is missing.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -35,18 +35,14 @@ def require_admin_access(f):
                     "error_type": "FEATURE_DISABLED"
                 }), 403
             
-            # Try to get user_id from function kwargs first (if passed by @from_query)
-            user_id = kwargs.get("user_id") or kwargs.get("userId")
-            
-            # If not in kwargs, try to get from query parameters
-            if not user_id:
-                user_id = request.args.get("userId") or request.args.get("user_id")
+            # Extract user_id from kwargs (if passed by @from_query) or query parameters
+            user_id = kwargs.get("user_id") or kwargs.get("userId") or request.args.get("user_id") or request.args.get("userId")
             
             if not user_id:
                 return jsonify({
                     "error": "Access denied: user_id is required",
                     "error_type": "AUTHENTICATION_REQUIRED"
-                }), 403
+                }), 401
             
             # Check if user is in admin list
             if user_id not in admin_allowed_users:

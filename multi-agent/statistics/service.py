@@ -7,6 +7,7 @@ from resources.service import ResourcesService
 from core.dto import GroupedCount
 from .models import StatisticsResponse, ResourceCategoryStats, OverviewStatisticsResponse, TotalStats
 from .cache import MongoStatisticsCache
+from .constants import days_to_time_range
 
 
 class SessionStats(TypedDict):
@@ -361,13 +362,9 @@ class StatisticsService:
             List of user activity dicts
         """
         # Map days to time_range
-        if days == 1:
-            time_range = "today"
-        elif days == 7:
-            time_range = "7days"
-        elif days == 30:
-            time_range = "30days"
-        else:
+        time_range = days_to_time_range(days)
+        
+        if time_range is None:
             # For custom days, we'll need to use filter directly
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z')
@@ -438,14 +435,7 @@ class StatisticsService:
         
         # Get unique blueprints per user for the same time range
         # Map days to time_range for blueprint query
-        if days == 1:
-            time_range = "today"
-        elif days == 7:
-            time_range = "7days"
-        elif days == 30:
-            time_range = "30days"
-        else:
-            time_range = None
+        time_range = days_to_time_range(days)
         
         blueprint_counts = self._session_service.group_count_system_wide(
             group_by=["user_id", "blueprint_id"],

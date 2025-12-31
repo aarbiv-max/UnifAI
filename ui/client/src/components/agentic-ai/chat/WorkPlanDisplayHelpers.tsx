@@ -34,6 +34,56 @@ export const getStatusConfig = (status: string) => {
   }
 };
 
+/**
+ * Map workflow execution status to work plan status
+ */
+function mapWorkflowStatusToWorkPlanStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    COMPLETED: 'done',
+    RUNNING: 'in_progress',
+    FAILED: 'failed',
+    PENDING: 'pending',
+    CANCELLED: 'pending', // Treat cancelled as pending (gray)
+  };
+  return statusMap[status] || 'pending';
+}
+
+/**
+ * Get hex color for work plan status (for charts)
+ */
+function getWorkPlanStatusHexColor(workPlanStatus: string): string {
+  const colorMap: Record<string, string> = {
+    done: '#10B981',        // green-400
+    in_progress: '#60A5FA',  // blue-400
+    failed: '#F87171',      // red-400
+    pending: '#9CA3AF',     // gray-400
+  };
+  return colorMap[workPlanStatus] || '#9CA3AF';
+}
+
+/**
+ * Get hex color for workflow execution status
+ * Uses the same color scheme as work plan statuses
+ */
+export function getWorkflowStatusColor(status: string): string {
+  const workPlanStatus = mapWorkflowStatusToWorkPlanStatus(status);
+  return getWorkPlanStatusHexColor(workPlanStatus);
+}
+
+/**
+ * Get status color mapping for workflow execution statuses
+ * Uses the same color scheme as WorkPlanDisplayHelpers
+ */
+export function getWorkflowStatusColors(): Record<string, string> {
+  return {
+    COMPLETED: getWorkflowStatusColor('COMPLETED'),
+    FAILED: getWorkflowStatusColor('FAILED'),
+    RUNNING: getWorkflowStatusColor('RUNNING'),
+    PENDING: getWorkflowStatusColor('PENDING'),
+    CANCELLED: getWorkflowStatusColor('CANCELLED'),
+  };
+}
+
 // Format timestamp for display
 export const formatTimestamp = (timestamp: string) => {
   return new Date(timestamp).toLocaleTimeString([], { 

@@ -4,18 +4,7 @@
  * Shared functions for analytics data transformations and calculations
  */
 
-interface StatusBreakdown {
-  [status: string]: number;
-}
-
-interface UserActivity {
-  user_id: string;
-  total_runs?: number;
-  recent_runs?: number;
-  runs_today?: number;
-  unique_blueprints?: number;
-  status_breakdown?: StatusBreakdown;
-}
+import type { StatusBreakdown, UserActivity, ActiveUser } from '@/types/analytics';
 
 interface FilteredStats {
   total_runs: number;
@@ -23,10 +12,13 @@ interface FilteredStats {
   avg_runs_per_user: number;
 }
 
+// Union type for users that can have different run count fields
+type UserWithRuns = UserActivity | ActiveUser;
+
 /**
  * Calculate status breakdown from array of users
  */
-export function calculateStatusBreakdown(users: UserActivity[]): StatusBreakdown {
+export function calculateStatusBreakdown(users: UserWithRuns[]): StatusBreakdown {
   const statusBreakdown: StatusBreakdown = {};
   users.forEach(user => {
     Object.entries(user.status_breakdown || {}).forEach(([status, count]) => {
@@ -39,8 +31,11 @@ export function calculateStatusBreakdown(users: UserActivity[]): StatusBreakdown
 /**
  * Calculate total stats from user array
  */
-export function calculateStats(users: UserActivity[], runsKey: 'total_runs' | 'recent_runs' | 'runs_today'): FilteredStats {
-  const totalRuns = users.reduce((sum, u) => sum + (u[runsKey] || 0), 0);
+export function calculateStats(users: UserWithRuns[], runsKey: 'total_runs' | 'recent_runs' | 'runs_today'): FilteredStats {
+  const totalRuns = users.reduce((sum, u) => {
+    const user = u as any; // Type assertion needed due to union type with different field names
+    return sum + (user[runsKey] || 0);
+  }, 0);
   const uniqueUsers = users.length;
   
   return {
@@ -53,13 +48,16 @@ export function calculateStats(users: UserActivity[], runsKey: 'total_runs' | 'r
 /**
  * Map users to top_users format
  */
-export function mapToTopUsers(users: UserActivity[], runsKey: 'total_runs' | 'recent_runs' | 'runs_today') {
-  return users.map(u => ({
-    user_id: u.user_id,
-    total_runs: u[runsKey] || 0,
-    unique_blueprints: u.unique_blueprints || 0,
-    status_breakdown: u.status_breakdown || {}
-  }));
+export function mapToTopUsers(users: UserWithRuns[], runsKey: 'total_runs' | 'recent_runs' | 'runs_today') {
+  return users.map(u => {
+    const user = u as any; // Type assertion needed due to union type with different field names
+    return {
+      user_id: u.user_id,
+      total_runs: user[runsKey] || 0,
+      unique_blueprints: 'unique_blueprints' in u ? u.unique_blueprints : 0,
+      status_breakdown: u.status_breakdown || {}
+    };
+  });
 }
 
 /**

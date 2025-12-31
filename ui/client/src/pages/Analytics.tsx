@@ -26,7 +26,8 @@ import { AllUsersTable } from "@/components/analytics/AllUsersTable";
 import { TopBlueprintsQuickView } from "@/components/analytics/TopBlueprintsQuickView";
 import { BlueprintsTable } from "@/components/analytics/BlueprintsTable";
 import { filterAnalyticsByTimeRange, truncateUserId } from "@/utils/analyticsHelpers";
-import { UserActivity } from "@/api/analytics";
+import { getWorkflowStatusColors } from "@/components/agentic-ai/chat/WorkPlanDisplayHelpers";
+import type { UserActivity } from "@/types/analytics";
 
 type TimeRange = 'today' | '7days' | '30days' | 'all';
 
@@ -67,13 +68,8 @@ export default function Analytics() {
     gray: "#6B7280",
   };
 
-  const statusColors: Record<string, string> = {
-    COMPLETED: colors.success,
-    FAILED: colors.error,
-    RUNNING: colors.info,
-    PENDING: colors.warning,
-    CANCELLED: colors.gray,
-  };
+  // Use WorkPlanDisplayHelpers color scheme for workflow statuses
+  const statusColors = getWorkflowStatusColors();
 
   // Filter data by time range
   const displayData = filterAnalyticsByTimeRange(analytics, timeRange);
