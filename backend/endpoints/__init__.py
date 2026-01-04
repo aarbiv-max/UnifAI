@@ -4,7 +4,7 @@ from endpoints.docs import docs_bp
 from endpoints.health import health_bp
 from endpoints.data_sources import data_sources_bp
 from endpoints.vector import vector_bp
-from endpoints.aia_approval import aia_approval_bp
+from endpoints.terms_approval import terms_approval_bp
 from endpoints.settings import settings_bp
 
 def register_all_endpoints(app):
@@ -15,7 +15,7 @@ def register_all_endpoints(app):
         {"bp": docs_bp, "parent": 'docs', "route": ''},
         {"bp": data_sources_bp, "parent": 'data_sources', "route": ''},
         {"bp": vector_bp, "parent": 'vector', "route": ''},
-        {"bp": aia_approval_bp, "parent": 'aia_approval', "route": ''},
+        {"bp": terms_approval_bp, "parent": 'terms_approval', "route": ''},
         {"bp": settings_bp, "parent": 'settings', "route": ''},
     ]
     

@@ -3,7 +3,7 @@ from pymongo.collection import Collection
 from datetime import datetime
 from shared.logger import logger
 
-class AIAUserApprovalRepository:
+class TermsUserApprovalRepository:
     """Repository for managing AI transparency user approvals in MongoDB."""
     
     def __init__(self, col: Collection):

@@ -1,11 +1,11 @@
 from flask import Blueprint, jsonify
 from webargs import fields
 from global_utils.helpers.apiargs import from_query, from_body
-from providers.aia_approval import check_user_approval_status, record_user_approval
+from providers.terms_approval import check_user_approval_status, record_user_approval
 
-aia_approval_bp = Blueprint("aia_approval", __name__)
+terms_approval_bp = Blueprint("terms_approval", __name__)
 
-@aia_approval_bp.route("/user.approval.status.get", methods=["GET"])
+@terms_approval_bp.route("/user.approval.status.get", methods=["GET"])
 @from_query({"username": fields.Str(required=True)})
 def check_user_approval(username):
     """
@@ -23,7 +23,7 @@ def check_user_approval(username):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@aia_approval_bp.route("/user.approval.record.post", methods=["POST"])
+@terms_approval_bp.route("/user.approval.record.post", methods=["POST"])
 @from_body({"username": fields.Str(required=True)})
 def approve_user(username):
     """

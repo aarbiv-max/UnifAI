@@ -17,7 +17,7 @@ export interface ApproveUserResponse {
  */
 export async function checkUserApproval(username: string): Promise<UserApprovalStatus> {
   const response = await api.get<UserApprovalStatus>(
-    'aia_approval/user.approval.status.get',
+    'terms_approval/user.approval.status.get',
     {
       params: {
         username
@@ -32,7 +32,7 @@ export async function checkUserApproval(username: string): Promise<UserApprovalS
  */
 export async function approveUser(username: string): Promise<ApproveUserResponse> {
   const response = await api.post<ApproveUserResponse>(
-    'aia_approval/user.approval.record.post',
+    'terms_approval/user.approval.record.post',
     { username }
   );
   return response.data;

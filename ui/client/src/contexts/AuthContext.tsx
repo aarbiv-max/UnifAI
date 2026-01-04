@@ -1,7 +1,5 @@
 import { api } from '@/http/authClient';
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { checkUserApproval } from '@/api/aiaApproval';
-import AITransparencyModal from '@/components/auth/AITransparencyModal';
 import { loadAnalytics } from '@/components/shared/LoadAnalytics';
 
 export interface User {
@@ -31,8 +29,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [showAITransparencyModal, setShowAITransparencyModal] = useState(false);
-  const [isCheckingApproval, setIsCheckingApproval] = useState(false);
 
   // Load analytics after authentication
   loadAnalytics(isAuthenticated, user);
@@ -43,9 +39,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await api.get('/auth/user');
       if (response.data.authenticated && response.data.user) {
         setUser(response.data.user);
-        // Check compliance BEFORE setting authenticated to prevent flash of content
-        await checkUserApprovalStatus(response.data.user.username);
-        // Only set authenticated true after the modal state is determined
         setIsAuthenticated(true);
       } else {
         setUser(null);
@@ -57,64 +50,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Check if user has approved AI transparency notice
-  const checkUserApprovalStatus = async (username: string) => {
-    if (!username) return;
-    
-    // Check sessionStorage first - if user accepted in this session, don't show modal
-    const sessionKey = `ai_transparency_accepted_${username}`;
-    const sessionAccepted = sessionStorage.getItem(sessionKey);
-    if (sessionAccepted === 'true') {
-      // User already accepted in this session, don't show modal
-      return;
-    }
-    
-    setIsCheckingApproval(true);
-    try {
-      const approvalStatus = await checkUserApproval(username);
-      
-      if (!approvalStatus.approved) {
-        setShowAITransparencyModal(true);
-      } else {
-        setShowAITransparencyModal(false); // Explicitly hide modal if user is approved
-      }
-    } catch (error) {
-      // If check fails, show modal to be safe
-      setShowAITransparencyModal(true);
-    } finally {
-      setIsCheckingApproval(false);
-    }
-  };
-
-  // Handle AI transparency modal approval
-  const handleAITransparencyApproved = async (dontShowAgain: boolean) => {
-    setShowAITransparencyModal(false);
-    
-    if (user) {
-      const sessionKey = `ai_transparency_accepted_${user.username}`;
-      
-      if (dontShowAgain) {
-        // User checked "don't show again" - saved to database
-        // Also save to sessionStorage as backup
-        sessionStorage.setItem(sessionKey, 'true');
-        
-        // Verify the approval was saved to database
-        try {
-          const approvalStatus = await checkUserApproval(user.username);
-          if (!approvalStatus.approved) {
-            console.warn("User approval was not saved properly");
-          }
-        } catch (error) {
-          console.error("Failed to verify user approval:", error);
-        }
-      } else {
-        // User just accepted without "don't show again"
-        // Save to sessionStorage so it doesn't show again in this session
-        sessionStorage.setItem(sessionKey, 'true');
-      }
     }
   };
 
@@ -206,14 +141,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   return (
     <AuthContext.Provider value={value}>
       {children}
-      {user && (
-        <AITransparencyModal
-          open={showAITransparencyModal}
-          onClose={() => setShowAITransparencyModal(false)}
-          username={user.username}
-          onApproved={handleAITransparencyApproved}
-        />
-      )}
     </AuthContext.Provider>
   );
 };

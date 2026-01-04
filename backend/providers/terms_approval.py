@@ -21,7 +21,7 @@ def check_user_approval_status(username: str) -> Dict[str, Any]:
     """
     try:
         mongo_storage = get_mongo_storage()
-        is_approved = mongo_storage.aia_user_approval.is_user_approved(username)
+        is_approved = mongo_storage.terms_user_approval.is_user_approved(username)
         return {
             "approved": is_approved,
             "username": username
@@ -45,7 +45,7 @@ def record_user_approval(username: str) -> Dict[str, Any]:
     """
     try:
         mongo_storage = get_mongo_storage()
-        result = mongo_storage.aia_user_approval.record_user_approval(username)
+        result = mongo_storage.terms_user_approval.record_user_approval(username)
         
         if not result.get("success", False):
             error_msg = result.get("error", "Unknown error")
