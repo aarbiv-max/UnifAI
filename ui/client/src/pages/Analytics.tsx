@@ -25,7 +25,7 @@ import { ActiveTodayTable } from "@/components/analytics/ActiveTodayTable";
 import { AllUsersTable } from "@/components/analytics/AllUsersTable";
 import { TopBlueprintsQuickView } from "@/components/analytics/TopBlueprintsQuickView";
 import { BlueprintsTable } from "@/components/analytics/BlueprintsTable";
-import { filterAnalyticsByTimeRange, truncateUserId } from "@/utils/analyticsHelpers";
+import { filterAnalyticsByTimeRange, truncateUserId } from "@/components/analytics/analyticsHelpers";
 import { getWorkflowStatusColors } from "@/components/agentic-ai/chat/WorkPlanDisplayHelpers";
 import type { UserActivity } from "@/types/analytics";
 
