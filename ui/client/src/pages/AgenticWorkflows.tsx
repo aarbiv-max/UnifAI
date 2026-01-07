@@ -7,8 +7,9 @@ import { useAgenticAI } from "@/contexts/AgenticAIContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Users, Network, Play, Plus, LoaderCircle, AlertTriangle } from "lucide-react";
+import { Users, Network, Play, Plus, LoaderCircle, AlertTriangle, Bot, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { SmartBuilderPanel } from "@/components/agentic-ai/smart-builder";
 
 // Agentic AI components
 import AgentFlowGraph from "@/components/agentic-ai/AgentFlowGraph";
@@ -40,9 +41,20 @@ export default function AgenticWorkflows() {
   const [isFlowValid, setIsFlowValid] = useState<boolean>(true);
   const [isValidatingFlow, setIsValidatingFlow] = useState<boolean>(false);
   const [currentValidationResult, setCurrentValidationResult] = useState<BlueprintValidationResult | null>(null);
+  const [showSmartBuilder, setShowSmartBuilder] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const { cacheBlueprintValidationResults } = useAgenticAI();
+
+  // Handle workflow created by Smart Builder
+  const handleWorkflowCreated = useCallback((blueprintId: string) => {
+    toast({
+      title: "Workflow Created",
+      description: "Your new workflow has been created. Refreshing...",
+    });
+    // Refresh the page to show new workflow
+    window.location.reload();
+  }, [toast]);
   
   // Handle validation changes from the flow graph
   const handleValidationChange = useCallback((isValid: boolean, validationResult: BlueprintValidationResult | null, isValidating: boolean) => {
@@ -165,6 +177,15 @@ export default function AgenticWorkflows() {
                           </Button>
                         </UmamiTrack>
                       </SimpleTooltip>
+                        <Button
+                          className="bg-gradient-to-r from-purple-600 to-primary hover:from-purple-700 hover:to-primary/90 flex items-center gap-2 border border-purple-500/30 shadow-lg shadow-purple-500/20"
+                          size="sm"
+                          onClick={() => setShowSmartBuilder(true)}
+                        >
+                          <Bot className="h-4 w-4" />
+                          <Sparkles className="h-3 w-3" />
+                          Smart Builder
+                        </Button>
                         <UmamiTrack 
                           event={UmamiEvents.AGENT_GRAPHS_BUILD_FLOW_BUTTON}
                         >
@@ -188,6 +209,13 @@ export default function AgenticWorkflows() {
                     </p>
                   </CardContent>
                 </Card>
+
+                {/* Smart Builder Panel - expands below buttons */}
+                <SmartBuilderPanel
+                  isOpen={showSmartBuilder}
+                  onClose={() => setShowSmartBuilder(false)}
+                  onWorkflowCreated={handleWorkflowCreated}
+                />
 
                 <AgentFlowGraph
                   selectedFlow={selectedFlow}

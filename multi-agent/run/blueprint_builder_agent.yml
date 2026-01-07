@@ -1,0 +1,117 @@
+# ==============================================================================
+# Workflow Builder Agent Blueprint
+# ==============================================================================
+# An intelligent agent that creates workflows based on user requirements.
+# 
+# This is a system blueprint that should be pre-installed or available as a
+# template for users to create workflow-building sessions.
+#
+# The builder agent works in 4 phases:
+# 1. Analyze - Parse user request and identify requirements
+# 2. Search - Find available resources (LLMs, providers, agents)
+# 3. Design - Create agents and generate blueprint structure
+# 4. Validate - Validate and present workflow for approval
+# ==============================================================================
+
+name: Workflow Builder
+
+description: |
+  An intelligent agent that creates workflows based on your requirements.
+  
+  Simply describe what you want your workflow to do:
+  - "Create a workflow that searches Jira tickets and summarizes them"
+  - "Build an assistant that queries Confluence and Jira for project info"
+  - "Make a workflow to analyze Slack messages and create reports"
+  
+  The builder will:
+  1. Analyze your request to understand what's needed
+  2. Search for available resources in your account
+  3. Design the workflow with appropriate agents
+  4. Validate and present it for your approval before saving
+
+# ==============================================================================
+# LLM Configuration
+# ==============================================================================
+# The builder uses an existing LLM resource from the user's account.
+# Reference the LLM by its resource ID using $ref: notation.
+# This references the Gemini LLM resource: 5893c04a7057437ba919ecaef97e0508
+llms: []
+
+# ==============================================================================
+# Conditions
+# ==============================================================================
+# No special conditions needed - builder uses simple linear flow
+
+# ==============================================================================
+# Nodes
+# ==============================================================================
+nodes:
+  # Entry point - receives user's workflow request
+  - rid: user_question_node_rid
+    name: User Question Node
+    type: user_question_node
+    config:
+      type: user_question_node
+
+  # Builder agent - the main workflow building logic
+  # Uses $ref: to reference an existing LLM resource from the user's account
+  - rid: builder_agent_rid
+    name: Workflow Builder Agent
+    type: builder_node
+    config:
+      type: builder_node
+      llm: $ref:5893c04a7057437ba919ecaef97e0508
+      system_message: |
+        You are the Workflow Builder Agent - an expert at creating multi-agent workflows.
+        
+        When a user describes what they want, you will:
+        1. Carefully analyze their request to understand the goal
+        2. Search for available resources in their account
+        3. Design an appropriate workflow with the right agents
+        4. Validate and present it for approval
+        
+        Key principles:
+        - Always search for resources before designing - don't assume what's available
+        - Use the orchestrator pattern when multiple agents are needed
+        - Create clear, focused agents with specific purposes
+        - Provide detailed previews so users understand what they're approving
+        
+        Be helpful, thorough, and guide users through the process.
+      max_rounds: 25
+
+  # Exit point - delivers the final response
+  - rid: final_answer_node_rid
+    name: Final Answer Node
+    type: final_answer_node
+    config:
+      type: final_answer_node
+
+# ==============================================================================
+# Execution Plan
+# ==============================================================================
+# Simple linear flow: user_question -> builder -> final_answer
+plan:
+  - uid: user_input
+    node: user_question_node_rid
+    meta:
+      display_name: User Question
+      description: |
+        The user describes the workflow they want to create.
+
+  - uid: builder
+    after: user_input
+    node: builder_agent_rid
+    meta:
+      display_name: Workflow Builder
+      description: |
+        Analyzes the request, searches for resources, designs the workflow,
+        validates it, and presents it for approval.
+
+  - uid: finalize
+    after: builder
+    node: final_answer_node_rid
+    meta:
+      display_name: Final Answer
+      description: |
+        Delivers the workflow preview or final confirmation to the user.
+

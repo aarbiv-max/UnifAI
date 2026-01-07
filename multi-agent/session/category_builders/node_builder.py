@@ -80,5 +80,6 @@ class NodeBuilder(CategoryBuilder):
         except KeyError as exc:
             raise PluginConfigurationError(
                 f"Node config: {cfg!r}: unknown {attr_name!r} rid={rid!r} "
-                f"in category={category.value}"
+                f"in category={category.value}",
+                cfg.dict()
             ) from exc
