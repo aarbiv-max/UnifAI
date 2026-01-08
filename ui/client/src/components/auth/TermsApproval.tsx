@@ -83,7 +83,7 @@ const TermsApproval: React.FC<TermsApprovalProps> = ({ children }) => {
   return (
     <>
       {children}
-      {user && (
+      {user && showModal && (
         <AITransparencyModal
           open={showModal}
           onClose={() => setShowModal(false)}
