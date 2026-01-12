@@ -1,10 +1,19 @@
-from typing import List, Optional, Tuple
-from .registry import ResourcesRegistry
+from typing import List, Optional, Tuple, Dict, Any
+
+from pydantic import BaseModel
+
+from resources.registry import ResourcesRegistry
 from catalog.element_registry import ElementRegistry
-from .models import ResourceDoc, ResourceQuery
+from catalog.card_service import ElementCardService
+from resources.models import ResourceDoc, ResourceQuery
 from core.enums import ResourceCategory
 from core.ref import RefWalker
-from pydantic import BaseModel
+from core.dto import GroupedCount
+from core.element_meta import ElementConfigMeta
+from elements.common.card import ElementCard
+from elements.common.validator import ElementValidationResult, ValidationContext
+from resources.resolver import DependencyResolver
+from validation.service import ElementValidationService
 
 
 class ResourcesService:
@@ -17,9 +26,14 @@ class ResourcesService:
             self,
             resource_registry: ResourcesRegistry,
             element_registry: ElementRegistry,
+            validation_service: ElementValidationService = None,
+            card_service: ElementCardService = None,
     ):
         self._store = resource_registry
         self.element_registry = element_registry
+        self._validation_service = validation_service
+        self._card_service = card_service
+        self._dependency_resolver = DependencyResolver(resource_registry=self._store)
 
     # ---------- CRUD ----------
     def create(self, *, user_id, category, type, name, config) -> ResourceDoc:
@@ -99,3 +113,220 @@ class ResourcesService:
     def get_resource_schema() -> dict:
         """Get the JSON schema for ResourceDoc model."""
         return ResourceDoc.model_json_schema()
+
+    # ---------- Statistics ----------
+    def count(self, user_id: str, filter: Dict[str, Any] = None) -> int:
+        """Count resources matching filter criteria for a user."""
+        return self._store.count(user_id, filter)
+
+    def group_count(
+        self, 
+        user_id: str, 
+        group_by: List[str],
+        filter: Dict[str, Any] = None
+    ) -> List[GroupedCount]:
+        """
+        Group resources by specified fields and return counts.
+        Performs efficient server-side grouping via the registry.
+        
+        Args:
+            user_id: The user ID to filter by
+            group_by: List of field names to group by (e.g., ["category", "type"])
+            filter: Optional additional filter criteria
+            
+        Returns:
+            List of GroupedCount DTOs with grouped field values and count.
+            Example: [GroupedCount(fields={"category": "llm", "type": "openai"}, count=5), ...]
+        """
+        return self._store.group_count(user_id, group_by, filter)
+
+    # ---------- Validation ----------
+    def validate_resource(
+        self,
+        rid: str,
+        timeout_seconds: float = 10.0,
+    ) -> ElementValidationResult:
+        """
+        Validate a saved resource and all its transitive dependencies.
+        
+        Args:
+            rid: Resource ID to validate
+            timeout_seconds: Timeout for network checks
+            
+        Returns:
+            ElementValidationResult for the requested resource
+            
+        Raises:
+            RuntimeError: If validation service not configured
+            KeyError: If resource not found
+        """
+        self._ensure_validation_service()
+        
+        # Resolve rids in dependency order
+        ordered_rids = self._dependency_resolver.resolve_with_deps(rid)
+        if not ordered_rids:
+            raise KeyError(f"Resource not found: {rid}")
+
+        # Build ElementConfigMeta for each rid
+        ordered_configs = self._build_configs_from_rids(ordered_rids)
+        
+        # Validate and return result for requested rid
+        return self._validate_and_get(ordered_configs, rid, timeout_seconds)
+
+    def validate_config(
+        self,
+        category: str,
+        element_type: str,
+        config: dict,
+        name: Optional[str] = None,
+        timeout_seconds: float = 10.0,
+    ) -> ElementValidationResult:
+        """
+        Validate an inline config before saving.
+        
+        This validates a resource config without requiring it to be saved first.
+        Useful for UI validation before creating a resource.
+        
+        If the config references saved resources ($ref:xxx), those dependencies
+        will be validated first and their results made available to the validator.
+        
+        Args:
+            category: Resource category (e.g., "llm", "provider", "node")
+            element_type: Element type (e.g., "openai", "mcp_server")
+            config: The config dict to validate
+            name: Optional display name (used in validation result)
+            timeout_seconds: Timeout for network checks
+            
+        Returns:
+            ElementValidationResult for the inline config
+            
+        Raises:
+            RuntimeError: If validation service not configured
+            ValueError: If schema validation fails
+            KeyError: If referenced resource not found
+        """
+        self._ensure_validation_service()
+        
+        # Schema validation - will raise ValueError if invalid
+        category_enum = ResourceCategory(category)
+        model_cls = self.element_registry.get_schema(category_enum, element_type)
+        cfg_model = model_cls(**config)
+        
+        # Extract nested refs and resolve dependencies
+        nested_refs = list(RefWalker.external_rids(cfg_model))
+        dep_rids = self._resolve_transitive_deps(nested_refs)
+        
+        # Build ordered configs: dependencies first
+        ordered_configs = self._build_configs_from_rids(dep_rids)
+        
+        # Add inline config last
+        ordered_configs.append(ElementConfigMeta(
+            rid="inline",
+            category=category_enum,
+            type_key=element_type,
+            name=name or "inline",
+            config=cfg_model,
+            dependency_rids=nested_refs,
+        ))
+        
+        # Validate and return result for inline config
+        return self._validate_and_get(ordered_configs, "inline", timeout_seconds)
+
+    # ---------- Card Building ----------
+    def get_cards(
+        self,
+        rids: List[str],
+    ) -> Dict[str, ElementCard]:
+        """
+        Get element cards for a list of resources and their dependencies.
+        
+        Resolves all transitive dependencies and builds cards for all elements
+        in dependency order.
+        
+        Args:
+            rids: List of resource IDs to get cards for
+            
+        Returns:
+            Dictionary mapping resource ID to ElementCard
+            
+        Raises:
+            RuntimeError: If card service not configured
+            KeyError: If resource not found
+        """
+        self._ensure_card_service()
+        
+        # Resolve all transitive dependencies for all requested rids
+        all_rids = self._dependency_resolver.resolve_all_with_deps(rids)
+        
+        # Build ElementConfigMeta for each rid
+        configs = self._build_configs_from_rids(all_rids)
+        
+        # Build and return cards
+        return self._card_service.build_all_cards(configs)
+
+    def get_card(
+        self,
+        rid: str,
+    ) -> ElementCard:
+        """
+        Get element card for a single resource.
+        
+        Resolves all transitive dependencies and builds cards,
+        returning only the card for the requested resource.
+        
+        Args:
+            rid: Resource ID to get card for
+            
+        Returns:
+            ElementCard for the requested resource
+            
+        Raises:
+            RuntimeError: If card service not configured
+            KeyError: If resource not found
+        """
+        cards = self.get_cards([rid])
+        if rid not in cards:
+            raise KeyError(f"Resource not found: {rid}")
+        return cards[rid]
+
+    # ---------- Helpers ----------
+    def _ensure_validation_service(self) -> None:
+        """Raise if validation service not configured."""
+        if not self._validation_service:
+            raise RuntimeError("ValidationService not configured")
+
+    def _ensure_card_service(self) -> None:
+        """Raise if card service not configured."""
+        if not self._card_service:
+            raise RuntimeError("CardService not configured")
+
+    def _build_configs_from_rids(self, rids: List[str]) -> List[ElementConfigMeta]:
+        """Build ElementConfigMeta list from saved resource rids."""
+        configs: List[ElementConfigMeta] = []
+        for rid in rids:
+            resource = self._store.get(rid)
+            config = self.resolve(rid)
+            configs.append(ElementConfigMeta(
+                rid=rid,
+                category=resource.category,
+                type_key=resource.type,
+                name=resource.name,
+                config=config,
+                dependency_rids=list(resource.nested_refs),
+            ))
+        return configs
+
+    def _resolve_transitive_deps(self, ref_rids: List[str]) -> List[str]:
+        """Resolve refs to ordered list of all transitive dependency rids."""
+        return self._dependency_resolver.resolve_all_with_deps(ref_rids)
+
+    def _validate_and_get(
+        self,
+        ordered_configs: List[ElementConfigMeta],
+        target_rid: str,
+        timeout_seconds: float,
+    ) -> ElementValidationResult:
+        """Validate configs in order and return result for target rid."""
+        context = ValidationContext(timeout_seconds=timeout_seconds)
+        results = self._validation_service.validate_ordered(ordered_configs, context)
+        return results[target_rid]

@@ -1,5 +1,6 @@
 from elements.common.base_element_spec import BaseElementSpec
 from core.enums import ResourceCategory
+from elements.nodes.custom_agent.validator import CustomAgentNodeValidator
 from ..config import CustomAgentNodeConfig
 from ..custom_agent import CustomAgentNode
 from ..custom_agent_node_factory import CustomAgentNodeFactory
@@ -20,3 +21,4 @@ class CustomAgentNodeElementSpec(BaseElementSpec):
     reads = CustomAgentNode.total_reads()
     writes = CustomAgentNode.total_writes()
     tags = META.tags
+    validator_cls = CustomAgentNodeValidator

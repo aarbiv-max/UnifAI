@@ -1,10 +1,12 @@
 from typing import ClassVar, Type, List
+
 from elements.common.base_element_spec import BaseElementSpec
 from core.enums import ResourceCategory
-from ..config import McpProviderConfig
-from ..mcp_provider_factory import McpProviderFactory
+from elements.providers.mcp_server_client.config import McpProviderConfig
+from elements.providers.mcp_server_client.mcp_provider_factory import McpProviderFactory
+from elements.providers.mcp_server_client.identifiers import Identifier, META
 from ..card_builder import McpProviderCardBuilder
-from ..identifiers import Identifier, META
+from elements.providers.mcp_server_client.validator import McpProviderValidator
 
 
 class McpProviderElementSpec(BaseElementSpec):
@@ -23,3 +25,4 @@ class McpProviderElementSpec(BaseElementSpec):
     factory_cls = McpProviderFactory
     card_builder_cls = McpProviderCardBuilder
     tags = META.tags
+    validator_cls = McpProviderValidator

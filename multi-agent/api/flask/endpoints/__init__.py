@@ -1,12 +1,13 @@
-from .blueprints import blueprints_bp
-from .sessions import sessions_bp
-from .catalog import catalog_bp
-from .resources import resources_bp
-from .graph import graph_bp
-from .graph_validation import graph_validation_bp
-from .actions import actions_bp
-from .health import health_bp
-from .shares import shares_bp
+from api.flask.endpoints.blueprints import blueprints_bp
+from api.flask.endpoints.sessions import sessions_bp
+from api.flask.endpoints.catalog import catalog_bp
+from api.flask.endpoints.resources import resources_bp
+from api.flask.endpoints.graph import graph_bp
+from api.flask.endpoints.graph_validation import graph_validation_bp
+from api.flask.endpoints.actions import actions_bp
+from api.flask.endpoints.health import health_bp
+from api.flask.endpoints.shares import shares_bp
+from api.flask.endpoints.statistics import statistics_bp
 
 
 def register_all_endpoints(app):
@@ -20,6 +21,7 @@ def register_all_endpoints(app):
         {"bp": graph_validation_bp, "parent": 'graph', "route": 'validation'},
         {"bp": actions_bp, "parent": 'actions', "route": ''},
         {"bp": shares_bp, "parent": 'shares', "route": ''},
+        {"bp": statistics_bp, "parent": 'statistics', "route": ''},
     ]
 
     # register all other blueprints in the app

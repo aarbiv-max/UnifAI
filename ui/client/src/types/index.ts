@@ -61,6 +61,7 @@ export interface Channel {
 }
 
 export interface EmbedChannel {
+  type_data: any;
   name: string;
   messages: string;
   lastSync: string;
@@ -78,6 +79,7 @@ export interface Document {
   source_id: string;
   source_name: string;
   source_type: string;
+  tags: string[];
   type_data: {
     file_type: string;
     doc_path: string;

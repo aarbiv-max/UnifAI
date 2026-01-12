@@ -17,8 +17,9 @@ class AppConfig(SharedConfig):
     qdrant_port: str = "6333"
 
     # Slack Configuration
-    default_slack_bot_token: str = "xoxb-2253118358-8783454711008-P7XnZRur3OGpo6YIXOELahY1"
-    default_slack_user_token: str = "xoxp-2253118358-5985274029168-9985689955216-3ed225bbc2990579845542a1921563d4"
+    # When running locally, use the default slack tokens ( get it from genie-cred-data and use ENV to set it)
+    default_slack_bot_token: str = ""
+    default_slack_user_token: str = ""
 
     # Flask Configuration
     # secret_key=your-super-secret-key-change-this-in-production
@@ -32,3 +33,10 @@ class AppConfig(SharedConfig):
     # qdrant_ip: str = "http://a467739e076d04bf1b15aa68187cbc05-1112405490.us-east-1.elb.amazonaws.com"
     # mongodb_ip: str = "ae8f0dd8e6cd046539c3f0b7c6a75f13-508991814.us-east-1.elb.amazonaws.com"
     # rabbitmq_ip: str = "a509af714a5fa4810bf879cfc8823456-1634716882.us-east-1.elb.amazonaws.com"
+
+    # Umami Configuration default local values to prevent empty fields in the configmap
+    umami_url: str = "0.0.0.0"
+    umami_website_name: str = "unifai"
+    umami_username: str = "dummy"
+    umami_password: str = "dummy"
+   

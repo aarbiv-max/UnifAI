@@ -4,8 +4,9 @@ Runtime-enabled GraphPlan wrapper.
 Composes a logical GraphPlan with runtime elements and element cards.
 """
 
-from typing import List, Dict, Optional, Iterator, Any, Tuple
+from typing import List, Dict, Optional, Iterator, Any
 from session.session_registry import SessionRegistry
+from session.collector import SessionConfigCollector
 from catalog.element_registry import ElementRegistry
 from catalog.card_service import ElementCardService
 from elements.common.card import ElementCard
@@ -32,6 +33,7 @@ class RTGraphPlan:
         self._logical_plan = logical_plan
         self._session = session_registry
         self._card_service = ElementCardService(element_registry)
+        self._session_collector = SessionConfigCollector()
         self._cards: Dict[str, ElementCard] = {}
         self._rt_steps: Dict[str, RTStep] = {}
         
@@ -84,20 +86,8 @@ class RTGraphPlan:
     # ------------------------------------------------------------------ #
 
     def _build_all_cards(self) -> None:
-        """Build all element cards from session registry."""
-        configs: Dict[str, Tuple[ResourceCategory, str, str, Any]] = {}
-        
-        for category in ResourceCategory:
-            for rid, runtime_element in self._session._store[category].items():
-                resource_spec = runtime_element.resource_spec
-                if resource_spec and resource_spec.config:
-                    configs[rid] = (
-                        category,
-                        resource_spec.name,
-                        resource_spec.type,
-                        resource_spec.config
-                    )
-        
+        """Build all element cards from session registry using SessionConfigCollector."""
+        configs = self._session_collector.collect(self._session)
         self._cards = self._card_service.build_all_cards(configs)
 
     def _get_card(self, rid: str, step_uid: str, metadata: Any) -> ElementCard:

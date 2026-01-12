@@ -1,14 +1,30 @@
-from typing import Any, Dict, List, Mapping
-from .models.blueprint import BlueprintSpec, BlueprintDraft
-from .repository.repository import BlueprintRepository
-from .resolver import BlueprintResolver
+from typing import Any, Dict, List, Mapping, Optional
+
+from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft
+from blueprints.repository.repository import BlueprintRepository
+from blueprints.resolver import BlueprintResolver
+from blueprints.collector import BlueprintConfigCollector
+from catalog.card_service import ElementCardService
 from core.ref import RefWalker
+from elements.common.card import ElementCard
+from elements.common.validator import ValidationContext
+from validation.models import BlueprintValidationResult
+from validation.service import ElementValidationService
 
 
 class BlueprintService:
-    def __init__(self, repo: BlueprintRepository, resolver: BlueprintResolver):
+    def __init__(
+        self, 
+        repo: BlueprintRepository, 
+        resolver: BlueprintResolver,
+        validation_service: ElementValidationService = None,
+        card_service: ElementCardService = None,
+    ):
         self._repo = repo
         self._resolver = resolver
+        self._validation_service = validation_service
+        self._card_service = card_service
+        self._config_collector = BlueprintConfigCollector()
 
     # ────────── Write ──────────
     def save_draft(self, *, user_id: str, draft_dict: dict) -> str:
@@ -113,3 +129,131 @@ class BlueprintService:
         Return the JSON schema of the BlueprintDraft model.
         """
         return BlueprintDraft.model_json_schema()
+
+    # ────────── Validation ──────────
+    def validate_blueprint(
+        self,
+        blueprint_id: str,
+        timeout_seconds: float = 10.0,
+    ) -> BlueprintValidationResult:
+        """
+        Validate all elements in a saved blueprint.
+        
+        Args:
+            blueprint_id: Blueprint ID to validate
+            timeout_seconds: Timeout for network checks
+            
+        Returns:
+            BlueprintValidationResult with all element results
+            
+        Raises:
+            RuntimeError: If validation service not configured
+            KeyError: If blueprint not found
+        """
+        self._ensure_validation_service()
+        spec = self.load_resolved(blueprint_id)
+        return self._validate_spec(spec, blueprint_id, timeout_seconds)
+
+    def validate_draft(
+        self,
+        draft_dict: dict,
+        timeout_seconds: float = 10.0,
+    ) -> BlueprintValidationResult:
+        """
+        Validate a blueprint draft before saving.
+        
+        This validates a blueprint YAML/JSON without requiring it to be saved first.
+        Useful for UI validation before creating a blueprint.
+        
+        Args:
+            draft_dict: The blueprint draft as a dictionary
+            timeout_seconds: Timeout for network checks
+            
+        Returns:
+            BlueprintValidationResult with all element results
+            
+        Raises:
+            RuntimeError: If validation service not configured
+            ValueError: If draft schema validation fails
+        """
+        self._ensure_validation_service()
+        spec = self.resolve_draft_dict(draft_dict)
+        return self._validate_spec(spec, "draft", timeout_seconds)
+
+    # ────────── Card Building ──────────
+    def get_blueprint_cards(
+        self,
+        blueprint_id: str,
+    ) -> Dict[str, ElementCard]:
+        """
+        Get element cards for all elements in a saved blueprint.
+        
+        Args:
+            blueprint_id: Blueprint ID to get cards for
+            
+        Returns:
+            Dictionary mapping resource ID to ElementCard
+            
+        Raises:
+            RuntimeError: If card service not configured
+            KeyError: If blueprint not found
+        """
+        self._ensure_card_service()
+        spec = self.load_resolved(blueprint_id)
+        return self._build_cards_from_spec(spec)
+
+    def get_draft_cards(
+        self,
+        draft_dict: dict,
+    ) -> Dict[str, ElementCard]:
+        """
+        Get element cards for a blueprint draft.
+        
+        Args:
+            draft_dict: The blueprint draft as a dictionary
+            
+        Returns:
+            Dictionary mapping resource ID to ElementCard
+            
+        Raises:
+            RuntimeError: If card service not configured
+            ValueError: If draft schema validation fails
+        """
+        self._ensure_card_service()
+        spec = self.resolve_draft_dict(draft_dict)
+        return self._build_cards_from_spec(spec)
+
+    # ────────── Validation Helpers ──────────
+    def _ensure_validation_service(self) -> None:
+        """Raise if validation service not configured."""
+        if self._validation_service is None:
+            raise RuntimeError("ValidationService not configured")
+
+    def _ensure_card_service(self) -> None:
+        """Raise if card service not configured."""
+        if self._card_service is None:
+            raise RuntimeError("CardService not configured")
+
+    def _validate_spec(
+        self,
+        spec: BlueprintSpec,
+        blueprint_id: str,
+        timeout_seconds: float,
+    ) -> BlueprintValidationResult:
+        """Collect configs from spec, validate, and build result."""
+        configs = self._config_collector.collect(spec)
+        context = ValidationContext(timeout_seconds=timeout_seconds)
+        results = self._validation_service.validate_ordered(configs, context)
+        return BlueprintValidationResult(
+            blueprint_id=blueprint_id,
+            is_valid=all(r.is_valid for r in results.values()),
+            element_results=results,
+        )
+
+    def _build_cards_from_spec(
+        self,
+        spec: BlueprintSpec,
+    ) -> Dict[str, ElementCard]:
+        """Collect configs from spec and build cards."""
+        configs = self._config_collector.collect(spec)
+        return self._card_service.build_all_cards(configs)

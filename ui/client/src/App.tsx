@@ -1,10 +1,12 @@
-import { Route, Switch } from "wouter";
-import Dashboard from "@/pages/Dashboard";
+import { Route, Switch, useLocation } from "wouter";
+import RagOverview from "@/pages/RagOverview";
+import AgenticOverview from "@/pages/AgenticOverview";
 import Configuration from "@/pages/Configuration";
 import JiraIntegration from "@/pages/JiraIntegration";
-import AgenticAI from "@/pages/AgenticAI";
+import AgenticWorkflows from "@/pages/AgenticWorkflows";
 import AgentRepository from "@/pages/AgentRepository";
 import AgenticChats from "@/pages/AgenticChats";
+import GetToKnow from "@/pages/GetToKnow";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { ProjectProvider } from '@/contexts/ProjectContext';
@@ -13,10 +15,49 @@ import { NotificationProvider } from '@/contexts/NotificationContext';
 import { SharedProvider } from '@/contexts/SharedContext';
 import DocumentsPage from "./features/docs/DocumentsPage";
 import { AuthProvider } from '@/contexts/AuthContext';
+import { AgenticAIProvider } from '@/contexts/AgenticAIContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import SlackIntegration from "./features/slack/SlackIntegration";
 import SlackAddSourcePage from "./features/slack/SlackAddSourcePage";
 import GuidesPage from "./components/guides/GuidesPage";
+
+// Paths that require AgenticAIProvider
+const AGENTIC_PATHS = ['/agentic-overview', '/agentic-ai', '/inventory', '/agentic-chats'];
+
+// Routes component that conditionally wraps agentic routes with the shared provider
+function AppRoutes() {
+  const [location] = useLocation();
+  
+  const isAgenticRoute = AGENTIC_PATHS.some(path => location === path);
+
+  if (isAgenticRoute) {
+    return (
+      <AgenticAIProvider>
+        <Switch>
+          <Route path="/agentic-overview" component={AgenticOverview} />
+          <Route path="/agentic-ai" component={AgenticWorkflows} />
+          <Route path="/inventory" component={AgentRepository} />
+          <Route path="/agentic-chats" component={AgenticChats} />
+        </Switch>
+      </AgenticAIProvider>
+    );
+  }
+
+  return (
+    <Switch>
+      <Route path="/" component={GetToKnow} />
+      <Route path="/rag-overview" component={RagOverview} />
+      <Route path="/jira" component={JiraIntegration} />
+      <Route path="/slack" component={SlackIntegration} />
+      <Route path="/documents" component={DocumentsPage} />
+      <Route path="/slack/add-source" component={SlackAddSourcePage} />
+      <Route path="/get-to-know" component={GetToKnow} />
+      <Route path="/configuration" component={Configuration} />
+      <Route path="/guides" component={GuidesPage} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
 
 function App() {
   // Set document title
@@ -27,27 +68,15 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <NotificationProvider>
-          <SharedProvider>
-            <ProjectProvider>
+        <SharedProvider>
+          <ProjectProvider>
+            <NotificationProvider>
               <ProtectedRoute>
-                <Switch>
-                  <Route path="/" component={AgenticAI} />
-                  <Route path="/jira" component={JiraIntegration} />
-                  <Route path="/slack" component={SlackIntegration} />
-                  <Route path="/documents" component={DocumentsPage} />
-                  <Route path="/inventory" component={AgentRepository} />
-                  <Route path="/agentic-ai" component={AgenticAI} />
-                  <Route path="/agentic-chats" component={AgenticChats} />
-                  <Route path="/slack/add-source" component={SlackAddSourcePage} />
-                  <Route path="/configuration" component={Configuration} />
-                  <Route path="/guides" component={GuidesPage} />
-                  <Route component={NotFound} />
-                </Switch>
+                <AppRoutes />
               </ProtectedRoute>
-            </ProjectProvider>
-          </SharedProvider>
-        </NotificationProvider>
+            </NotificationProvider>
+          </ProjectProvider>
+        </SharedProvider>
       </AuthProvider>
     </ThemeProvider>
   );

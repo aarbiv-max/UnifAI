@@ -3,12 +3,14 @@ from urllib import request
 from config.constants import DataSource
 from data_sources.docs.doc_config_manager import DocConfigManager
 from providers.data_sources import get_available_data_sources
+from utils.storage.mongo.mongo_helpers import get_mongo_storage
 from flask import Blueprint, jsonify, session
 from webargs import fields
 from shared.logger import logger
 from global_utils.helpers.apiargs import from_query, from_body
 from global_utils.celery_app.helpers import send_task
-from providers.docs import get_best_match_results, upload_docs
+from providers.docs import get_best_match_results, upload_docs, get_available_docs
+from services.documents.file_validation_service import FileValidationService
 
 docs_bp = Blueprint("docs", __name__)
 
@@ -23,6 +25,61 @@ def upload_files(files):
     except Exception as e:
         logger.error(f"Failed to upload files: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+@docs_bp.route("/validate", methods=["POST"])
+@from_body({
+    "files": fields.List(fields.Dict(), required=True),
+    "username": fields.Str(required=True),
+    "check_duplicates": fields.Bool(required=False, load_default=True)
+})
+def validate_files(files, username, check_duplicates):
+    """
+    Validate files before upload.
+    
+    This endpoint performs pre-upload validation including:
+    - File extension validation (must be in supported list)
+    - File size validation (max 50 MB per file)
+    - Duplicate name detection (allows re-upload of FAILED documents)
+    
+    Request body:
+        files: List of file metadata objects with 'name' and 'size' keys
+               Example: [{"name": "document.pdf", "size": 1024000}]
+        username: Username of the person uploading files
+        check_duplicates: Whether to check for duplicate filenames (default: true)
+    
+    Response:
+        {
+            "valid_files": [
+                {"name": "doc.pdf", "normalized_name": "doc.pdf", "size": 1024000}
+            ],
+            "errors": [
+                {
+                    "file_name": "invalid.exe",
+                    "error_type": "extension",
+                    "message": "File type '.exe' is not supported..."
+                }
+            ],
+            "has_errors": true
+        }
+    
+    Usage Flow:
+        1. UI calls this endpoint with file metadata when files are selected
+        2. Backend validates and returns results
+        3. UI only uploads files that passed validation
+        4. UI calls /pipelines/embed with skip_validation=true
+        
+    For external API calls:
+        - Call /pipelines/embed with skip_validation=false (default)
+        - Full validation will be performed during registration
+    """
+    try:
+        service = FileValidationService(username=username)
+        result = service.validate(files, check_duplicates=check_duplicates)
+        return jsonify(result.to_dict()), 200
+    except Exception as e:
+        logger.error(f"Failed to validate files: {str(e)}")
+        return jsonify({"error": str(e)}), 500
     
     
 @docs_bp.route("/supported-extensions", methods=["GET"])
@@ -36,43 +93,70 @@ def get_supported_extensions():
         return jsonify({"error": str(e)}), 500
 
 @docs_bp.route("/available.docs.get", methods=["GET"])
-def available_doc_list():
+@from_query({
+    "cursor": fields.Str(required=False, load_default=""),
+    "limit": fields.Int(required=False, load_default=50),
+    "search_regex": fields.Str(required=False, load_default=None)
+})
+def available_doc_list(cursor="", limit=50, search_regex=None):
     try:
-        docs = get_available_data_sources(source_type=DataSource.DOCUMENT.upper_name)
-        return jsonify({"docs": docs}), 200
+        result = get_available_docs(cursor, limit, search_regex)
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Failed to get available docs list: {str(e)}")
         return jsonify({"error": str(e)}), 500
     
 
-@docs_bp.route("/embed.docs", methods=["PUT"])
-@from_body({
-    "docs": fields.List(fields.Dict(), required=True)
+@docs_bp.route("/available.tags.get", methods=["GET"])
+@from_query({
+    "cursor": fields.Str(required=False, load_default=""),
+    "limit": fields.Int(required=False, load_default=50),
+    "search_regex": fields.Str(required=False, load_default=None)
 })
-def embed_docs(docs):
+def available_tags(cursor="", limit=50, search_regex=None):
     try:
-        send_task(
-            task_name="celery_app.tasks.pipeline_tasks.execute_pipeline_task",
-            celery_queue="docs_queue",
-            source_type="DOCUMENT",
-            source_data=docs
+        svc = get_mongo_storage()
+        result = svc.get_paginated(
+            field_path="tags",
+            cursor=cursor,
+            limit=limit,
+            search_regex=search_regex,
+            match_filter={"source_type": DataSource.DOCUMENT.upper_name},
+            sort_order=1
         )
-        return jsonify({"status": "task submitted"}), 202
+        
+        tags = result.get("data", []) 
+        return jsonify({
+            "options": [{"label": tag, "value": tag} for tag in tags],
+            "nextCursor": result.get("nextCursor"),
+            "hasMore": result.get("hasMore"),
+            "total": result.get("total")
+        }), 200
+
     except Exception as e:
-        logger.error(f"Failed to submit docs embedding task: {str(e)}")
+        logger.error(f"Failed to get available tags: {str(e)}")
         return jsonify({"error": str(e)}), 500
     
 @docs_bp.route("/query.match", methods=["GET"])
 @from_query({
     "query": fields.Str(required=True),
-    "top_k_results": fields.Int(required=False),
+    "top_k_results": fields.Int(required=False, load_default=5),
     "scope": fields.Str(required=False, load_default="public"),
-    "logged_in_user": fields.Str(required=False, load_default="default", data_key="loggedInUser")
+    "logged_in_user": fields.Str(required=False, load_default="default", data_key="loggedInUser"),
+    "doc_ids": fields.List(fields.Str(), required=False, load_default=None, data_key="docIds"),
+    "tags": fields.List(fields.Str(), required=False, load_default=None),
 })
-def best_match_results(query, top_k_results, scope, logged_in_user):    
+def best_match_results(query, top_k_results, scope, logged_in_user, doc_ids, tags):    
     try:
-        search_results = get_best_match_results(query, top_k_results, scope, logged_in_user)
-        return jsonify({"search_results": search_results}), 200
+        search_results = get_best_match_results(
+            query=query,
+            top_k_results=top_k_results,
+            scope=scope,
+            logged_in_user=logged_in_user,
+            doc_ids=doc_ids,
+            tags=tags
+        )
+        return jsonify({"matches": search_results}), 200
     except Exception as e:
         logger.error(f"Failed to find best match for user query: {str(e)}")
         return jsonify({"error": str(e)}), 500

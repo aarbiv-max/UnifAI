@@ -5,14 +5,14 @@ Builds element cards in dependency order, passing dependency cards
 to parent element builders.
 
 Example:
-    Given a BlueprintSpec with:
+    Given elements with:
     - CustomAgentNode (references: MCP Provider, Slack Tool, Retriever)
     - MCP Provider (has tool_names: ["git_status", "file_read"])
     - Slack Tool
     - Retriever
     
     The service:
-    1. Builds dependency graph: CustomAgent depends on [MCP, Slack, Retriever]
+    1. Builds dependency graph from pre-computed dependency_rids
     2. Sorts: [MCP, Slack, Retriever, CustomAgent] (leaves first)
     3. Builds MCP card → skills: [git_status, file_read]
     4. Builds Slack card → skills: [Slack Messenger]
@@ -22,10 +22,10 @@ Example:
                    capabilities: [docs_retrieval]
 """
 
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Any
 from collections import defaultdict
 from core.enums import ResourceCategory
-from core.ref.models import Ref
+from core.element_meta import ElementConfigMeta
 from elements.common.card.models import ElementCard, CardBuildInput, SpecMetadata
 from elements.common.card.default import DefaultCardBuilder
 from catalog.element_registry import ElementRegistry
@@ -38,6 +38,10 @@ class ElementCardService:
     This service is the central orchestrator for card building.
     It ensures that when building a card for an element that references
     other elements, those dependency cards are already built and available.
+    
+    Accepts List[ElementConfigMeta] as input - callers are responsible for
+    creating ElementConfigMeta from their own data structures (BlueprintSpec,
+    ResourceDoc, SessionRegistry, etc.)
     """
     
     def __init__(self, element_registry: ElementRegistry):
@@ -45,56 +49,55 @@ class ElementCardService:
     
     def build_all_cards(
         self,
-        configs: Dict[str, Tuple[ResourceCategory, str, str, Any]]
+        configs: List[ElementConfigMeta]
     ) -> Dict[str, ElementCard]:
         """
         Build cards for all configs in dependency order.
         
-        This is the main entry point for building cards from a BlueprintSpec
-        or a collection of resources.
+        This is the main entry point for building cards from any source.
         
         Args:
-            configs: Dictionary mapping resource ID to a tuple of:
-                     (category, user_name, type_key, config_model)
-                     
-                     Example:
-                     {
-                         "node-123": (NODE, "My Agent", "custom_agent", CustomAgentNodeConfig(...)),
-                         "mcp-456": (PROVIDER, "MCP Server", "mcp_provider", McpProviderConfig(...)),
-                         "tool-789": (TOOL, "Slack", "slack_tool", SlackToolConfig(...)),
-                     }
+            configs: List of ElementConfigMeta objects, each containing:
+                     - rid: Resource ID
+                     - category: ResourceCategory
+                     - type_key: Element type
+                     - name: User-defined name
+                     - config: Pydantic config model
+                     - dependency_rids: Pre-computed list of referenced rids
         
         Returns:
             Dictionary mapping resource ID to built ElementCard.
         """
-        deps = self._build_dependency_graph(configs)
-        order = self._topological_sort(list(configs.keys()), deps)
+        # Build lookup map for configs
+        config_map = {meta.rid: meta for meta in configs}
         
+        # Build dependency graph from pre-computed dependency_rids
+        deps = self._build_dependency_graph(configs)
+        
+        # Topological sort
+        order = self._topological_sort(list(config_map.keys()), deps)
+        
+        # Build cards in order
         cards: Dict[str, ElementCard] = {}
         
         for rid in order:
-            category, name, type_key, config = configs[rid]
+            meta = config_map[rid]
             
+            # Get already-built dependency cards
             dep_cards = {
                 dep_rid: cards[dep_rid]
                 for dep_rid in deps.get(rid, [])
                 if dep_rid in cards
             }
             
-            card = self._build_single_card(
-                category, rid, name, type_key, config, dep_cards
-            )
+            card = self._build_single_card(meta, dep_cards)
             cards[rid] = card
         
         return cards
     
     def build_single_card(
         self,
-        category: ResourceCategory,
-        rid: str,
-        name: str,
-        type_key: str,
-        config: Any,
+        config: ElementConfigMeta,
         dependency_cards: Dict[str, ElementCard] = None
     ) -> ElementCard:
         """
@@ -104,23 +107,23 @@ class ElementCardService:
         - Building a card for a leaf element (no dependencies)
         - Dependency cards are already available
         - Building a card for a single resource
+        
+        Args:
+            config: ElementConfigMeta for the element
+            dependency_cards: Optional dict of already-built dependency cards
+            
+        Returns:
+            ElementCard for the element
         """
-        return self._build_single_card(
-            category, rid, name, type_key, config, 
-            dependency_cards or {}
-        )
+        return self._build_single_card(config, dependency_cards or {})
     
     def _build_single_card(
         self,
-        category: ResourceCategory,
-        rid: str,
-        name: str,
-        type_key: str,
-        config: Any,
+        meta: ElementConfigMeta,
         dependency_cards: Dict[str, ElementCard]
     ) -> ElementCard:
         """Internal: Build a single card with dependency cards."""
-        spec = self._registry.get_spec(category, type_key)
+        spec = self._registry.get_spec(meta.category, meta.type_key)
         
         spec_metadata = SpecMetadata(
             category=spec.category,
@@ -131,9 +134,9 @@ class ElementCardService:
         )
         
         build_input = CardBuildInput(
-            rid=rid,
-            name=name,
-            config=config,
+            rid=meta.rid,
+            name=meta.name,
+            config=meta.config,
             spec_metadata=spec_metadata,
             dependency_cards=dependency_cards
         )
@@ -145,33 +148,23 @@ class ElementCardService:
     
     def _build_dependency_graph(
         self,
-        configs: Dict[str, Tuple[ResourceCategory, str, str, Any]]
+        configs: List[ElementConfigMeta]
     ) -> Dict[str, List[str]]:
-        """Find refs in each config to build dependency graph."""
-        deps: Dict[str, List[str]] = defaultdict(list)
-        config_rids = set(configs.keys())
+        """
+        Build dependency graph from pre-computed dependency_rids.
         
-        for rid, (category, name, type_key, config) in configs.items():
-            dep_rids = self._find_refs_in_config(config)
-            for dep_rid in dep_rids:
+        No need to walk configs - dependencies are already extracted by callers.
+        """
+        deps: Dict[str, List[str]] = defaultdict(list)
+        config_rids = {meta.rid for meta in configs}
+        
+        for meta in configs:
+            for dep_rid in meta.dependency_rids:
+                # Only include deps that are in our config set
                 if dep_rid in config_rids:
-                    deps[rid].append(dep_rid)
+                    deps[meta.rid].append(dep_rid)
         
         return dict(deps)
-    
-    def _find_refs_in_config(self, config: Any) -> List[str]:
-        """Walk config fields to find all Refs."""
-        refs: List[str] = []
-        
-        for field_name, field_value in config.__dict__.items():
-            if isinstance(field_value, Ref):
-                refs.append(field_value.ref)
-            elif isinstance(field_value, list):
-                for item in field_value:
-                    if isinstance(item, Ref):
-                        refs.append(item.ref)
-        
-        return refs
     
     def _topological_sort(
         self,
@@ -194,4 +187,3 @@ class ElementCardService:
             visit(rid)
         
         return order
-

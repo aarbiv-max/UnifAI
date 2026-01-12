@@ -9,6 +9,8 @@ import {
 } from "../types/workspace";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
+import { catalogService } from "@/api/catalog";
+import { useAgenticAI } from "@/contexts/AgenticAIContext";
 
 // Types for Resources API responses
 interface ResourceInstance {
@@ -44,8 +46,10 @@ export const useWorkspaceData = () => {
   );
   const [elementActions, setElementActions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { addOrUpdateResource, removeResource, revalidateResourceAndAncestors } = useAgenticAI();
 
   const { user } = useAuth();
   const USER_ID = user?.username || "default";
@@ -55,12 +59,10 @@ export const useWorkspaceData = () => {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await axios.get<CatalogResponse>(
-        "/catalog/elements.list.get",
-      );
+      const catalogData = await catalogService.fetchAllElements();
 
       const categoryList: ElementCategory[] = Object.entries(
-        response.data.elements,
+        catalogData.elements,
       ).map(([category, elements]) => ({
         category,
         // Filter out elements with hints array containing hint_type === "hidden"
@@ -93,7 +95,7 @@ export const useWorkspaceData = () => {
   const fetchElementInstances = useCallback(
     async (category: string, type: string) => {
       try {
-        setIsLoading(true);
+        setIsLoadingInstances(true);
         setError(null);
         setElementInstances([]);
 
@@ -131,7 +133,7 @@ export const useWorkspaceData = () => {
         setElementInstances([]);
         return null;
       } finally {
-        setIsLoading(false);
+        setIsLoadingInstances(false);
       }
     },
     [toast],
@@ -309,6 +311,19 @@ export const useWorkspaceData = () => {
             config: elementData.cfg_dict,
             name: elementData.name,
           });
+          
+          // Update the resource mapping immediately
+          if (response.data) {
+            addOrUpdateResource({
+              rid: response.data.rid || rid,
+              name: response.data.name || elementData.name,
+              category: response.data.category || category,
+              type: response.data.type || type,
+            });
+            // Revalidate resource after update
+            revalidateResourceAndAncestors(response.data.rid || rid);
+          }
+          
           toast({
             title: "Success",
             description: "Element updated successfully",
@@ -329,6 +344,19 @@ export const useWorkspaceData = () => {
             "/resources/resource.save",
             savePayload,
           );
+          
+          // Update the resource mapping immediately
+          if (response.data) {
+            addOrUpdateResource({
+              rid: response.data.rid,
+              name: response.data.name || elementData.name,
+              category: response.data.category || category,
+              type: response.data.type || type,
+            });
+            // Validate new resource immediately after creation
+            revalidateResourceAndAncestors(response.data.rid);
+          }
+          
           toast({
             title: "Success",
             description: "Element created successfully",
@@ -350,7 +378,7 @@ export const useWorkspaceData = () => {
         setIsLoading(false);
       }
     },
-    [toast],
+    [toast, USER_ID],
   );
 
   // Delete element using Resources API
@@ -361,6 +389,9 @@ export const useWorkspaceData = () => {
         setError(null);
 
         await axios.delete(`/resources/resource.delete?resourceId=${rid}`);
+        
+        removeResource(rid);
+        
         toast({
           title: "Success",
           description: "Element deleted successfully",
@@ -395,6 +426,7 @@ export const useWorkspaceData = () => {
     elementSchema,
     elementActions,
     isLoading,
+    isLoadingInstances,
     error,
     fetchCategories,
     fetchElementInstances,

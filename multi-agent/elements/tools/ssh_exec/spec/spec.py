@@ -4,6 +4,7 @@ from core.enums import ResourceCategory
 from ..config import SshExecToolConfig
 from ..ssh_exec_factory import SshExecToolFactory
 from ..identifiers import Identifier, META
+from ..validator import SshExecToolValidator
 
 
 class SshExecToolElementSpec(BaseElementSpec):
@@ -17,3 +18,4 @@ class SshExecToolElementSpec(BaseElementSpec):
     factory_cls = SshExecToolFactory
     card_builder_cls = ToolCardBuilder
     tags = META.tags
+    validator_cls = SshExecToolValidator
