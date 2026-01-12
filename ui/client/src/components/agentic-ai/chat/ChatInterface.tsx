@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, ChevronLeft, ChevronRight, Loader2, Sparkles, Info } from "lucide-react";
+import { Send, Trash2, ChevronLeft, ChevronRight, Loader2, Info } from "lucide-react";
+import { AIGeneratedBadge } from "@/components/shared/AIGeneratedBadge";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -551,9 +552,6 @@ export default function ChatInterface({
     stopStreamingLogs();
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
 
   // Clean up interval on unmount
   useEffect(() => {
@@ -562,71 +560,7 @@ export default function ChatInterface({
     };
   }, []);
 
-  // Memoized typing indicator
-  const TypingIndicator = useMemo(
-    () => (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex justify-start"
-      >
-        <div className="bg-background-dark border border-gray-800 rounded-2xl rounded-tl-none p-3 max-w-[80%]">
-          {/* AI-generated indicator for typing state */}
-          <div 
-            className="mb-2.5 pb-2 border-b border-gray-700/30"
-            role="status"
-            aria-label="AI-generated content"
-          >
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border" style={{ borderColor: `hsl(var(--primary) / 0.3)` }}>
-              <Sparkles 
-                className="h-3.5 w-3.5" 
-                style={{ color: `hsl(var(--primary) / 0.85)` }}
-                aria-hidden="true" 
-              />
-              <span className="text-xs font-medium text-gray-300/90 tracking-wide">
-                AI Generated
-              </span>
-            </div>
-          </div>
-          <div className="flex space-x-1">
-            <motion.div
-              className="w-2 h-2 bg-gray-400 rounded-full"
-              animate={{ y: [0, -5, 0] }}
-              transition={{
-                repeat: Infinity,
-                duration: 0.5,
-                ease: "easeInOut",
-              }}
-            />
-            <motion.div
-              className="w-2 h-2 bg-gray-400 rounded-full"
-              animate={{ y: [0, -5, 0] }}
-              transition={{
-                repeat: Infinity,
-                duration: 0.5,
-                ease: "easeInOut",
-                delay: 0.1,
-              }}
-            />
-            <motion.div
-              className="w-2 h-2 bg-gray-400 rounded-full"
-              animate={{ y: [0, -5, 0] }}
-              transition={{
-                repeat: Infinity,
-                duration: 0.5,
-                ease: "easeInOut",
-                delay: 0.2,
-              }}
-            />
-          </div>
-        </div>
-      </motion.div>
-    ),
-    [],
-  );
-
-  // Loader for chat-only mode (simpler, cleaner loader)
+  // Loader for chat-only mode (simpler, cleaner loader - no badge during loading)
   const ChatOnlyLoader = useMemo(
     () => (
       <motion.div
@@ -635,9 +569,9 @@ export default function ChatInterface({
         transition={{ duration: 0.3 }}
         className="flex justify-start"
       >
-        <div className="bg-background-dark border border-gray-800 rounded-2xl rounded-tl-none p-4 max-w-[80%]">
+        <div className="bg-background-dark border border-gray-800 rounded-2xl rounded-tl-none p-3 max-w-[80%]">
           <div className="flex items-center space-x-3">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
             <span className="text-sm text-gray-400">Processing your request...</span>
           </div>
         </div>
@@ -651,6 +585,9 @@ export default function ChatInterface({
     // Get stream logs and workplans from separate states
     const streamLogs = streamLogData[message.id] || [];
     const workPlans = workPlanData[message.id] || [];
+    
+    // Check if this message is currently streaming (for showing loader inside the message)
+    const isCurrentlyStreaming = !isChatOnlyMode && isTyping && message.id === currentStreamingMessageId;
 
     // Memoize the complete message object with separate data
     const messageWithStreamingData = useMemo(() => {
@@ -672,14 +609,15 @@ export default function ChatInterface({
       );
     }
 
+    // AI message with streaming data or final answer
     if (
       message.sender === "ai" &&
-      (streamLogs.length > 0 || workPlans.length > 0 || message.finalAnswer)
+      (streamLogs.length > 0 || workPlans.length > 0 || message.finalAnswer || isCurrentlyStreaming)
     ) {
       return (
         <div className="space-y-3 w-full">
           {/* Stream logs display - hidden in chat-only mode */}
-          {!isChatOnlyMode && (
+          {!isChatOnlyMode && (streamLogs.length > 0 || workPlans.length > 0) && (
             <StreamLogDisplay
               message={messageWithStreamingData}
               onToggleExpansion={toggleNodeExpansion}
@@ -687,23 +625,50 @@ export default function ChatInterface({
             />
           )}
 
+          {/* Typing indicator (bouncing dots) - shown inside the message while streaming */}
+          {isCurrentlyStreaming && !message.finalAnswer && (
+            <div className="flex space-x-1 py-2">
+              <motion.div
+                className="w-2 h-2 bg-gray-400 rounded-full"
+                animate={{ y: [0, -5, 0] }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 0.5,
+                  ease: "easeInOut",
+                }}
+              />
+              <motion.div
+                className="w-2 h-2 bg-gray-400 rounded-full"
+                animate={{ y: [0, -5, 0] }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 0.5,
+                  ease: "easeInOut",
+                  delay: 0.1,
+                }}
+              />
+              <motion.div
+                className="w-2 h-2 bg-gray-400 rounded-full"
+                animate={{ y: [0, -5, 0] }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 0.5,
+                  ease: "easeInOut",
+                  delay: 0.2,
+                }}
+              />
+            </div>
+          )}
+
           {/* Final answer with markdown rendering */}
           {message.finalAnswer && (
-            <div
-              className="mt-3 p-3 rounded-lg"
-              style={{
-                // backgroundColor: `hsl(var(--primary) / 0.1)`,
-                border: `1px solid hsl(var(--primary) / 0.3)`,
-              }}
-            >
-              <div className="text-sm text-gray-100">
-                <ReactMarkdown
-                  components={MarkdownComponents}
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                >
-                  {preprocessText(message.finalAnswer)}
-                </ReactMarkdown>
-              </div>
+            <div className="text-sm text-gray-100">
+              <ReactMarkdown
+                components={MarkdownComponents}
+                remarkPlugins={[remarkGfm, remarkBreaks]}
+              >
+                {preprocessText(message.finalAnswer)}
+              </ReactMarkdown>
             </div>
           )}
         </div>
@@ -760,45 +725,47 @@ export default function ChatInterface({
       <CardContent className="flex-1 overflow-hidden p-0 flex flex-col min-h-0">
         <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
           <AnimatePresence>
-            {messages.map((message) => (
-              <motion.div
-                key={message.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[90%] rounded-2xl p-3 ${
-                    message.sender === "user"
-                      ? "bg-primary text-white rounded-tr-none"
-                      : "bg-background-dark border border-gray-800 rounded-tl-none"
-                  }`}
+            {messages.map((message) => {
+              // In chat-only mode, skip rendering the current streaming message (empty placeholder)
+              // since we show the ChatOnlyLoader instead
+              if (isChatOnlyMode && message.id === currentStreamingMessageId && !message.finalAnswer) {
+                return null;
+              }
+
+              return (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  {/* AI-generated indicator inside message bubble */}
-                  {message.sender === "ai" && (
-                    <div 
-                      className="mb-2.5 pb-2 border-b border-gray-700/30"
-                      role="status"
-                      aria-label="AI-generated content"
-                    >
-                      <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border" style={{ borderColor: `hsl(var(--primary) / 0.3)` }}>
-                        <Sparkles 
-                          className="h-3.5 w-3.5" 
-                          style={{ color: `hsl(var(--primary) / 0.85)` }}
-                          aria-hidden="true" 
-                        />
-                        <span className="text-xs font-medium text-gray-300/90 tracking-wide">
-                          AI Generated
-                        </span>
+                  <div
+                    className={`max-w-[90%] rounded-2xl p-3 ${
+                      message.sender === "user"
+                        ? "bg-primary text-white rounded-tr-none"
+                        : "bg-background-dark border border-gray-800 rounded-tl-none"
+                    }`}
+                  >
+                    {/* AI-generated badge:
+                        - Regular chat: Show at top throughout entire process (streaming + final)
+                        - Public chat: Show only with final answer
+                    */}
+                    {message.sender === "ai" && (
+                      (!isChatOnlyMode && (message.id === currentStreamingMessageId || message.finalAnswer)) ||
+                      (isChatOnlyMode && message.finalAnswer)
+                    ) && (
+                      <div className="mb-2.5">
+                        <AIGeneratedBadge />
                       </div>
-                    </div>
-                  )}
-                  <MessageContent message={message} />
-                </div>
-              </motion.div>
-            ))}
-            {isTyping && (isChatOnlyMode ? ChatOnlyLoader : TypingIndicator)}
+                    )}
+                    <MessageContent message={message} />
+                  </div>
+                </motion.div>
+              );
+            })}
+            {/* ChatOnlyLoader shown only in chat-only mode - regular chat has loader inside message */}
+            {isTyping && isChatOnlyMode && ChatOnlyLoader}
           </AnimatePresence>
           <div ref={messagesEndRef} />
         </div>
