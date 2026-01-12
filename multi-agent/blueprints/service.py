@@ -67,34 +67,75 @@ class BlueprintService:
         return self._repo.delete(blueprint_id)
 
     # ────────── Bulk listing / counting (optionally per user) ──────────
-    def list_ids(self, *, user_id: str | None = None, **pg) -> List[str]:
-        return self._repo.list_ids(user_id=user_id, **pg)
+    def list_ids(
+            self, 
+            *, 
+            user_id: str | None = None, 
+            include_system: bool = False,
+            **pg
+    ) -> List[str]:
+        """
+        List blueprint IDs.
+        
+        Args:
+            user_id: Optional user filter
+            include_system: If False (default), exclude system blueprints
+            **pg: Pagination args (skip, limit, sort_desc)
+        """
+        return self._repo.list_ids(user_id=user_id, include_system=include_system, **pg)
 
     def list_draft_dicts(
-            self, *, user_id: str | None = None, **pg
+            self, 
+            *, 
+            user_id: str | None = None, 
+            include_system: bool = False,
+            **pg
     ) -> List[Dict[str, Any]]:
         """
         Return pure-dict drafts (as saved) in one DB round-trip.
+        
+        Args:
+            user_id: Optional user filter
+            include_system: If False (default), exclude system blueprints
+            **pg: Pagination args
         """
-        docs = self._repo.list_docs(user_id=user_id, **pg)
+        docs = self._repo.list_docs(user_id=user_id, include_system=include_system, **pg)
         return [doc["spec_dict"] for doc in docs]
 
     def list_draft_docs(
-            self, *, user_id: str | None = None, **pg
+            self, 
+            *, 
+            user_id: str | None = None, 
+            include_system: bool = False,
+            **pg
     ) -> List[Mapping[str, Any]]:
         """
-        Return pure-dict drafts (as saved) in one DB round-trip.
+        Return blueprint documents with draft spec_dict.
+        
+        Args:
+            user_id: Optional user filter
+            include_system: If False (default), exclude system blueprints
+            **pg: Pagination args
         """
-        docs = self._repo.list_docs(user_id=user_id, **pg)
+        docs = self._repo.list_docs(user_id=user_id, include_system=include_system, **pg)
         return [doc for doc in docs]
 
     def list_resolved_docs(
-            self, *, user_id: str | None = None, **pg
+            self, 
+            *, 
+            user_id: str | None = None, 
+            include_system: bool = False,
+            **pg
     ) -> List[Mapping[str, Any]]:
         """
         Return documents with resolved spec_dict instead of draft spec_dict.
+        
+        Args:
+            user_id: Optional user filter
+            include_system: If False (default), exclude system blueprints
+            **pg: Pagination args
         """
-        docs = self._repo.list_docs(user_id=user_id, **pg)
+        docs = self._repo.list_docs(user_id=user_id, include_system=include_system, **pg)
         resolved_docs = []
 
         for doc in docs:

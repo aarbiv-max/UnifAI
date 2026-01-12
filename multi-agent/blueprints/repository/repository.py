@@ -40,9 +40,17 @@ class BlueprintRepository(ABC):
             skip: int = 0,
             limit: int = 100,
             sort_desc: bool = True,
+            include_system: bool = False,
     ) -> List[str]:
         """
         Return blueprint IDs, optionally restricted to `user_id`, with pagination.
+        
+        Args:
+            user_id: Optional user filter
+            skip: Pagination offset
+            limit: Maximum results
+            sort_desc: Sort by updated_at descending
+            include_system: If False, exclude blueprints with is_system=True
         """
 
     @abstractmethod
@@ -53,10 +61,17 @@ class BlueprintRepository(ABC):
             skip: int = 0,
             limit: int = 100,
             sort_desc: bool = True,
+            include_system: bool = False,
     ) -> List[Mapping[str, Any]]:
         """
-        Return resolved `BlueprintSpec`s, optionally restricted to `user_id`,
-        with pagination.
+        Return blueprint documents, optionally restricted to `user_id`, with pagination.
+        
+        Args:
+            user_id: Optional user filter
+            skip: Pagination offset
+            limit: Maximum results
+            sort_desc: Sort by updated_at descending
+            include_system: If False, exclude blueprints with is_system=True
         """
 
     @abstractmethod

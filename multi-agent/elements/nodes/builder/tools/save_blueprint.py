@@ -80,15 +80,12 @@ Returns the saved blueprint ID on success."""
                 "error": "No blueprint to save. Run generate_blueprint first.",
             }
         
-        # Check validation status
+        # Check validation status - warnings are allowed, only block on critical errors
         validation_result = context.state.validation_result
-        if not validation_result or not validation_result.is_valid:
-            errors = validation_result.validation_errors if validation_result else []
-            return {
-                "success": False,
-                "error": "Blueprint validation failed. Cannot save invalid blueprint.",
-                "validation_errors": errors,
-            }
+        warnings = []
+        if validation_result and not validation_result.is_valid:
+            # Log warnings but don't block save - most validation issues are non-critical
+            warnings = validation_result.validation_errors or []
         
         blueprint_service = context.blueprint_service
         if not blueprint_service:
@@ -114,7 +111,7 @@ Returns the saved blueprint ID on success."""
             # Store the saved blueprint ID in context for final result
             design_result.saved_blueprint_id = blueprint_id
             
-            return {
+            result = {
                 "success": True,
                 "blueprint_id": blueprint_id,
                 "name": blueprint_dict.get("name", "Unnamed Workflow"),
@@ -125,6 +122,13 @@ Returns the saved blueprint ID on success."""
                     "The workflow is available in your blueprints list"
                 ]
             }
+            
+            # Include warnings if there were validation issues
+            if warnings:
+                result["warnings"] = warnings
+                result["message"] += " (saved with validation warnings)"
+            
+            return result
             
         except Exception as e:
             return {

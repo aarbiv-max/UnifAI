@@ -118,11 +118,19 @@ def get_session_status(session_id):
 @sessions_bp.route("/session.user.chat.get", methods=["GET"])
 @from_query({
     "user_id": fields.Str(data_key="userId", required=True),
+    "include_system": fields.Bool(data_key="includeSystem", load_default=False),
 })
-def get_session_user_chat(user_id):
+def get_session_user_chat(user_id, include_system):
+    """
+    Get chat history for a user.
+    
+    Args:
+        user_id: User ID to get chats for
+        include_system: If true, include sessions from system blueprints (default: false)
+    """
     try:
         svc = current_app.container.session_service
-        return jsonify(svc.get_user_sessions_chat_history(user_id)), 200
+        return jsonify(svc.get_user_sessions_chat_history(user_id, include_system=include_system)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

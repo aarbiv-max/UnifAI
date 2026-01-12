@@ -95,17 +95,36 @@ class SessionService:
         session_doc = self._manager.get_doc(run_id)
         return session_doc.get("graph_state", None)
 
-    def get_user_sessions_chat_history(self, user_id: str) -> list:
+    def get_user_sessions_chat_history(
+            self, 
+            user_id: str, 
+            include_system: bool = False
+    ) -> list:
         """
         Get chat history for all sessions created by a user.
+        
+        Args:
+            user_id: User ID to filter by
+            include_system: If False (default), exclude sessions from system blueprints
         """
         docs = self._manager.list_docs(user_id)
         chat_items = []
         
+        # Cache system blueprint check results to avoid repeated DB calls
+        system_blueprint_cache: dict = {}
+        
         for doc in docs:
             blueprint_id = doc.get("blueprint_id", "")
+            
             # Check if blueprint still exists
             blueprint_exists = self._manager.blueprint_exists(blueprint_id) if blueprint_id else False
+            
+            # Skip sessions from system blueprints if not including them
+            if not include_system and blueprint_id:
+                if blueprint_id not in system_blueprint_cache:
+                    system_blueprint_cache[blueprint_id] = self._manager.is_system_blueprint(blueprint_id)
+                if system_blueprint_cache[blueprint_id]:
+                    continue
             
             chat_item = ChatHistoryItem.from_doc(doc, blueprint_exists=blueprint_exists)
             chat_items.append(chat_item)

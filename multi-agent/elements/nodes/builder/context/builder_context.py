@@ -5,11 +5,19 @@ Manages the state across the 4 phases: Analyze, Search, Design, Validate.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from enum import Enum
 from pydantic import BaseModel
 
 from ..identifiers import BuilderPhase
+
+if TYPE_CHECKING:
+    from ..protocols import (
+        ResourcesServiceProtocol,
+        BlueprintServiceProtocol,
+        CatalogServiceProtocol,
+        ValidationServiceProtocol,
+    )
 
 
 class AnalysisResult(BaseModel):
@@ -121,10 +129,10 @@ class BuilderContext:
         self,
         user_id: str,
         thread_id: str,
-        resources_service: Any = None,
-        blueprint_service: Any = None,
-        catalog_service: Any = None,
-        validation_service: Any = None,
+        resources_service: Optional["ResourcesServiceProtocol"] = None,
+        blueprint_service: Optional["BlueprintServiceProtocol"] = None,
+        catalog_service: Optional["CatalogServiceProtocol"] = None,
+        validation_service: Optional["ValidationServiceProtocol"] = None,
     ):
         self._state = BuilderState(
             user_id=user_id,
@@ -151,22 +159,22 @@ class BuilderContext:
         return self._state.current_phase
     
     @property
-    def resources_service(self) -> Any:
+    def resources_service(self) -> Optional["ResourcesServiceProtocol"]:
         """Get resources service."""
         return self._resources_service
     
     @property
-    def blueprint_service(self) -> Any:
+    def blueprint_service(self) -> Optional["BlueprintServiceProtocol"]:
         """Get blueprint service."""
         return self._blueprint_service
     
     @property
-    def catalog_service(self) -> Any:
+    def catalog_service(self) -> Optional["CatalogServiceProtocol"]:
         """Get catalog service."""
         return self._catalog_service
     
     @property
-    def validation_service(self) -> Any:
+    def validation_service(self) -> Optional["ValidationServiceProtocol"]:
         """Get validation service."""
         return self._validation_service
     

@@ -105,35 +105,22 @@ export default function SmartBuilderPanel({
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs, workflowResult]);
 
-  // Add a processing log entry (honest - no fake progress)
-  const addProcessingLog = useCallback(() => {
+  // Add a log entry with timestamp
+  const addLog = useCallback((phase: string, message: string, status: LogEntry["status"] = "running") => {
+    const icon = status === "running" 
+      ? <Loader2 className="h-3 w-3 animate-spin" />
+      : status === "complete" 
+        ? <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+        : <AlertCircle className="h-3 w-3 text-red-400" />;
+    
     setLogs((prev) => [...prev, {
-      id: `processing-${Date.now()}`,
-      phase: "processing",
-      message: "Building your workflow...",
-      icon: <Loader2 className="h-3 w-3 animate-spin" />,
-      status: "running",
+      id: `${phase}-${Date.now()}`,
+      phase,
+      message,
+      icon,
+      status,
       timestamp: new Date(),
     }]);
-  }, []);
-
-  // Update logs when phases complete (from actual response)
-  const updateLogsFromResponse = useCallback((completedPhases: string[]) => {
-    // Remove the processing log
-    setLogs((prev) => prev.filter((log) => log.phase !== "processing"));
-    
-    // Add completed phase logs
-    completedPhases.forEach((phase) => {
-      const message = `${phase.charAt(0).toUpperCase() + phase.slice(1)} ✓`;
-      setLogs((prev) => [...prev, {
-        id: `${phase}-${Date.now()}`,
-        phase,
-        message,
-        icon: <CheckCircle2 className="h-3 w-3 text-emerald-400" />,
-        status: "complete",
-        timestamp: new Date(),
-      }]);
-    });
   }, []);
 
   const handleSend = async () => {
@@ -164,29 +151,12 @@ export default function SmartBuilderPanel({
         }
         const userId = user?.username || "default";
         
-        // Add connecting log
-        setLogs((prev) => [...prev, {
-          id: `connect-${Date.now()}`,
-          phase: "connect",
-          message: "Connecting to builder agent...",
-          icon: <Loader2 className="h-3 w-3 animate-spin" />,
-          status: "running",
-          timestamp: new Date(),
-        }]);
-
         currentSession = await createBuilderSession(userId, builderAgentInfo);
         setSession(currentSession);
-
-        // Update connect log to complete
-        setLogs((prev) => prev.map((log) => 
-          log.phase === "connect" 
-            ? { ...log, status: "complete" as const, message: "Connected", icon: <CheckCircle2 className="h-3 w-3 text-emerald-400" /> }
-            : log
-        ));
       }
 
-      // Show honest processing state (no fake progress)
-      addProcessingLog();
+      // Show simple processing message - no streaming so we can't track real progress
+      addLog("processing", "Creating workflow, please wait... (this may take a minute)", "running");
 
       // Execute the builder request
       const response: BuilderExecuteResponse = await executeBuilderRequest(
@@ -194,12 +164,13 @@ export default function SmartBuilderPanel({
         userRequest
       );
 
-      // Update with actual completed phases from response
-      if (response.metadata?.phases_completed) {
-        updateLogsFromResponse(response.metadata.phases_completed);
-      } else {
-        // Remove processing log if no phases info
-        setLogs((prev) => prev.filter((log) => log.phase !== "processing"));
+      // Remove processing log
+      setLogs((prev) => prev.filter((log) => log.phase !== "processing"));
+
+      // Show result
+      if (response.success) {
+        const workflowName = response.metadata?.workflow_name || "New Workflow";
+        addLog("complete", `✓ Workflow "${workflowName}" created successfully!`, "complete");
       }
 
       // Check for blueprint creation
@@ -325,8 +296,51 @@ export default function SmartBuilderPanel({
         {/* Main Interface */}
         {!isCheckingSetup && hasBuilderAgent && (
           <CardContent className="p-3">
-            <div className="flex gap-3">
-              {/* Left: Input Area */}
+            {/* Input Area - transforms to Log Display during processing */}
+            {isProcessing ? (
+              /* Log Display Mode */
+              <div className="bg-[#0d0d1a] border border-gray-700 rounded-lg p-3 min-h-[80px] max-h-[120px] overflow-y-auto font-mono">
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700">
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  <span className="text-primary font-semibold text-xs">Building Workflow...</span>
+                </div>
+                <div className="space-y-0.5">
+                  {logs.map((log) => (
+                    <motion.div
+                      key={log.id}
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-center gap-1.5"
+                    >
+                      <span className="text-gray-500 text-xs w-16 flex-shrink-0">
+                        {log.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                      <div className={`flex-shrink-0 ${
+                        log.status === "running" ? "text-primary" :
+                        log.status === "error" ? "text-red-400" : "text-emerald-400"
+                      }`}>
+                        {log.status === "running" ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : log.status === "error" ? (
+                          <AlertCircle className="h-3 w-3" />
+                        ) : (
+                          <CheckCircle2 className="h-3 w-3" />
+                        )}
+                      </div>
+                      <span className={`text-xs ${
+                        log.message.includes('✓') || log.message.includes('🎉') ? 'text-emerald-400' :
+                        log.status === "error" ? "text-red-300" :
+                        log.status === "running" ? "text-gray-300" : "text-gray-400"
+                      }`}>
+                        {log.message}
+                      </span>
+                    </motion.div>
+                  ))}
+                  <div ref={logsEndRef} />
+                </div>
+              </div>
+            ) : (
+              /* Normal Input Mode */
               <div className="flex-1 min-w-0">
                 <div className="flex gap-2">
                   <input
@@ -336,22 +350,17 @@ export default function SmartBuilderPanel({
                     onKeyDown={handleKeyDown}
                     placeholder="Describe your workflow..."
                     className="flex-1 h-8 px-3 text-sm bg-background-dark border border-gray-700 rounded-md focus:border-primary focus:outline-none text-gray-100 placeholder-gray-500"
-                    disabled={isProcessing}
                   />
                   <Button
                     onClick={handleSend}
-                    disabled={!inputValue.trim() || isProcessing}
+                    disabled={!inputValue.trim()}
                     size="sm"
                     className="bg-primary hover:bg-primary/80 h-8 px-3"
                   >
-                    {isProcessing ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
+                    <Send className="h-4 w-4" />
                   </Button>
                 </div>
-                {logs.length === 0 && !isProcessing && (
+                {!workflowResult && (
                   <p className="text-xs text-gray-500 mt-1.5">
                     e.g., "Search Jira" • "Confluence lookup" • "Sales with CRM"
                   </p>
@@ -393,46 +402,7 @@ export default function SmartBuilderPanel({
                   </motion.div>
                 )}
               </div>
-
-              {/* Right: Progress Logs with scrollbar */}
-              {logs.length > 0 && (
-                <div className="w-48 flex-shrink-0 max-h-[120px] overflow-y-auto border-l border-gray-800 pl-3">
-                  <div className="space-y-0.5">
-                    {logs.map((log) => (
-                      <motion.div
-                        key={log.id}
-                        initial={{ opacity: 0, x: 5 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-1.5"
-                      >
-                        <div className={`flex-shrink-0 ${
-                          log.status === "running" ? "text-primary" :
-                          log.status === "error" ? "text-red-400" : "text-emerald-400"
-                        }`}>
-                          {log.status === "running" ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : log.status === "error" ? (
-                            <AlertCircle className="h-3 w-3" />
-                          ) : (
-                            <CheckCircle2 className="h-3 w-3" />
-                          )}
-                        </div>
-                        <span className={`text-xs truncate ${
-                          log.phase === "request" ? "text-white" :
-                          log.status === "error" ? "text-red-300" :
-                          log.status === "running" ? "text-gray-300" : "text-gray-500"
-                        }`}>
-                          {log.phase === "request" 
-                            ? log.message.length > 20 ? log.message.substring(0, 20) + "..." : log.message
-                            : log.message}
-                        </span>
-                      </motion.div>
-                    ))}
-                    <div ref={logsEndRef} />
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
           </CardContent>
         )}
       </Card>

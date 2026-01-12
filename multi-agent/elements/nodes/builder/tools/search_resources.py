@@ -131,7 +131,6 @@ You can optionally filter by capability (e.g., 'jira' to find Jira-related provi
                         # Only match if capability is directly in the provider name
                         if cap_lower in provider_name_lower:
                             matched_caps.append(cap_lower)
-                            print(f"[search_resources] Provider '{provider.name}' matched capability '{cap}'")
                     
                     if matched_caps:
                         provider_info["matched_capabilities"] = matched_caps
@@ -188,7 +187,6 @@ You can optionally filter by capability (e.g., 'jira' to find Jira-related provi
                         # Check if capability matches agent name DIRECTLY
                         if cap_lower in agent_name_lower:
                             matched_caps.append(cap_lower)
-                            print(f"[search_resources] Agent '{node.name}' matched capability '{cap}' via name")
                             continue
                         
                         # Check if capability matches agent's provider
@@ -205,7 +203,6 @@ You can optionally filter by capability (e.g., 'jira' to find Jira-related provi
                                 provider_matched_caps = matching_provider.get("matched_capabilities", [])
                                 if cap_lower in provider_matched_caps:
                                     matched_caps.append(cap_lower)
-                                    print(f"[search_resources] Agent '{node.name}' matched capability '{cap}' via provider '{matching_provider.get('name')}'")
                                     continue
                     
                     if matched_caps:

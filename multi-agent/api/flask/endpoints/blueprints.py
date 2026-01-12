@@ -78,24 +78,40 @@ def _extract_blueprint_data(
 
 @blueprints_bp.route("/available.blueprints.get", methods=["GET"])
 @from_query({
-    "user_id": fields.Str(data_key="userId", required=True)
+    "user_id": fields.Str(data_key="userId", required=True),
+    "include_system": fields.Bool(data_key="includeSystem", load_default=False),
 })
-def available_doc_list(user_id):
+def available_doc_list(user_id, include_system):
+    """
+    List available blueprints for a user.
+    
+    Args:
+        user_id: User ID to filter by
+        include_system: If true, include system/internal blueprints (default: false)
+    """
     try:
         svc = current_app.container.blueprint_service
-        return jsonify(svc.list_draft_docs(user_id=user_id)), 200
+        return jsonify(svc.list_draft_docs(user_id=user_id, include_system=include_system)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @blueprints_bp.route("/available.blueprints.resolved.get", methods=["GET"])
 @from_query({
-    "user_id": fields.Str(data_key="userId", required=True)
+    "user_id": fields.Str(data_key="userId", required=True),
+    "include_system": fields.Bool(data_key="includeSystem", load_default=False),
 })
-def available_resolved_doc_list(user_id):
+def available_resolved_doc_list(user_id, include_system):
+    """
+    List available blueprints with resolved references.
+    
+    Args:
+        user_id: User ID to filter by
+        include_system: If true, include system/internal blueprints (default: false)
+    """
     try:
         svc = current_app.container.blueprint_service
-        return jsonify(svc.list_resolved_docs(user_id=user_id)), 200
+        return jsonify(svc.list_resolved_docs(user_id=user_id, include_system=include_system)), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

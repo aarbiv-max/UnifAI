@@ -39,4 +39,11 @@ class BuilderNodeConfig(NodeBaseConfig):
         ge=1,
         le=100
     )
+    
+    retries: int = Field(
+        default=3,
+        description="Maximum retries for failed phases",
+        ge=0,
+        le=10
+    )
 

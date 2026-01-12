@@ -81,6 +81,10 @@ class BlueprintDraft(BaseModel):
 
     name: str = "Untitled blueprint"
     description: str = ""
+    is_system: bool = Field(
+        default=False,
+        description="If True, this blueprint is a system/internal blueprint and hidden from regular listings"
+    )
 
     class Config:
         extra = Extra.forbid

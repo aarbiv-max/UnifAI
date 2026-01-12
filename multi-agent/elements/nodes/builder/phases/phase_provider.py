@@ -2,135 +2,41 @@
 Builder Phase Provider.
 
 Provides phase-specific tools and prompts for the builder agent.
-Similar to OrchestratorPhaseProvider pattern.
+Uses the PhaseDefinition pattern from the common agent module.
 """
 
-from typing import Any, Callable, Dict, List, Optional
-from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional
 
 from elements.tools.common.base_tool import BaseTool
 from elements.llms.common.chat.message import ChatMessage, Role
+from elements.nodes.common.agent.phases.phase_definition import (
+    PhaseDefinition,
+    PhaseSystem,
+)
 
 from ..identifiers import BuilderPhase
 from ..context import BuilderContext
-
-
-@dataclass
-class PhaseConfig:
-    """Configuration for a builder phase."""
-    name: str
-    description: str
-    prompt_template: str
-    required_tools: List[str]
-    next_phase: Optional[BuilderPhase] = None
-    can_retry: bool = True
+from ..prompts import (
+    ANALYZE_PHASE_GUIDANCE,
+    SEARCH_PHASE_GUIDANCE,
+    DESIGN_PHASE_GUIDANCE,
+    VALIDATE_PHASE_GUIDANCE,
+)
 
 
 class BuilderPhaseProvider:
     """
     Provides phase-specific context and tools for the builder agent.
     
+    Uses PhaseDefinition pattern for clean separation of phase configuration.
     Manages transitions between phases and provides focused prompts.
     """
-    
-    # Phase configurations
-    PHASE_CONFIGS: Dict[BuilderPhase, PhaseConfig] = {
-        BuilderPhase.ANALYZE: PhaseConfig(
-            name="Analyze Request",
-            description="Parse and understand the user's workflow requirements",
-            prompt_template="""## Phase 1: Analyze Request
-
-Your task is to analyze the user's request and extract:
-1. The main intent/goal of the workflow
-2. Required capabilities (e.g., "search Jira", "send email", "summarize documents")
-3. Whether multiple agents are needed (if yes, an orchestrator will be required)
-4. Suggested number of agents
-
-User Request: {user_request}
-
-Think through this carefully and identify:
-- What actions need to be performed?
-- What external systems/tools are mentioned?
-- Does this require coordination between multiple specialists?
-
-After analysis, use the search_resources tool to find available resources.""",
-            required_tools=[],
-            next_phase=BuilderPhase.SEARCH,
-        ),
-        BuilderPhase.SEARCH: PhaseConfig(
-            name="Search Resources",
-            description="Find available LLMs, providers, and existing agents",
-            prompt_template="""## Phase 2: Search Resources
-
-Based on the analysis, search for available resources in the user's account.
-
-Required capabilities: {required_capabilities}
-Needs orchestrator: {needs_orchestrator}
-
-Use the search_resources tool to find:
-1. LLMs (MANDATORY - workflow cannot work without at least one LLM)
-2. Providers/MCPs that match the required capabilities
-3. Existing agents that could be reused
-
-After searching, proceed to design the workflow.""",
-            required_tools=["search_resources"],
-            next_phase=BuilderPhase.DESIGN,
-        ),
-        BuilderPhase.DESIGN: PhaseConfig(
-            name="Design Workflow",
-            description="Create agents and generate the workflow blueprint",
-            prompt_template="""## Phase 3: Design Workflow
-
-Available resources:
-- LLMs: {llm_count} available
-- Providers: {provider_count} available  
-- Existing agents: {agent_count} available
-
-Required capabilities: {required_capabilities}
-
-Design the workflow:
-1. If new agents are needed, use create_agent tool to create them
-2. Use generate_blueprint tool to create the workflow structure
-3. Follow the orchestrator pattern if multiple agents are needed
-
-Remember:
-- Every workflow needs user_question_node and final_answer_node
-- Multiple agents require an orchestrator_node
-- Each agent needs an LLM reference""",
-            required_tools=["create_agent", "generate_blueprint"],
-            next_phase=BuilderPhase.VALIDATE,
-        ),
-        BuilderPhase.VALIDATE: PhaseConfig(
-            name="Validate",
-            description="Validate the blueprint and present for approval",
-            prompt_template="""## Phase 4: Validate
-
-Workflow has been designed. Now:
-1. Use validate_blueprint tool to check for errors
-2. If validation passes, use preview_workflow tool to present to user
-3. If validation fails, you may need to fix issues or go back to design
-
-The user will then approve or request changes.""",
-            required_tools=["validate_blueprint", "preview_workflow"],
-            next_phase=BuilderPhase.COMPLETE,
-        ),
-        BuilderPhase.COMPLETE: PhaseConfig(
-            name="Complete",
-            description="Workflow building is complete",
-            prompt_template="""## Complete
-
-The workflow has been designed and validated. 
-Present the final summary to the user for approval.""",
-            required_tools=[],
-            next_phase=None,
-            can_retry=False,
-        ),
-    }
     
     def __init__(
         self,
         get_context: Callable[[], BuilderContext],
-        tools_by_phase: Dict[BuilderPhase, List[BaseTool]] = None,
+        tools_by_phase: Optional[Dict[BuilderPhase, List[BaseTool]]] = None,
+        iteration_limits: Optional[Dict[BuilderPhase, int]] = None,
     ):
         """
         Initialize the phase provider.
@@ -138,43 +44,127 @@ Present the final summary to the user for approval.""",
         Args:
             get_context: Callable to get current builder context
             tools_by_phase: Map of phase to available tools
+            iteration_limits: Custom iteration limits per phase
         """
         self._get_context = get_context
         self._tools_by_phase = tools_by_phase or {}
+        self._iteration_limits = iteration_limits or {}
+        
+        # Build the phase system
+        self._phase_system = self._build_phase_system()
+    
+    def _build_phase_system(self) -> PhaseSystem:
+        """Build the complete phase system with PhaseDefinition objects."""
+        phase_system = PhaseSystem(
+            name="builder",
+            description="Multi-phase workflow builder agent"
+        )
+        
+        # ANALYZE phase
+        analyze_phase = PhaseDefinition(
+            name=BuilderPhase.ANALYZE.value,
+            description="Parse and understand the user's workflow requirements",
+            tools=self._tools_by_phase.get(BuilderPhase.ANALYZE, []),
+            guidance=ANALYZE_PHASE_GUIDANCE,
+            max_iterations=self._iteration_limits.get(BuilderPhase.ANALYZE, 5),
+        )
+        phase_system.add_phase(analyze_phase)
+        
+        # SEARCH phase
+        search_phase = PhaseDefinition(
+            name=BuilderPhase.SEARCH.value,
+            description="Find available LLMs, providers, and existing agents",
+            tools=self._tools_by_phase.get(BuilderPhase.SEARCH, []),
+            guidance=SEARCH_PHASE_GUIDANCE,
+            max_iterations=self._iteration_limits.get(BuilderPhase.SEARCH, 3),
+        )
+        phase_system.add_phase(search_phase)
+        
+        # DESIGN phase
+        design_phase = PhaseDefinition(
+            name=BuilderPhase.DESIGN.value,
+            description="Create agents and generate the workflow blueprint",
+            tools=self._tools_by_phase.get(BuilderPhase.DESIGN, []),
+            guidance=DESIGN_PHASE_GUIDANCE,
+            max_iterations=self._iteration_limits.get(BuilderPhase.DESIGN, 5),
+        )
+        phase_system.add_phase(design_phase)
+        
+        # VALIDATE phase
+        validate_phase = PhaseDefinition(
+            name=BuilderPhase.VALIDATE.value,
+            description="Validate the blueprint and present for approval",
+            tools=self._tools_by_phase.get(BuilderPhase.VALIDATE, []),
+            guidance=VALIDATE_PHASE_GUIDANCE,
+            max_iterations=self._iteration_limits.get(BuilderPhase.VALIDATE, 5),
+        )
+        phase_system.add_phase(validate_phase)
+        
+        # COMPLETE phase (terminal)
+        complete_phase = PhaseDefinition(
+            name=BuilderPhase.COMPLETE.value,
+            description="Workflow building is complete",
+            tools=[],
+            guidance="The workflow has been designed and validated. Present the final summary to the user.",
+            max_iterations=1,
+        )
+        phase_system.add_phase(complete_phase)
+        
+        return phase_system
+    
+    @property
+    def phase_system(self) -> PhaseSystem:
+        """Get the phase system."""
+        return self._phase_system
     
     def get_current_phase(self) -> BuilderPhase:
         """Get the current phase from context."""
         return self._get_context().current_phase
     
-    def get_phase_config(self, phase: BuilderPhase = None) -> PhaseConfig:
-        """Get configuration for a phase."""
+    def get_phase_definition(self, phase: Optional[BuilderPhase] = None) -> Optional[PhaseDefinition]:
+        """Get PhaseDefinition for a phase."""
         phase = phase or self.get_current_phase()
-        return self.PHASE_CONFIGS[phase]
+        return self._phase_system.get_phase(phase.value)
     
-    def get_phase_prompt(self, **kwargs) -> str:
-        """
-        Get the prompt for the current phase.
-        
-        Args:
-            **kwargs: Template variables for the prompt
-            
-        Returns:
-            Formatted prompt string
-        """
-        config = self.get_phase_config()
-        return config.prompt_template.format(**kwargs)
+    def get_phase_guidance(self, phase: Optional[BuilderPhase] = None) -> str:
+        """Get guidance for a phase."""
+        phase = phase or self.get_current_phase()
+        return self._phase_system.get_guidance_for_phase(phase.value)
     
-    def get_tools_for_phase(self, phase: BuilderPhase = None) -> List[BaseTool]:
+    def get_tools_for_phase(self, phase: Optional[BuilderPhase] = None) -> List[BaseTool]:
         """Get tools available for a phase."""
         phase = phase or self.get_current_phase()
-        return self._tools_by_phase.get(phase, [])
+        return self._phase_system.get_tools_for_phase(phase.value)
     
     def get_all_tools(self) -> List[BaseTool]:
         """Get all tools from all phases."""
         all_tools = []
-        for phase_tools in self._tools_by_phase.values():
-            all_tools.extend(phase_tools)
+        for phase_def in self._phase_system.phases:
+            all_tools.extend(phase_def.tools)
         return all_tools
+    
+    def get_max_iterations(self, phase: Optional[BuilderPhase] = None) -> int:
+        """Get max iterations for a phase."""
+        phase_def = self.get_phase_definition(phase)
+        return phase_def.max_iterations if phase_def else 10
+    
+    def get_next_phase(self, phase: Optional[BuilderPhase] = None) -> Optional[BuilderPhase]:
+        """Get the next phase in the sequence."""
+        phase = phase or self.get_current_phase()
+        phase_order = [
+            BuilderPhase.ANALYZE,
+            BuilderPhase.SEARCH,
+            BuilderPhase.DESIGN,
+            BuilderPhase.VALIDATE,
+            BuilderPhase.COMPLETE,
+        ]
+        try:
+            idx = phase_order.index(phase)
+            if idx < len(phase_order) - 1:
+                return phase_order[idx + 1]
+        except ValueError:
+            pass
+        return None
     
     def can_advance(self) -> bool:
         """Check if we can advance to the next phase."""
@@ -212,6 +202,7 @@ Present the final summary to the user for approval.""",
         # Add phase-specific context
         summary = context.get_context_summary()
         
+        # Build context message
         context_msg = f"""## Current Context
 
 **Phase**: {summary['current_phase']}
@@ -260,4 +251,3 @@ Present the final summary to the user for approval.""",
         ))
         
         return messages
-

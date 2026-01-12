@@ -69,11 +69,34 @@ class MongoBlueprintRepository(BlueprintRepository):
     def _user_q(self, user_id: str | None) -> Dict[str, Any]:
         return {} if user_id is None else {"user_id": user_id}
 
+    def _build_query(
+            self, 
+            user_id: str | None = None, 
+            include_system: bool = False
+    ) -> Dict[str, Any]:
+        """Build MongoDB query with user and system filters."""
+        query = self._user_q(user_id)
+        if not include_system:
+            # Exclude system blueprints (is_system=True)
+            # Handle both cases: field exists and is True, or field doesn't exist (defaults to False)
+            query["$or"] = [
+                {"spec_dict.is_system": {"$ne": True}},
+                {"spec_dict.is_system": {"$exists": False}}
+            ]
+        return query
+
     def list_ids(
-            self, *, user_id: str | None = None, skip=0, limit=100, sort_desc=True
+            self, 
+            *, 
+            user_id: str | None = None, 
+            skip: int = 0, 
+            limit: int = 100, 
+            sort_desc: bool = True,
+            include_system: bool = False,
     ) -> List[str]:
+        query = self._build_query(user_id, include_system)
         cur = (
-            self._col.find(self._user_q(user_id), {"blueprint_id": 1})
+            self._col.find(query, {"blueprint_id": 1})
             .sort("updated_at", pymongo.DESCENDING if sort_desc else pymongo.ASCENDING)
             .skip(skip)
             .limit(limit)
@@ -87,10 +110,12 @@ class MongoBlueprintRepository(BlueprintRepository):
             skip: int = 0,
             limit: int = 100,
             sort_desc: bool = True,
+            include_system: bool = False,
     ) -> List[Mapping[str, Any]]:
         """Return raw Mongo documents (not validated) for bulk operations."""
+        query = self._build_query(user_id, include_system)
         cursor = (
-            self._col.find(self._user_q(user_id))
+            self._col.find(query)
             .sort("updated_at", pymongo.DESCENDING if sort_desc else pymongo.ASCENDING)
             .skip(skip)
             .limit(limit)

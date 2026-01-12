@@ -28,6 +28,14 @@ from elements.nodes.common.workload import Task, AgentResult
 
 from .context import BuilderContext, BuilderState
 from .identifiers import BuilderPhase
+from .phases import BuilderPhaseProvider
+from .prompts import (
+    build_system_message,
+    build_analyze_prompt,
+    build_search_prompt,
+    build_design_prompt,
+    build_validate_prompt,
+)
 
 
 class BuilderNode(
@@ -65,6 +73,7 @@ class BuilderNode(
             validation_service: Any = None,
             system_message: str = "",
             max_rounds: int = 20,
+            retries: int = 3,
             **kwargs: Any
     ):
         """
@@ -78,15 +87,17 @@ class BuilderNode(
             validation_service: Service for validation (optional, lazy loaded)
             system_message: Custom system message
             max_rounds: Maximum LLM rounds per phase
+            retries: Maximum retries for failed phases
             **kwargs: Additional arguments for parent classes
         """
         super().__init__(
             llm=llm,
-            system_message=self._build_system_message(system_message),
+            system_message=build_system_message(system_message),
             **kwargs
         )
         
         self.max_rounds = max_rounds
+        self.retries = retries
         self.custom_system_message = system_message
         
         # Services (injected or lazy-loaded from AppContainer)
@@ -97,6 +108,9 @@ class BuilderNode(
         
         # Builder context (created per execution)
         self._builder_context: Optional[BuilderContext] = None
+        
+        # Phase provider (created per execution)
+        self._phase_provider: Optional[BuilderPhaseProvider] = None
         
         # Phase tools (built lazily)
         self._phase_tools: Dict[BuilderPhase, List[BaseTool]] = {}
@@ -189,6 +203,12 @@ class BuilderNode(
             # Build tools for all phases
             self._build_phase_tools()
             
+            # Create phase provider for context management
+            self._phase_provider = BuilderPhaseProvider(
+                get_context=lambda: self._builder_context,
+                tools_by_phase=self._phase_tools,
+            )
+            
             # Run the builder phases
             result = self._run_builder_phases(task.content)
             
@@ -210,10 +230,8 @@ class BuilderNode(
             # Route response
             self._route_response(task, agent_result, packet)
             
-            print(f"BuilderNode {self.uid}: Completed workflow building")
             
         except Exception as e:
-            print(f"BuilderNode {self.uid}: Error processing task: {e}")
             error_result = AgentResult(
                 content=f"Error building workflow: {str(e)}",
                 agent_id=self.uid,
@@ -258,15 +276,12 @@ class BuilderNode(
         }
         
         # ===== PHASE 1: ANALYZE =====
-        print(f"\n{'='*60}")
-        print(f"🔍 PHASE 1: ANALYZE REQUEST")
-        print(f"{'='*60}")
         
         analyze_result = self._run_phase(
             phase=BuilderPhase.ANALYZE,
             user_request=user_request,
             conversation_history=conversation_history,
-            phase_prompt=self._get_analyze_prompt(user_request),
+            phase_prompt=build_analyze_prompt(user_request),
         )
         
         if not analyze_result.get("success"):
@@ -277,15 +292,17 @@ class BuilderNode(
         final_result["metadata"]["phases_completed"].append("analyze")
         
         # ===== PHASE 2: SEARCH =====
-        print(f"\n{'='*60}")
-        print(f"🔎 PHASE 2: SEARCH RESOURCES")
-        print(f"{'='*60}")
+        
+        # Get capabilities from analysis for search prompt
+        search_capabilities = []
+        if context.state.analysis:
+            search_capabilities = context.state.analysis.required_capabilities
         
         search_result = self._run_phase(
             phase=BuilderPhase.SEARCH,
             user_request=user_request,
             conversation_history=conversation_history,
-            phase_prompt=self._get_search_prompt(),
+            phase_prompt=build_search_prompt(search_capabilities),
         )
         
         if not search_result.get("success"):
@@ -302,15 +319,31 @@ class BuilderNode(
         final_result["metadata"]["phases_completed"].append("search")
         
         # ===== PHASE 3: DESIGN =====
-        print(f"\n{'='*60}")
-        print(f"🏗️ PHASE 3: DESIGN WORKFLOW")
-        print(f"{'='*60}")
+        
+        # Build design prompt with context from search results
+        search = context.state.search_result
+        analysis = context.state.analysis
+        
+        llm_info = "No LLM available"
+        if search and search.llms:
+            llm = search.llms[0]
+            llm_info = f"LLM: {llm.get('name', 'Unknown')} (rid: {llm.get('rid')})"
+        
+        agent_info = "No existing agents"
+        if search and search.existing_nodes:
+            agent_names = [a.get('name', 'Unknown') for a in search.existing_nodes]
+            agent_info = f"Existing Agents: {', '.join(agent_names)}"
         
         design_result = self._run_phase(
             phase=BuilderPhase.DESIGN,
             user_request=user_request,
             conversation_history=conversation_history,
-            phase_prompt=self._get_design_prompt(),
+            phase_prompt=build_design_prompt(
+                llm_info=llm_info,
+                provider_count=len(search.providers) if search else 0,
+                agent_info=agent_info,
+                needs_orchestrator=analysis.needs_orchestrator if analysis else False,
+            ),
         )
         
         if not design_result.get("success"):
@@ -321,15 +354,12 @@ class BuilderNode(
         final_result["metadata"]["phases_completed"].append("design")
         
         # ===== PHASE 4: VALIDATE =====
-        print(f"\n{'='*60}")
-        print(f"✅ PHASE 4: VALIDATE & PREVIEW")
-        print(f"{'='*60}")
         
         validate_result = self._run_phase(
             phase=BuilderPhase.VALIDATE,
             user_request=user_request,
             conversation_history=conversation_history,
-            phase_prompt=self._get_validate_prompt(),
+            phase_prompt=build_validate_prompt(),
         )
         
         phase_results["validate"] = validate_result
@@ -357,9 +387,6 @@ class BuilderNode(
             if context.state.design_result.uses_orchestrator is not None:
                 final_result["metadata"]["uses_orchestrator"] = context.state.design_result.uses_orchestrator
         
-        print(f"\n{'='*60}")
-        print(f"🎉 WORKFLOW BUILDING COMPLETE")
-        print(f"{'='*60}")
         
         return final_result
 
@@ -382,11 +409,20 @@ class BuilderNode(
         Returns:
             Phase execution result
         """
-        # Get tools for this phase
-        phase_tools = self._phase_tools.get(phase, [])
+        # Get tools for this phase (prefer phase provider if available)
+        if self._phase_provider:
+            phase_tools = self._phase_provider.get_tools_for_phase(phase)
+        else:
+            phase_tools = self._phase_tools.get(phase, [])
         
         # Build messages for this phase
         messages = list(conversation_history)  # Copy existing history
+        
+        # Add phase context from provider if available
+        if self._phase_provider:
+            context_messages = self._phase_provider.get_context_messages()
+            messages.extend(context_messages)
+        
         messages.append(ChatMessage(
             role=Role.USER,
             content=phase_prompt
@@ -396,7 +432,7 @@ class BuilderNode(
         strategy = self.create_strategy(
             tools=phase_tools,
             strategy_type=StrategyType.REACT.value,
-            system_message=self._build_system_message(self.custom_system_message),
+            system_message=build_system_message(self.custom_system_message),
             max_steps=self.max_rounds // 4  # Divide rounds across phases
         )
         
@@ -424,137 +460,8 @@ class BuilderNode(
                 content=str(result.get("output"))
             ))
         
-        print(f"Phase {phase.value} result: {'✓ Success' if result.get('success') else '✗ Failed'}")
         
         return result
-
-    def _get_analyze_prompt(self, user_request: str) -> str:
-        """Get the prompt for the ANALYZE phase."""
-        return f"""## Phase 1: Analyze Request
-
-Please analyze this workflow request and identify the requirements.
-
-**User Request:**
-{user_request}
-
-**Your Analysis Should Include:**
-1. **Intent**: What is the main goal of this workflow?
-2. **Required Capabilities**: ALL capabilities needed, including:
-   - External systems/tools (e.g., jira, confluence, slack, email)
-   - Agent roles mentioned by the user (e.g., sales, support, analyst)
-   - Include EVERY distinct capability or role mentioned in the request
-3. **Agent Count**: How many specialized agents are needed?
-4. **Orchestration**: Does this require an orchestrator to coordinate multiple agents?
-
-**IMPORTANT**: If the user mentions ANY agent type (like "sales agent", "support agent"), include that role in required_capabilities (e.g., "sales", "support").
-
-Think through this carefully, then use the `analyze_request` tool ONCE to record your findings.
-
-**IMPORTANT:** Call `analyze_request` exactly ONCE with all your findings. After the tool returns success, this phase is complete - do NOT call the tool again.
-
-Example:
-```
-analyze_request(
-    intent="Search Jira tickets and summarize with Confluence context",
-    required_capabilities=["jira", "confluence"],
-    needs_orchestrator=True,
-    suggested_agent_count=2,
-    analysis_notes="User needs multi-source knowledge retrieval"
-)
-```
-
-Analyze the request now and call the tool ONCE."""
-
-    def _get_search_prompt(self) -> str:
-        """Get the prompt for the SEARCH phase."""
-        context = self._builder_context
-        analysis = context.state.analysis
-        
-        capabilities = []
-        if analysis:
-            capabilities = analysis.required_capabilities
-        
-        cap_str = ", ".join(capabilities) if capabilities else "general purpose"
-        
-        return f"""## Phase 2: Search Resources
-
-Now search for available resources in the user's account.
-
-**Required Capabilities:** {cap_str}
-
-Use the `search_resources` tool to find:
-1. **LLMs** (MANDATORY - at least one is required)
-2. **Providers/MCPs** that match the required capabilities
-3. **Existing agents** that could be reused
-
-Call the search_resources tool now."""
-
-    def _get_design_prompt(self) -> str:
-        """Get the prompt for the DESIGN phase."""
-        context = self._builder_context
-        search = context.state.search_result
-        analysis = context.state.analysis
-        
-        llm_count = len(search.llms) if search else 0
-        provider_count = len(search.providers) if search else 0
-        agent_count = len(search.existing_nodes) if search else 0
-        needs_orch = analysis.needs_orchestrator if analysis else False
-        
-        # Get LLM and agent details for the prompt
-        llm_info = ""
-        if search and search.llms:
-            llm = search.llms[0]
-            llm_info = f"LLM: {llm.get('name', 'Unknown')} (rid: {llm.get('rid')})"
-        
-        agent_info = ""
-        if search and search.existing_nodes:
-            agent_names = [a.get('name', 'Unknown') for a in search.existing_nodes]
-            agent_info = f"Agents: {', '.join(agent_names)}"
-        
-        return f"""## Phase 3: Design Workflow
-
-Based on the search results, generate the workflow blueprint.
-
-**Available Resources:**
-- {llm_info}
-- Providers: {provider_count}
-- {agent_info or f'Existing Agents: {agent_count}'}
-
-**Workflow Requirements:**
-- Needs Orchestrator: {needs_orch}
-
-**Your Task:**
-Call `generate_blueprint` ONCE with:
-- workflow_name: A descriptive name for the workflow  
-- workflow_description: What the workflow does
-
-**IMPORTANT:** 
-- The tool automatically creates agents from providers - you do NOT need to create agents separately
-- Existing agents from the search results will be reused
-- Call `generate_blueprint` exactly ONCE
-
-Example:
-```
-generate_blueprint(
-    workflow_name="Jira Search Workflow",
-    workflow_description="Search Jira tickets and provide summaries"
-)
-```
-
-Generate the blueprint now."""
-
-    def _get_validate_prompt(self) -> str:
-        """Get the prompt for the VALIDATE phase."""
-        return """## Phase 4: Validate, Preview & Save
-
-The workflow has been designed. Now:
-
-1. Use `validate_blueprint` tool to check for errors
-2. If validation passes, use `preview_workflow` tool to generate a readable preview
-3. Then use `save_blueprint` tool with confirm_save=True to save the workflow
-4. If validation fails, explain the issues
-
-After saving, confirm the workflow was saved successfully with its blueprint_id."""
 
     def _build_phase_summary(self, phase_results: Dict[str, Any]) -> str:
         """Build a summary of all phase executions."""
@@ -694,49 +601,4 @@ Start by analyzing my request."""
                 processed_by=self.uid
             )
             self.reply_task(original_packet, response_task)
-
-    def _build_system_message(self, custom_message: str = "") -> str:
-        """Build the complete system message for the builder agent."""
-        base_message = """You are a Workflow Builder Agent. Your role is to help users create multi-agent workflows based on their requirements.
-
-## Your Capabilities
-You can:
-- Analyze user requests to understand what kind of workflow they need
-- Search for available resources (LLMs, providers/MCPs, existing agents) in the user's account
-- Design workflows with appropriate agents and structure
-- Validate workflows before presenting them for approval
-
-## Workflow Structure Rules
-1. Every workflow MUST have:
-   - A "user_question_node" as the entry point
-   - A "final_answer_node" as the exit point
-
-2. When multiple agents are needed:
-   - Use an "orchestrator_node" to coordinate them
-   - The flow should be: user_question -> orchestrator -> [agents] -> orchestrator -> final_answer
-   - The orchestrator uses router_direct condition for branching
-
-3. Each agent requires:
-   - An LLM (mandatory) - must use one from user's resources
-   - A system_message describing the agent's role
-   - Optional: MCP provider for external tool access
-
-## Phase Approach
-1. **ANALYZE**: Parse the user's request, identify required capabilities
-2. **SEARCH**: Use search_resources tool to find available LLMs, providers, agents
-3. **DESIGN**: Create agents if needed, generate the workflow blueprint
-4. **VALIDATE**: Validate the blueprint and present for approval
-
-## Important Guidelines
-- Always search for resources BEFORE designing - don't assume what's available
-- If no LLM is found, inform the user they need to add one first
-- Match provider capabilities to user requirements (e.g., Jira provider for Jira tasks)
-- Reuse existing agents when appropriate instead of creating duplicates
-- Provide clear previews with workflow summaries for user approval
-"""
-
-        if custom_message:
-            return f"{base_message}\n\n## Additional Instructions\n{custom_message}"
-        
-        return base_message
 

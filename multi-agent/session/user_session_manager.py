@@ -31,6 +31,15 @@ class UserSessionManager:
         """Check if blueprint exists without loading it."""
         return self._bp_service.exists(blueprint_id)
 
+    def is_system_blueprint(self, blueprint_id: str) -> bool:
+        """Check if a blueprint is a system blueprint (is_system=True)."""
+        try:
+            draft = self._bp_service.load_draft(blueprint_id)
+            return getattr(draft, 'is_system', False)
+        except (KeyError, Exception):
+            # Blueprint doesn't exist or error loading - treat as not system
+            return False
+
     def create_session(
             self,
             user_id: str,
