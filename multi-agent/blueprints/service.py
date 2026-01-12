@@ -28,10 +28,10 @@ class BlueprintService:
         self._config_collector = BlueprintConfigCollector()
 
     # ────────── Write ──────────
-    def save_draft(self, *, user_id: str, draft_dict: dict) -> str:
+    def save_draft(self, *, user_id: str, draft_dict: dict, metadata: Optional[Dict[str, Any]] = None) -> str:
         draft_bp = BlueprintDraft(**draft_dict)
         rid_refs = list(RefWalker.external_rids(draft_bp))
-        return self._repo.save(user_id=user_id, spec=draft_bp, rid_refs=rid_refs)
+        return self._repo.save(user_id=user_id, spec=draft_bp, rid_refs=rid_refs, metadata=metadata or {})
 
     # ────────── Single-blueprint reads (ID is globally unique) ──────────
     def load_draft(self, blueprint_id: str) -> BlueprintDraft:
