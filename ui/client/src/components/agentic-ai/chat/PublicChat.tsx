@@ -1,31 +1,28 @@
+/**
+ * Public Chat Component
+ * Provides a standalone chat interface for shared workflow links
+ */
+
 import React, { useState, useEffect, useCallback } from "react";
 import { useRoute } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import ChatInterface from "@/components/agentic-ai/chat/ChatInterface";
-import { SessionPayload } from "@/components/agentic-ai/ExecutionTab";
 import { StreamingDataProvider } from "@/components/agentic-ai/StreamingDataContext";
-import { Loader2, MessageSquare, Clock, Plus, Trash2, LogOut } from "lucide-react";
+import { Loader2, MessageSquare, LogOut } from "lucide-react";
 import WorkflowStatusBanner, { WorkflowBannerMessages } from "@/components/shared/WorkflowStatusBanner";
 import { motion } from "framer-motion";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { useTheme } from "@/contexts/ThemeContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { usePublicChat } from "@/hooks/use-public-chat";
-import { getBlueprintInfo, validateBlueprint } from "@/api/blueprints";
-import { UmamiTrack } from "@/components/ui/umamitrack";
+import { ChatHistorySidebar } from "@/components/shared/ChatHistorySidebar";
+import { DeleteChatModal } from "@/components/shared/DeleteChatModal";
+import { useSessionChat } from "@/hooks/use-session-chat";
+import { getBlueprintInfo } from "@/api/blueprints";
 import { UmamiEvents } from "@/config/umamiEvents";
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Component
+// ────────────────────────────────────────────────────────────────────────────────
 
 export default function PublicChat() {
   const [, params] = useRoute("/chat/:token");
@@ -33,70 +30,40 @@ export default function PublicChat() {
   const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const { toast } = useToast();
   const { primaryHex } = useTheme();
-  
+
   const [blueprintId, setBlueprintId] = useState<string | null>(null);
   const [blueprintName, setBlueprintName] = useState<string>("");
   const [blueprintOwner, setBlueprintOwner] = useState<string>("");
   const [isValidating, setIsValidating] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [isSharingDisabled, setIsSharingDisabled] = useState<boolean>(false);
-  const [isBlueprintValid, setIsBlueprintValid] = useState<boolean>(true);
-  const [isValidatingBlueprint, setIsValidatingBlueprint] = useState<boolean>(false);
 
-  // Use the custom hook for chat management
+  // Use the generic session chat hook with public scope
   const {
     sessions: chatSessions,
     selectedSession,
+    currentMessages: chatHistory,
     isLoading: isLoadingSessions,
     isCreatingSession,
     isDeleting,
-    chatHistory,
-    runId,
-    handleNewChat,
+    isSharingDisabled,
+    isBlueprintValid,
+    isValidatingBlueprint,
+    showDeleteModal,
+    setShowDeleteModal,
+    chatToDelete,
     handleSessionSelect,
     handleDeleteChat,
     confirmDeleteChat,
     cancelDeleteChat,
+    createSession,
     triggerExecution,
-    showDeleteModal,
-    setShowDeleteModal,
-    chatToDelete,
-  } = usePublicChat(blueprintId);
-
-  // Check sharing status for the blueprint using getBlueprintInfo (usageScope is part of metadata)
-  const checkSharingStatus = useCallback(async (blueprintId: string) => {
-    try {
-      const blueprintInfo = await getBlueprintInfo(blueprintId);
-      const isPublic = blueprintInfo.metadata?.usageScope === "public";
-      setIsSharingDisabled(!isPublic);
-    } catch (error: any) {
-      // If status check fails, assume sharing is disabled
-      setIsSharingDisabled(true);
-    }
-  }, []);
-
-  // Check blueprint validity
-  const checkBlueprintValidity = useCallback(async (blueprintId: string, showLoadingState: boolean = true) => {
-    if (showLoadingState) {
-      setIsValidatingBlueprint(true);
-    }
-    try {
-      const result = await validateBlueprint({ blueprintId });
-      setIsBlueprintValid(result.is_valid);
-      if (!result.is_valid && showLoadingState) {
-        // Only set validation error on initial load, not during polling
-        setValidationError("Sorry, this workflow has validation errors and cannot be used. Please contact the workflow owner.");
-      }
-    } catch (error: any) {
-      console.error("Error validating blueprint:", error);
-      // If validation fails, allow the chat to proceed but mark as potentially invalid
-      setIsBlueprintValid(true); // Don't block on validation errors
-    } finally {
-      if (showLoadingState) {
-        setIsValidatingBlueprint(false);
-      }
-    }
-  }, []);
+  } = useSessionChat({
+    blueprintId,
+    scope: 'public',
+    autoCreateSession: true,
+    sessionSource: 'public_link',
+    enableSharingStatusChecks: true,
+  });
 
   // Validate token and get blueprint info
   useEffect(() => {
@@ -112,16 +79,11 @@ export default function PublicChat() {
         setBlueprintId(token);
         setBlueprintName(blueprintInfo.spec_dict?.name || "Unnamed Workflow");
         setBlueprintOwner(blueprintInfo.user_id || "");
-        
-        // Check sharing status from the same blueprintInfo response (no extra API call)
+
+        // Check sharing status from the same blueprintInfo response
         const isPublic = blueprintInfo.metadata?.usageScope === "public";
         if (!isPublic) {
           setValidationError("Sorry, this workflow is not available for chats");
-          setIsSharingDisabled(true);
-        } else {
-          setIsSharingDisabled(false);
-          // Also check blueprint validity
-          await checkBlueprintValidity(token);
         }
       } catch (error: any) {
         if (error.response?.status === 404) {
@@ -136,28 +98,16 @@ export default function PublicChat() {
     };
 
     validateToken();
-  }, [token, checkSharingStatus, checkBlueprintValidity]);
+  }, [token]);
 
+  // Handle new chat creation
+  const handleNewChat = useCallback(async () => {
+    if (!blueprintId) return;
+    await createSession(blueprintId);
+  }, [blueprintId, createSession]);
 
-  // Load chat sessions when authenticated and blueprint is available
-  useEffect(() => {
-    if (isAuthenticated && user && blueprintId) {
-      // Check sharing status and blueprint validity initially and periodically (every 30 seconds)
-      // This polling handles scenarios where:
-      // 1. The workflow owner DISABLES sharing while another user has the chat open
-      // 2. The workflow becomes invalid (e.g., missing credentials, broken connections)
-      // Without polling, users would continue chatting but get confusing errors.
-      // With polling, they'll see clear messages within 30 seconds of changes.
-      checkSharingStatus(blueprintId);
-      checkBlueprintValidity(blueprintId, false);
-      const interval = setInterval(() => {
-        checkSharingStatus(blueprintId);
-        checkBlueprintValidity(blueprintId, false);
-      }, 30000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [isAuthenticated, user, blueprintId, checkSharingStatus, checkBlueprintValidity]);
+  // Get current run ID (selected session ID)
+  const runId = selectedSession?.id || null;
 
   // Show loading state
   if (authLoading || isValidating) {
@@ -185,7 +135,6 @@ export default function PublicChat() {
     );
   }
 
-
   return (
     <div className="flex flex-col h-screen bg-background-dark">
       {/* Header with Unifai branding and user info */}
@@ -207,8 +156,8 @@ export default function PublicChat() {
             )}
           </div>
         </div>
-        
-        {/* User Profile with Logout - matching regular UnifAI header */}
+
+        {/* User Profile with Logout */}
         <div className="px-4 py-3 border-l border-gray-800">
           <div className="flex items-center space-x-3">
             <div
@@ -223,7 +172,7 @@ export default function PublicChat() {
                   .join('') || user?.username?.[0].toUpperCase() || 'U'}
               </span>
             </div>
-            
+
             <motion.div
               initial={false}
               animate={{ opacity: 1 }}
@@ -232,14 +181,14 @@ export default function PublicChat() {
             >
               <h4 className="text-sm font-medium text-white">{user?.name || user?.username || "User"}</h4>
             </motion.div>
-            
+
             <motion.div
               initial={false}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.2 }}
             >
               <SimpleTooltip content={<p>Sign out</p>}>
-                <button 
+                <button
                   onClick={logout}
                   className="mt-2 text-gray-400 hover:text-white transition-colors"
                 >
@@ -254,84 +203,19 @@ export default function PublicChat() {
       {/* Main Content Area with Sidebar */}
       <div className="flex-1 overflow-hidden flex">
         {/* Chat History Sidebar */}
-        <div className="w-80 border-r border-gray-800 bg-background-card flex flex-col flex-shrink-0">
-          <Card className="bg-background-card shadow-card border-0 h-full flex flex-col">
-            <CardHeader className="py-3 px-4 border-b border-gray-800">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-sm font-medium">
-                  Chat History ({chatSessions.length})
-                </CardTitle>
-                <UmamiTrack event={UmamiEvents.PUBLIC_CHAT_NEW_SESSION}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-primary hover:bg-primary/20"
-                    onClick={handleNewChat}
-                    disabled={isCreatingSession}
-                    title="Start new chat"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </UmamiTrack>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0 flex-grow overflow-y-auto">
-              {isLoadingSessions ? (
-                <div className="p-4 text-center">
-                  <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />
-                </div>
-              ) : chatSessions.length === 0 ? (
-                <div className="p-4 text-center text-gray-400 text-sm">
-                  No chat sessions yet. Click + to start a new chat.
-                </div>
-              ) : (
-                <div className="py-2">
-                  {chatSessions.map((session) => (
-                    <motion.div
-                      key={session.id}
-                      className={`group px-4 py-3 border-l-2 cursor-pointer ${
-                        selectedSession?.id === session.id
-                          ? "border-[hsl(var(--primary))] bg-primary/20"
-                          : "border-transparent hover:bg-background-surface"
-                      } ${
-                        !session.blueprintExists
-                          ? "opacity-50 bg-gray-800/30"
-                          : ""
-                      }`}
-                      onClick={() => handleSessionSelect(session)}
-                      whileHover={{ x: 2 }}
-                      transition={{ duration: 0.1 }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center min-w-0 flex-1">
-                          <MessageSquare className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
-                          <span className="text-sm font-medium truncate text-white">
-                            {session.title}
-                          </span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                          onClick={(e) => handleDeleteChat(session, e)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <div className="mt-1 flex items-center text-xs text-gray-400">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{session.lastActive}</span>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500 truncate">
-                        {session.preview}
-                      </p>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <ChatHistorySidebar
+          sessions={chatSessions}
+          selectedSession={selectedSession}
+          isLoading={isLoadingSessions}
+          isCreatingSession={isCreatingSession}
+          onSessionSelect={handleSessionSelect}
+          onDeleteChat={handleDeleteChat}
+          onNewChat={handleNewChat}
+          title="Chat History"
+          newChatUmamiEvent={UmamiEvents.PUBLIC_CHAT_NEW_SESSION}
+          emptyMessage="No chat sessions yet. Click + to start a new chat."
+          className="w-80 border-r border-gray-800 flex-shrink-0"
+        />
 
         {/* Chat Interface */}
         <div className="flex-1 overflow-hidden">
@@ -380,31 +264,14 @@ export default function PublicChat() {
       </div>
 
       {/* Delete Chat Confirmation Modal */}
-      <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <AlertDialogContent className="bg-background-card border-gray-800">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Chat</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{chatToDelete?.title}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel 
-              onClick={cancelDeleteChat}
-              className="bg-background-dark border-gray-700 hover:bg-background-surface"
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteChat}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteChatModal
+        open={showDeleteModal}
+        onOpenChange={setShowDeleteModal}
+        chatToDelete={chatToDelete}
+        isDeleting={isDeleting}
+        onConfirm={confirmDeleteChat}
+        onCancel={cancelDeleteChat}
+      />
     </div>
   );
 }
