@@ -22,6 +22,7 @@ class A2AAgentNodeElementSpec(BaseElementSpec):
     config_schema = A2AAgentNodeConfig
     factory_cls = A2AAgentNodeFactory
     validator_cls = A2AAgentNodeValidator
+    validator_cls = A2AAgentNodeValidator
     card_builder_cls = A2AAgentCardBuilder
     reads = A2AAgentNode.total_reads()
     writes = A2AAgentNode.total_writes()

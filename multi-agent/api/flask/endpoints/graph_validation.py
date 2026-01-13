@@ -57,30 +57,30 @@ def validate_all():
     """
     Runs all validations for a blueprint draft YAML and returns comprehensive validation results with fix suggestions.
     """
-# try:
-    validation_svc = current_app.container.graph_validation_service
-    graph_svc = current_app.container.graph_service
-    blueprint_svc = current_app.container.blueprint_service
+    try:
+        validation_svc = current_app.container.graph_validation_service
+        graph_svc = current_app.container.graph_service
+        blueprint_svc = current_app.container.blueprint_service
 
-    # Get raw YAML data from request body
-    yaml_content = request.get_data(as_text=True)
-    if not yaml_content:
-        return jsonify({"error": "No YAML content provided in request body"}), 400
+        # Get raw YAML data from request body
+        yaml_content = request.get_data(as_text=True)
+        if not yaml_content:
+            return jsonify({"error": "No YAML content provided in request body"}), 400
 
-    # Parse YAML to dict and resolve blueprint
-    draft_dict = yaml.safe_load(yaml_content)
-    blueprint_spec = blueprint_svc.resolve_draft_dict(draft_dict)
+        # Parse YAML to dict and resolve blueprint
+        draft_dict = yaml.safe_load(yaml_content)
+        blueprint_spec = blueprint_svc.resolve_draft_dict(draft_dict)
 
-    # Build graph plan and validate
-    graph_plan = graph_svc.build_plan(blueprint_spec)
-    validation_result, suggestions = validation_svc.validate_and_suggest(graph_plan)
+        # Build graph plan and validate
+        graph_plan = graph_svc.build_plan(blueprint_spec)
+        validation_result, suggestions = validation_svc.validate_and_suggest(graph_plan)
 
-    return jsonify({
-        "validation_result": validation_result.model_dump(mode="json"),
-        "fix_suggestions": [suggestion.model_dump(mode="json") for suggestion in suggestions]
-    }), 200
-    # except Exception as e:
-    #     return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+        return jsonify({
+            "validation_result": validation_result.model_dump(mode="json"),
+            "fix_suggestions": [suggestion.model_dump(mode="json") for suggestion in suggestions]
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 
 @graph_validation_bp.route("/dependencies.validate", methods=["POST"])

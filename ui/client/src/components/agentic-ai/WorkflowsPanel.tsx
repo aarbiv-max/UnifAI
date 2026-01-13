@@ -1,20 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import {
-  Activity,
-  Database,
-  FileText,
-  Zap,
-  Filter,
-  GitBranch,
-  MessageSquare,
-  BookOpen,
-  Trash2,
-  Users,
-} from "lucide-react";
+import { Trash2, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useShared } from "@/contexts/SharedContext";
-import axios from '../../http/axiosAgentConfig'
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,46 +15,12 @@ import {
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { GraphFlow, FlowObject } from "./graphs/interfaces";
 import ReactFlowGraph from "./graphs/ReactFlowGraph";
-import { fetchBlueprints, fetchResolvedBlueprints, fetchActiveSessions } from "@/api/agentic";
+import { fetchActiveSessions } from "@/api/agentic";
+import { fetchBlueprints, fetchResolvedBlueprints, deleteBlueprint } from "@/api/blueprints";
+import { convertGraphFlowToFlowObject } from "@/utils/blueprintHelpers";
+import ShareWorkflow from "./ShareWorkflow";
 import { BlueprintValidationResult } from "@/types/validation";
 import { useBlueprintValidation } from "@/hooks/use-blueprint-validation";
-
-// Helper function to convert GraphFlow to FlowObject
-const convertGraphFlowToFlowObject = (
-  graphFlow: GraphFlow,
-  index: number,
-  blueprintId?: string,
-): FlowObject | null => {
-  if (!graphFlow) return null;
-
-  // Extract metadata
-  const name = graphFlow.name || `Flow ${index + 1}`;
-  const description = graphFlow.description || "No description available";
-
-  // Generate a random icon for the flow
-  const iconOptions: React.FC<{ className?: string }>[] = [
-    Activity,
-    Database,
-    FileText,
-    Zap,
-    Filter,
-    GitBranch,
-    MessageSquare,
-    BookOpen,
-  ];
-  const IconComponent = iconOptions[index % iconOptions.length];
-
-  return {
-    id: blueprintId || index.toString(), // Use blueprintId if available
-    name,
-    description,
-    icon: <IconComponent className="h-4 w-4 mr-2" />,
-    flow: {
-      nodes: [],
-      edges: [],
-    },
-  };
-};
 
 export interface WorkflowsPanelProps {
   selectedFlow: FlowObject | null;
@@ -120,6 +74,7 @@ export default function WorkflowsPanel({
   const {
     isValidating,
     validationResults,
+    isValid,
     validateBlueprint: validateSelectedBlueprint,
     clearValidation,
   } = useBlueprintValidation({
@@ -221,7 +176,7 @@ export default function WorkflowsPanel({
 
     setIsDeleting(true);
     try {
-      await axios.delete(`/blueprints/remove.blueprint?blueprintId=${flowToDelete.id}`);
+      await deleteBlueprint(flowToDelete.id);
       
       // Remove the deleted flow from the list
       setGraphFlows(prevFlows => prevFlows.filter(flow => flow.id !== flowToDelete.id));
@@ -349,9 +304,18 @@ export default function WorkflowsPanel({
           </div>
         </div>
 
-        {/* Graph Visualization */}
-        <div className="flex-grow min-h-0 overflow-hidden">
+        {/* Graph Visualization and Share Section */}
+        <div className="flex-grow min-h-0 overflow-hidden flex flex-col">
           {selectedFlow ? (
+            <>
+              {/* Share Section */}
+              <div className="border-b border-gray-800 bg-background-surface p-4">
+                <ShareWorkflow 
+                  blueprintId={selectedFlow.id} 
+                  isValid={isValid}
+                  isValidating={isValidating}
+                />
+              </div>
             <ReactFlowGraph
               blueprintId={selectedFlow.id}
               height="100%"
@@ -359,6 +323,7 @@ export default function WorkflowsPanel({
               isValidating={isValidating}
               {...graphProps}
             />
+            </>
           ) : (
             <div className="flex items-center justify-center h-full text-gray-400">
               Select a flow to view its visualization

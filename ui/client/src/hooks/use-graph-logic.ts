@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import axios from "../http/axiosAgentConfig";
 import * as yaml from "js-yaml";
 import { useLocation } from "wouter";
+import { saveBlueprint } from "@/api/blueprints";
 
 interface YamlFlowNode {
   rid: string;
@@ -1018,12 +1019,9 @@ export const useGraphLogic = () => {
           sortKeys: false,
         });
 
-        const response = await axios.post("/blueprints/blueprint.save", {
-          blueprintRaw: yamlString,
-          userId: USER_ID,
-        });
+        const response = await saveBlueprint(yamlString, USER_ID);
 
-        if (response.data.status === "success") {
+        if (response.status === "success") {
           // Show success toast
           toast({
             title: "✅ Blueprint Saved Successfully",
@@ -1041,7 +1039,7 @@ export const useGraphLogic = () => {
             window.location.href = "/agentic-ai";
           }, 100);
         } else {
-          throw new Error(response.data.error || "Unknown error occurred");
+          throw new Error("Unknown error occurred while saving blueprint");
         }
       } catch (error) {
         console.error("Error saving graph:", error);

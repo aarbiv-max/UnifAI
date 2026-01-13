@@ -17,9 +17,11 @@ import DocumentsPage from "./features/docs/DocumentsPage";
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AgenticAIProvider } from '@/contexts/AgenticAIContext';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import TermsApproval from '@/components/auth/TermsApproval';
 import SlackIntegration from "./features/slack/SlackIntegration";
 import SlackAddSourcePage from "./features/slack/SlackAddSourcePage";
 import GuidesPage from "./components/guides/GuidesPage";
+import PublicChat from "./components/agentic-ai/chat/PublicChat";
 
 // Paths that require AgenticAIProvider
 const AGENTIC_PATHS = ['/agentic-overview', '/agentic-ai', '/inventory', '/agentic-chats'];
@@ -54,6 +56,7 @@ function AppRoutes() {
       <Route path="/get-to-know" component={GetToKnow} />
       <Route path="/configuration" component={Configuration} />
       <Route path="/guides" component={GuidesPage} />
+      <Route path="/chat/:token" component={PublicChat} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -72,7 +75,9 @@ function App() {
           <ProjectProvider>
             <NotificationProvider>
               <ProtectedRoute>
-                <AppRoutes />
+                <TermsApproval>
+                  <AppRoutes />
+                </TermsApproval>
               </ProtectedRoute>
             </NotificationProvider>
           </ProjectProvider>

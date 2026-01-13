@@ -67,8 +67,27 @@ class ElementCard(BaseModel):
     
     model_config = ConfigDict(frozen=True)
     
+    def _format_extra_fields(self, model: BaseModel, exclude: set = None) -> List[str]:
+        """Format extra fields from a model with extra='allow'."""
+        exclude = exclude or {"name", "description"}
+        extra_lines = []
+        
+        # Get all fields including extras
+        data = model.model_dump()
+        for key, value in data.items():
+            if key in exclude or value is None:
+                continue
+            if isinstance(value, list) and value:
+                extra_lines.append(f"      {key}: {value}")
+            elif isinstance(value, dict) and value:
+                extra_lines.append(f"      {key}: {value}")
+            elif not isinstance(value, (list, dict)):
+                extra_lines.append(f"      {key}: {value}")
+        
+        return extra_lines
+    
     def __str__(self) -> str:
-        """Clean, LLM-friendly representation."""
+        """Clean, LLM-friendly representation with full details."""
         lines = [f"Name: {self.name}", f"UID: {self.uid}"]
         
         if self.description:
@@ -77,10 +96,17 @@ class ElementCard(BaseModel):
         if self.capabilities:
             lines.append("Capabilities:")
             for cap in self.capabilities:
-                if cap.description:
+                # Show name with value if present
+                cap_data = cap.model_dump()
+                value = cap_data.get("value")
+                if value is not None:
+                    lines.append(f"  - {cap.name}: {value}")
+                elif cap.description:
                     lines.append(f"  - {cap.name}: {cap.description}")
                 else:
                     lines.append(f"  - {cap.name}")
+                # Show extra fields
+                lines.extend(self._format_extra_fields(cap, exclude={"name", "description", "value"}))
         
         if self.skills:
             lines.append("Skills:")
@@ -89,13 +115,16 @@ class ElementCard(BaseModel):
                     lines.append(f"  - {skill.name}: {skill.description}")
                 else:
                     lines.append(f"  - {skill.name}")
+                # Show extra fields (id, examples, tags, input_modes, output_modes, etc.)
+                lines.extend(self._format_extra_fields(skill))
         
         if self.configuration:
+            lines.append("Configuration:")
             for key, value in self.configuration.items():
                 if isinstance(value, str):
-                    lines.append(f"{key}: \"{value}\"")
+                    lines.append(f"  {key}: \"{value}\"")
                 else:
-                    lines.append(f"{key}: {value}")
+                    lines.append(f"  {key}: {value}")
         
         return "\n".join(lines)
 

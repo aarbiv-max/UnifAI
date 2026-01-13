@@ -44,6 +44,9 @@ class BaseElementSpec(ABC):
 
     # ── optional validator ------------------------------------------------
     validator_cls: ClassVar[Optional[Type[ElementValidator]]] = None
+
+    # ── optional validator ------------------------------------------------
+    validator_cls: ClassVar[Optional[Type[ElementValidator]]] = None
     # ── card building ────────────────────────────────────────────────────
     capability_names: ClassVar[List[str]] = []
     card_builder_cls: ClassVar[Type[CardBuilder]] = DefaultCardBuilder

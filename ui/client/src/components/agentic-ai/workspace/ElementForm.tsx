@@ -15,6 +15,7 @@ import {
   ElementInstance,
 } from "../../../types/workspace";
 import { FieldRenderer } from "./FieldRenderer";
+import { ItemValidationResult } from "./FieldValidation";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
 
@@ -43,6 +44,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     {},
   );
   const [fieldValidationStates, setFieldValidationStates] = useState<{ [fieldName: string]: boolean }>({});
+  const [itemValidationStates, setItemValidationStates] = useState<{ [fieldName: string]: ItemValidationResult[] }>({});
   const [validatingFields, setValidatingFields] = useState<Set<string>>(new Set());
   const [populateResults, setPopulateResults] = useState<{ [fieldName: string]: string[] | any }>({});
 
@@ -56,11 +58,18 @@ export const ElementForm: React.FC<ElementFormProps> = ({
            fieldSchema.hints?.api?.hint_type === 'validate';
   }, [elementSchema]);
 
-  const handleValidationChange = (fieldName: string, isValid: boolean) => {
+  const handleValidationChange = (fieldName: string, isValid: boolean, itemResults?: ItemValidationResult[]) => {
     setFieldValidationStates(prev => ({
       ...prev,
       [fieldName]: isValid
     }));
+    // Store per-item validation results if provided (for list fields)
+    if (itemResults) {
+      setItemValidationStates(prev => ({
+        ...prev,
+        [fieldName]: itemResults
+      }));
+    }
     // Remove from validating set when validation completes
     setValidatingFields(prev => {
       const next = new Set(prev);
@@ -516,31 +525,27 @@ export const ElementForm: React.FC<ElementFormProps> = ({
 
           // Convert reference fields back to $ref:rid format and handle empty values
           if (fieldSchema) {
-            if (typeof value === "object" && value !== null) {
-              processedValue = value;
+            // Handle array fields with $ref items first
+            if (isArrayWithRefItems(fieldSchema) && Array.isArray(value)) {
+              processedValue = value.map((rid: string) => `$ref:${rid}`);
             }
-            else if (
-              fieldSchema.$ref &&
-              value &&
-              value !== ""
-            ) {
+            // Handle single $ref fields
+            else if (fieldSchema.$ref && value && value !== "") {
               processedValue = `$ref:${value}`;
             }
-            // Handle anyOf with $ref
+            // Handle anyOf with $ref (single select)
             else if (
               fieldSchema.anyOf &&
               fieldSchema.anyOf.some((option: any) => option.$ref) &&
+              !Array.isArray(value) &&
               value &&
               value !== ""
             ) {
               processedValue = `$ref:${value}`;
             }
-            // Handle array fields with $ref items
-            else if (
-              isArrayWithRefItems(fieldSchema) &&
-              Array.isArray(value)
-            ) {
-              processedValue = value.map((rid: string) => `$ref:${rid}`);
+            // Handle non-ref objects as-is
+            else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+              processedValue = value;
             }
             // Handle empty values based on field type
             else {
@@ -637,6 +642,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
         refOptions={refOptions}
         fieldType={isSecret ? "secret" : "public"}
         fieldValidationStates={fieldValidationStates}
+        itemValidationStates={itemValidationStates}
         isArrayWithRefItems={isArrayWithRefItems}
         getArrayItemsSchema={getArrayItemsSchema}
         extractCategoryFromField={extractCategoryFromField}

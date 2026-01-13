@@ -89,6 +89,9 @@ class RTGraphPlan:
         """Build all element cards from session registry using SessionConfigCollector."""
         configs = self._session_collector.collect(self._session)
         self._cards = self._card_service.build_all_cards(configs)
+        for card in self._cards.values():
+            print(card)
+
 
     def _get_card(self, rid: str, step_uid: str, metadata: Any) -> ElementCard:
         """Get card for a node, adding step-specific metadata."""
@@ -121,12 +124,14 @@ class RTGraphPlan:
         
         adjacent_nodes_dict = {}
         
+        # Find nodes that depend on this step (forward edges)
         for other_step in self._logical_plan.steps:
             if step.uid in other_step.after:
                 card = self._get_card(other_step.rid, other_step.uid, other_step.meta)
                 if card:
                     adjacent_nodes_dict[other_step.uid] = card
         
+        # Find conditional branch targets
         branches: Dict[str, str] = step.branches or {}
         for outcome, next_uid in branches.items():
             tgt = self._logical_plan.get_step(next_uid)

@@ -4,7 +4,7 @@ Card builder for A2AAgentNode.
 Uses agent_card from config to build the element card.
 """
 
-from typing import List
+from typing import List, Dict, Any
 from a2a.types import AgentCard
 from elements.common.card.models import ElementCard, Skill, Capability, CardBuildInput
 from elements.common.card.interface import CardBuilder
@@ -17,6 +17,14 @@ class A2AAgentCardBuilder(CardBuilder):
     The agent_card is fetched from remote agent at save time and contains
     the remote agent's name, description, skills, and capabilities.
     """
+    
+    @staticmethod
+    def _dump_value(value: Any) -> Dict[str, Any]:
+        """Dump any value to dict - works with Pydantic models or simple types."""
+        try:
+            return value.model_dump()
+        except AttributeError:
+            return {"value": value}
     
     def build(self, input: CardBuildInput) -> ElementCard:
         """Build card from agent_card or fallback to basic card."""
@@ -44,8 +52,12 @@ class A2AAgentCardBuilder(CardBuilder):
         
         capabilities: List[Capability] = []
         if agent_card.capabilities:
-            for cap_name in agent_card.capabilities:
-                capabilities.append(Capability(name=cap_name))
+            for field_name, field_value in agent_card.capabilities:
+                if field_value is not None:
+                    capabilities.append(Capability(
+                        name=field_name,
+                        **self._dump_value(field_value)
+                    ))
         
         return ElementCard(
             uid=input.rid,

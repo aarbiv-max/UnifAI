@@ -1,19 +1,22 @@
 from typing import List, Optional, Tuple, Dict, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from pydantic import BaseModel
 
 from resources.registry import ResourcesRegistry
 from catalog.element_registry import ElementRegistry
-from catalog.card_service import ElementCardService
 from resources.models import ResourceDoc, ResourceQuery
 from core.enums import ResourceCategory
 from core.ref import RefWalker
+from catalog.card_service import ElementCardService
+
 from core.dto import GroupedCount
+from elements.common.validator import ElementValidationResult, ValidationContext
+from resources.validation.resolver import DependencyResolver
+from validation.models import ConfigMeta
+from validation.service import ElementValidationService
 from core.element_meta import ElementConfigMeta
 from elements.common.card import ElementCard
-from elements.common.validator import ElementValidationResult, ValidationContext
-from resources.resolver import DependencyResolver
-from validation.service import ElementValidationService
 
 
 class ResourcesService:
@@ -31,9 +34,9 @@ class ResourcesService:
     ):
         self._store = resource_registry
         self.element_registry = element_registry
-        self._validation_service = validation_service
         self._card_service = card_service
         self._dependency_resolver = DependencyResolver(resource_registry=self._store)
+        self._validation_service = validation_service
 
     # ---------- CRUD ----------
     def create(self, *, user_id, category, type, name, config) -> ResourceDoc:
@@ -68,11 +71,11 @@ class ResourcesService:
         # 3. build a *new* ResourceDoc (immutability) or mutate doc
         doc.cfg_dict = cfg_model.model_dump(mode="json")
         doc.nested_refs = nested_refs
-        
+
         # 4. update name if provided
         if name is not None:
             doc.name = name
-            
+
         return self._store.update(doc)
 
     def delete(self, rid: str) -> None:
@@ -120,20 +123,20 @@ class ResourcesService:
         return self._store.count(user_id, filter)
 
     def group_count(
-        self, 
-        user_id: str, 
+        self,
+        user_id: str,
         group_by: List[str],
         filter: Dict[str, Any] = None
     ) -> List[GroupedCount]:
         """
         Group resources by specified fields and return counts.
         Performs efficient server-side grouping via the registry.
-        
+
         Args:
             user_id: The user ID to filter by
             group_by: List of field names to group by (e.g., ["category", "type"])
             filter: Optional additional filter criteria
-            
+
         Returns:
             List of GroupedCount DTOs with grouped field values and count.
             Example: [GroupedCount(fields={"category": "llm", "type": "openai"}, count=5), ...]
@@ -148,20 +151,273 @@ class ResourcesService:
     ) -> ElementValidationResult:
         """
         Validate a saved resource and all its transitive dependencies.
-        
+
         Args:
             rid: Resource ID to validate
             timeout_seconds: Timeout for network checks
-            
+
         Returns:
             ElementValidationResult for the requested resource
-            
+
         Raises:
             RuntimeError: If validation service not configured
             KeyError: If resource not found
         """
         self._ensure_validation_service()
-        
+
+        # Resolve rids in dependency order
+        ordered_rids = self._dependency_resolver.resolve_with_deps(rid)
+        if not ordered_rids:
+            raise KeyError(f"Resource not found: {rid}")
+
+        # Build ConfigMeta for each rid
+        ordered_configs = self._build_configs_from_rids(ordered_rids)
+
+        # Validate and return result for requested rid
+        return self._validate_and_get(ordered_configs, rid, timeout_seconds)
+
+    def validate_resources(
+        self,
+        rids: List[str],
+        timeout_seconds: float = 10.0,
+        max_workers: int = 10,
+    ) -> List[ElementValidationResult]:
+        """
+        Validate multiple resources in parallel.
+
+        Uses a thread pool for concurrent validation while preserving
+        the order of results to match the input order.
+
+        Args:
+            rids: List of resource IDs to validate
+            timeout_seconds: Timeout per resource validation
+            max_workers: Maximum concurrent validations (default: 10)
+
+        Returns:
+            List of ElementValidationResult in same order as input rids
+
+        Note:
+            Failed validations return a result with is_valid=False.
+            This method never raises - all errors are captured in results.
+        """
+        self._ensure_validation_service()
+
+        if not rids:
+            return []
+
+        # Single resource optimization - skip thread pool overhead
+        if len(rids) == 1:
+            return [self._validate_resource_safe(rids[0], timeout_seconds)]
+
+        return self._validate_in_parallel(rids, timeout_seconds, max_workers)
+
+    def _validate_in_parallel(
+        self,
+        rids: List[str],
+        timeout_seconds: float,
+        max_workers: int,
+    ) -> List[ElementValidationResult]:
+        """
+        Execute validations concurrently with order preservation.
+
+        Uses ThreadPoolExecutor with indexed futures to maintain
+        the original order of results.
+        """
+        results: List[Optional[ElementValidationResult]] = [None] * len(rids)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks, tracking their original index
+            future_to_index = {
+                executor.submit(
+                    self._validate_resource_safe, rid, timeout_seconds
+                ): idx
+                for idx, rid in enumerate(rids)
+            }
+
+            # Collect results as they complete, placing in correct position
+            for future in as_completed(future_to_index):
+                idx = future_to_index[future]
+                results[idx] = future.result()
+
+        return results
+
+    def _validate_resource_safe(
+        self,
+        rid: str,
+        timeout_seconds: float,
+    ) -> ElementValidationResult:
+        """
+        Validate a single resource with exception handling.
+
+        Wraps validate_resource to ensure it never raises.
+        All exceptions are converted to error results.
+
+        Returns:
+            ElementValidationResult - always valid object, even on errors
+        """
+        try:
+            return self.validate_resource(rid=rid, timeout_seconds=timeout_seconds)
+        except KeyError:
+            return ElementValidationResult.create_error(
+                rid=rid,
+                error=f"Resource not found: {rid}"
+            )
+        except Exception as e:
+            return ElementValidationResult.create_error(
+                rid=rid,
+                error=f"Validation failed: {str(e)}"
+            )
+
+    def validate_config(
+        self,
+        category: str,
+        element_type: str,
+        config: dict,
+        name: Optional[str] = None,
+        timeout_seconds: float = 10.0,
+    ) -> ElementValidationResult:
+        """
+        Validate an inline config before saving.
+
+        This validates a resource config without requiring it to be saved first.
+        Useful for UI validation before creating a resource.
+
+        If the config references saved resources ($ref:xxx), those dependencies
+        will be validated first and their results made available to the validator.
+
+        Args:
+            category: Resource category (e.g., "llm", "provider", "node")
+            element_type: Element type (e.g., "openai", "mcp_server")
+            config: The config dict to validate
+            name: Optional display name (used in validation result)
+            timeout_seconds: Timeout for network checks
+
+        Returns:
+            ElementValidationResult for the inline config
+
+        Raises:
+            RuntimeError: If validation service not configured
+            ValueError: If schema validation fails
+            KeyError: If referenced resource not found
+        """
+        self._ensure_validation_service()
+
+        # Schema validation - will raise ValueError if invalid
+        category_enum = ResourceCategory(category)
+        model_cls = self.element_registry.get_schema(category_enum, element_type)
+        cfg_model = model_cls(**config)
+
+        # Extract nested refs and resolve dependencies
+        nested_refs = list(RefWalker.external_rids(cfg_model))
+        dep_rids = self._resolve_transitive_deps(nested_refs)
+
+        # Build ordered configs: dependencies first
+        ordered_configs = self._build_configs_from_rids(dep_rids)
+
+        # Add inline config last
+        ordered_configs.append(ConfigMeta(
+            rid="inline",
+            category=category_enum,
+            element_type=element_type,
+            config=cfg_model,
+            name=name,
+            dependency_rids=nested_refs,
+        ))
+
+        # Validate and return result for inline config
+        return self._validate_and_get(ordered_configs, "inline", timeout_seconds)
+
+    # ---------- Validation Helpers ----------
+    def _ensure_validation_service(self) -> None:
+        """Raise if validation service not configured."""
+        if not self._validation_service:
+            raise RuntimeError("ValidationService not configured")
+
+    def _build_configs_from_rids(self, rids: List[str]) -> List[ConfigMeta]:
+        """Build ConfigMeta list from saved resource rids."""
+        configs: List[ConfigMeta] = []
+        for rid in rids:
+            resource = self._store.get(rid)
+            config = self.resolve(rid)
+            configs.append(ConfigMeta(
+                rid=rid,
+                category=resource.category,
+                element_type=resource.type,
+                config=config,
+                name=resource.name,
+                dependency_rids=list(resource.nested_refs),
+            ))
+        return configs
+
+    def _resolve_transitive_deps(self, ref_rids: List[str]) -> List[str]:
+        """Resolve refs to ordered list of all transitive dependency rids."""
+        all_rids: List[str] = []
+        for ref_rid in ref_rids:
+            dep_rids = self._dependency_resolver.resolve_with_deps(ref_rid)
+            for rid in dep_rids:
+                if rid not in all_rids:
+                    all_rids.append(rid)
+        return all_rids
+
+    def _validate_and_get(
+        self,
+        ordered_configs: List[ConfigMeta],
+        target_rid: str,
+        timeout_seconds: float,
+    ) -> ElementValidationResult:
+        """Validate configs in order and return result for target rid."""
+        context = ValidationContext(timeout_seconds=timeout_seconds)
+        results = self._validation_service.validate_ordered(ordered_configs, context)
+        return results[target_rid]
+
+    # ---------- Statistics ----------
+    def count(self, user_id: str, filter: Dict[str, Any] = None) -> int:
+        """Count resources matching filter criteria for a user."""
+        return self._store.count(user_id, filter)
+
+    def group_count(
+        self,
+        user_id: str,
+        group_by: List[str],
+        filter: Dict[str, Any] = None
+    ) -> List[GroupedCount]:
+        """
+        Group resources by specified fields and return counts.
+        Performs efficient server-side grouping via the registry.
+
+        Args:
+            user_id: The user ID to filter by
+            group_by: List of field names to group by (e.g., ["category", "type"])
+            filter: Optional additional filter criteria
+
+        Returns:
+            List of GroupedCount DTOs with grouped field values and count.
+            Example: [GroupedCount(fields={"category": "llm", "type": "openai"}, count=5), ...]
+        """
+        return self._store.group_count(user_id, group_by, filter)
+
+    # ---------- Validation ----------
+    def validate_resource(
+        self,
+        rid: str,
+        timeout_seconds: float = 10.0,
+    ) -> ElementValidationResult:
+        """
+        Validate a saved resource and all its transitive dependencies.
+
+        Args:
+            rid: Resource ID to validate
+            timeout_seconds: Timeout for network checks
+
+        Returns:
+            ElementValidationResult for the requested resource
+
+        Raises:
+            RuntimeError: If validation service not configured
+            KeyError: If resource not found
+        """
+        self._ensure_validation_service()
+
         # Resolve rids in dependency order
         ordered_rids = self._dependency_resolver.resolve_with_deps(rid)
         if not ordered_rids:
@@ -169,7 +425,7 @@ class ResourcesService:
 
         # Build ElementConfigMeta for each rid
         ordered_configs = self._build_configs_from_rids(ordered_rids)
-        
+
         # Validate and return result for requested rid
         return self._validate_and_get(ordered_configs, rid, timeout_seconds)
 
@@ -183,42 +439,42 @@ class ResourcesService:
     ) -> ElementValidationResult:
         """
         Validate an inline config before saving.
-        
+
         This validates a resource config without requiring it to be saved first.
         Useful for UI validation before creating a resource.
-        
+
         If the config references saved resources ($ref:xxx), those dependencies
         will be validated first and their results made available to the validator.
-        
+
         Args:
             category: Resource category (e.g., "llm", "provider", "node")
             element_type: Element type (e.g., "openai", "mcp_server")
             config: The config dict to validate
             name: Optional display name (used in validation result)
             timeout_seconds: Timeout for network checks
-            
+
         Returns:
             ElementValidationResult for the inline config
-            
+
         Raises:
             RuntimeError: If validation service not configured
             ValueError: If schema validation fails
             KeyError: If referenced resource not found
         """
         self._ensure_validation_service()
-        
+
         # Schema validation - will raise ValueError if invalid
         category_enum = ResourceCategory(category)
         model_cls = self.element_registry.get_schema(category_enum, element_type)
         cfg_model = model_cls(**config)
-        
+
         # Extract nested refs and resolve dependencies
         nested_refs = list(RefWalker.external_rids(cfg_model))
         dep_rids = self._resolve_transitive_deps(nested_refs)
-        
+
         # Build ordered configs: dependencies first
         ordered_configs = self._build_configs_from_rids(dep_rids)
-        
+
         # Add inline config last
         ordered_configs.append(ElementConfigMeta(
             rid="inline",
@@ -228,7 +484,7 @@ class ResourcesService:
             config=cfg_model,
             dependency_rids=nested_refs,
         ))
-        
+
         # Validate and return result for inline config
         return self._validate_and_get(ordered_configs, "inline", timeout_seconds)
 
@@ -239,28 +495,28 @@ class ResourcesService:
     ) -> Dict[str, ElementCard]:
         """
         Get element cards for a list of resources and their dependencies.
-        
+
         Resolves all transitive dependencies and builds cards for all elements
         in dependency order.
-        
+
         Args:
             rids: List of resource IDs to get cards for
-            
+
         Returns:
             Dictionary mapping resource ID to ElementCard
-            
+
         Raises:
             RuntimeError: If card service not configured
             KeyError: If resource not found
         """
         self._ensure_card_service()
-        
+
         # Resolve all transitive dependencies for all requested rids
         all_rids = self._dependency_resolver.resolve_all_with_deps(rids)
-        
+
         # Build ElementConfigMeta for each rid
         configs = self._build_configs_from_rids(all_rids)
-        
+
         # Build and return cards
         return self._card_service.build_all_cards(configs)
 
@@ -270,16 +526,16 @@ class ResourcesService:
     ) -> ElementCard:
         """
         Get element card for a single resource.
-        
+
         Resolves all transitive dependencies and builds cards,
         returning only the card for the requested resource.
-        
+
         Args:
             rid: Resource ID to get card for
-            
+
         Returns:
             ElementCard for the requested resource
-            
+
         Raises:
             RuntimeError: If card service not configured
             KeyError: If resource not found

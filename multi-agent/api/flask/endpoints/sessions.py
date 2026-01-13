@@ -15,20 +15,20 @@ sessions_bp = Blueprint("sessions", __name__)
     "metadata": fields.Dict(data_key="metadata", required=False, load_default=lambda: {}, dump_default=lambda: {})
 })
 def create_user_session(blueprint_id, user_id, metadata):
-    try:
-        session_svc = current_app.container.session_service
-        session = session_svc.create(user_id=user_id,
-                                     blueprint_id=blueprint_id,
-                                     metadata=metadata)
-        return jsonify(session.get_run_id()), 200
-    except BlueprintNotFoundError as e:
-        return jsonify({
-            "error": str(e), 
-            "error_type": "BLUEPRINT_NOT_FOUND",
-            "blueprint_id": e.blueprint_id
-        }), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    # try:
+    session_svc = current_app.container.session_service
+    session = session_svc.create(user_id=user_id,
+                                 blueprint_id=blueprint_id,
+                                 metadata=metadata)
+    return jsonify(session.get_run_id()), 200
+    # except BlueprintNotFoundError as e:
+    #     return jsonify({
+    #         "error": str(e),
+    #         "error_type": "BLUEPRINT_NOT_FOUND",
+    #         "blueprint_id": e.blueprint_id
+    #     }), 404
+    # except Exception as e:
+    #     return jsonify({"error": str(e)}), 500
 
 
 @sessions_bp.route("/user.session.execute", methods=["POST"])
