@@ -94,6 +94,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   useEffect(() => {
     if (elementSchema && isOpen) {
       const initialData: any = {};
+      const fieldsToValidate = new Set<string>();
 
       // Set default values from combined schema, excluding hidden fields
       Object.entries(elementSchema.config_schema.properties).forEach(
@@ -149,11 +150,31 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             } else {
               initialData[key] = value;
             }
+
+            // Track fields with validation hints that have values - these will trigger validation
+            // and Save button should be disabled until validation completes
+            const hasValidationHint = fieldSchema?.hints?.action?.hint_type === 'validate' || 
+                                      fieldSchema?.hints?.api?.hint_type === 'validate';
+            if (hasValidationHint) {
+              const processedValue = initialData[key];
+              const hasValue = Array.isArray(processedValue) 
+                ? processedValue.length > 0 
+                : processedValue !== undefined && processedValue !== null && processedValue !== '';
+              if (hasValue) {
+                fieldsToValidate.add(key);
+              }
+            }
           });
         }
       }
 
       setFormData(initialData);
+      
+      // In edit mode, mark fields with validation hints and values as "validating"
+      // This ensures Save button is disabled until all validation API calls complete
+      if (editingElement && fieldsToValidate.size > 0) {
+        setValidatingFields(fieldsToValidate);
+      }
     }
   }, [elementSchema, editingElement, isOpen]);
 
@@ -525,27 +546,26 @@ export const ElementForm: React.FC<ElementFormProps> = ({
 
           // Convert reference fields back to $ref:rid format and handle empty values
           if (fieldSchema) {
-            // Handle array fields with $ref items first
-            if (isArrayWithRefItems(fieldSchema) && Array.isArray(value)) {
+            // Handle non-ref objects as-is FIRST (before $ref processing)
+            if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+              processedValue = value;
+            }
+            // Handle array fields with $ref items
+            else if (isArrayWithRefItems(fieldSchema) && Array.isArray(value)) {
               processedValue = value.map((rid: string) => `$ref:${rid}`);
             }
-            // Handle single $ref fields
-            else if (fieldSchema.$ref && value && value !== "") {
+            // Handle single $ref fields - only add $ref: prefix for string values (RIDs)
+            else if (fieldSchema.$ref && typeof value === "string" && value !== "") {
               processedValue = `$ref:${value}`;
             }
-            // Handle anyOf with $ref (single select)
+            // Handle anyOf with $ref (single select) - only add $ref: prefix for string values (RIDs)
             else if (
               fieldSchema.anyOf &&
               fieldSchema.anyOf.some((option: any) => option.$ref) &&
-              !Array.isArray(value) &&
-              value &&
+              typeof value === "string" &&
               value !== ""
             ) {
               processedValue = `$ref:${value}`;
-            }
-            // Handle non-ref objects as-is
-            else if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-              processedValue = value;
             }
             // Handle empty values based on field type
             else {
