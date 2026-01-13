@@ -78,7 +78,23 @@ on:
 
 jobs:
   build_images:
-    runs-on: ubuntu-latest
+    runs-on: linux
+    strategy:
+      # Use a matrix to define your different image locations
+      matrix:
+        include:
+          - image_name: sso-backend
+            context: ./shared-resources/sso-backend
+            dockerfile: ./shared-resources/sso-backend/Dockerfile
+        #   - image_name: ui
+        #     context: ./ui
+        #     dockerfile: ./ui/deploymentDockerfile
+        #   - image_name: dataflow-backend
+        #     context: ./backend
+        #     dockerfile: ./backend/Dockerfile
+        #   - image_name: multiagent-backend
+        #     context: ./multi-agent
+        #     dockerfile: ./multi-agent/Dockerfile
 
     steps:
       - name: Checkout Code
@@ -91,3 +107,11 @@ jobs:
           username: ${{ vars.IMAGE_REGISTRY_USERNAME }} 
           password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}      
           
+      # The actual build and push step
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/test/${{ matrix.image_name }}:${{ env.VERSION }}
+          labels: ${{ matrix.image_name }}:${{ env.VERSION }}
