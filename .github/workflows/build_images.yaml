@@ -112,8 +112,8 @@ jobs:
         id: build-image
         uses: redhat-actions/buildah-build@v2
         with:
-        image: ${{ matrix.image_name }}
-        tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/test/${{ matrix.image_name }}:${{ env.VERSION }}
-        containerfiles: |
+          image: ${{ matrix.image_name }}
+          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/test/${{ matrix.image_name }}:${{ env.VERSION }}
+          containerfiles: |
             ${{ matrix.dockerfile }}
-        context: ${{ matrix.context }}
+          context: ${{ matrix.context }}
