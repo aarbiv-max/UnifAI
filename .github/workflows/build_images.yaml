@@ -70,15 +70,15 @@ on:
     #     description: "Modules to deploy"
     #     required: false
     #     default: "dataflow,multiagent,ui,sso"
-      pipeline_branch:
-        description: "Pipeline branch"
-        required: false
-        default: "main"
+    #   pipeline_branch:
+    #     description: "Pipeline branch"
+    #     required: false
+    #     default: "main"
 
 
 jobs:
   build_images:
-    runs-on: ubuntu-latest
+    runs-on: linux  #ubuntu-latest
 
     steps:
       - name: Checkout Code
