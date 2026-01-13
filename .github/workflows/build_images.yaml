@@ -89,5 +89,5 @@ jobs:
         with:
           registry: ${{ vars.IMAGE_REGISTRY_URL }} 
           username: ${{ vars.IMAGE_REGISTRY_USERNAME }} 
-          password: ${{ secrets.IMAGE_REGISTRY }}      
+          password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}      
           
