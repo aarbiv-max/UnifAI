@@ -87,9 +87,7 @@ jobs:
       - name: Log in to image paas registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ vars.IMAGE_REGISTRY_URL }}  #/unifai  
-          username: 'unifai+unifaiaccess'
-          password: '01I4EPDOX030FPZCE1XL4M84LCN1AQYGOA11R1VF13E59XETH27QMM9N66MAT92K'
-          #username: ${{ vars.IMAGE_REGISTRY_USERNAME }} 
-          #password: ${{ secrets.IMAGE_REGISTRY }}      
+          registry: ${{ vars.IMAGE_REGISTRY_URL }} 
+          username: ${{ vars.IMAGE_REGISTRY_USERNAME }} 
+          password: ${{ secrets.IMAGE_REGISTRY }}      
           
