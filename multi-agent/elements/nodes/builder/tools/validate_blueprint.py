@@ -4,7 +4,7 @@ Validate Blueprint Tool for the Builder Agent.
 Validates the generated workflow blueprint.
 """
 
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict
 from pydantic import BaseModel, Field
 
 from elements.tools.common.base_tool import BaseTool

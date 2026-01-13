@@ -26,7 +26,7 @@ from elements.nodes.common.agent.constants import StrategyType
 from elements.tools.common.execution.models import ExecutorConfig
 from elements.nodes.common.workload import Task, AgentResult
 
-from .context import BuilderContext, BuilderState
+from .context import BuilderContext
 from .identifiers import BuilderPhase
 from .phases import BuilderPhaseProvider
 from .prompts import (
@@ -521,8 +521,6 @@ class BuilderNode(
             PreviewWorkflowTool,
             SaveBlueprintTool,
         )
-        
-        context = self._builder_context
         
         # Phase 1: Analyze - Tool to record analysis results
         self._phase_tools[BuilderPhase.ANALYZE] = [

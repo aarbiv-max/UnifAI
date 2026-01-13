@@ -7,7 +7,7 @@ Handles:
 - Creating LLM-only agents for capabilities without providers
 """
 
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass, field
 
 

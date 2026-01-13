@@ -256,7 +256,7 @@ class DesignResult(BaseModel):
 ```
 builder/
 ├── __init__.py                 # Module exports
-├── builder_node.py             # Main BuilderNode class (618 lines)
+├── builder_node.py             # Main BuilderNode class
 ├── builder_node_factory.py     # Factory for creating BuilderNode instances
 ├── config.py                   # BuilderNodeConfig settings
 ├── exceptions.py               # Custom exceptions hierarchy

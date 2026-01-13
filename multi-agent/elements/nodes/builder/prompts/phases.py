@@ -5,7 +5,7 @@ Contains both static guidance (for PhaseDefinition) and dynamic prompt builders
 (for runtime context injection).
 """
 
-from typing import List, Optional, Any
+from typing import List
 
 # =============================================================================
 # STATIC PHASE GUIDANCE (Used in PhaseDefinition)

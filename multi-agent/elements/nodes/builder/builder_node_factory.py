@@ -50,10 +50,11 @@ class BuilderNodeFactory(BaseFactory[BuilderNodeConfig, BuilderNode]):
                 validation_service=deps.pop("validation_service", None),
                 system_message=cfg.system_message,
                 max_rounds=cfg.max_rounds,
+                retries=cfg.retries,
             )
         except Exception as e:
             raise PluginConfigurationError(
                 f"BuilderNodeFactory.create failed: {e}",
-                cfg.model_dump()
+                cfg.dict()
             ) from e
 
