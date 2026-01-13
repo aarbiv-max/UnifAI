@@ -156,6 +156,7 @@ export {
   checkBuilderAgentExists,
   createBuilderSession,
   executeBuilderRequest,
+  executeBuilderRequestStreaming,
   getBuilderSessionState,
 } from './smartBuilder';
 
@@ -164,5 +165,7 @@ export type {
   BuilderExecuteRequest,
   BuilderPhaseInfo,
   BuilderExecuteResponse,
+  BuilderPhaseEvent,
+  BuilderStreamEvent,
 } from './smartBuilder';
 

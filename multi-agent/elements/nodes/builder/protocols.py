@@ -63,34 +63,33 @@ class BlueprintServiceProtocol(Protocol):
     
     def validate_draft(
         self,
-        blueprint: Dict[str, Any],
-        user_id: str,
-        **kwargs: Any
+        draft_dict: Dict[str, Any],
+        timeout_seconds: float = 10.0,
     ) -> Any:
         """
         Validate a blueprint draft.
         
         Args:
-            blueprint: Blueprint to validate
-            user_id: User ID
+            draft_dict: Blueprint draft dictionary to validate
+            timeout_seconds: Timeout for validation checks
             
         Returns:
-            Validation result
+            BlueprintValidationResult with validation status
         """
         ...
     
     def save_draft(
         self,
-        blueprint: Dict[str, Any],
+        *,
         user_id: str,
-        **kwargs: Any
+        draft_dict: Dict[str, Any],
     ) -> str:
         """
         Save a blueprint draft.
         
         Args:
-            blueprint: Blueprint to save
-            user_id: User ID
+            user_id: User ID (keyword-only)
+            draft_dict: Blueprint draft dictionary to save
             
         Returns:
             Blueprint ID

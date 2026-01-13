@@ -42,18 +42,19 @@ export default function AgenticWorkflows() {
   const [isValidatingFlow, setIsValidatingFlow] = useState<boolean>(false);
   const [currentValidationResult, setCurrentValidationResult] = useState<BlueprintValidationResult | null>(null);
   const [showSmartBuilder, setShowSmartBuilder] = useState(false);
+  const [workflowsRefreshTrigger, setWorkflowsRefreshTrigger] = useState(0);
   const { user } = useAuth();
   const { toast } = useToast();
   const { cacheBlueprintValidationResults } = useAgenticAI();
 
   // Handle workflow created by Smart Builder
-  const handleWorkflowCreated = useCallback((blueprintId: string) => {
+  const handleWorkflowCreated = useCallback(() => {
     toast({
       title: "Workflow Created",
-      description: "Your new workflow has been created. Refreshing...",
+      description: "Your new workflow has been created successfully!",
     });
-    // Refresh the page to show new workflow
-    window.location.reload();
+    // Trigger a refresh of the workflows list
+    setWorkflowsRefreshTrigger(prev => prev + 1);
   }, [toast]);
   
   // Handle validation changes from the flow graph
@@ -221,6 +222,7 @@ export default function AgenticWorkflows() {
                   selectedFlow={selectedFlow}
                   setSelectedFlow={setSelectedFlow}
                   onValidationChange={handleValidationChange}
+                  refreshTrigger={workflowsRefreshTrigger}
                 />
               </motion.div>
             </div>

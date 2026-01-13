@@ -34,6 +34,9 @@ export interface BuilderExecuteResponse {
     phases_completed?: string[];
     blueprint_id?: string;
     workflow_name?: string;
+    agents_created?: number;
+    agents_reused?: number;
+    uses_orchestrator?: boolean;
   };
 }
 
@@ -232,11 +235,7 @@ export async function executeBuilderRequest(
   
   // If it's a string, wrap it as success
   if (typeof data === 'string') {
-    return {
-      success: true,
-      output: data,
-      metadata: {}
-    };
+    return { success: true, output: data, metadata: {} };
   }
   
   // If it has 'response' field (from FinalAnswerNode), extract it
@@ -244,7 +243,7 @@ export async function executeBuilderRequest(
     return {
       success: true,
       output: data.response,
-      metadata: data.metadata || {}
+      metadata: data.metadata || {},
     };
   }
   
@@ -254,7 +253,7 @@ export async function executeBuilderRequest(
       success: data.success !== false,
       output: data.output || '',
       error: data.error,
-      metadata: data.metadata || {}
+      metadata: data.metadata || {},
     };
   }
   
@@ -262,8 +261,187 @@ export async function executeBuilderRequest(
   return {
     success: true,
     output: JSON.stringify(data),
-    metadata: {}
+    metadata: {},
   };
+}
+
+/**
+ * Builder phase event from streaming
+ */
+export interface BuilderPhaseEvent {
+  type: 'builder_phase';
+  phase: 'analyze' | 'search' | 'design' | 'validate';
+  status: 'started' | 'complete' | 'failed';
+  message: string;
+}
+
+/**
+ * Builder stream event - all event types from streaming
+ */
+export interface BuilderStreamEvent {
+  type: string;
+  phase?: string;
+  status?: string;
+  message?: string;
+  chunk?: string;
+  tool?: string;
+  output?: any;
+  data?: any;
+}
+
+/**
+ * Execute the Smart Builder with streaming for real-time progress
+ */
+export async function executeBuilderRequestStreaming(
+  sessionId: string,
+  userPrompt: string,
+  onPhaseEvent: (event: BuilderPhaseEvent) => void,
+  onComplete: (response: BuilderExecuteResponse) => void,
+  onError: (error: string) => void,
+  onStreamEvent?: (event: BuilderStreamEvent) => void
+): Promise<void> {
+  try {
+    const response = await fetch('/api2/sessions/user.session.execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: sessionId,
+        inputs: { user_prompt: userPrompt },
+        stream: true,
+        streamMode: ['custom'],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error('ReadableStream not supported');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalOutput = '';
+    let success = true;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      
+      if (value) {
+        const decoded = decoder.decode(value, { stream: true });
+        buffer += decoded;
+        
+        // Try to parse complete JSON objects from buffer
+        // Each chunk from LangGraph is a complete JSON array
+        let startIdx = 0;
+        while (startIdx < buffer.length) {
+          // Find the start of a JSON array
+          const jsonStart = buffer.indexOf('[', startIdx);
+          if (jsonStart === -1) break;
+          
+          // Try to find matching end bracket
+          let depth = 0;
+          let jsonEnd = -1;
+          let inString = false;
+          let escape = false;
+          
+          for (let i = jsonStart; i < buffer.length; i++) {
+            const char = buffer[i];
+            
+            if (escape) {
+              escape = false;
+              continue;
+            }
+            
+            if (char === '\\' && inString) {
+              escape = true;
+              continue;
+            }
+            
+            if (char === '"') {
+              inString = !inString;
+              continue;
+            }
+            
+            if (inString) continue;
+            
+            if (char === '[') depth++;
+            if (char === ']') {
+              depth--;
+              if (depth === 0) {
+                jsonEnd = i;
+                break;
+              }
+            }
+          }
+          
+          if (jsonEnd === -1) break; // Incomplete JSON, wait for more data
+          
+          const jsonStr = buffer.substring(jsonStart, jsonEnd + 1);
+          startIdx = jsonEnd + 1;
+          
+          try {
+            const parsed = JSON.parse(jsonStr);
+            
+            // LangGraph streams data as tuples: ["custom", {actual_data}]
+            const chunk = Array.isArray(parsed) && parsed.length === 2 ? parsed[1] : parsed;
+            
+            // Forward all stream events to optional handler
+            if (onStreamEvent) {
+              onStreamEvent(chunk as BuilderStreamEvent);
+            }
+            
+            // Check for builder_phase events
+            if (chunk.type === 'builder_phase') {
+              onPhaseEvent(chunk as BuilderPhaseEvent);
+            }
+            
+            // Capture final output from agent_finish or complete events
+            if (chunk.type === 'agent_finish' && chunk.data?.output) {
+              finalOutput = chunk.data.output;
+            } else if (chunk.type === 'complete' && chunk.state?.response) {
+              finalOutput = chunk.state.response;
+            }
+          } catch {
+            // Ignore JSON parse errors
+          }
+        }
+        
+        // Keep unprocessed part in buffer
+        buffer = buffer.substring(startIdx);
+      }
+
+      if (done) break;
+    }
+
+    // Process any remaining buffer (shouldn't be needed with new parsing, but just in case)
+    if (buffer.trim()) {
+      try {
+        const parsed = JSON.parse(buffer);
+        const chunk = Array.isArray(parsed) && parsed.length === 2 ? parsed[1] : parsed;
+        if (chunk.type === 'builder_phase') {
+          onPhaseEvent(chunk as BuilderPhaseEvent);
+        }
+        if (chunk.type === 'agent_finish' && chunk.data?.output) {
+          finalOutput = chunk.data.output;
+        } else if (chunk.type === 'complete' && chunk.state?.response) {
+          finalOutput = chunk.state.response;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    onComplete({
+      success,
+      output: finalOutput,
+      metadata: {},
+    });
+  } catch (error: any) {
+    onError(error.message || 'Streaming failed');
+  }
 }
 
 /**
@@ -273,4 +451,3 @@ export async function getBuilderSessionState(sessionId: string): Promise<any> {
   const response = await axios.get(`/sessions/session.state.get?sessionId=${sessionId}`);
   return response.data;
 }
-

@@ -12,12 +12,14 @@ type AgentFlowGraphProps = {
   selectedFlow: FlowObject | null;
   setSelectedFlow: (flow: FlowObject | null) => void;
   onValidationChange?: (isValid: boolean, validationResult: BlueprintValidationResult | null, isValidating: boolean) => void;
+  refreshTrigger?: number;
 };
 
 export default function AgentFlowGraph({
   selectedFlow,
   setSelectedFlow,
   onValidationChange,
+  refreshTrigger,
 }: AgentFlowGraphProps): React.ReactElement {
   
   const handleFlowSelect = (flow: FlowObject | null): void => {
@@ -49,6 +51,7 @@ export default function AgentFlowGraph({
               showActiveStatus={true}
               showDeleteButton={true}
               useResolvedEndpoint={true}
+              refreshTrigger={refreshTrigger}
               height="100%"
               graphProps={{
                 showControls: true,

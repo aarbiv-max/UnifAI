@@ -78,6 +78,7 @@ export interface WorkflowsPanelProps {
   className?: string;
   height?: string;
   useResolvedEndpoint?: boolean; // If true, uses resolved endpoint, otherwise uses regular get endpoint
+  refreshTrigger?: number; // Increment to trigger a re-fetch of workflows
   graphProps?: {
     showControls?: boolean;
     showMiniMap?: boolean;
@@ -97,6 +98,7 @@ export default function WorkflowsPanel({
   className = "",
   height = "100%",
   useResolvedEndpoint = false,
+  refreshTrigger,
   graphProps = {
     showControls: true,
     showMiniMap: false,
@@ -131,13 +133,10 @@ export default function WorkflowsPanel({
   const fetchAvailableFlows = async (): Promise<void> => {
     try {
       const userId = user?.username || "default";
-      // Use resolved endpoint if requested (returns blueprints with all references resolved)
-      // Otherwise use regular endpoint (returns blueprints as stored, may contain unresolved references)
       const blueprints = useResolvedEndpoint 
         ? await fetchResolvedBlueprints(userId)
         : await fetchBlueprints(userId);
 
-      // Convert the blueprints to the format expected by the component
       const processedFlows = blueprints
         .map((blueprint) =>
           convertGraphFlowToFlowObject(blueprint.spec_dict, 0, blueprint.blueprint_id),
@@ -146,7 +145,6 @@ export default function WorkflowsPanel({
       
       setGraphFlows(processedFlows);
 
-      // Auto-select the first flow if none is selected and flows are available
       if (processedFlows.length > 0 && !selectedFlow) {
         onFlowSelect(processedFlows[0]);
       }
@@ -181,7 +179,7 @@ export default function WorkflowsPanel({
     ]).finally(() => {
       setIsLoading(false);
     });
-  }, [user, useResolvedEndpoint]);
+  }, [user, useResolvedEndpoint, refreshTrigger]);
 
   // Trigger validation when selected flow changes
   useEffect(() => {
@@ -240,7 +238,6 @@ export default function WorkflowsPanel({
       setFlowToDelete(null);
     } catch (error) {
       console.error('Error deleting blueprint:', error);
-      // Handle error (we can consider show a toast notification here)
     } finally {
       setIsDeleting(false);
     }

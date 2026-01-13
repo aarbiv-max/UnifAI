@@ -4,9 +4,8 @@ Builder context management for multi-phase workflow creation.
 Manages the state across the 4 phases: Analyze, Search, Design, Validate.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
-from enum import Enum
 from pydantic import BaseModel
 
 from ..identifiers import BuilderPhase
@@ -81,23 +80,6 @@ class BuilderState:
     design_result: Optional[DesignResult] = None
     validation_result: Optional[ValidationResult] = None
     
-    # Phase history for retry logic
-    phase_attempts: Dict[str, int] = field(default_factory=dict)
-    max_retries_per_phase: int = 3
-    
-    # Error tracking
-    last_error: Optional[str] = None
-    
-    def can_retry_phase(self, phase: BuilderPhase) -> bool:
-        """Check if a phase can be retried."""
-        attempts = self.phase_attempts.get(phase.value, 0)
-        return attempts < self.max_retries_per_phase
-    
-    def record_phase_attempt(self, phase: BuilderPhase) -> None:
-        """Record an attempt for a phase."""
-        current = self.phase_attempts.get(phase.value, 0)
-        self.phase_attempts[phase.value] = current + 1
-    
     def advance_phase(self) -> None:
         """Advance to the next phase."""
         phase_order = [
@@ -110,11 +92,6 @@ class BuilderState:
         current_idx = phase_order.index(self.current_phase)
         if current_idx < len(phase_order) - 1:
             self.current_phase = phase_order[current_idx + 1]
-    
-    def rollback_to_phase(self, phase: BuilderPhase) -> None:
-        """Rollback to a previous phase (for retry on validation failure)."""
-        self.current_phase = phase
-        self.last_error = None
 
 
 class BuilderContext:

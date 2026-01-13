@@ -35,15 +35,8 @@ class BuilderNodeConfig(NodeBaseConfig):
     
     max_rounds: int = Field(
         default=20,
-        description="Maximum number of LLM reasoning rounds per phase",
+        description="Maximum number of LLM reasoning rounds across all phases",
         ge=1,
         le=100
-    )
-    
-    retries: int = Field(
-        default=3,
-        description="Maximum retries for failed phases",
-        ge=0,
-        le=10
     )
 

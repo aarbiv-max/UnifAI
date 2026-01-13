@@ -73,7 +73,6 @@ class BuilderNode(
             validation_service: Any = None,
             system_message: str = "",
             max_rounds: int = 20,
-            retries: int = 3,
             **kwargs: Any
     ):
         """
@@ -86,8 +85,7 @@ class BuilderNode(
             catalog_service: Service for element catalog (optional, lazy loaded)
             validation_service: Service for validation (optional, lazy loaded)
             system_message: Custom system message
-            max_rounds: Maximum LLM rounds per phase
-            retries: Maximum retries for failed phases
+            max_rounds: Maximum LLM rounds across all phases
             **kwargs: Additional arguments for parent classes
         """
         super().__init__(
@@ -97,7 +95,6 @@ class BuilderNode(
         )
         
         self.max_rounds = max_rounds
-        self.retries = retries
         self.custom_system_message = system_message
         
         # Services (injected or lazy-loaded from AppContainer)
@@ -177,7 +174,9 @@ class BuilderNode(
         Handle incoming task packet.
         
         Initializes builder context and runs through phases.
+        Ensures cleanup of per-execution state after completion.
         """
+        task = None
         try:
             # Extract and mark task as processed
             task = packet.extract_task()
@@ -230,7 +229,6 @@ class BuilderNode(
             # Route response
             self._route_response(task, agent_result, packet)
             
-            
         except Exception as e:
             error_result = AgentResult(
                 content=f"Error building workflow: {str(e)}",
@@ -239,7 +237,13 @@ class BuilderNode(
                 success=False,
                 error=str(e)
             )
-            self._route_response(task, error_result, packet)
+            if task:
+                self._route_response(task, error_result, packet)
+        finally:
+            # Cleanup per-execution state to prevent stale data on next execution
+            self._builder_context = None
+            self._phase_provider = None
+            self._phase_tools = {}
 
     def _run_builder_phases(self, user_request: str) -> Dict[str, Any]:
         """
@@ -276,6 +280,7 @@ class BuilderNode(
         }
         
         # ===== PHASE 1: ANALYZE =====
+        self._stream_phase_event("analyze", "started", "Understanding your request...")
         
         analyze_result = self._run_phase(
             phase=BuilderPhase.ANALYZE,
@@ -285,13 +290,16 @@ class BuilderNode(
         )
         
         if not analyze_result.get("success"):
+            self._stream_phase_event("analyze", "failed", analyze_result.get('error', 'Unknown error'))
             final_result["error"] = f"Phase ANALYZE failed: {analyze_result.get('error')}"
             return final_result
         
+        self._stream_phase_event("analyze", "complete", "Request analyzed")
         phase_results["analyze"] = analyze_result
         final_result["metadata"]["phases_completed"].append("analyze")
         
         # ===== PHASE 2: SEARCH =====
+        self._stream_phase_event("search", "started", "Searching available resources...")
         
         # Get capabilities from analysis for search prompt
         search_capabilities = []
@@ -306,19 +314,23 @@ class BuilderNode(
         )
         
         if not search_result.get("success"):
+            self._stream_phase_event("search", "failed", search_result.get('error', 'Unknown error'))
             final_result["error"] = f"Phase SEARCH failed: {search_result.get('error')}"
             return final_result
         
         # Check if we have required LLM
         if context.state.search_result and not context.state.search_result.has_required_llm:
+            self._stream_phase_event("search", "failed", "No LLM found")
             final_result["output"] = "Cannot create workflow: No LLM found in your account. Please add an LLM resource first."
             final_result["error"] = "No LLM available"
             return final_result
         
+        self._stream_phase_event("search", "complete", "Resources found")
         phase_results["search"] = search_result
         final_result["metadata"]["phases_completed"].append("search")
         
         # ===== PHASE 3: DESIGN =====
+        self._stream_phase_event("design", "started", "Designing workflow...")
         
         # Build design prompt with context from search results
         search = context.state.search_result
@@ -347,13 +359,16 @@ class BuilderNode(
         )
         
         if not design_result.get("success"):
+            self._stream_phase_event("design", "failed", design_result.get('error', 'Unknown error'))
             final_result["error"] = f"Phase DESIGN failed: {design_result.get('error')}"
             return final_result
         
+        self._stream_phase_event("design", "complete", "Workflow designed")
         phase_results["design"] = design_result
         final_result["metadata"]["phases_completed"].append("design")
         
         # ===== PHASE 4: VALIDATE =====
+        self._stream_phase_event("validate", "started", "Validating and saving...")
         
         validate_result = self._run_phase(
             phase=BuilderPhase.VALIDATE,
@@ -361,6 +376,11 @@ class BuilderNode(
             conversation_history=conversation_history,
             phase_prompt=build_validate_prompt(),
         )
+        
+        if validate_result.get("success"):
+            self._stream_phase_event("validate", "complete", "Workflow saved!")
+        else:
+            self._stream_phase_event("validate", "failed", validate_result.get('error', 'Validation failed'))
         
         phase_results["validate"] = validate_result
         final_result["metadata"]["phases_completed"].append("validate")
@@ -473,27 +493,22 @@ class BuilderNode(
         
         return " → ".join(summary_parts)
 
-    def _build_initial_messages(self, user_request: str) -> List[ChatMessage]:
-        """Build initial conversation messages for the builder agent."""
-        messages = []
+    def _stream_phase_event(self, phase: str, status: str, message: str) -> None:
+        """
+        Emit a streaming event for builder phase progress.
         
-        # Add user request
-        messages.append(ChatMessage(
-            role=Role.USER,
-            content=f"""Please help me create a workflow based on this request:
-
-{user_request}
-
-Follow the 4-phase approach:
-1. First, analyze my request to understand what I need
-2. Search for available resources (LLMs, providers, agents) in my account
-3. Design the workflow with appropriate agents and structure
-4. Validate the workflow and present it for my approval
-
-Start by analyzing my request."""
-        ))
-        
-        return messages
+        Args:
+            phase: Phase name (analyze, search, design, validate)
+            status: Status (started, complete, failed)
+            message: Human-readable message
+        """
+        if self.is_streaming():
+            self._stream({
+                "type": "builder_phase",
+                "phase": phase,
+                "status": status,
+                "message": message,
+            })
 
     def _build_phase_tools(self) -> None:
         """Build tools for each phase."""
@@ -523,9 +538,7 @@ Start by analyzing my request."""
             ),
         ]
         
-        # Phase 3: Design
-        # Phase 3: Design - only generate_blueprint (it handles agent creation internally)
-        # Note: CreateAgentTool removed to prevent parallel execution issues
+        # Phase 3: Design - uses AgentBuilder helper internally for agent creation
         self._phase_tools[BuilderPhase.DESIGN] = [
             GenerateBlueprintTool(
                 get_context=lambda: self._builder_context,
