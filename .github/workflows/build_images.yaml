@@ -1,0 +1,93 @@
+name: Build UnifAIImages
+
+on:
+  push:
+    branches:
+      - 'GENIE-1138/build_images'
+  workflow_dispatch:
+    inputs:
+      build_sso_image:
+        description: "Build SSO backend image"
+        required: false
+        default: false
+      build_gui:
+        description: "Build UI image"
+        required: false
+        default: false
+      build_dataflow_backend:
+        description: "Build Dataflow backend image"
+        required: false
+        default: false
+      build_multiagent_backend:
+        description: "Build Multi-Agent System backend image"
+        required: false
+        default: false
+      set_image_candidate:
+    #     description: "Set image candidate"
+    #     required: false
+    #     default: false
+    #   deploy_unifai:
+    #     description: "Deploy UnifAI"
+    #     required: false
+    #     default: false
+    #   deploy_type:
+    #     description: "Deploy type"
+    #     required: false
+    #     default: false
+    #   deploy_location:
+    #     description: "Deploy location"
+    #     required: false
+    #     default: false
+    #   debug_mode:
+    #     description: "Debug mode"
+    #     required: false
+    #     default: false
+    #   branch:
+    #     description: "Branch"
+    #     required: false
+    #     default: "main"
+    #   version:
+    #     description: "Version"
+    #     required: false
+    #     default: "latest"
+    #   df_version:
+    #     description: "Dataflow version"
+    #     required: false
+    #     default: "latest"
+    #   ma_version:
+    #     description: "Multi-Agent System version"
+    #     required: false
+    #     default: "latest"
+    #   gui_version:
+    #     description: "UI version"
+    #     required: false
+    #     default: "latest"
+    #   sso_version:
+    #     description: "SSO backend version"
+    #     required: false
+    #     default: "latest"
+    #   modules_to_deploy:
+    #     description: "Modules to deploy"
+    #     required: false
+    #     default: "dataflow,multiagent,ui,sso"
+      pipeline_branch:
+        description: "Pipeline branch"
+        required: false
+        default: "main"
+
+
+jobs:
+  build_images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to image paas registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.IMAGE_REGISTRY_URL }}  #/unifai  
+          username: ${{ vars.IMAGE_REGISTRY_USERNAME }} 
+          password: ${{ secrets.IMAGE_REGISTRY }}    
+          
