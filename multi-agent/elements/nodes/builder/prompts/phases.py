@@ -45,17 +45,22 @@ SEARCH_PHASE_GUIDANCE = """PHASE: SEARCH - Find available resources in the user'
 YOUR ROLE IN THIS PHASE:
 - Search for available LLMs (MANDATORY - at least one required)
 - Find providers/MCPs that match the required capabilities
-- Discover existing agents that could be reused
+- Discover existing agents that could be reused (both Custom Agents and A2A Agents)
 
 SEARCH WORKFLOW:
 1. Call search_resources tool with capability filter from analysis
 2. Review results to understand what's available
 3. Note any missing capabilities for the design phase
 
+AGENT INVENTORIES:
+- Custom Agents: Local agents with LLM and optional provider
+- A2A Agents: Remote agents that delegate to external A2A-compatible services
+
 IMPORTANT RULES:
 - LLMs are MANDATORY - workflow cannot work without at least one
 - Match providers to required capabilities (e.g., Jira provider for Jira tasks)
-- Identify existing agents that can be reused instead of creating duplicates
+- Identify existing agents (custom or A2A) that can be reused instead of creating duplicates
+- A2A agents are specialized remote agents - prefer them when they match required capabilities
 - Call search_resources exactly ONCE"""
 
 
@@ -64,16 +69,23 @@ DESIGN_PHASE_GUIDANCE = """PHASE: DESIGN - Generate the workflow blueprint.
 YOUR ROLE IN THIS PHASE:
 - Use available resources to design the workflow
 - Call generate_blueprint with workflow name and description
-- The tool automatically creates agents from providers
+- The tool automatically reuses existing agents and creates new ones from providers
 
 DESIGN WORKFLOW:
 1. Review available resources from search phase
 2. Call generate_blueprint with descriptive name and description
-3. The tool handles agent creation and blueprint structure
+3. The tool handles agent reuse/creation and blueprint structure
+
+AGENT PRIORITY:
+1. First: Reuse existing A2A agents (specialized remote agents)
+2. Second: Reuse existing custom agents
+3. Third: Create new agents from matched providers
+4. Last: Create LLM-only agents for remaining capabilities
 
 IMPORTANT RULES:
-- The tool automatically creates agents from providers - do NOT create agents separately
-- Existing agents from search results will be reused
+- The tool automatically handles agent reuse and creation - do NOT create agents separately
+- A2A agents are self-contained (no LLM needed) and are reused as-is
+- Custom agents from search results will be reused with their configuration
 - Call generate_blueprint exactly ONCE
 - The blueprint will include user_question_node, orchestrator (if needed), agents, and final_answer_node
 
@@ -174,7 +186,12 @@ Now search for available resources in the user's account.
 Use the `search_resources` tool to find:
 1. **LLMs** (MANDATORY - at least one is required)
 2. **Providers/MCPs** that match the required capabilities
-3. **Existing agents** that could be reused
+3. **Existing Custom Agents** that could be reused
+4. **Existing A2A Agents** (remote agents) that match capabilities
+
+**Agent Types:**
+- Custom Agents: Local agents using your LLM and providers
+- A2A Agents: Remote agents that delegate to external services (specialized, no LLM needed)
 
 Call the search_resources tool now."""
 
@@ -214,9 +231,15 @@ Call `generate_blueprint` ONCE with:
 - workflow_name: A descriptive name for the workflow  
 - workflow_description: What the workflow does
 
+**Agent Handling (Automatic):**
+1. A2A Agents are reused first (specialized remote agents, no local LLM needed)
+2. Custom Agents are reused second (with their existing configuration)
+3. New agents are created from matched providers if needed
+4. LLM-only agents are created for remaining capabilities
+
 **IMPORTANT:** 
-- The tool automatically creates agents from providers - you do NOT need to create agents separately
-- Existing agents from the search results will be reused
+- The tool automatically handles agent reuse and creation - you do NOT need to create agents separately
+- All existing agents (custom and A2A) from search results will be reused when they match capabilities
 - Call `generate_blueprint` exactly ONCE
 
 Example:

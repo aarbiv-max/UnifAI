@@ -2,13 +2,18 @@
 AgentBuilder helper for creating agent nodes in blueprints.
 
 Handles:
-- Reusing existing agents from search results
+- Reusing existing agents from search results (custom agents and A2A agents)
 - Creating new agents from providers
 - Creating LLM-only agents for capabilities without providers
+
+Note: A2A agents are only REUSED, never created by the builder.
+Creating A2A agents requires external configuration (endpoint URL, etc.).
 """
 
 from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass, field
+
+from .agent_inventory import SkillMatcher
 
 
 @dataclass
@@ -19,6 +24,8 @@ class AgentBuildResult:
     used_capabilities: Set[str] = field(default_factory=set)
     agents_created: int = 0
     agents_reused: int = 0
+    custom_agents_reused: int = 0
+    a2a_agents_reused: int = 0
 
 
 class AgentBuilder:
@@ -26,9 +33,13 @@ class AgentBuilder:
     Builds agent nodes for workflow blueprints.
     
     Follows a priority order:
-    1. Reuse existing agents that match required capabilities
-    2. Create new agents for providers matching required capabilities
-    3. Create LLM-only agents for remaining capabilities
+    1. Reuse existing A2A agents that match required capabilities (remote, no LLM needed)
+    2. Reuse existing custom agents that match required capabilities
+    3. Create new agents for providers matching required capabilities
+    4. Create LLM-only agents for remaining capabilities
+    
+    A2A agents are prioritized when they have explicit skill matches,
+    as they represent specialized remote agents.
     """
     
     def __init__(
@@ -53,49 +64,144 @@ class AgentBuilder:
         self,
         existing_agents: List[Dict[str, Any]],
         matched_providers: List[Dict[str, Any]],
-        required_capabilities: Set[str]
+        required_capabilities: Set[str],
+        existing_a2a_agents: Optional[List[Dict[str, Any]]] = None,
     ) -> AgentBuildResult:
         """
         Build agent nodes based on available resources and requirements.
         
         Args:
-            existing_agents: Agents from search results to potentially reuse
+            existing_agents: Custom agents from search results to potentially reuse
             matched_providers: Providers that match required capabilities
             required_capabilities: Set of required capability strings
+            existing_a2a_agents: A2A agents from search results to potentially reuse
             
         Returns:
             AgentBuildResult with created agent nodes and metadata
         """
         result = AgentBuildResult()
+        a2a_agents = existing_a2a_agents or []
         
-        # Step 1: Add existing agents
+        # Step 1: Select A2A agents whose skills match required capabilities
+        # Each A2A agent has agent_card.skills - match these to requirements
+        matching_a2a = self._match_a2a_by_skills(a2a_agents, required_capabilities)
+        self._add_a2a_agents(matching_a2a, result)
+        
+        # Step 2: Add existing custom agents
         self._add_existing_agents(existing_agents, result)
         
-        # Step 2: Create agents for providers
+        # Step 3: Create agents for providers (only for capabilities not yet covered)
         self._create_provider_agents(
             matched_providers, 
             required_capabilities, 
             result
         )
         
-        # Step 3: Create LLM-only agents for missing capabilities
+        # Step 4: Create LLM-only agents for missing capabilities
         self._create_llm_only_agents(required_capabilities, result)
         
         # Calculate counts
-        result.agents_reused = len([
-            a for a in result.agent_nodes 
-            if a.get("rid", "").startswith("existing_agent_")
-        ])
+        result.agents_reused = result.custom_agents_reused + result.a2a_agents_reused
         result.agents_created = len(result.created_agent_rids)
         
         return result
+    
+    def _match_a2a_by_skills(
+        self,
+        a2a_agents: List[Dict[str, Any]],
+        required_capabilities: Set[str]
+    ) -> List[Dict[str, Any]]:
+        """
+        Match A2A agents by their skills to required capabilities.
+        
+        Uses SkillMatcher for flexible text matching across agent metadata:
+        - skill names and descriptions
+        - agent description
+        - tags
+        
+        Example:
+            Required: ["charting"]
+            Agent skills: ["create_chart"]
+            Match: "chart" root found in "create_chart" → Agent selected
+        """
+        if not required_capabilities:
+            return a2a_agents
+        
+        matched = []
+        for agent in a2a_agents:
+            corpus = self._build_agent_corpus(agent)
+            if SkillMatcher.match_any(required_capabilities, corpus):
+                matched.append(agent)
+        
+        return matched
+    
+    def _build_agent_corpus(self, agent: Dict[str, Any]) -> str:
+        """Build searchable text from A2A agent metadata."""
+        texts = [
+            agent.get("name", ""),
+            agent.get("agent_card_name", ""),
+            agent.get("agent_card_description", ""),
+        ]
+        texts.extend(agent.get("agent_card_skills", []) or [])
+        texts.extend(agent.get("agent_card_skill_descriptions", []) or [])
+        texts.extend(agent.get("agent_card_tags", []) or [])
+        
+        return " ".join(str(t).lower() for t in texts if t)
+    
+    def _add_a2a_agents(
+        self,
+        a2a_agents: List[Dict[str, Any]],
+        result: AgentBuildResult
+    ) -> None:
+        """
+        Add A2A agents to the blueprint.
+        
+        A2A agents are self-contained remote agents. They don't need
+        local LLM or provider configuration.
+        
+        We inline the full config from the existing resource. The base_url
+        must be a valid URL that was validated when the resource was created.
+        """
+        for i, agent in enumerate(a2a_agents):
+            agent_caps = agent.get("matched_capabilities", [])
+            for cap in agent_caps:
+                result.used_capabilities.add(cap.lower())
+            
+            # Get the base_url - must be a valid URL
+            base_url = agent.get("base_url", "")
+            if not base_url:
+                # Skip if no base_url available - A2A agents require it
+                continue
+            
+            agent_rid = f"existing_a2a_{i}_rid"
+            
+            # A2A agent config with full inline configuration
+            agent_node_config = {
+                "type": "a2a_agent_node",
+                "base_url": base_url,
+            }
+            
+            # Include bearer_token if present (for authentication)
+            bearer_token = agent.get("bearer_token")
+            if bearer_token:
+                agent_node_config["bearer_token"] = bearer_token
+            
+            # Blueprint node structure (no extra fields - forbid mode!)
+            agent_config = {
+                "rid": agent_rid,
+                "name": agent.get("name", f"A2A Agent {i+1}"),
+                "type": "a2a_agent_node",
+                "config": agent_node_config,
+            }
+            result.agent_nodes.append(agent_config)
+            result.a2a_agents_reused += 1
     
     def _add_existing_agents(
         self,
         existing_agents: List[Dict[str, Any]],
         result: AgentBuildResult
     ) -> None:
-        """Add existing agents with full inline configuration."""
+        """Add existing custom agents with full inline configuration."""
         for i, agent in enumerate(existing_agents):
             agent_caps = agent.get("matched_capabilities", [])
             for cap in agent_caps:
@@ -118,6 +224,7 @@ class AgentBuilder:
                     agent.get("retriever")
                 )
             
+            # Blueprint node structure (no extra fields - forbid mode!)
             agent_config = {
                 "rid": agent_rid,
                 "name": agent.get("name", f"Agent {i+1}"),
@@ -125,6 +232,7 @@ class AgentBuilder:
                 "config": agent_node_config,
             }
             result.agent_nodes.append(agent_config)
+            result.custom_agents_reused += 1
     
     def _create_provider_agents(
         self,
@@ -149,7 +257,7 @@ class AgentBuilder:
                     continue
                 provider_caps = matching_required
             
-            # Skip if already handled
+            # Skip if already handled by existing agents (custom or A2A)
             if all(cap.lower() in result.used_capabilities for cap in provider_caps):
                 continue
             
@@ -288,4 +396,3 @@ class AgentBuilder:
             return value
         
         return f"$ref:{value}"
-

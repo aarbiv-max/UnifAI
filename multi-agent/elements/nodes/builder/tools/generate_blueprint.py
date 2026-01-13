@@ -91,11 +91,16 @@ Args:
             if analysis and analysis.required_capabilities:
                 required_caps = {cap.lower() for cap in analysis.required_capabilities}
             
-            # Determine if orchestrator is needed
+            # Get existing agents from search results
             existing_agents = search_result.existing_nodes or []
+            existing_a2a_agents = search_result.existing_a2a_agents or []
+            
+            # Determine if orchestrator is needed
+            # Consider both custom and A2A agents
+            total_agents = len(existing_agents) + len(existing_a2a_agents)
             needs_orchestrator = (
                 (analysis and analysis.needs_orchestrator) or 
-                len(existing_agents) > 1
+                total_agents > 1
             )
             
             # Build agents using helper
@@ -108,7 +113,8 @@ Args:
             agent_result = agent_builder.build_agents(
                 existing_agents=existing_agents,
                 matched_providers=search_result.providers or [],
-                required_capabilities=required_caps
+                required_capabilities=required_caps,
+                existing_a2a_agents=existing_a2a_agents,
             )
             
             # Initialize blueprint structure
@@ -170,6 +176,21 @@ Args:
             )
             context.state.design_result = design_result
             
+            # Build detailed message
+            reuse_parts = []
+            if agent_result.custom_agents_reused > 0:
+                reuse_parts.append(f"{agent_result.custom_agents_reused} custom")
+            if agent_result.a2a_agents_reused > 0:
+                reuse_parts.append(f"{agent_result.a2a_agents_reused} A2A")
+            
+            reuse_msg = ""
+            if reuse_parts:
+                reuse_msg = f" Reused {' + '.join(reuse_parts)} agent(s)."
+            
+            create_msg = ""
+            if agent_result.agents_created > 0:
+                create_msg = f" Created {agent_result.agents_created} new agent(s) in inventory."
+            
             return {
                 "success": True,
                 "phase_complete": True,
@@ -179,9 +200,11 @@ Args:
                 "agents": agent_details,
                 "agents_created": agent_result.agents_created,
                 "agents_reused": agent_result.agents_reused,
+                "custom_agents_reused": agent_result.custom_agents_reused,
+                "a2a_agents_reused": agent_result.a2a_agents_reused,
                 "created_agent_rids": agent_result.created_agent_rids,
                 "uses_orchestrator": needs_orchestrator,
-                "message": f"Generated workflow: {summary}. Created {agent_result.agents_created} new agent(s) in inventory.",
+                "message": f"Generated workflow: {summary}.{reuse_msg}{create_msg}",
                 "next_action": "PHASE COMPLETE - Blueprint generated. Do NOT call this tool again. Summarize the workflow and complete this phase.",
             }
             
@@ -281,12 +304,26 @@ Args:
         """Build agent details list for response."""
         agent_details = []
         for agent in agent_nodes:
+            agent_type = agent.get("type", "custom_agent_node")
             cfg = agent.get("config", {})
-            llm_ref = cfg.get("llm", "").replace("$ref:", "") if cfg else ""
-            provider_ref = cfg.get("provider", "").replace("$ref:", "") if cfg else ""
-            agent_details.append({
-                "name": agent.get("name", "Agent"),
-                "llm": llm_ref,
-                "provider": provider_ref,
-            })
+            
+            if agent_type == "a2a_agent_node":
+                # A2A agent details
+                agent_details.append({
+                    "name": agent.get("name", "A2A Agent"),
+                    "type": "a2a_agent_node",
+                    "base_url": cfg.get("base_url", ""),
+                    "is_remote": True,
+                })
+            else:
+                # Custom agent details
+                llm_ref = cfg.get("llm", "").replace("$ref:", "") if cfg else ""
+                provider_ref = cfg.get("provider", "").replace("$ref:", "") if cfg else ""
+                agent_details.append({
+                    "name": agent.get("name", "Agent"),
+                    "type": "custom_agent_node",
+                    "llm": llm_ref,
+                    "provider": provider_ref,
+                    "is_remote": False,
+                })
         return agent_details

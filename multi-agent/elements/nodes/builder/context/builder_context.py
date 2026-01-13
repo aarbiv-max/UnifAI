@@ -33,10 +33,30 @@ class ResourceSearchResult(BaseModel):
     """Result from Phase 2: Search Resources."""
     llms: List[Dict[str, Any]] = []
     providers: List[Dict[str, Any]] = []
-    existing_nodes: List[Dict[str, Any]] = []
+    existing_nodes: List[Dict[str, Any]] = []  # Custom agent nodes
+    existing_a2a_agents: List[Dict[str, Any]] = []  # A2A agent nodes
     existing_orchestrators: List[Dict[str, Any]] = []  # Existing orchestrator nodes
     missing_capabilities: List[str] = []
     has_required_llm: bool = False
+    
+    @property
+    def all_reusable_agents(self) -> List[Dict[str, Any]]:
+        """
+        Get all reusable agents (custom + A2A) as a unified list.
+        
+        Each agent dict includes '_agent_type' to identify its source.
+        """
+        agents = []
+        for node in self.existing_nodes:
+            agents.append({**node, "_agent_type": "custom_agent_node"})
+        for a2a in self.existing_a2a_agents:
+            agents.append({**a2a, "_agent_type": "a2a_agent_node"})
+        return agents
+    
+    @property
+    def total_agent_count(self) -> int:
+        """Get total count of all reusable agents."""
+        return len(self.existing_nodes) + len(self.existing_a2a_agents)
 
 
 class DesignResult(BaseModel):
@@ -191,6 +211,8 @@ class BuilderContext:
                 "llm_count": len(self._state.search_result.llms),
                 "provider_count": len(self._state.search_result.providers),
                 "existing_agent_count": len(self._state.search_result.existing_nodes),
+                "existing_a2a_agent_count": len(self._state.search_result.existing_a2a_agents),
+                "total_agent_count": self._state.search_result.total_agent_count,
                 "missing_capabilities": self._state.search_result.missing_capabilities,
             }
         

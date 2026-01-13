@@ -342,9 +342,16 @@ class BuilderNode(
             llm_info = f"LLM: {llm.get('name', 'Unknown')} (rid: {llm.get('rid')})"
         
         agent_info = "No existing agents"
-        if search and search.existing_nodes:
-            agent_names = [a.get('name', 'Unknown') for a in search.existing_nodes]
-            agent_info = f"Existing Agents: {', '.join(agent_names)}"
+        if search:
+            agent_parts = []
+            if search.existing_nodes:
+                custom_names = [a.get('name', 'Unknown') for a in search.existing_nodes]
+                agent_parts.append(f"Custom Agents: {', '.join(custom_names)}")
+            if search.existing_a2a_agents:
+                a2a_names = [a.get('name', 'Unknown') for a in search.existing_a2a_agents]
+                agent_parts.append(f"A2A Agents: {', '.join(a2a_names)}")
+            if agent_parts:
+                agent_info = "; ".join(agent_parts)
         
         design_result = self._run_phase(
             phase=BuilderPhase.DESIGN,
