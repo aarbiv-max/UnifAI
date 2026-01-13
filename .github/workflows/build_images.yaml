@@ -107,11 +107,13 @@ jobs:
           username: ${{ vars.IMAGE_REGISTRY_USERNAME }} 
           password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}      
           
-      # The actual build and push step
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        # Use Buildah to build the image
+      - name: Build ${{ matrix.image_name }} Image
+        id: build-image
+        uses: redhat-actions/buildah-build@v2
         with:
-          context: ${{ matrix.context }}
-          push: true
-          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/test/${{ matrix.image_name }}:${{ env.VERSION }}
-          labels: ${{ matrix.image_name }}:${{ env.VERSION }}
+        image: ${{ matrix.image_name }}
+        tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/test/${{ matrix.image_name }}:${{ env.VERSION }}
+        containerfiles: |
+            ${{ matrix.dockerfile }}
+        context: ${{ matrix.context }}
