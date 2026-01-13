@@ -4,12 +4,12 @@ validation/
 Validation orchestration module.
 """
 
-from validation.models import ConfigMeta, BlueprintValidationResult
+from validation.models import BlueprintValidationResult
 from validation.service import ElementValidationService
+from core.element_meta import ElementConfigMeta
 
 __all__ = [
-    "ConfigMeta",
+    "ElementConfigMeta",
     "BlueprintValidationResult",
     "ElementValidationService",
 ]
-

@@ -1,5 +1,6 @@
 from catalog.element_registry import ElementRegistry
 from catalog.service import CatalogService
+from catalog.card_service import ElementCardService
 from blueprints.repository.mongo_blueprint_repository import MongoBlueprintRepository
 from blueprints.service import BlueprintService
 from blueprints.resolver import BlueprintResolver
@@ -59,6 +60,11 @@ class AppContainer(metaclass=SingletonMeta):
             element_registry=self.element_registry
         )
 
+        # Element card service
+        self.card_service = ElementCardService(
+            element_registry=self.element_registry
+        )
+
         # blueprint catalog
         self.blueprint_repo = MongoBlueprintRepository(
             db_name=cfg.mongo_db,
@@ -72,11 +78,12 @@ class AppContainer(metaclass=SingletonMeta):
                                                                            coll_name=cfg.resources_coll),
                                               bp_repo=self.blueprint_repo)
 
-        # resources service (with validation)
+        # resources service (with validation and card service)
         self.resources_service = ResourcesService(
             resource_registry=resource_registry,
             element_registry=self.element_registry,
             validation_service=self.validation_service,
+            card_service=self.card_service,
         )
         
         # blueprint resolver
@@ -85,11 +92,12 @@ class AppContainer(metaclass=SingletonMeta):
             element_registry=self.element_registry
         )
 
-        # blueprint service (with validation)
+        # blueprint service (with validation and card service)
         self.blueprint_service = BlueprintService(
             self.blueprint_repo,
             resolver=self.blueprint_resolver,
             validation_service=self.validation_service,
+            card_service=self.card_service,
         )
 
         # session orchestration
