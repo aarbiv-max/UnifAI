@@ -1,9 +1,9 @@
 name: Build UnifAIImages
 
 on:
-  # push:
-  #   branches:
-  #     - 'GENIE-1138/build_images'
+  push:
+    branches:
+      - 'GENIE-1138/build_images'
   workflow_dispatch:
     inputs:
       build_sso_image:
