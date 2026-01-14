@@ -116,14 +116,6 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@v4
-
-
-      # - name: Log in to image paas registry (Podman)
-      #   uses: redhat-actions/podman-login@v1
-      #   with:
-      #     registry: ${{ vars.IMAGE_REGISTRY_URL }} 
-      #     username: ${{ vars.IMAGE_REGISTRY_USERNAME }} 
-      #     password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
       
       - name: Log in to image paas registry
         run: |
@@ -131,7 +123,6 @@ jobs:
           echo "${{ secrets.IMAGE_REGISTRY_PASSWORD }}" | podman login ${{ vars.IMAGE_REGISTRY_URL }} \
           --username "${{ vars.IMAGE_REGISTRY_USERNAME }}" \
           --password-stdin
-         # Export the auth file location for subsequent steps
           echo "REGISTRY_AUTH_FILE=$HOME/.config/containers/auth.json" >> $GITHUB_ENV
 
         # Use Buildah to build the image
