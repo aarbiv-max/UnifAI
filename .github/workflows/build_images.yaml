@@ -117,12 +117,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Checkout Genie Cred Data
-        uses: actions/checkout@v4
-        with:
-          repository: gitlab.cee.redhat.com/ai_tools/genie-cred-data
-          path: genie-cred-data
-          ref: main
+        - name: Checkout GitLab repository (genie-cred-data)
+        run: |
+          git clone git@gitlab.cee.redhat.com:ai_tools/genie-cred-data.git genie-cred-data
       
       - name: Log in to image paas registry
         run: |
