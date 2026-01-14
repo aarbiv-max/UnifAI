@@ -88,7 +88,7 @@ jobs:
             dockerfile: shared-resources/sso-backend/Dockerfile
           - image_name: ui
             context: ui
-            dockerfile: ui/deploymentDockerfile
+            dockerfile: ui/deployment/Dockerfile
         #   - image_name: dataflow-backend
         #     context: ./backend
         #     dockerfile: ./backend/Dockerfile
