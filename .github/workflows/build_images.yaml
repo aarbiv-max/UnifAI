@@ -142,3 +142,5 @@ jobs:
           image: ${{ matrix.image_name }}
           tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/${{ matrix.image_name }}:${{ env.VERSION }}
           registry: ${{ vars.IMAGE_REGISTRY_URL }}
+          username: ${{ vars.IMAGE_REGISTRY_USERNAME }}
+          password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
