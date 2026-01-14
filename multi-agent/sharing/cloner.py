@@ -81,13 +81,13 @@ class ShareCloner:
         try:
             # Load and validate blueprint
             bp_doc = self.blueprints.get_blueprint_draft_doc(blueprint_id)
-            if bp_doc["user_id"] != sender_user_id:
+            if bp_doc.user_id != sender_user_id:
                 raise ValueError(f"Blueprint {blueprint_id} not owned by sender")
 
-            draft = BlueprintDraft(**bp_doc["spec_dict"])
+            draft = BlueprintDraft(**bp_doc.spec_dict)
 
             # Use pre-computed external refs from the blueprint document
-            external_rids = set(bp_doc.get("rid_refs", []))
+            external_rids = set(bp_doc.rid_refs)
 
             # Clone dependencies and build RID mapping
             rid_mapping, name_conflicts, resources_cloned = self._clone_dependencies(

@@ -3,7 +3,7 @@ from blueprints.exceptions import (
     BlueprintMetadataError,
 )
 from typing import Any, Dict, List, Mapping, Optional
-from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft
+from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft, BlueprintDoc
 from blueprints.repository.repository import BlueprintRepository
 from blueprints.resolver import BlueprintResolver
 from blueprints.collector import BlueprintConfigCollector
@@ -38,9 +38,9 @@ class BlueprintService:
     # ────────── Single-blueprint reads (ID is globally unique) ──────────
     def load_draft(self, blueprint_id: str) -> BlueprintDraft:
         doc = self._repo.load(blueprint_id)
-        return BlueprintDraft(**doc["spec_dict"])
+        return BlueprintDraft(**doc.spec_dict)
 
-    def get_blueprint_draft_doc(self, blueprint_id: str) -> Mapping[str, Any]:
+    def get_blueprint_draft_doc(self, blueprint_id: str) -> BlueprintDoc:
         """Get blueprint document with metadata for sharing operations."""
         return self._repo.load(blueprint_id)
 
@@ -84,20 +84,19 @@ class BlueprintService:
         Return pure-dict drafts (as saved) in one DB round-trip.
         """
         docs = self._repo.list_docs(user_id=user_id, **pg)
-        return [doc["spec_dict"] for doc in docs]
+        return [doc.spec_dict for doc in docs]
 
     def list_draft_docs(
             self, *, user_id: str | None = None, **pg
-    ) -> List[Mapping[str, Any]]:
+    ) -> List[BlueprintDoc]:
         """
-        Return pure-dict drafts (as saved) in one DB round-trip.
+        Return BlueprintDoc objects in one DB round-trip.
         """
-        docs = self._repo.list_docs(user_id=user_id, **pg)
-        return [doc for doc in docs]
+        return self._repo.list_docs(user_id=user_id, **pg)
 
     def list_resolved_docs(
             self, *, user_id: str | None = None, **pg
-    ) -> List[Mapping[str, Any]]:
+    ) -> List[Dict[str, Any]]:
         """
         Return documents with resolved spec_dict instead of draft spec_dict.
         """
@@ -107,14 +106,14 @@ class BlueprintService:
         for doc in docs:
             try:
                 # Create draft from spec_dict
-                draft = BlueprintDraft(**doc["spec_dict"])
+                draft = BlueprintDraft(**doc.spec_dict)
                 # Resolve the draft to BlueprintSpec
                 resolved_spec = self._resolver.resolve(draft)
                 # Convert resolved spec to dict
                 resolved_dict = resolved_spec.model_dump(mode="json")
 
                 # Create new doc with resolved spec_dict
-                resolved_doc = dict(doc)  # Copy all fields from original doc
+                resolved_doc = doc.to_json_dict()  # Get JSON-serializable dict from BlueprintDoc
                 resolved_doc["spec_dict"] = resolved_dict  # Replace spec_dict with resolved version
                 resolved_docs.append(resolved_doc)
             except Exception as e:

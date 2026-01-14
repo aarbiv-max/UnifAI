@@ -25,10 +25,10 @@ class RTGraphPlan:
     """
 
     def __init__(
-        self, 
-        logical_plan: GraphPlan, 
-        session_registry: SessionRegistry,
-        element_registry: ElementRegistry
+            self,
+            logical_plan: GraphPlan,
+            session_registry: SessionRegistry,
+            element_registry: ElementRegistry
     ):
         self._logical_plan = logical_plan
         self._session = session_registry
@@ -36,7 +36,7 @@ class RTGraphPlan:
         self._session_collector = SessionConfigCollector()
         self._cards: Dict[str, ElementCard] = {}
         self._rt_steps: Dict[str, RTStep] = {}
-        
+
         self._build_all_cards()
         self._build_runtime_steps()
 
@@ -89,16 +89,13 @@ class RTGraphPlan:
         """Build all element cards from session registry using SessionConfigCollector."""
         configs = self._session_collector.collect(self._session)
         self._cards = self._card_service.build_all_cards(configs)
-        for card in self._cards.values():
-            print(card)
-
 
     def _get_card(self, rid: str, step_uid: str, metadata: Any) -> ElementCard:
         """Get card for a node, adding step-specific metadata."""
         base_card = self._cards.get(rid)
         if base_card is None:
             return None
-        
+
         return ElementCard(
             uid=step_uid,
             category=base_card.category,
@@ -121,16 +118,16 @@ class RTGraphPlan:
         """Create a runtime step from a logical step."""
         from .models import AdjacentNodes
         from .topology.finalizer_analyzer import FinalizerAnalyzer
-        
+
         adjacent_nodes_dict = {}
-        
+
         # Find nodes that depend on this step (forward edges)
         for other_step in self._logical_plan.steps:
             if step.uid in other_step.after:
                 card = self._get_card(other_step.rid, other_step.uid, other_step.meta)
                 if card:
                     adjacent_nodes_dict[other_step.uid] = card
-        
+
         # Find conditional branch targets
         branches: Dict[str, str] = step.branches or {}
         for outcome, next_uid in branches.items():
@@ -141,10 +138,10 @@ class RTGraphPlan:
                     adjacent_nodes_dict[next_uid] = card
 
         adjacent_nodes = AdjacentNodes.from_dict(adjacent_nodes_dict)
-        
+
         analyzer = FinalizerAnalyzer(output_channel="output")
         adjacent_node_uids = list(adjacent_nodes_dict.keys())
-        
+
         topology = analyzer.analyze_node_topology(
             plan=self._logical_plan,
             from_node_uid=step.uid,

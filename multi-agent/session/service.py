@@ -114,8 +114,7 @@ class SessionService:
                 if source == "public_link":
                     try:
                         blueprint_doc = self._manager._bp_service.get_blueprint_draft_doc(blueprint_id)
-                        bp_metadata = blueprint_doc.get("metadata", {})
-                        public_usage_scope = bp_metadata.get("usageScope") == "public"
+                        public_usage_scope = blueprint_doc.metadata.get("usageScope") == "public"
                     except (KeyError, Exception):
                         public_usage_scope = False
 

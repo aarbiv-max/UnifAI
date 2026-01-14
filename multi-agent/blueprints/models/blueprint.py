@@ -1,5 +1,6 @@
-from typing import Generic, List, TypeVar
+from typing import Any, Dict, Generic, List, TypeVar
 from uuid import uuid4
+from datetime import datetime
 from pydantic import BaseModel, Field, Extra
 
 # -----------------------------------------------------------------------------
@@ -102,3 +103,27 @@ class BlueprintSpec(BaseModel):
 
     class Config:
         extra = Extra.forbid
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Database document representation
+# ─────────────────────────────────────────────────────────────────────────────
+class BlueprintDoc(BaseModel):
+    """
+    Database document representation for a saved blueprint.
+    This model owns serialization concerns and should be used at repository boundaries.
+    """
+    blueprint_id: str
+    user_id: str
+    created_at: datetime
+    updated_at: datetime
+    spec_dict: Dict[str, Any]  # The BlueprintDraft as a dict
+    rid_refs: List[str] = []
+    metadata: Dict[str, Any] = {}
+
+    class Config:
+        extra = Extra.forbid
+
+    def to_json_dict(self) -> Dict[str, Any]:
+        """Return a JSON-serializable dictionary (safe for jsonify)."""
+        return self.model_dump(mode="json")

@@ -89,7 +89,8 @@ def _extract_blueprint_data(
 def available_doc_list(user_id):
     try:
         svc = current_app.container.blueprint_service
-        return jsonify(svc.list_draft_docs(user_id=user_id)), 200
+        docs = svc.list_draft_docs(user_id=user_id)
+        return jsonify([doc.to_json_dict() for doc in docs]), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -157,7 +158,7 @@ def get_blueprint_info(blueprint_id):
     try:
         svc = current_app.container.blueprint_service
         doc = svc.get_blueprint_draft_doc(blueprint_id)
-        return jsonify(doc), 200
+        return jsonify(doc.to_json_dict()), 200
     except BlueprintNotFoundError as e:
         return jsonify({"error": str(e)}), 404
     except KeyError:

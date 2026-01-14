@@ -1524,13 +1524,8 @@ class OrchestratorPhaseProvider(PhaseProvider):
             lines = ["## Available Agents for Delegation\n"]
 
             for uid, card in adjacent_nodes.items():
-                lines.append(f"**{card.name}** (uid: `{uid}`)")
-                lines.append(f"  • Type: {card.type_key}")
-                lines.append(f"  • Description: {card.description}")
-
-                if card.skills:
-                    lines.append(f"  • Skills: {card.skills}")
-
+                # Use ElementCard's __str__ which formats skills/capabilities nicely
+                lines.append(str(card))
                 lines.append("")
 
             return "\n".join(lines)
