@@ -80,7 +80,8 @@ The builder then:
 
 - **Natural Language Input**: Describe workflows in plain English
 - **Resource Discovery**: Automatically finds LLMs, providers, and existing agents
-- **Smart Agent Reuse**: Reuses existing agents when appropriate (both Custom and A2A agents)
+- **Smart Agent Reuse**: Reuses existing agents when appropriate (Custom preferred over A2A)
+- **Single Agent Selection**: Only ONE agent per capability type is selected
 - **Agent Inventory System**: Unified discovery across multiple agent sources
 - **Skill-Based Matching**: Intelligent matching using agent card metadata, skills, and tags
 - **Orchestrator Pattern**: Automatically adds orchestrator for multi-agent workflows
@@ -270,10 +271,12 @@ class ResourceSearchResult(BaseModel):
 **Key Components**:
 
 1. **AgentBuilder Helper**: Creates agent nodes with priority:
-   - First: Reuse existing A2A agents matching capabilities (via `SkillMatcher`)
-   - Second: Reuse existing custom agents matching capabilities
+   - First: Reuse BEST existing custom agent matching capabilities (preferred)
+   - Second: Reuse BEST existing A2A agent for uncovered capabilities (via `SkillMatcher`)
    - Third: Create new agents for matched providers
    - Fourth: Create LLM-only agents for remaining capabilities
+   
+   **Note**: Only ONE agent per capability type is selected. Custom agents are preferred over A2A agents.
 
 2. **PlanBuilder Helper**: Creates execution plan:
    - Single agent: `user_question → agent → final_answer`
@@ -1226,9 +1229,16 @@ User Request: "Create a workflow for charting and Jira"
 ┌──────────────────────────────────────────────────────────────┐
 │  Phase 3: DESIGN (AgentBuilder + GenerateBlueprintTool)       │
 │                                                               │
-│  1. Build agents FIRST:                                       │
-│     └─► A2A: AnalyticsAgent (matched "charting")              │
-│     └─► Custom: JiraAgent (matched "jira")                    │
+│  1. Build agents with priority order:                         │
+│     Step 1: Select BEST custom agent (preferred)              │
+│     └─► Custom: JiraAgent selected (matched "jira")           │
+│     └─► used_capabilities = {"jira"}                          │
+│                                                               │
+│     Step 2: Select BEST A2A agent for UNCOVERED capabilities  │
+│     └─► uncovered = {"charting"} (jira already covered)       │
+│     └─► A2A: AnalyticsAgent selected (matched "charting")     │
+│     └─► used_capabilities = {"jira", "charting"}              │
+│                                                               │
 │     └─► final_agent_count = 2                                 │
 │                                                               │
 │  2. Determine orchestrator AFTER building:                    │
@@ -1252,6 +1262,8 @@ User Request: "Create a workflow for charting and Jira"
 
 | Decision | Rationale |
 |----------|-----------|
+| **Custom agents preferred over A2A** | Custom agents are user-configured and run locally, preferred for same capability |
+| **Only ONE agent per capability** | Prevents duplicate capability coverage and simplifies workflows |
 | **Provider → Capabilities mapping** | Custom agents only get capabilities their specific provider matches, preventing false positives when searching for multiple capabilities |
 | **Orchestrator decision AFTER build** | Determine `needs_orchestrator` based on `final_agent_count` (actual agents in workflow), not total search results |
 | **Build agents before orchestrator** | Ensures single-agent workflows don't get unnecessary orchestrators |
@@ -1284,6 +1296,8 @@ tools/helpers/inventory_registry.py
 
 Handles agent node creation with smart reuse logic for both Custom and A2A agents.
 
+**Key Behavior**: Only ONE agent per capability type is selected. Custom agents are preferred over A2A agents.
+
 ```python
 @dataclass
 class AgentBuildResult:
@@ -1292,6 +1306,8 @@ class AgentBuildResult:
     used_capabilities: Set[str] = field(default_factory=set)
     agents_created: int = 0
     agents_reused: int = 0
+    custom_agents_reused: int = 0
+    a2a_agents_reused: int = 0
 
 class AgentBuilder:
     """Builds agent nodes for workflow blueprints."""
@@ -1308,14 +1324,18 @@ class AgentBuilder:
         matched_providers: List[Dict],
         required_capabilities: Set[str]
     ) -> AgentBuildResult:
-        """Build agent nodes with priority order."""
+        """Build agent nodes with priority order. Only ONE agent per capability."""
         result = AgentBuildResult()
         
-        # Step 1: Add A2A agents matching capabilities (via SkillMatcher)
-        self._add_a2a_agents(existing_a2a_agents, required_capabilities, result)
+        # Step 1: Select BEST custom agent matching capabilities (preferred)
+        matching_custom = self._select_best_agent(existing_agents, required_capabilities, result.used_capabilities)
+        if matching_custom:
+            self._add_existing_agent(matching_custom, result)
         
-        # Step 2: Add existing custom agents (reuse)
-        self._add_existing_agents(existing_agents, result)
+        # Step 2: Select BEST A2A agent for uncovered capabilities
+        matching_a2a = self._select_best_a2a_agent(existing_a2a_agents, required_capabilities, result.used_capabilities)
+        if matching_a2a:
+            self._add_a2a_agent(matching_a2a, result)
         
         # Step 3: Create agents for matched providers
         self._create_provider_agents(matched_providers, required_capabilities, result)
@@ -1325,14 +1345,13 @@ class AgentBuilder:
         
         return result
     
-    def _add_a2a_agents(
-        self,
-        a2a_agents: List[Dict],
-        required_capabilities: Set[str],
-        result: AgentBuildResult
-    ) -> None:
-        """Add A2A agents that match required capabilities."""
-        # Uses SkillMatcher to match agent card metadata to capabilities
+    def _select_best_agent(self, agents, required_capabilities, used_capabilities) -> Optional[Dict]:
+        """Select the BEST single custom agent that covers the most uncovered capabilities."""
+        # See detailed algorithm below
+        
+    def _select_best_a2a_agent(self, a2a_agents, required_capabilities, used_capabilities) -> Optional[Dict]:
+        """Select the BEST single A2A agent for uncovered capabilities."""
+        # See detailed algorithm below
         
     def _create_or_get_agent(
         self,
@@ -1347,11 +1366,121 @@ class AgentBuilder:
         # Return node config for blueprint
 ```
 
-**Priority Order**:
-1. **Reuse A2A agents** matching capabilities (skill-based matching via `SkillMatcher`)
-2. **Reuse existing custom agents** matching required capabilities
+**Priority Order** (Only ONE agent selected per step):
+1. **Reuse BEST custom agent** matching capabilities (preferred over A2A)
+2. **Reuse BEST A2A agent** for uncovered capabilities (skill-based matching via `SkillMatcher`)
 3. **Create new agents** for providers matching capabilities (saved to inventory)
 4. **Create LLM-only agents** for remaining capabilities (no provider)
+
+**Agent Selection Behavior**:
+
+| Scenario | Behavior |
+|----------|----------|
+| 2 custom agents matching same capability | 1 is added (best match by capability count) |
+| 2 A2A agents matching same capability | 1 is added (best match by capability count) |
+| 1 A2A + 1 Custom (same capability) | **Custom is added** (A2A skipped - custom preferred) |
+
+#### Algorithm: `_select_best_agent()` (Custom Agents)
+
+Selects the single best custom agent by counting how many **relevant uncovered capabilities** each agent matches.
+
+```python
+def _select_best_agent(self, agents, required_capabilities, used_capabilities) -> Optional[Dict]:
+    if not agents:
+        return None
+    
+    required_lower = {cap.lower() for cap in required_capabilities}
+    best_agent = None
+    best_match_count = 0
+    
+    for agent in agents:
+        # Get this agent's matched capabilities
+        agent_caps = set(cap.lower() for cap in agent.get("matched_capabilities", []))
+        
+        # Only consider capabilities NOT already covered
+        uncovered_caps = agent_caps - used_capabilities
+        
+        # Only count capabilities that are actually required
+        relevant_caps = uncovered_caps & required_lower
+        
+        # Select agent with the MOST relevant uncovered capabilities
+        if len(relevant_caps) > best_match_count:
+            best_match_count = len(relevant_caps)
+            best_agent = agent
+    
+    return best_agent
+```
+
+**Algorithm Steps:**
+1. Convert all capabilities to lowercase for comparison
+2. For each agent, get its `matched_capabilities`
+3. Remove capabilities already covered (`used_capabilities`)
+4. Intersect with required capabilities to get relevant matches
+5. Select the agent with the **highest count** of relevant uncovered capabilities
+6. Return `None` if no agent has any relevant uncovered capabilities
+
+**Example:**
+
+```
+required_capabilities = {"jira", "confluence", "slack"}
+used_capabilities = {}  # Empty initially
+
+Agent A: matched_capabilities = ["jira"]
+Agent B: matched_capabilities = ["jira", "confluence"]
+Agent C: matched_capabilities = ["slack"]
+
+Calculation:
+- Agent A: uncovered = {"jira"} ∩ required = {"jira"} → count = 1
+- Agent B: uncovered = {"jira", "confluence"} ∩ required = {"jira", "confluence"} → count = 2
+- Agent C: uncovered = {"slack"} ∩ required = {"slack"} → count = 1
+
+Result: Agent B selected (highest count = 2)
+```
+
+#### Algorithm: `_select_best_a2a_agent()` (A2A Agents)
+
+Similar to custom agent selection, but only considers **uncovered capabilities** (capabilities not already handled by custom agents).
+
+```python
+def _select_best_a2a_agent(self, a2a_agents, required_capabilities, used_capabilities) -> Optional[Dict]:
+    if not a2a_agents:
+        return None
+    
+    # Calculate what's still uncovered
+    required_lower = {cap.lower() for cap in required_capabilities}
+    uncovered = required_lower - used_capabilities
+    
+    if not uncovered:
+        return None  # All capabilities already covered!
+    
+    # Match A2A agents against ONLY uncovered capabilities
+    matching = self._match_a2a_by_skills(a2a_agents, uncovered)
+    if not matching:
+        return None
+    
+    # Return first matching agent (already sorted by match count in inventory search)
+    return matching[0]
+```
+
+**Key Difference from Custom Agent Selection:**
+- A2A selection uses `SkillMatcher` for flexible text matching (handles compound words, suffixes, etc.)
+- Only searches for **uncovered** capabilities (those not already covered by custom agent)
+- Returns the first match from already-sorted list
+
+**Example:**
+
+```
+required_capabilities = {"jira", "charting"}
+used_capabilities = {"jira"}  # Jira already covered by custom agent
+
+uncovered = {"charting"}  # Only charting needs coverage
+
+A2A Agent "Analytics Agent":
+  - agent_card_skills = ["create_chart", "analyze_data"]
+  - SkillMatcher.matches("charting", "create_chart") → True (found "chart")
+
+Result: Analytics Agent selected for "charting"
+```
 
 ---
 
@@ -1948,6 +2077,10 @@ _run_builder_phases()
 
 For request: "Create a workflow to search Jira and generate analytics charts"
 
+**Agent Selection Order** (Custom preferred over A2A):
+1. Jira Agent (custom) selected first → covers "jira" capability
+2. Analytics Agent (A2A) selected second → covers "analytics" capability (uncovered)
+
 ```json
 {
   "name": "Jira & Analytics Workflow",
@@ -1982,17 +2115,7 @@ For request: "Create a workflow to search Jira and generate analytics charts"
       }
     },
     {
-      "rid": "a2a_agent_0_rid",
-      "name": "Analytics Agent",
-      "type": "a2a_agent_node",
-      "config": {
-        "type": "a2a_agent_node",
-        "base_url": "http://analytics-agent:8080",
-        "bearer_token": "secret-token"
-      }
-    },
-    {
-      "rid": "existing_agent_1_rid",
+      "rid": "existing_agent_0_rid",
       "name": "Jira Agent",
       "type": "custom_agent_node",
       "config": {
@@ -2000,6 +2123,16 @@ For request: "Create a workflow to search Jira and generate analytics charts"
         "llm": "$ref:llm_abc123",
         "provider": "$ref:jira_mcp_xyz",
         "system_message": "You are an agent that uses Jira..."
+      }
+    },
+    {
+      "rid": "existing_a2a_0_rid",
+      "name": "Analytics Agent",
+      "type": "a2a_agent_node",
+      "config": {
+        "type": "a2a_agent_node",
+        "base_url": "http://analytics-agent:8080",
+        "bearer_token": "secret-token"
       }
     },
     {
@@ -2022,16 +2155,21 @@ For request: "Create a workflow to search Jira and generate analytics charts"
         "finalize": "finalize"
       }
     },
-    { "uid": "agent_0", "node": "a2a_agent_0_rid" },
-    { "uid": "agent_1", "node": "existing_agent_1_rid" },
+    { "uid": "agent_0", "node": "existing_agent_0_rid" },
+    { "uid": "agent_1", "node": "existing_a2a_0_rid" },
     { "uid": "finalize", "node": "final_answer_node_rid" }
   ]
 }
 ```
 
-### Example 2: Custom Agents Only
+### Example 2: Custom Agent Reused + New Agent Created
 
 For request: "Create a workflow to search Jira and Confluence"
+
+**Agent Selection Order**:
+1. Jira Agent (existing custom) selected first → covers "jira" capability
+2. No A2A agents match "confluence" → skipped
+3. Confluence Agent created from provider → covers "confluence" capability
 
 ```json
 {
@@ -2066,7 +2204,7 @@ For request: "Create a workflow to search Jira and Confluence"
       }
     },
     {
-      "rid": "new_agent_1_rid",
+      "rid": "new_agent_0_rid",
       "name": "Confluence Agent",
       "type": "custom_agent_node",
       "config": {
@@ -2097,7 +2235,7 @@ For request: "Create a workflow to search Jira and Confluence"
       }
     },
     { "uid": "agent_0", "node": "existing_agent_0_rid" },
-    { "uid": "agent_1", "node": "new_agent_1_rid" },
+    { "uid": "agent_1", "node": "new_agent_0_rid" },
     { "uid": "finalize", "node": "final_answer_node_rid" }
   ]
 }
@@ -2127,7 +2265,7 @@ For request: "Create a workflow to search Jira and Confluence"
 
 1. **ANALYZE**: Identifies capabilities and orchestration needs
 2. **SEARCH**: Finds LLM, providers, custom agents, and A2A agents (via InventoryRegistry)
-3. **DESIGN**: Prioritizes A2A → Custom → New agents, generates blueprint
+3. **DESIGN**: Prioritizes Custom → A2A → New agents (one per capability), generates blueprint
 4. **VALIDATE**: Validates, previews, saves to database
 
 ### Output
@@ -2144,19 +2282,21 @@ This section documents the **rules and decision logic** the builder follows when
 
 ### Rule 1: Agent Selection Priority
 
-When building a workflow, agents are selected in this **strict priority order**:
+When building a workflow, agents are selected in this **strict priority order**. **Only ONE agent per capability type is selected**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    AGENT SELECTION PRIORITY                          │
 │                                                                      │
-│   Priority 1: Reuse A2A Agents                                       │
-│   └─► Match skills from agent_card to required capabilities          │
-│   └─► Uses SkillMatcher for flexible text matching                   │
-│                                                                      │
-│   Priority 2: Reuse Custom Agents                                    │
+│   Priority 1: Reuse BEST Custom Agent (PREFERRED)                    │
 │   └─► Match agent's provider to required capabilities                │
 │   └─► Agent only gets capabilities its provider actually matches     │
+│   └─► Select agent with MOST matched capabilities                    │
+│                                                                      │
+│   Priority 2: Reuse BEST A2A Agent (for uncovered capabilities)      │
+│   └─► Match skills from agent_card to UNCOVERED capabilities         │
+│   └─► Uses SkillMatcher for flexible text matching                   │
+│   └─► Select agent with MOST matched capabilities                    │
 │                                                                      │
 │   Priority 3: Create New Agent (with Provider)                       │
 │   └─► For capabilities with matching providers but no existing agent │
@@ -2168,9 +2308,18 @@ When building a workflow, agents are selected in this **strict priority order**:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+**Agent Selection Behavior**:
+
+| Scenario | Behavior |
+|----------|----------|
+| 2 custom agents matching same capability | 1 is added (best match by capability count) |
+| 2 A2A agents matching same capability | 1 is added (best match by capability count) |
+| 1 A2A + 1 Custom (same capability) | **Custom is added** (A2A skipped - custom preferred) |
+
 **Why this order?**
-- A2A agents are specialized remote agents - prefer delegating to them
-- Custom agents are already configured by the user - reuse before creating
+- Custom agents are preferred - they are user-configured and run locally
+- A2A agents are used for capabilities not covered by custom agents
+- Only ONE agent per step prevents duplicate capability coverage
 - Creating new agents adds to inventory - only when necessary
 - LLM-only agents are the fallback when no tools are available
 
@@ -2386,18 +2535,24 @@ User Request: "Create a workflow for X and Y"
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ PHASE 3: DESIGN                                                          │
+│ PHASE 3: DESIGN (Only ONE agent per capability type)                     │
 │                                                                          │
-│ Step 1: Build agents (priority order)                                    │
-│ ├─► A2A agents matching capabilities → add to workflow                   │
-│ ├─► Custom agents matching capabilities → add to workflow                │
-│ ├─► Providers without agents → create new agent                          │
-│ └─► Missing capabilities → create LLM-only agent                         │
+│ Step 1: Select BEST custom agent (PREFERRED)                             │
+│ └─► Find custom agent with most matching capabilities → add to workflow  │
 │                                                                          │
-│ Step 2: Determine orchestrator (AFTER building agents)                   │
+│ Step 2: Select BEST A2A agent (for UNCOVERED capabilities only)          │
+│ └─► Find A2A agent matching uncovered capabilities → add to workflow     │
+│                                                                          │
+│ Step 3: Create agents for remaining providers                            │
+│ └─► Providers with uncovered capabilities → create new agent             │
+│                                                                          │
+│ Step 4: Create LLM-only agents for missing capabilities                  │
+│ └─► Remaining capabilities → create LLM-only agent                       │
+│                                                                          │
+│ Step 5: Determine orchestrator (AFTER building agents)                   │
 │ └─► final_agent_count > 1 ? add orchestrator : no orchestrator           │
 │                                                                          │
-│ Step 3: Build execution plan                                             │
+│ Step 6: Build execution plan                                             │
 │ └─► Single agent pattern OR orchestrated pattern                         │
 └─────────────────────────────────────────────────────────────────────────┘
                             │
