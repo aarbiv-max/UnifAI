@@ -134,3 +134,11 @@ jobs:
           containerfiles: |
             ${{ matrix.dockerfile }}
           context: . ####${{ matrix.context }}
+
+      # Add this step to push the image
+      - name: Push ${{ matrix.image_name }} Image to Registry
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ matrix.image_name }}
+          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/${{ matrix.image_name }}:${{ env.VERSION }}
+          registry: ${{ vars.IMAGE_REGISTRY_URL }}
