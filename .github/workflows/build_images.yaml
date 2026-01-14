@@ -118,7 +118,7 @@ jobs:
 
       - name: Checkout GitLab repository (genie-cred-data)
         run: |
-          git clone git@gitlab.cee.redhat.com:ai_tools/genie-cred-data.git genie-cred-data
+          git clone git@gitlab.cee.redhat.com:ai_tools/genie-cred-data.git ui/genie-cred-data
       
       - name: Log in to image paas registry
         run: |
