@@ -86,9 +86,9 @@ jobs:
           - image_name: test-sso-backend
             context: shared-resources/sso-backend
             dockerfile: shared-resources/sso-backend/Dockerfile
-        #   - image_name: ui
-        #     context: ./ui
-        #     dockerfile: ./ui/deploymentDockerfile
+          - image_name: ui
+            context: ui
+            dockerfile: ui/deploymentDockerfile
         #   - image_name: dataflow-backend
         #     context: ./backend
         #     dockerfile: ./backend/Dockerfile
@@ -141,7 +141,7 @@ jobs:
         uses: redhat-actions/push-to-registry@v2
         with:
           image: ${{ matrix.image_name }}
-          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/${{ matrix.image_name }}:${{ env.VERSION }}
+          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/temp/${{ matrix.image_name }}:${{ env.VERSION }}
           registry: ${{ vars.IMAGE_REGISTRY_URL }}
           username: ${{ vars.IMAGE_REGISTRY_USERNAME }}
           password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
