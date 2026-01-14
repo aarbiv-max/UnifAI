@@ -95,15 +95,7 @@ Args:
             existing_agents = search_result.existing_nodes or []
             existing_a2a_agents = search_result.existing_a2a_agents or []
             
-            # Determine if orchestrator is needed
-            # Consider both custom and A2A agents
-            total_agents = len(existing_agents) + len(existing_a2a_agents)
-            needs_orchestrator = (
-                (analysis and analysis.needs_orchestrator) or 
-                total_agents > 1
-            )
-            
-            # Build agents using helper
+            # Build agents using helper FIRST to know actual agent count
             agent_builder = AgentBuilder(
                 llm_rid=llm_rid,
                 resources_service=context.resources_service,
@@ -115,6 +107,14 @@ Args:
                 matched_providers=search_result.providers or [],
                 required_capabilities=required_caps,
                 existing_a2a_agents=existing_a2a_agents,
+            )
+            
+            # Determine if orchestrator is needed AFTER we know final agent count
+            # Use the actual number of agents that will be in the workflow
+            final_agent_count = len(agent_result.agent_nodes)
+            needs_orchestrator = (
+                (analysis and analysis.needs_orchestrator) or 
+                final_agent_count > 1
             )
             
             # Initialize blueprint structure

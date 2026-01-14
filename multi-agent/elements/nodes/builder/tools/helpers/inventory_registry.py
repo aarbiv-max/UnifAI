@@ -15,8 +15,8 @@ from .agent_inventory import (
     InventoryType,
     CustomAgentInventory,
     A2AAgentInventory,
-    ResourcesServiceProtocol,
 )
+from elements.nodes.builder.protocols import ResourcesServiceProtocol
 
 
 class InventoryRegistry(metaclass=SingletonMeta):

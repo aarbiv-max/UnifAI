@@ -13,36 +13,26 @@ Patterns:
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, List, Optional, Protocol, Set
+from typing import Any, Dict, List, Optional, Set
 import logging
 
 from pydantic import BaseModel, Field
+
+# Import the official protocol from builder protocols (avoid duplication)
+from elements.nodes.builder.protocols import ResourcesServiceProtocol
 
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Enums and Protocols
+# Enums
 # ---------------------------------------------------------------------------
 
 class InventoryType(str, Enum):
     """Available agent inventory types."""
     CUSTOM_AGENTS = "custom_agents"
     A2A_AGENTS = "a2a_agents"
-
-
-class ResourcesServiceProtocol(Protocol):
-    """Protocol for resources service to avoid circular imports."""
-    
-    def find_resources(
-        self,
-        user_id: str,
-        category: Optional[str] = None,
-        type: Optional[str] = None,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> tuple: ...
 
 
 # ---------------------------------------------------------------------------
@@ -378,12 +368,13 @@ class CustomAgentInventory(AgentInventory):
             return []
         
         agents = []
-        provider_rids = self._extract_provider_rids(provider_list) if provider_list else set()
+        # Build mapping: provider_rid -> capabilities that provider matches
+        provider_caps_map = self._build_provider_caps_map(provider_list) if provider_list else {}
         
         for node in nodes:
             try:
                 cfg = node.cfg_dict or {}
-                agent_info = self._build_agent_info(node, cfg, capability_filter, provider_rids)
+                agent_info = self._build_agent_info(node, cfg, capability_filter, provider_caps_map)
                 if agent_info:
                     agents.append(agent_info)
             except Exception as e:
@@ -394,16 +385,31 @@ class CustomAgentInventory(AgentInventory):
         agents.sort(key=lambda a: (len(a.matched_capabilities) == 0, a.name))
         return agents
     
-    def _extract_provider_rids(self, provider_list: List[Dict[str, Any]]) -> Set[str]:
-        """Extract provider RIDs from provider list."""
-        return {str(p.get("rid", "")) for p in provider_list if p.get("rid")}
+    def _build_provider_caps_map(
+        self, 
+        provider_list: List[Dict[str, Any]]
+    ) -> Dict[str, List[str]]:
+        """
+        Build mapping of provider RID to its matched capabilities.
+        
+        This ensures custom agents only get capabilities that their
+        specific provider actually matches, not all requested capabilities.
+        """
+        caps_map: Dict[str, List[str]] = {}
+        for provider in provider_list:
+            rid = str(provider.get("rid", ""))
+            if rid:
+                # Get the capabilities this specific provider matched
+                matched_caps = provider.get("matched_capabilities", [])
+                caps_map[rid] = matched_caps
+        return caps_map
     
     def _build_agent_info(
         self,
         node: Any,
         cfg: Dict[str, Any],
         capability_filter: Optional[List[str]],
-        provider_rids: Set[str],
+        provider_caps_map: Dict[str, List[str]],
     ) -> Optional[AgentInfo]:
         """Build AgentInfo from node data."""
         # Extract provider reference
@@ -412,10 +418,11 @@ class CustomAgentInventory(AgentInventory):
         if provider_ref:
             provider_rid = str(provider_ref).replace("$ref:", "").strip()
         
-        # Match by provider
+        # Match by provider - only get capabilities the provider actually matches
         matched = []
-        if provider_rid and provider_rid in provider_rids:
-            matched = list(capability_filter or [])
+        if provider_rid and provider_rid in provider_caps_map:
+            # Get only the capabilities this specific provider handles
+            matched = provider_caps_map[provider_rid]
         
         # Only include if matched or no filter
         if not capability_filter or matched:

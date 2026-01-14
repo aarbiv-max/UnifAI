@@ -12,16 +12,17 @@ A multi-phase AI agent that automatically creates workflow blueprints based on n
 4. [File Structure](#file-structure)
 5. [Core Classes](#core-classes)
 6. [Tools](#tools)
-7. [Helper Classes](#helper-classes)
-8. [Data Models](#data-models)
-9. [Prompts System](#prompts-system)
-10. [Service Protocols](#service-protocols)
-11. [Exception Handling](#exception-handling)
-12. [Frontend Integration](#frontend-integration)
-13. [Streaming Events](#streaming-events)
-14. [Generated Blueprint Example](#generated-blueprint-example)
-15. [Usage](#usage)
-16. [Configuration](#configuration)
+7. [Agent Inventory System Architecture](#agent-inventory-system-architecture) ← **NEW**
+8. [Helper Classes](#helper-classes)
+9. [Data Models](#data-models)
+10. [Prompts System](#prompts-system)
+11. [Service Protocols](#service-protocols)
+12. [Exception Handling](#exception-handling)
+13. [Frontend Integration](#frontend-integration)
+14. [Streaming Events](#streaming-events)
+15. [Generated Blueprint Example](#generated-blueprint-example)
+16. [Usage](#usage)
+17. [Configuration](#configuration)
 
 ---
 
@@ -41,7 +42,9 @@ The builder then:
 
 - **Natural Language Input**: Describe workflows in plain English
 - **Resource Discovery**: Automatically finds LLMs, providers, and existing agents
-- **Smart Agent Reuse**: Reuses existing agents when appropriate
+- **Smart Agent Reuse**: Reuses existing agents when appropriate (both Custom and A2A agents)
+- **Agent Inventory System**: Unified discovery across multiple agent sources
+- **Skill-Based Matching**: Intelligent matching using agent card metadata, skills, and tags
 - **Orchestrator Pattern**: Automatically adds orchestrator for multi-agent workflows
 - **Real-time Streaming**: Sends phase progress events to the frontend
 - **Inventory Integration**: Creates new agent resources in user's inventory
@@ -164,24 +167,58 @@ class AnalyzeRequestArgs(BaseModel):
 |---------------|---------|-----------|
 | LLMs | Language models for reasoning | ✅ YES |
 | Providers/MCPs | External tool access (Jira, Confluence) | Optional |
-| Existing Agents | Agents that can be reused | Optional |
+| Custom Agents | Reusable `custom_agent_node` agents | Optional |
+| A2A Agents | Remote agents via `a2a_agent_node` | Optional |
 | Orchestrators | Existing orchestrator nodes | Optional |
+
+**Agent Inventory System**:
+The search phase uses the `InventoryRegistry` to discover agents across multiple sources:
+
+```python
+# Search specific inventories
+agent_inventories: ["custom_agents", "a2a_agents"]
+
+# InventoryRegistry searches all registered inventories
+results = inventory_registry.search(
+    resources_service=resources_service,
+    user_id=user_id,
+    capability_filter=["jira", "charting"],
+    provider_list=matched_providers,
+)
+```
 
 **Matching Logic**:
 - Provider matching is **STRICT**: Only matches if capability appears in provider name
-- Agent matching: Checks agent name and attached provider
-- Prevents false positives (e.g., Confluence won't match "jira")
+- Custom Agent matching: 
+  - Builds `provider_rid → [capabilities]` mapping from matched providers
+  - Agent only gets capabilities that **its specific provider** handles
+  - Prevents one agent from claiming all requested capabilities
+- A2A Agent matching: Uses `SkillMatcher` to analyze the `agent_card` metadata:
+  - Agent name
+  - Agent card name and description
+  - Skill names and descriptions
+  - Tags
+- Prevents false positives (e.g., Jira agent won't match "sales" capability)
 
 **Output**: `ResourceSearchResult` stored in `BuilderContext.state.search_result`
 
 ```python
 class ResourceSearchResult(BaseModel):
-    llms: List[Dict[str, Any]] = []              # Available LLMs
-    providers: List[Dict[str, Any]] = []          # Matched providers
-    existing_nodes: List[Dict[str, Any]] = []     # Reusable agents
+    llms: List[Dict[str, Any]] = []                  # Available LLMs
+    providers: List[Dict[str, Any]] = []             # Matched providers
+    existing_nodes: List[Dict[str, Any]] = []        # Reusable custom agents
+    existing_a2a_agents: List[Dict[str, Any]] = []   # Reusable A2A agents
     existing_orchestrators: List[Dict[str, Any]] = []
-    missing_capabilities: List[str] = []          # Capabilities not found
-    has_required_llm: bool = False                # MUST be True to proceed
+    missing_capabilities: List[str] = []             # Capabilities not found
+    has_required_llm: bool = False                   # MUST be True to proceed
+    
+    @property
+    def all_reusable_agents(self) -> List[Dict[str, Any]]:
+        """Get all reusable agents (custom + A2A) as a unified list."""
+        
+    @property
+    def total_agent_count(self) -> int:
+        """Get total count of all reusable agents."""
 ```
 
 ---
@@ -195,9 +232,10 @@ class ResourceSearchResult(BaseModel):
 **Key Components**:
 
 1. **AgentBuilder Helper**: Creates agent nodes with priority:
-   - First: Reuse existing agents matching capabilities
-   - Second: Create new agents for matched providers
-   - Third: Create LLM-only agents for remaining capabilities
+   - First: Reuse existing A2A agents matching capabilities (via `SkillMatcher`)
+   - Second: Reuse existing custom agents matching capabilities
+   - Third: Create new agents for matched providers
+   - Fourth: Create LLM-only agents for remaining capabilities
 
 2. **PlanBuilder Helper**: Creates execution plan:
    - Single agent: `user_question → agent → final_answer`
@@ -206,7 +244,7 @@ class ResourceSearchResult(BaseModel):
 **What gets generated**:
 - `user_question_node` (entry point)
 - `orchestrator_node` (if needed)
-- Agent nodes (custom_agent_node)
+- Agent nodes (`custom_agent_node` or `a2a_agent_node`)
 - `final_answer_node` (exit point)
 - `router_direct` condition (for orchestrator branching)
 - Execution plan
@@ -292,8 +330,10 @@ builder/
     │
     └── helpers/
         ├── __init__.py
-        ├── agent_builder.py    # AgentBuilder class
-        └── plan_builder.py     # PlanBuilder class
+        ├── agent_builder.py      # AgentBuilder class
+        ├── plan_builder.py       # PlanBuilder class
+        ├── agent_inventory.py    # InventoryType, SkillMatcher, AgentInfo, AgentInventory (ABCs & impls)
+        └── inventory_registry.py # InventoryRegistry singleton
 ```
 
 ---
@@ -522,9 +562,13 @@ class AnalyzeRequestTool(BaseTool):
 
 ### SearchResourcesTool (Phase 2)
 
-Searches for available resources in the user's inventory.
+Searches for available resources in the user's inventory using the Agent Inventory System.
 
 ```python
+class SearchResourcesArgs(BaseModel):
+    agent_inventories: Optional[List[str]] = None  # ["custom_agents", "a2a_agents"]
+    # If None, searches all registered inventories
+
 class SearchResourcesTool(BaseTool):
     name = "search_resources"
     
@@ -532,6 +576,7 @@ class SearchResourcesTool(BaseTool):
         context = self._get_context()
         resources_service = context.resources_service
         user_id = context.user_id
+        args = SearchResourcesArgs(**kwargs)
         
         # Search for LLMs (mandatory)
         llms, _ = resources_service.find_resources(
@@ -547,21 +592,34 @@ class SearchResourcesTool(BaseTool):
             limit=50
         )
         
-        # Search for existing nodes (agents)
-        nodes, _ = resources_service.find_resources(
+        # Search for agents using InventoryRegistry
+        inventory_types = inventory_registry.parse_inventory_types(
+            args.agent_inventories
+        )
+        agent_results = inventory_registry.search(
+            resources_service=resources_service,
             user_id=user_id,
-            category="nodes",
-            limit=50
+            inventories=inventory_types,
+            capability_filter=required_capabilities,
+            provider_list=provider_list,
         )
         
-        # Apply capability filter (STRICT matching on provider name)
-        # ...
+        # Split results by type
+        custom_agents = [
+            a.to_dict() 
+            for a in agent_results.get(InventoryType.CUSTOM_AGENTS, [])
+        ]
+        a2a_agents = [
+            a.to_dict() 
+            for a in agent_results.get(InventoryType.A2A_AGENTS, [])
+        ]
         
         # Create ResourceSearchResult
         result = ResourceSearchResult(
             llms=llm_list,
             providers=provider_list,
-            existing_nodes=node_list,
+            existing_nodes=custom_agents,
+            existing_a2a_agents=a2a_agents,
             existing_orchestrators=orchestrator_list,
             has_required_llm=len(llm_list) > 0,
         )
@@ -588,22 +646,25 @@ class GenerateBlueprintTool(BaseTool):
         # Get first available LLM
         llm_rid = search_result.llms[0]["rid"]
         
-        # Determine if orchestrator needed
-        needs_orchestrator = (
-            (analysis and analysis.needs_orchestrator) or 
-            len(search_result.existing_nodes) > 1
-        )
-        
-        # Use AgentBuilder helper
+        # Use AgentBuilder helper FIRST to know actual agent count
         agent_builder = AgentBuilder(
             llm_rid=llm_rid,
             resources_service=context.resources_service,
             user_id=context.user_id
         )
         agent_result = agent_builder.build_agents(
-            existing_agents=search_result.existing_nodes,
+            existing_agents=search_result.existing_nodes,        # Custom agents
+            existing_a2a_agents=search_result.existing_a2a_agents,  # A2A agents
             matched_providers=search_result.providers,
             required_capabilities=required_caps
+        )
+        
+        # Determine if orchestrator needed AFTER we know final agent count
+        # This prevents adding orchestrator when only 1 agent will be used
+        final_agent_count = len(agent_result.agent_nodes)
+        needs_orchestrator = (
+            (analysis and analysis.needs_orchestrator) or 
+            final_agent_count > 1  # Based on ACTUAL agents, not search results
         )
         
         # Initialize blueprint structure
@@ -620,7 +681,7 @@ class GenerateBlueprintTool(BaseTool):
         if needs_orchestrator:
             self._add_orchestrator_node(blueprint, llm_rid, ...)
         
-        # Add agent nodes
+        # Add agent nodes (custom_agent_node or a2a_agent_node)
         for agent_node in agent_result.agent_nodes:
             blueprint["nodes"].append(agent_node)
         
@@ -738,11 +799,256 @@ class SaveBlueprintTool(BaseTool):
 
 ---
 
+## Agent Inventory System Architecture
+
+This section explains the Agent Inventory System from high-level concepts down to implementation details.
+
+### Overview Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         AGENT INVENTORY SYSTEM                               │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     HIGH LEVEL: Entry Points                         │    │
+│  │                                                                      │    │
+│  │    SearchResourcesTool ──────────► InventoryRegistry (Singleton)     │    │
+│  │          │                               │                           │    │
+│  │          │ Uses                          │ Searches                  │    │
+│  │          ▼                               ▼                           │    │
+│  │    AgentBuilder ◄────────────────── AgentInfo[]                      │    │
+│  │                                                                      │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                    │                                         │
+│                                    ▼                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     MID LEVEL: Abstractions                          │    │
+│  │                                                                      │    │
+│  │    InventoryRegistry                                                 │    │
+│  │         │                                                            │    │
+│  │         ├── register(AgentInventory)                                 │    │
+│  │         ├── search() → Dict[InventoryType, List[AgentInfo]]          │    │
+│  │         └── search_all() → List[AgentInfo]                           │    │
+│  │                │                                                     │    │
+│  │                ▼                                                     │    │
+│  │    AgentInventory (ABC)  ◄─── ResourcesServiceProtocol               │    │
+│  │         │                      (from protocols.py)                   │    │
+│  │         └── search() → List[AgentInfo]                               │    │
+│  │                                                                      │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                    │                                         │
+│                                    ▼                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     LOW LEVEL: Implementations                       │    │
+│  │                                                                      │    │
+│  │    CustomAgentInventory              A2AAgentInventory               │    │
+│  │         │                                  │                         │    │
+│  │         ├── Searches "nodes"               ├── Searches "nodes"      │    │
+│  │         │   category for                   │   category for          │    │
+│  │         │   "custom_agent_node"            │   "a2a_agent_node"      │    │
+│  │         │                                  │                         │    │
+│  │         └── Matches by:                    └── Matches by:           │    │
+│  │             • Agent name                       • SkillMatcher        │    │
+│  │             • Provider name                    • Agent card skills   │    │
+│  │                                                • Agent card tags     │    │
+│  │                                                • Descriptions        │    │
+│  │                                                                      │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                    │                                         │
+│                                    ▼                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                     UTILITIES: Shared Components                     │    │
+│  │                                                                      │    │
+│  │    SkillMatcher                      AgentInfo (Pydantic DTO)        │    │
+│  │         │                                  │                         │    │
+│  │         ├── matches(cap, text)             ├── rid, name, node_type  │    │
+│  │         ├── match_any(caps, text)          ├── source_type (enum)    │    │
+│  │         ├── _split_compound()              ├── Custom fields (llm,   │    │
+│  │         └── _get_roots()                   │   provider, etc.)       │    │
+│  │                                            ├── A2A fields (base_url, │    │
+│  │    InventoryType (Enum)                    │   skills, tags, etc.)   │    │
+│  │         ├── CUSTOM_AGENTS                  ├── is_a2a() / is_custom()│    │
+│  │         └── A2A_AGENTS                     ├── to_dict()             │    │
+│  │                                            └── to_blueprint_node()   │    │
+│  │                                                                      │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Class Hierarchy (High → Low)
+
+#### Level 1: Entry Points (Consumer Layer)
+
+| Class | Purpose | Location |
+|-------|---------|----------|
+| `SearchResourcesTool` | Phase 2 tool that triggers agent discovery | `tools/search_resources.py` |
+| `AgentBuilder` | Uses discovered agents to build blueprint nodes | `tools/helpers/agent_builder.py` |
+
+These are the **consumers** of the inventory system. They don't know implementation details.
+
+#### Level 2: Registry (Orchestration Layer)
+
+| Class | Purpose | Pattern |
+|-------|---------|---------|
+| `InventoryRegistry` | Singleton that manages all inventory implementations | Registry + Singleton |
+
+**Key Responsibilities:**
+- Registers inventory implementations at startup
+- Routes search requests to appropriate inventories
+- Aggregates results from multiple sources
+- Thread-safe with `RLock`
+
+```python
+# How it works
+inventory_registry = InventoryRegistry()  # Singleton
+inventory_registry.register(CustomAgentInventory())
+inventory_registry.register(A2AAgentInventory())
+
+# Search routes to both implementations
+results = inventory_registry.search(resources_service, user_id)
+# Returns: {CUSTOM_AGENTS: [...], A2A_AGENTS: [...]}
+```
+
+#### Level 3: Abstract Base (Contract Layer)
+
+| Class | Purpose | Pattern |
+|-------|---------|---------|
+| `AgentInventory` | ABC defining the contract for all inventories | Strategy + Template |
+| `ResourcesServiceProtocol` | Protocol for dependency injection | Protocol (structural typing) |
+
+**Key Contract:**
+```python
+class AgentInventory(ABC):
+    @property
+    @abstractmethod
+    def inventory_type(self) -> InventoryType: ...
+    
+    @abstractmethod
+    def search(...) -> List[AgentInfo]: ...
+```
+
+#### Level 4: Implementations (Concrete Layer)
+
+| Class | Inventory Type | Matching Logic |
+|-------|----------------|----------------|
+| `CustomAgentInventory` | `CUSTOM_AGENTS` | Name + Provider matching |
+| `A2AAgentInventory` | `A2A_AGENTS` | Skill-based matching via `SkillMatcher` |
+
+**CustomAgentInventory:**
+- Searches for `custom_agent_node` resources
+- Uses `_build_provider_caps_map()` to create `provider_rid → [capabilities]` mapping
+- Agent only gets capabilities that **its specific provider** matches (not all requested)
+- Prevents false positives (e.g., Jira agent won't claim "sales" capability)
+
+**A2AAgentInventory:**
+- Searches for `a2a_agent_node` resources  
+- Extracts metadata from `agent_card` (skills, descriptions, tags)
+- Uses `SkillMatcher` for flexible text matching
+
+#### Level 5: Utilities (Foundation Layer)
+
+| Class | Purpose |
+|-------|---------|
+| `SkillMatcher` | Text matching utility for capability-to-skill matching |
+| `AgentInfo` | Unified DTO representing agents from any source |
+| `InventoryType` | Enum identifying inventory sources |
+
+### Data Flow Example
+
+```
+User Request: "Create a workflow for charting and Jira"
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Phase 1: ANALYZE                                             │
+│  └─► required_capabilities = ["charting", "jira"]             │
+└──────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Phase 2: SEARCH (SearchResourcesTool)                        │
+│                                                               │
+│  1. inventory_registry.search(                                │
+│        capability_filter=["charting", "jira"]                 │
+│     )                                                         │
+│                                                               │
+│  2. CustomAgentInventory.search()                             │
+│     └─► _build_provider_caps_map: {"jira_mcp": ["jira"]}      │
+│     └─► Finds "Jira Agent" with matched_capabilities: ["jira"]│
+│         (NOT ["charting", "jira"] - only its provider's caps) │
+│                                                               │
+│  3. A2AAgentInventory.search()                                │
+│     └─► Finds "Analytics Agent"                               │
+│         └─► SkillMatcher.matches("charting", "create_chart")  │
+│             └─► "chart" found in "create_chart" ✓             │
+│                                                               │
+│  Result:                                                      │
+│  ├── existing_nodes: [JiraAgent(caps=["jira"])]               │
+│  └── existing_a2a_agents: [AnalyticsAgent(caps=["charting"])] │
+└──────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  Phase 3: DESIGN (AgentBuilder + GenerateBlueprintTool)       │
+│                                                               │
+│  1. Build agents FIRST:                                       │
+│     └─► A2A: AnalyticsAgent (matched "charting")              │
+│     └─► Custom: JiraAgent (matched "jira")                    │
+│     └─► final_agent_count = 2                                 │
+│                                                               │
+│  2. Determine orchestrator AFTER building:                    │
+│     └─► final_agent_count > 1 → needs_orchestrator = True     │
+│                                                               │
+│  Result: 2 agents reused, 0 created, orchestrator added       │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Why This Architecture?
+
+| Principle | Implementation |
+|-----------|----------------|
+| **Open/Closed** | Add new inventory types without modifying existing code |
+| **Single Responsibility** | Each class has one clear purpose |
+| **Dependency Inversion** | High-level modules depend on abstractions (ABC, Protocol) |
+| **DRY** | `AgentInfo` is the single DTO for all agent types |
+| **Testability** | Easy to mock `ResourcesServiceProtocol` and `AgentInventory` |
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| **Provider → Capabilities mapping** | Custom agents only get capabilities their specific provider matches, preventing false positives when searching for multiple capabilities |
+| **Orchestrator decision AFTER build** | Determine `needs_orchestrator` based on `final_agent_count` (actual agents in workflow), not total search results |
+| **Build agents before orchestrator** | Ensures single-agent workflows don't get unnecessary orchestrators |
+
+### Quick Reference: File → Classes
+
+```
+protocols.py
+└── ResourcesServiceProtocol      # Shared protocol (single source)
+
+tools/helpers/agent_inventory.py
+├── InventoryType                 # Enum: CUSTOM_AGENTS, A2A_AGENTS
+├── SkillMatcher                  # Text matching utility
+├── AgentInfo                     # Unified DTO (Pydantic)
+├── AgentInventory                # ABC
+├── CustomAgentInventory          # Implementation
+└── A2AAgentInventory             # Implementation
+
+tools/helpers/inventory_registry.py
+├── InventoryRegistry             # Singleton registry
+├── get_inventory_registry()      # Factory function
+└── inventory_registry            # Module-level instance
+```
+
+---
+
 ## Helper Classes
 
 ### AgentBuilder
 
-Handles agent node creation with smart reuse logic.
+Handles agent node creation with smart reuse logic for both Custom and A2A agents.
 
 ```python
 @dataclass
@@ -763,24 +1069,37 @@ class AgentBuilder:
     
     def build_agents(
         self,
-        existing_agents: List[Dict],
+        existing_agents: List[Dict],           # Custom agents
+        existing_a2a_agents: List[Dict],       # A2A agents (NEW)
         matched_providers: List[Dict],
         required_capabilities: Set[str]
     ) -> AgentBuildResult:
         """Build agent nodes with priority order."""
         result = AgentBuildResult()
         
-        # Step 1: Add existing agents (reuse)
+        # Step 1: Add A2A agents matching capabilities (via SkillMatcher)
+        self._add_a2a_agents(existing_a2a_agents, required_capabilities, result)
+        
+        # Step 2: Add existing custom agents (reuse)
         self._add_existing_agents(existing_agents, result)
         
-        # Step 2: Create agents for matched providers
+        # Step 3: Create agents for matched providers
         self._create_provider_agents(matched_providers, required_capabilities, result)
         
-        # Step 3: Create LLM-only agents for remaining capabilities
+        # Step 4: Create LLM-only agents for remaining capabilities
         self._create_llm_only_agents(required_capabilities, result)
         
         return result
     
+    def _add_a2a_agents(
+        self,
+        a2a_agents: List[Dict],
+        required_capabilities: Set[str],
+        result: AgentBuildResult
+    ) -> None:
+        """Add A2A agents that match required capabilities."""
+        # Uses SkillMatcher to match agent card metadata to capabilities
+        
     def _create_or_get_agent(
         self,
         agent_name: str,
@@ -795,9 +1114,192 @@ class AgentBuilder:
 ```
 
 **Priority Order**:
-1. **Reuse existing agents** matching required capabilities
-2. **Create new agents** for providers matching capabilities (saved to inventory)
-3. **Create LLM-only agents** for remaining capabilities (no provider)
+1. **Reuse A2A agents** matching capabilities (skill-based matching via `SkillMatcher`)
+2. **Reuse existing custom agents** matching required capabilities
+3. **Create new agents** for providers matching capabilities (saved to inventory)
+4. **Create LLM-only agents** for remaining capabilities (no provider)
+
+---
+
+### SkillMatcher
+
+Utility for matching required capabilities to agent skills using flexible text matching.
+
+```python
+class SkillMatcher:
+    """
+    Utility for matching required capabilities to agent skills.
+    
+    Uses flexible text matching that handles:
+    - Substring matching (e.g., "chart" in "create_chart")
+    - Compound words (e.g., "chart_generator" → check "chart" and "generator")
+    - Common word forms (e.g., "charting" → "chart")
+    """
+    
+    # Common suffixes to strip for root matching
+    SUFFIXES = ("ing", "tion", "ment", "ics", "er", "or", "s", "ed", "ly")
+    
+    # Separators for compound words
+    SEPARATORS = ("_", "-", " ", ".")
+    
+    @classmethod
+    def matches(cls, capability: str, searchable_text: str) -> bool:
+        """
+        Check if a capability matches within searchable text.
+        
+        Matching strategies (in order):
+        1. Direct substring match
+        2. Split compound words and check each part
+        3. Root word match (remove suffixes from each part)
+        """
+        
+    @classmethod
+    def match_any(cls, capabilities: Set[str], searchable_text: str) -> List[str]:
+        """Find all capabilities that match in searchable text."""
+```
+
+**Examples**:
+
+| Capability | Split Parts | Matches Agent With |
+|------------|-------------|-------------------|
+| `chart_generator` | `["chart", "generator"]` | skill: `"create_chart"` ✅ |
+| `jira_integration` | `["jira", "integration"]` | name: `"Jira Agent"` ✅ |
+| `data_analysis` | `["data", "analysis"]` | skill: `"analyze_data"` ✅ |
+| `reporting` | root: `"report"` | description: `"generates reports"` ✅ |
+
+---
+
+### AgentInventory
+
+Abstract base class for agent inventory implementations.
+
+**Note**: `ResourcesServiceProtocol` is imported from `protocols.py` to avoid duplication.
+
+```python
+from elements.nodes.builder.protocols import ResourcesServiceProtocol
+
+class InventoryType(str, Enum):
+    """Available agent inventory types."""
+    CUSTOM_AGENTS = "custom_agents"
+    A2A_AGENTS = "a2a_agents"
+
+
+class AgentInfo(BaseModel):
+    """Unified agent information from any inventory."""
+    rid: str
+    name: str
+    source_type: InventoryType
+    node_type: str
+    matched_capabilities: List[str] = []
+    description: str = ""
+    
+    # Custom agent fields
+    system_message: Optional[str] = None
+    llm: Optional[str] = None
+    provider: Optional[str] = None
+    
+    # A2A agent fields
+    base_url: Optional[str] = None
+    bearer_token: Optional[str] = None
+    agent_card_name: Optional[str] = None
+    agent_card_description: Optional[str] = None
+    agent_card_skills: List[str] = []
+    agent_card_skill_descriptions: List[str] = []
+    agent_card_tags: List[str] = []
+    
+    def is_a2a(self) -> bool: ...
+    def is_custom(self) -> bool: ...
+    def to_dict(self) -> Dict[str, Any]: ...
+    def to_blueprint_node(self) -> Dict[str, Any]: ...
+
+
+class AgentInventory(ABC):
+    """Abstract base for agent inventories."""
+    
+    @property
+    @abstractmethod
+    def inventory_type(self) -> InventoryType: ...
+    
+    @abstractmethod
+    def search(
+        self,
+        resources_service: ResourcesServiceProtocol,
+        user_id: str,
+        capability_filter: Optional[List[str]] = None,
+        provider_list: Optional[List[Dict[str, Any]]] = None,
+        limit: int = 50,
+    ) -> List[AgentInfo]: ...
+```
+
+**Implementations**:
+- `CustomAgentInventory`: Discovers `custom_agent_node` resources
+  - Uses `_build_provider_caps_map(provider_list)` to map provider RIDs to their matched capabilities
+  - Ensures agents only get capabilities their specific provider actually matches
+- `A2AAgentInventory`: Discovers `a2a_agent_node` resources with skill matching
+
+---
+
+### InventoryRegistry
+
+Singleton registry for agent inventory implementations.
+
+```python
+class InventoryRegistry(metaclass=SingletonMeta):
+    """
+    Registry for agent inventory implementations.
+    
+    Uses Singleton pattern for global access.
+    Thread-safe with RLock for concurrent access.
+    """
+    
+    def register(self, inventory: AgentInventory) -> None:
+        """Register an inventory implementation."""
+        
+    def search(
+        self,
+        resources_service: ResourcesServiceProtocol,
+        user_id: str,
+        inventories: Optional[List[InventoryType]] = None,
+        capability_filter: Optional[List[str]] = None,
+        provider_list: Optional[List[Dict[str, Any]]] = None,
+        limit: int = 50,
+    ) -> Dict[InventoryType, List[AgentInfo]]:
+        """Search across multiple inventories."""
+        
+    def search_all(...) -> List[AgentInfo]:
+        """Search all inventories and return flattened results."""
+        
+    def parse_inventory_types(
+        self,
+        type_strings: Optional[List[str]]
+    ) -> Optional[List[InventoryType]]:
+        """Parse inventory type strings to enum values."""
+
+
+# Module-level singleton with default inventories
+inventory_registry = get_inventory_registry()
+```
+
+**Usage**:
+
+```python
+from .helpers import inventory_registry, InventoryType
+
+# Search specific inventories
+results = inventory_registry.search(
+    resources_service=resources_service,
+    user_id=user_id,
+    inventories=[InventoryType.A2A_AGENTS],
+    capability_filter=["charting", "analytics"],
+)
+
+# Search all inventories
+all_agents = inventory_registry.search_all(
+    resources_service=resources_service,
+    user_id=user_id,
+    capability_filter=required_capabilities,
+)
+```
 
 ---
 
@@ -1208,12 +1710,14 @@ _run_builder_phases()
 
 ## Generated Blueprint Example
 
-For request: "Create a workflow to search Jira and Confluence"
+### Example 1: Mixed Custom and A2A Agents
+
+For request: "Create a workflow to search Jira and generate analytics charts"
 
 ```json
 {
-  "name": "Jira & Confluence Workflow",
-  "description": "Search Jira and Confluence for information",
+  "name": "Jira & Analytics Workflow",
+  "description": "Search Jira and generate analytics",
   "providers": [],
   "llms": [],
   "retrievers": [],
@@ -1226,6 +1730,79 @@ For request: "Create a workflow to search Jira and Confluence"
       "config": { "type": "router_direct" }
     }
   ],
+  "nodes": [
+    {
+      "rid": "user_question_node_rid",
+      "name": "User Question Node",
+      "type": "user_question_node",
+      "config": { "type": "user_question_node" }
+    },
+    {
+      "rid": "orchestrator_node_rid",
+      "name": "Orchestrator",
+      "type": "orchestrator_node",
+      "config": {
+        "type": "orchestrator_node",
+        "llm": "$ref:llm_abc123",
+        "system_message": "Orchestrate Jira and Analytics workflow..."
+      }
+    },
+    {
+      "rid": "a2a_agent_0_rid",
+      "name": "Analytics Agent",
+      "type": "a2a_agent_node",
+      "config": {
+        "type": "a2a_agent_node",
+        "base_url": "http://analytics-agent:8080",
+        "bearer_token": "secret-token"
+      }
+    },
+    {
+      "rid": "existing_agent_1_rid",
+      "name": "Jira Agent",
+      "type": "custom_agent_node",
+      "config": {
+        "type": "custom_agent_node",
+        "llm": "$ref:llm_abc123",
+        "provider": "$ref:jira_mcp_xyz",
+        "system_message": "You are an agent that uses Jira..."
+      }
+    },
+    {
+      "rid": "final_answer_node_rid",
+      "name": "Final Answer Node",
+      "type": "final_answer_node",
+      "config": { "type": "final_answer_node" }
+    }
+  ],
+  "plan": [
+    { "uid": "user_input", "node": "user_question_node_rid" },
+    {
+      "uid": "orchestrator",
+      "after": ["user_input", "agent_0", "agent_1"],
+      "node": "orchestrator_node_rid",
+      "exit_condition": "router_direct_rid",
+      "branches": {
+        "agent_0": "agent_0",
+        "agent_1": "agent_1",
+        "finalize": "finalize"
+      }
+    },
+    { "uid": "agent_0", "node": "a2a_agent_0_rid" },
+    { "uid": "agent_1", "node": "existing_agent_1_rid" },
+    { "uid": "finalize", "node": "final_answer_node_rid" }
+  ]
+}
+```
+
+### Example 2: Custom Agents Only
+
+For request: "Create a workflow to search Jira and Confluence"
+
+```json
+{
+  "name": "Jira & Confluence Workflow",
+  "description": "Search Jira and Confluence for information",
   "nodes": [
     {
       "rid": "user_question_node_rid",
@@ -1305,16 +1882,18 @@ For request: "Create a workflow to search Jira and Confluence"
 
 | Request | Result |
 |---------|--------|
-| "Create a Jira search workflow" | Single agent with Jira MCP |
+| "Create a Jira search workflow" | Single custom agent with Jira MCP |
 | "Create a workflow for Jira and Confluence" | Orchestrated 2-agent workflow |
+| "Create a charting workflow" | Reuses existing A2A agent with charting skills |
+| "Create a workflow for analytics and reporting" | Reuses A2A agent matching "analytics" capability |
 | "Create a sales agent" | LLM-only agent for sales tasks |
-| "Search Jira, Confluence, and summarize with Slack" | 3-agent orchestrated workflow |
+| "Search Jira and generate charts" | Mixed: Custom + A2A agents |
 
 ### Expected Flow
 
 1. **ANALYZE**: Identifies capabilities and orchestration needs
-2. **SEARCH**: Finds LLM, matching providers, existing agents
-3. **DESIGN**: Creates/reuses agents, generates blueprint
+2. **SEARCH**: Finds LLM, providers, custom agents, and A2A agents (via InventoryRegistry)
+3. **DESIGN**: Prioritizes A2A → Custom → New agents, generates blueprint
 4. **VALIDATE**: Validates, previews, saves to database
 
 ### Output
