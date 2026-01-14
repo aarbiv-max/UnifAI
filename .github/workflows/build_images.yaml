@@ -127,12 +127,12 @@ jobs:
       
       - name: Log in to image paas registry
         run: |
-        mkdir -p $HOME/.config/containers
-        echo "${{ secrets.IMAGE_REGISTRY_PASSWORD }}" | podman login ${{ vars.IMAGE_REGISTRY_URL }} \
+          mkdir -p $HOME/.config/containers
+          echo "${{ secrets.IMAGE_REGISTRY_PASSWORD }}" | podman login ${{ vars.IMAGE_REGISTRY_URL }} \
           --username "${{ vars.IMAGE_REGISTRY_USERNAME }}" \
           --password-stdin
-        # Export the auth file location for subsequent steps
-        echo "REGISTRY_AUTH_FILE=$HOME/.config/containers/auth.json" >> $GITHUB_ENV
+         # Export the auth file location for subsequent steps
+          echo "REGISTRY_AUTH_FILE=$HOME/.config/containers/auth.json" >> $GITHUB_ENV
 
         # Use Buildah to build the image
       - name: Build ${{ matrix.image_name }} Image
