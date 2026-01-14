@@ -83,7 +83,7 @@ jobs:
       # Use a matrix to define your different image locations
       matrix:
         include:
-          - image_name: test-sso-backend
+          - image_name: sso-backend
             context: shared-resources/sso-backend
             dockerfile: shared-resources/sso-backend/Dockerfile
           - image_name: ui
@@ -131,7 +131,7 @@ jobs:
         uses: redhat-actions/buildah-build@v2
         with:
           image: ${{ matrix.image_name }}
-          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/${{ matrix.image_name }}:${{ env.VERSION }}
+          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/temp/${{ matrix.image_name }}:${{ env.VERSION }}
           containerfiles: |
             ${{ matrix.dockerfile }}
           context: . ####${{ matrix.context }}
