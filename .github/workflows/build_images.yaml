@@ -1,9 +1,9 @@
 name: Build UnifAIImages
 
 on:
-  push:
-    branches:
-      - 'GENIE-1138/build_images'
+  # push:
+  #   branches:
+  #     - 'GENIE-1138/build_images'
   workflow_dispatch:
     inputs:
       build_sso_image:
@@ -120,7 +120,7 @@ jobs:
       - name: Log in to image paas registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ vars.IMAGE_REGISTRY_URL }} 
+          registry: ${{ vars.IMAGE_REGISTRY_URL }}/unifai 
           username: ${{ vars.IMAGE_REGISTRY_USERNAME }} 
           password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}      
       
