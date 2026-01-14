@@ -113,11 +113,10 @@ jobs:
             sudo dnf install -y buildah
           fi
 
-
       - name: Checkout Code
         uses: actions/checkout@v4
 
-        - name: Checkout GitLab repository (genie-cred-data)
+      - name: Checkout GitLab repository (genie-cred-data)
         run: |
           git clone git@gitlab.cee.redhat.com:ai_tools/genie-cred-data.git genie-cred-data
       
