@@ -122,8 +122,7 @@ jobs:
         with:
           repository: gitlab.cee.redhat.com/ai_tools/genie-cred-data
           path: genie-cred-data
-          branch: main
-          token: ${{ secrets.GITLAB_KEY }}
+          ref: main
       
       - name: Log in to image paas registry
         run: |
