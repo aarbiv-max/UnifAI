@@ -4,6 +4,41 @@ A multi-phase AI agent that automatically creates workflow blueprints based on n
 
 ---
 
+## Quick Start
+
+**What is it?** An AI agent that converts natural language like *"Create a Jira and Confluence workflow"* into a complete, executable workflow blueprint.
+
+**How does it work?**
+
+```
+User Request → ANALYZE → SEARCH → DESIGN → VALIDATE → Saved Workflow
+                 │          │         │         │
+                 ▼          ▼         ▼         ▼
+             Extract    Find LLMs,  Build     Check &
+           capabilities providers,  agents    save to
+                       & agents    & plan      DB
+```
+
+**Key files to explore:**
+- `builder_node.py` - Main orchestrator (start here)
+- `tools/` - Phase-specific tools (one per phase)
+- `context/builder_context.py` - State management
+- `tools/helpers/` - Agent building and inventory logic
+
+**Reading Guide:**
+
+| If you want to... | Read... |
+|-------------------|---------|
+| Understand the big picture | [Overview](#overview) → [Architecture](#architecture) |
+| Learn the 4-phase flow | [The 4 Phases](#the-4-phases) |
+| Understand agent selection logic | [Workflow Creation Rules](#workflow-creation-rules) |
+| See a generated blueprint | [Generated Blueprint Example](#generated-blueprint-example) |
+| Integrate with frontend | [Frontend Integration](#frontend-integration) |
+| Add a new agent inventory type | [Agent Inventory System Architecture](#agent-inventory-system-architecture) |
+| Handle errors | [Exception Handling](#exception-handling) |
+
+---
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -12,7 +47,7 @@ A multi-phase AI agent that automatically creates workflow blueprints based on n
 4. [File Structure](#file-structure)
 5. [Core Classes](#core-classes)
 6. [Tools](#tools)
-7. [Agent Inventory System Architecture](#agent-inventory-system-architecture) ← **NEW**
+7. [Agent Inventory System Architecture](#agent-inventory-system-architecture)
 8. [Helper Classes](#helper-classes)
 9. [Data Models](#data-models)
 10. [Prompts System](#prompts-system)
@@ -22,7 +57,10 @@ A multi-phase AI agent that automatically creates workflow blueprints based on n
 14. [Streaming Events](#streaming-events)
 15. [Generated Blueprint Example](#generated-blueprint-example)
 16. [Usage](#usage)
-17. [Configuration](#configuration)
+17. [Workflow Creation Rules](#workflow-creation-rules)
+18. [Configuration](#configuration)
+19. [Error Handling Summary](#error-handling-summary)
+20. [External Dependencies & Changes](#external-dependencies--changes)
 
 ---
 
@@ -708,54 +746,250 @@ class GenerateBlueprintTool(BaseTool):
 
 ### ValidateBlueprintTool (Phase 4)
 
-Validates the generated blueprint.
+Validates the generated blueprint before saving.
+
+**Uses Shared Validation Infrastructure**: The builder reuses the same validation system used when users create workflows manually via the UI. The `BlueprintService.validate_draft()` method is the shared entry point for both:
+
+| Trigger | Entry Point | Validation Path |
+|---------|-------------|-----------------|
+| Manual workflow creation | `/draft.validate` API | `BlueprintService.validate_draft()` → `ElementValidationService` |
+| Builder workflow creation | `ValidateBlueprintTool` | Builder checks → `BlueprintService.validate_draft()` → `ElementValidationService` |
+
+The builder adds **additional structural checks** before delegating to the shared validation service.
 
 ```python
+class ValidateBlueprintArgs(BaseModel):
+    timeout_seconds: float = Field(default=10.0, description="Timeout for validation checks")
+
+
 class ValidateBlueprintTool(BaseTool):
     name = "validate_blueprint"
+    description = """Validate the generated workflow blueprint.
+
+Checks:
+- Schema validation (all required fields present)
+- Resource references are valid
+- Element-specific validation (LLM connectivity, provider health, etc.)
+
+Returns validation results with any errors or warnings.
+If validation fails, you may need to fix issues and try again."""
+    
+    args_schema = ValidateBlueprintArgs
     
     def run(self, **kwargs) -> Dict[str, Any]:
+        args = ValidateBlueprintArgs(**kwargs)
         context = self._get_context()
         blueprint = context.state.design_result.blueprint_draft
         
         errors = []
         warnings = []
+        suggestions = []
         
-        # Basic structure validation
+        # ====== VALIDATION 1: Basic Structure ======
         if not blueprint.get("name"):
-            errors.append({"field": "name", "message": "Name required"})
+            errors.append({"field": "name", "message": "Workflow name is required"})
         
         if not blueprint.get("plan"):
-            errors.append({"field": "plan", "message": "Plan required"})
+            errors.append({"field": "plan", "message": "Workflow plan is required"})
         
-        # Check required nodes
+        # ====== VALIDATION 2: Required Nodes ======
         nodes = blueprint.get("nodes", [])
+        node_rids = {n.get("rid") for n in nodes}
+        
         has_user_question = any(n.get("type") == "user_question_node" for n in nodes)
         has_final_answer = any(n.get("type") == "final_answer_node" for n in nodes)
         
         if not has_user_question:
-            errors.append(...)
+            errors.append({
+                "field": "nodes",
+                "message": "Workflow must include a user_question_node"
+            })
         if not has_final_answer:
-            errors.append(...)
+            errors.append({
+                "field": "nodes",
+                "message": "Workflow must include a final_answer_node"
+            })
         
-        # Use blueprint service validation if available
+        # ====== VALIDATION 3: Plan References Valid Nodes ======
+        plan = blueprint.get("plan", [])
+        for step in plan:
+            node_ref = step.get("node")
+            if node_ref:
+                # $ref: references point to external resources (resolved at runtime)
+                if node_ref.startswith("$ref:"):
+                    continue  # External reference - will be resolved from resource registry
+                elif node_ref not in node_rids:
+                    errors.append({
+                        "field": f"plan.{step.get('uid')}",
+                        "message": f"Step references unknown node: {node_ref}"
+                    })
+        
+        # ====== VALIDATION 4: LLM References in Agent Nodes ======
+        for node in nodes:
+            if node.get("type") in ["custom_agent_node", "orchestrator_node"]:
+                config = node.get("config", {})
+                if not config.get("llm"):
+                    warnings.append({
+                        "field": f"nodes.{node.get('rid')}",
+                        "message": f"Agent node '{node.get('name')}' has no LLM configured"
+                    })
+        
+        # ====== VALIDATION 5: Blueprint Service Validation ======
         if context.blueprint_service:
-            validation_result = context.blueprint_service.validate_draft(
-                draft_dict=blueprint,
-                timeout_seconds=args.timeout_seconds,
-            )
-            # Collect errors/warnings from service...
+            try:
+                validation_result = context.blueprint_service.validate_draft(
+                    draft_dict=blueprint,
+                    timeout_seconds=args.timeout_seconds,
+                )
+                
+                if not validation_result.is_valid:
+                    for rid, elem_result in validation_result.element_results.items():
+                        if not elem_result.is_valid:
+                            for msg in elem_result.messages:
+                                if msg.severity.value == "error":
+                                    errors.append({"field": rid, "message": msg.message})
+                                elif msg.severity.value == "warning":
+                                    warnings.append({"field": rid, "message": msg.message})
+            except Exception as e:
+                warnings.append({
+                    "field": "validation",
+                    "message": f"Full validation unavailable: {str(e)}"
+                })
+        
+        # ====== SUGGESTIONS ======
+        if warnings:
+            suggestions.append("Consider addressing the warnings for a more robust workflow")
+        if len(nodes) > 5:
+            suggestions.append("Large workflow detected. Consider breaking into smaller sub-workflows")
         
         is_valid = len(errors) == 0
         
+        # Update context state
         context.state.validation_result = ValidationResult(
             is_valid=is_valid,
             validation_errors=errors,
             validation_warnings=warnings,
+            suggestions=suggestions,
         )
         
-        return {"success": True, "is_valid": is_valid, "errors": errors}
+        return {
+            "success": True,
+            "is_valid": is_valid,
+            "errors": errors,
+            "warnings": warnings,
+            "suggestions": suggestions,
+            "message": "Validation passed" if is_valid else f"Validation failed with {len(errors)} error(s)"
+        }
 ```
+
+**Validation Summary Table:**
+
+| # | Validation | Type | Blocking? |
+|---|-----------|------|-----------|
+| 1 | Workflow name present | Basic | ✅ Yes (error) |
+| 2 | Workflow plan present | Basic | ✅ Yes (error) |
+| 3 | `user_question_node` exists | Structure | ✅ Yes (error) |
+| 4 | `final_answer_node` exists | Structure | ✅ Yes (error) |
+| 5 | Plan steps reference valid nodes | References | ✅ Yes (error) |
+| 6 | Agent nodes have LLM configured | Config | ⚠️ No (warning) |
+| 7 | Blueprint service deep validation | Service | Mixed |
+
+**Reference Handling:**
+- `$ref:` prefixes indicate external resources (LLMs, providers) resolved at runtime
+- Only inline node references are validated against `node_rids`
+
+---
+
+### Shared Validation Architecture
+
+The builder integrates with the platform's existing validation infrastructure, ensuring consistent validation whether workflows are created manually or via the builder.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    VALIDATION ARCHITECTURE                                   │
+│                                                                              │
+│  ┌─────────────────────────────┐    ┌─────────────────────────────────────┐ │
+│  │   MANUAL WORKFLOW CREATION   │    │   BUILDER WORKFLOW CREATION         │ │
+│  │                              │    │                                     │ │
+│  │   UI → /draft.validate API   │    │   BuilderNode → ValidateBlueprintTool│ │
+│  │             │                │    │             │                       │ │
+│  │             ▼                │    │   ┌─────────┴──────────┐            │ │
+│  │                              │    │   │ Builder-specific    │            │ │
+│  │                              │    │   │ validations:        │            │ │
+│  │                              │    │   │ • name required     │            │ │
+│  │                              │    │   │ • plan required     │            │ │
+│  │                              │    │   │ • required nodes    │            │ │
+│  │                              │    │   │ • plan references   │            │ │
+│  │                              │    │   │ • LLM warnings      │            │ │
+│  │                              │    │   └─────────┬──────────┘            │ │
+│  │                              │    │             │                       │ │
+│  │                              │    │             ▼                       │ │
+│  └─────────────┬────────────────┘    └─────────────┬───────────────────────┘ │
+│                │                                   │                         │
+│                └───────────────┬───────────────────┘                         │
+│                                ▼                                             │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │              SHARED: BlueprintService.validate_draft()                   │ │
+│  │                                                                          │ │
+│  │   1. resolve_draft_dict() - Resolve $ref: references                     │ │
+│  │   2. _config_collector.collect() - Collect configs from spec             │ │
+│  │   3. _validation_service.validate_ordered() - Validate each element      │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                │                                             │
+│                                ▼                                             │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │              SHARED: ElementValidationService                            │ │
+│  │                                                                          │ │
+│  │   For each element in blueprint:                                         │ │
+│  │   1. Look up validator from ElementRegistry                              │ │
+│  │   2. Call validator.validate(config, context)                            │ │
+│  │   3. Collect messages (errors, warnings, info)                           │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                │                                             │
+│                                ▼                                             │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │              ELEMENT-SPECIFIC VALIDATORS                                 │ │
+│  │                                                                          │ │
+│  │   elements/llms/openai/validator.py          → OpenAILLMValidator        │ │
+│  │   elements/llms/google_genai/validator.py    → GoogleGenAIValidator      │ │
+│  │   elements/nodes/custom_agent/validator.py   → CustomAgentValidator      │ │
+│  │   elements/nodes/a2a_agent/validator.py      → A2AAgentValidator         │ │
+│  │   elements/nodes/orchestrator/validator.py   → OrchestratorValidator     │ │
+│  │   elements/providers/mcp_server_client/...   → MCPServerValidator        │ │
+│  │   ... (each element type has its own validator)                          │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Classes:**
+
+| Class | Location | Purpose |
+|-------|----------|---------|
+| `BlueprintService` | `blueprints/service.py` | Orchestrates blueprint validation |
+| `ElementValidationService` | `validation/service.py` | Validates individual elements |
+| `ElementValidator` (ABC) | `elements/common/validator.py` | Interface for element validators |
+| `BaseElementValidator` | `elements/common/validator.py` | Base class with utilities |
+| `ValidationContext` | `elements/common/validator.py` | Context passed to validators |
+| `BlueprintValidationResult` | `validation/models.py` | Blueprint-level result |
+| `ElementValidationResult` | `elements/common/validator.py` | Element-level result |
+
+**Element Validators Check:**
+
+| Element Type | Validator Checks |
+|-------------|------------------|
+| LLMs (OpenAI, Google) | API key validity, endpoint reachability |
+| Custom Agent | LLM dependency valid, provider dependency valid |
+| A2A Agent | Base URL reachable, agent card accessible |
+| MCP Server | Server process health, tool availability |
+| Orchestrator | LLM dependency valid |
+
+**Why Two Layers?**
+
+1. **Builder Layer (Validations 1-6)**: Catches structural issues specific to builder-generated blueprints before expensive service calls
+2. **Service Layer (Validation 7)**: Runs element-specific validators that may involve network calls (LLM connectivity, MCP health)
+
+This ensures the builder fails fast on obvious issues while still benefiting from the full validation system.
 
 ---
 
@@ -1070,7 +1304,7 @@ class AgentBuilder:
     def build_agents(
         self,
         existing_agents: List[Dict],           # Custom agents
-        existing_a2a_agents: List[Dict],       # A2A agents (NEW)
+        existing_a2a_agents: List[Dict],       # A2A agents
         matched_providers: List[Dict],
         required_capabilities: Set[str]
     ) -> AgentBuildResult:
@@ -1901,6 +2135,280 @@ For request: "Create a workflow to search Jira and Confluence"
 - New workflow blueprint saved to database
 - New agents created in user's inventory (if needed)
 - `blueprint_id` returned for immediate use
+
+---
+
+## Workflow Creation Rules
+
+This section documents the **rules and decision logic** the builder follows when creating workflows.
+
+### Rule 1: Agent Selection Priority
+
+When building a workflow, agents are selected in this **strict priority order**:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    AGENT SELECTION PRIORITY                          │
+│                                                                      │
+│   Priority 1: Reuse A2A Agents                                       │
+│   └─► Match skills from agent_card to required capabilities          │
+│   └─► Uses SkillMatcher for flexible text matching                   │
+│                                                                      │
+│   Priority 2: Reuse Custom Agents                                    │
+│   └─► Match agent's provider to required capabilities                │
+│   └─► Agent only gets capabilities its provider actually matches     │
+│                                                                      │
+│   Priority 3: Create New Agent (with Provider)                       │
+│   └─► For capabilities with matching providers but no existing agent │
+│   └─► Creates new agent resource in user's inventory                 │
+│                                                                      │
+│   Priority 4: Create LLM-Only Agent                                  │
+│   └─► For capabilities with no matching provider                     │
+│   └─► Agent uses LLM reasoning only (no external tools)              │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Why this order?**
+- A2A agents are specialized remote agents - prefer delegating to them
+- Custom agents are already configured by the user - reuse before creating
+- Creating new agents adds to inventory - only when necessary
+- LLM-only agents are the fallback when no tools are available
+
+### Rule 2: Orchestrator Decision
+
+The builder decides whether to add an orchestrator based on the **final agent count**:
+
+```python
+# Orchestrator is added when:
+needs_orchestrator = (
+    analysis.needs_orchestrator or    # LLM explicitly requested it
+    final_agent_count > 1             # More than 1 agent in workflow
+)
+```
+
+| Scenario | Agent Count | Orchestrator? |
+|----------|-------------|---------------|
+| "Create a Jira workflow" | 1 | ❌ No |
+| "Create a Jira and Confluence workflow" | 2 | ✅ Yes |
+| "Create a sales, marketing, and support workflow" | 3 | ✅ Yes |
+
+**Important**: The orchestrator decision is made **AFTER** building agents, not before. This ensures:
+- Single-agent workflows don't get unnecessary orchestrators
+- The decision is based on actual agents selected, not search results
+
+### Rule 3: Capability Matching
+
+#### For Providers:
+```python
+# STRICT matching: capability must appear in provider name
+if capability.lower() in provider.name.lower():
+    provider.matched_capabilities.append(capability)
+```
+
+| Capability | Provider Name | Match? |
+|------------|---------------|--------|
+| "jira" | "Jira MCP" | ✅ Yes |
+| "jira" | "Confluence MCP" | ❌ No |
+| "sales" | "Salesforce Provider" | ✅ Yes |
+
+#### For Custom Agents:
+```python
+# Agent inherits ONLY its provider's matched capabilities
+agent.matched_capabilities = provider_caps_map[agent.provider_rid]
+```
+
+**Example**: If searching for `["jira", "sales"]`:
+- Jira Provider matches `["jira"]`
+- Jira Agent (with Jira Provider) gets `matched_capabilities: ["jira"]` only
+- NOT `["jira", "sales"]` - prevents false capability claims
+
+#### For A2A Agents:
+```python
+# Flexible matching using SkillMatcher across all metadata
+searchable_text = " ".join([
+    agent.name,
+    agent_card.name,
+    agent_card.description,
+    *agent_card.skills,
+    *agent_card.skill_descriptions,
+    *agent_card.tags
+])
+
+matched = SkillMatcher.match_any(capabilities, searchable_text)
+```
+
+**SkillMatcher strategies**:
+1. Direct substring match: `"chart"` in `"create_chart"` ✅
+2. Compound word split: `"chart_generator"` → check `"chart"`, `"generator"`
+3. Root word match: `"charting"` → `"chart"` (strips suffix)
+
+### Rule 4: Blueprint Structure
+
+Every generated workflow follows this structure:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    MANDATORY NODES (Always Present)                  │
+│                                                                      │
+│   • user_question_node  ─── Entry point for user input              │
+│   • final_answer_node   ─── Exit point for workflow response        │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CONDITIONAL NODES                                 │
+│                                                                      │
+│   • orchestrator_node   ─── Added when 2+ agents                    │
+│   • router_direct       ─── Condition for orchestrator branching    │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    AGENT NODES (1 or more)                           │
+│                                                                      │
+│   • custom_agent_node   ─── Local agent with LLM + optional provider │
+│   • a2a_agent_node      ─── Remote agent via A2A protocol           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Rule 5: Execution Plan Patterns
+
+#### Single Agent (No Orchestrator):
+```
+user_input → agent → finalize
+```
+
+```json
+[
+  { "uid": "user_input", "node": "user_question_node_rid" },
+  { "uid": "agent", "node": "agent_rid" },
+  { "uid": "finalize", "node": "final_answer_node_rid" }
+]
+```
+
+#### Multiple Agents (With Orchestrator):
+```
+user_input → orchestrator ←→ [agents] → finalize
+```
+
+```json
+[
+  { "uid": "user_input", "node": "user_question_node_rid" },
+  { 
+    "uid": "orchestrator",
+    "after": ["user_input", "agent_0", "agent_1"],
+    "node": "orchestrator_node_rid",
+    "exit_condition": "router_direct_rid",
+    "branches": {
+      "agent_0": "agent_0",
+      "agent_1": "agent_1",
+      "finalize": "finalize"
+    }
+  },
+  { "uid": "agent_0", "node": "agent_0_rid" },
+  { "uid": "agent_1", "node": "agent_1_rid" },
+  { "uid": "finalize", "node": "final_answer_node_rid" }
+]
+```
+
+### Rule 6: Agent Node Configuration
+
+#### Custom Agent Node:
+```json
+{
+  "rid": "agent_rid",
+  "name": "Jira Agent",
+  "type": "custom_agent_node",
+  "config": {
+    "type": "custom_agent_node",
+    "llm": "$ref:llm_rid",              // REQUIRED
+    "system_message": "You are...",      // REQUIRED
+    "provider": "$ref:provider_rid"      // Optional (MCP tools)
+  }
+}
+```
+
+#### A2A Agent Node:
+```json
+{
+  "rid": "a2a_agent_rid",
+  "name": "Analytics Agent",
+  "type": "a2a_agent_node",
+  "config": {
+    "type": "a2a_agent_node",
+    "base_url": "http://analytics:8080",  // REQUIRED
+    "bearer_token": "secret"              // Optional
+  }
+}
+```
+
+### Rule 7: Capability Coverage
+
+The builder ensures **all required capabilities are covered**:
+
+```python
+# After all agent selection steps:
+missing_caps = required_capabilities - used_capabilities
+
+# For any still-missing capability:
+for cap in missing_caps:
+    create_llm_only_agent(f"{cap.title()} Agent")
+```
+
+**Example**: Request for `["jira", "sales", "reporting"]`
+1. Jira Agent reused → covers `"jira"`
+2. No sales provider → creates "Sales Agent" (LLM-only)
+3. No reporting provider → creates "Reporting Agent" (LLM-only)
+
+### Decision Flow Summary
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         BUILDER DECISION FLOW                             │
+└──────────────────────────────────────────────────────────────────────────┘
+
+User Request: "Create a workflow for X and Y"
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 1: ANALYZE                                                         │
+│ ├─► Extract capabilities: ["x", "y"]                                     │
+│ ├─► Determine needs_orchestrator: True (2 capabilities)                  │
+│ └─► Suggested agent count: 2                                             │
+└─────────────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 2: SEARCH                                                          │
+│ ├─► Find LLMs (REQUIRED - fail if none)                                  │
+│ ├─► Find Providers matching "x" or "y"                                   │
+│ ├─► Find Custom Agents with matching providers                           │
+│ └─► Find A2A Agents with matching skills                                 │
+└─────────────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 3: DESIGN                                                          │
+│                                                                          │
+│ Step 1: Build agents (priority order)                                    │
+│ ├─► A2A agents matching capabilities → add to workflow                   │
+│ ├─► Custom agents matching capabilities → add to workflow                │
+│ ├─► Providers without agents → create new agent                          │
+│ └─► Missing capabilities → create LLM-only agent                         │
+│                                                                          │
+│ Step 2: Determine orchestrator (AFTER building agents)                   │
+│ └─► final_agent_count > 1 ? add orchestrator : no orchestrator           │
+│                                                                          │
+│ Step 3: Build execution plan                                             │
+│ └─► Single agent pattern OR orchestrated pattern                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ PHASE 4: VALIDATE & SAVE                                                 │
+│ ├─► Validate blueprint structure                                         │
+│ ├─► Check all node references                                            │
+│ └─► Save to database → return blueprint_id                               │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
