@@ -133,4 +133,4 @@ jobs:
           tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/test/${{ matrix.image_name }}:${{ env.VERSION }}
           containerfiles: |
             ${{ matrix.dockerfile }}
-          context: ${{ matrix.context }}
+          context: . ####${{ matrix.context }}
