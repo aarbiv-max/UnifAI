@@ -123,14 +123,17 @@ jobs:
           registry: ${{ vars.IMAGE_REGISTRY_URL }} 
           username: ${{ vars.IMAGE_REGISTRY_USERNAME }} 
           password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}      
-          
-        # Use Buildah to build the image
-      - name: Build ${{ matrix.image_name }} Image
-        id: build-image
-        uses: redhat-actions/buildah-build@v2
-        with:
-          image: ${{ matrix.image_name }}
-          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/test/${{ matrix.image_name }}:${{ env.VERSION }}
-          containerfiles: |
-            ${{ matrix.dockerfile }}
-          context: ${{ matrix.context }}
+      
+      - name: Print VERSION
+        run: |
+          pwd
+    #     # Use Buildah to build the image
+    #   - name: Build ${{ matrix.image_name }} Image
+    #     id: build-image
+    #     uses: redhat-actions/buildah-build@v2
+    #     with:
+    #       image: ${{ matrix.image_name }}
+    #       tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/test/${{ matrix.image_name }}:${{ env.VERSION }}
+    #       containerfiles: |
+    #         ${{ matrix.dockerfile }}
+    #       context: ${{ matrix.context }}
