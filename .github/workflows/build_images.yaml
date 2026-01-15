@@ -83,16 +83,16 @@ jobs:
       # Use a matrix to define your different image locations
       matrix:
         include:
-          - image_name: sso-backend
+          - image_name: sso-backend:github
             context: shared-resources/sso-backend
             dockerfile: shared-resources/sso-backend/Dockerfile
-          - image_name: ui
+          - image_name: ui:github
             context: ui
             dockerfile: ui/deployment/Dockerfile
-        #   - image_name: dataflow-backend
+        #   - image_name: dataflow-backend:github
         #     context: ./backend
         #     dockerfile: ./backend/Dockerfile
-        #   - image_name: multiagent-backend
+        #   - image_name: multiagent-backend:github
         #     context: ./multi-agent
         #     dockerfile: ./multi-agent/Dockerfile
     env:
@@ -134,7 +134,7 @@ jobs:
         uses: redhat-actions/buildah-build@v2
         with:
           image: ${{ matrix.image_name }}
-          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/temp/${{ matrix.image_name }}:${{ env.VERSION }}
+          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/${{ matrix.image_name }}
           containerfiles: |
             ${{ matrix.dockerfile }}
           context: . ####${{ matrix.context }}
@@ -144,7 +144,7 @@ jobs:
         uses: redhat-actions/push-to-registry@v2
         with:
           image: ${{ matrix.image_name }}
-          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/temp/${{ matrix.image_name }}:${{ env.VERSION }}
+          tags: ${{ vars.IMAGE_REGISTRY_URL }}/unifai/${{ matrix.image_name }}
           registry: ${{ vars.IMAGE_REGISTRY_URL }}
           username: ${{ vars.IMAGE_REGISTRY_USERNAME }}
           password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
