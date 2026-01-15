@@ -3,9 +3,11 @@ from global_utils.helpers.apiargs import from_query
 from webargs import fields, validate
 from typing import Dict, Any, List
 from ..decorators import require_admin_access
-from statistics.constants import VALID_TIME_RANGES
 
 statistics_bp = Blueprint("statistics", __name__)
+
+# Valid time range values for analytics endpoint
+VALID_TIME_RANGES = ["today", "7days", "30days", "all"]
 
 
 @statistics_bp.route("/stats.get", methods=["GET"])

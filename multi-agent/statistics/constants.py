@@ -11,9 +11,6 @@ from typing import Optional
 # TIME RANGE MAPPING CONSTANTS
 # =============================================================================
 
-# All valid time_range string values
-VALID_TIME_RANGES = ["today", "7days", "30days", "all"]
-
 # Mapping from number of days to time_range string values
 DAYS_TO_TIME_RANGE: dict[int, str] = {
     1: "today",
