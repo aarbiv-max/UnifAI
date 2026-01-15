@@ -89,12 +89,12 @@ jobs:
           - image_name: ui:github
             context: ui
             dockerfile: ui/deployment/Dockerfile
-        #   - image_name: dataflow-backend:github
-        #     context: ./backend
-        #     dockerfile: ./backend/Dockerfile
-        #   - image_name: multiagent-backend:github
-        #     context: ./multi-agent
-        #     dockerfile: ./multi-agent/Dockerfile
+          - image_name: dataflow-backend:github
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+          - image_name: multiagent-backend:github
+            context: ./multi-agent
+            dockerfile: ./multi-agent/Dockerfile
     env:
       VERSION: 'test' #${{ github.sha }}
     steps:
