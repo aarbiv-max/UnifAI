@@ -3,7 +3,6 @@ Decorators for Flask endpoints.
 """
 from functools import wraps
 from flask import jsonify, request, current_app
-from config.app_config import AppConfig
 
 
 def require_admin_access(f):
@@ -25,8 +24,8 @@ def require_admin_access(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
-            config = AppConfig.get_instance()
-            admin_allowed_users = config.get("admin_allowed_users", [])
+            # Access admin_allowed_users from Flask's config (set during app initialization)
+            admin_allowed_users = current_app.config.get("admin_allowed_users", [])
             
             # If admin_allowed_users is empty, deny all access (Analytics is disabled)
             if not admin_allowed_users:
