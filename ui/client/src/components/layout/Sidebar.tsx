@@ -202,14 +202,6 @@ export default function Sidebar() {
             isCollapsed={isCollapsed}
           />
           <NavItem 
-            icon={<FaCogs className="sidebar-icon" />} 
-            label="Configuration" 
-            to="/configuration"
-            isActive={location === '/configuration'}
-            status={null}
-            isCollapsed={isCollapsed}
-          />
-          <NavItem 
             icon={<FaBook className="sidebar-icon" />} 
             label="How-To Guides" 
             to="/guides"
@@ -217,15 +209,24 @@ export default function Sidebar() {
             status={null}
             isCollapsed={isCollapsed}
           />
+          <NavItem 
+            icon={<FaCogs className="sidebar-icon" />} 
+            label="Configuration" 
+            to="/configuration"
+            isActive={location === '/configuration'}
+            status={null}
+            isCollapsed={isCollapsed}
+            disabled={true}
+          />
           {user?.is_admin && (
-            <NavItem 
-              icon={<FaChartLine className="sidebar-icon" />} 
-              label="Analytics" 
-              to="/analytics"
-              isActive={location === '/analytics'}
-              status={null}
-              isCollapsed={isCollapsed}
-            />
+          <NavItem 
+            icon={<FaChartLine className="sidebar-icon" />} 
+            label="Analytics" 
+            to="/analytics"
+            isActive={location === '/analytics'}
+            status={null}
+            isCollapsed={isCollapsed}
+          />
           )}
           <NavItem 
             icon={<FaUserShield className="sidebar-icon" />} 

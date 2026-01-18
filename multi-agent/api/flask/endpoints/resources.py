@@ -50,10 +50,10 @@ def get_resource(resource_id):
     "user_id": fields.Str(data_key="userId", required=True),
     "category": fields.Str(required=False),
     "type": fields.Str(required=False),
-    "limit": fields.Int(required=False, load_default=50),
+    "limit": fields.Int(required=False, load_default=1000),
     "offset": fields.Int(required=False, load_default=0),
 })
-def list_resources(user_id, category=None, type=None, limit=50, offset=0):
+def list_resources(user_id, category=None, type=None, limit=1000, offset=0):
     """
     Get resources with flexible filtering and pagination:
     - Only user_id: returns all resources for that user
@@ -151,6 +151,54 @@ def validate_resource(resource_id, timeout_seconds):
         return jsonify(result.to_dict()), 200
     except KeyError as e:
         return jsonify({"error": f"Resource not found: {e}"}), 404
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@resources_bp.route("/resources.validate", methods=["POST"])
+@from_body({
+    "resource_ids": fields.List(fields.Str(), data_key="resourceIds", required=True),
+    "timeout_seconds": fields.Float(data_key="timeoutSeconds", load_default=10.0),
+    "max_workers": fields.Int(data_key="maxWorkers", load_default=10),
+})
+def validate_resources(resource_ids, timeout_seconds, max_workers):
+    """
+    Validate multiple resources in parallel.
+    
+    Request:
+        {
+            "resourceIds": ["rid1", "rid2", "rid3"],
+            "timeoutSeconds": 10.0,
+            "maxWorkers": 10
+        }
+        
+    Response:
+        [
+            { "element_rid": "rid1", "is_valid": true, ... },
+            { "element_rid": "rid2", "is_valid": false, ... },
+            { "element_rid": "rid3", "is_valid": true, ... }
+        ]
+        
+    Results are returned in the same order as the input resourceIds.
+    """
+    svc = current_app.container.resources_service
+    
+    # Validate input
+    if not resource_ids:
+        return jsonify([]), 200
+    
+    # Cap max_workers to prevent resource exhaustion
+    max_workers = min(max_workers, 20)
+    
+    try:
+        results = svc.validate_resources(
+            rids=resource_ids,
+            timeout_seconds=timeout_seconds,
+            max_workers=max_workers,
+        )
+        return jsonify([r.to_dict() for r in results]), 200
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 500
     except Exception as e:
