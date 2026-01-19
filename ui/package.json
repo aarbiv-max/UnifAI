@@ -6,7 +6,10 @@
   "scripts": {
     "start": "NODE_ENV=development vite serve",
     "build": "NODE_ENV=production vite build",
-    "preview": "NODE_ENV=production vite preview"
+    "preview": "NODE_ENV=production vite preview",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:unit:ui": "vitest --ui"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -77,6 +80,10 @@
     "zustand": "^4.5.4"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@vitest/ui": "^2.1.9",
     "@replit/vite-plugin-cartographer": "^0.0.11",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
@@ -84,11 +91,14 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
+    "happy-dom": "^15.11.7",
+    "msw": "^2.6.5",
     "postcss": "^8.4.47",
     "rollup-plugin-visualizer": "^6.0.3",
     "tailwindcss": "^3.4.17",
     "typescript": "5.6.3",
-    "vite": "^5.4.14"
+    "vite": "^5.4.14",
+    "vitest": "^2.1.9"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
