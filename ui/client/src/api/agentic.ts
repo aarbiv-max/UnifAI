@@ -1,5 +1,6 @@
 import axios from '../http/axiosAgentConfig';
 import { normalizeCategory } from '@/constants/resources';
+import { StopSessionResult } from '@/types/session';
 
 export interface Session {
   session_id: string;
@@ -110,4 +111,16 @@ export async function fetchAgenticStats(userId?: string): Promise<AgenticStats> 
   };
 }
 
-
+/**
+ * Stop a running workflow session.
+ * 
+ * Sends a stop signal to the worker executing the session.
+ * The session will gracefully stop and set status to STOPPED.
+ * 
+ * @param sessionId - The session ID to stop
+ * @returns StopSessionResult indicating success/failure and details
+ */
+export async function stopSession(sessionId: string): Promise<StopSessionResult> {
+  const response = await axios.post('/sessions/session.stop', { sessionId });
+  return response.data;
+}

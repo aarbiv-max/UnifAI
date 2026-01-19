@@ -5,6 +5,7 @@ from blueprints.service import BlueprintService
 from blueprints.resolver import BlueprintResolver
 from session.workflow_session_factory import WorkflowSessionFactory
 from session.repository.mongo_session_repository import MongoSessionRepository
+from session.repository.mongo_stop_signal_repository import MongoStopSignalRepository
 from session.user_session_manager import UserSessionManager
 from session.session_executor import SessionExecutor
 from session.service import SessionService
@@ -103,6 +104,13 @@ class AppContainer(metaclass=SingletonMeta):
             db_name=cfg.mongo_db,
             collection_name=cfg.session_coll
         )
+        # Stop signal repository for cross-worker stop signaling
+        self.stop_signal_repo = MongoStopSignalRepository(
+            mongodb_port=cfg.mongodb_port,
+            mongodb_ip=cfg.mongodb_ip,
+            db_name=cfg.mongo_db,
+            collection_name=cfg.stop_signals_coll
+        )
         self.session_manager = UserSessionManager(
             repository=self.session_repo,
             session_factory=self.session_factory,
@@ -110,12 +118,14 @@ class AppContainer(metaclass=SingletonMeta):
         )
         self.session_executor = SessionExecutor(
             session_manager=self.session_manager,
-            repository=self.session_repo
+            repository=self.session_repo,
+            stop_signal_repo=self.stop_signal_repo
         )
 
         self.session_service = SessionService(
             manager=self.session_manager,
-            executor=self.session_executor
+            executor=self.session_executor,
+            stop_signal_repo=self.stop_signal_repo
         )
 
         # sharing service

@@ -1,10 +1,16 @@
 from typing import Any, Dict, Iterator, Optional, Union
 from session.user_session_manager import UserSessionManager
 from session.repository.repository import SessionRepository
+from session.repository.stop_signal_repository import StopSignalRepository
 from session.workflow_session import WorkflowSession
 from graph.state.graph_state import GraphState
 from core.context import set_current_context
 from core.channels import SessionChannel
+from core.stop_signal_context import (
+    set_stop_signal_checker,
+    clear_stop_signal_checker,
+    StoppedExecutionError
+)
 from engine.channels import LangGraphEmitter
 from session.channels import LocalSessionChannel
 from .status import SessionStatus
@@ -22,10 +28,12 @@ class SessionExecutor:
     def __init__(
             self,
             session_manager: UserSessionManager,
-            repository: SessionRepository
+            repository: SessionRepository,
+            stop_signal_repo: Optional[StopSignalRepository] = None
     ):
         self._sessions = session_manager
         self._repo = repository
+        self._stop_signal_repo = stop_signal_repo
 
     def _pre_run(
             self,
@@ -114,6 +122,66 @@ class SessionExecutor:
         session.update_status(SessionStatus.FAILED)
         self._repo.save(session)
 
+    def _stopped_run(
+            self,
+            session: WorkflowSession,
+            streaming: bool = False,
+            channel: Optional[SessionChannel] = None
+    ) -> None:
+        """
+        Handle user-initiated stop of a running session.
+        
+        Similar to _post_run but:
+        1) Sets status to STOPPED instead of COMPLETED
+        2) Clears the stop signal to prevent affecting future runs
+        3) Preserves current graph_state for potential resumption
+        
+        Steps:
+        1) if streaming, cleanup channel from nodes and close channel
+        2) mark context finished
+        3) update status to STOPPED
+        4) persist current state
+        5) clear stop signal
+        """
+        if streaming:
+            session.cleanup_streaming()
+            if channel:
+                channel.close()
+        
+        session.run_context = session.run_context.mark_finished()
+        session.update_status(SessionStatus.STOPPED)
+        self._repo.save(session)
+        
+        # Clear the stop signal to prevent it from affecting future executions
+        if self._stop_signal_repo:
+            self._stop_signal_repo.clear_signal(session.get_run_id())
+
+    def _create_stopped_event(self, session: WorkflowSession) -> tuple:
+        """
+        Create a stopped event to send to the frontend via stream.
+        
+        Returns a tuple in the format expected by the streaming protocol:
+        ("custom", {event_data})
+        """
+        return ("custom", {
+            "type": "workflow_stopped",
+            "node": "__system__",
+            "display_name": "System",
+            "session_id": session.get_run_id(),
+            "message": "Workflow stopped by user",
+            "state": session.graph_state.get_streamable_state() if session.graph_state else {}
+        })
+
+    def _check_stop_signal(self, session_id: str) -> bool:
+        """
+        Check if a stop signal has been set for this session.
+        
+        Returns False if no stop signal repository is configured.
+        """
+        if self._stop_signal_repo is None:
+            return False
+        return self._stop_signal_repo.check_signal(session_id)
+
     def run(
             self,
             session: WorkflowSession,
@@ -144,25 +212,55 @@ class SessionExecutor:
     ) -> Iterator[Any]:
         """
         Stream execution chunks, then persist at the end.
+        
+        Checks for stop signals on each iteration. If a stop signal is detected,
+        emits a stopped event and gracefully exits the generator.
+        
+        Also sets up a stop signal context that can be checked at deeper levels
+        (AgentIterator, tool execution, etc.) for more responsive stopping.
         """
         channel = self._pre_run(session, inputs, scope, logged_in_user, streaming=True)
+        session_id = session.get_run_id()
+
+        # Set up stop signal checker in context for nested components
+        # This allows AgentIterator and other components to check for stop signals
+        def check_stop() -> bool:
+            return self._check_stop_signal(session_id)
+        
+        set_stop_signal_checker(check_stop)
 
         try:
             for chunk in session.executable_graph.stream(
                     session.graph_state,
                     **stream_kwargs
             ):
+                # Check for stop signal before yielding each chunk
+                if self._check_stop_signal(session_id):
+                    # Emit stopped event so frontend knows what happened
+                    yield self._create_stopped_event(session)
+                    # Handle cleanup with STOPPED status
+                    self._stopped_run(session, streaming=True, channel=channel)
+                    # Exit generator gracefully
+                    return
+                
                 yield chunk
                 try:
                     # will work only if custom is enabled in stream_kwargs
-                    session.graph_state = chunk[1].get("state") if isinstance(chunk, (list, tuple)) and isinstance(
-                        chunk[1], dict) else None
+                    # Only update graph_state if we actually get a new state (don't overwrite with None)
+                    if isinstance(chunk, (list, tuple)) and isinstance(chunk[1], dict):
+                        new_state = chunk[1].get("state")
+                        if new_state is not None:
+                            session.graph_state = new_state
                 except Exception as e:
                     raise e
             
             # Generator completed normally - finalize
             self._post_run(session, session.graph_state, streaming=True, channel=channel)
 
+        except StoppedExecutionError:
+            # Execution was stopped from within (e.g., AgentIterator)
+            yield self._create_stopped_event(session)
+            self._stopped_run(session, streaming=True, channel=channel)
         except GeneratorExit:
             # Consumer stopped iterating early - still need to cleanup
             self._post_run(session, session.graph_state, streaming=True, channel=channel)
@@ -170,6 +268,9 @@ class SessionExecutor:
         except Exception as e:
             self._error_run(session, e, streaming=True, channel=channel)
             raise e
+        finally:
+            # Always clear the stop signal checker
+            clear_stop_signal_checker()
 
     def _create_streaming_channel(self, session: WorkflowSession) -> SessionChannel:
         """

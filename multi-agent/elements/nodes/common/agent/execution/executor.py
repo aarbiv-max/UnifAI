@@ -22,6 +22,7 @@ from elements.tools.common.execution.models import (
 from ..primitives import AgentAction, AgentObservation, ActionStatus
 from ..constants import ToolExecutionDefaults
 from global_utils.utils.async_bridge import get_async_bridge
+from core.stop_signal_context import should_stop, StoppedExecutionError
 
 
 class AgentActionExecutor:
@@ -88,9 +89,16 @@ class AgentActionExecutor:
             
         Returns:
             List of AgentObservations in same order as input actions
+            
+        Raises:
+            StoppedExecutionError: If stop signal is detected before execution
         """
         if not actions:
             return []
+        
+        # Check for stop signal before starting batch execution
+        if should_stop():
+            raise StoppedExecutionError("Tool batch execution stopped by user")
         
         with get_async_bridge() as bridge:
             result = bridge.run(self._execute_batch_async(actions))
@@ -99,6 +107,10 @@ class AgentActionExecutor:
     async def _execute_batch_async(self, actions: List[AgentAction]) -> List[AgentObservation]:
         """
         Internal async method for batch execution.
+        
+        Includes periodic stop signal checking during long-running tool execution.
+        If a stop signal is detected, returns immediately with stopped observations
+        for tools that haven't completed yet.
         
         Args:
             actions: List of actions to execute
@@ -144,11 +156,8 @@ class AgentActionExecutor:
                 ))
             
             if requests:
-                # Execute via ToolExecutorManager (uses configured execution mode)
-                batch_response = await self.tool_executor_manager.execute_requests_async(
-                    requests=requests
-                    # No mode specified - uses manager's configured execution_mode
-                )
+                # Execute via ToolExecutorManager with stop signal checking
+                batch_response = await self._execute_with_stop_check(requests, start_time)
                 
                 # Convert responses to observations for successful tools
                 for action in actions:
@@ -189,6 +198,64 @@ class AgentActionExecutor:
                 )
                 for action in actions
             ]
+    
+    async def _execute_with_stop_check(
+        self, 
+        requests: List[ToolExecutionRequest],
+        start_time: float,
+        check_interval: float = 1.0
+    ) -> BatchToolExecutionResponse:
+        """
+        Execute tool requests with periodic stop signal checking.
+        
+        Wraps the tool execution in a way that allows checking for stop signals
+        every `check_interval` seconds. If a stop signal is detected during
+        execution, raises StoppedExecutionError immediately.
+        
+        Note: The actual tool execution continues in the background but its
+        result is discarded. This is the only way to handle non-cooperative
+        tools in Python without using process-level isolation.
+        
+        Args:
+            requests: Tool execution requests
+            start_time: When execution started (for timing)
+            check_interval: How often to check for stop signal (seconds)
+            
+        Returns:
+            BatchToolExecutionResponse with tool results
+            
+        Raises:
+            StoppedExecutionError: If stop signal is detected during execution
+        """
+        # Create the execution task
+        execution_task = asyncio.create_task(
+            self.tool_executor_manager.execute_requests_async(requests=requests)
+        )
+        
+        try:
+            while not execution_task.done():
+                # Wait for either completion or timeout
+                try:
+                    # Wait with timeout for periodic stop checks
+                    await asyncio.wait_for(
+                        asyncio.shield(execution_task),
+                        timeout=check_interval
+                    )
+                    # Task completed - break out of loop
+                    break
+                except asyncio.TimeoutError:
+                    # Timeout - check for stop signal
+                    if should_stop():
+                        # Cancel the task (may not actually stop the underlying work)
+                        execution_task.cancel()
+                        raise StoppedExecutionError("Tool execution interrupted by stop signal")
+            
+            # Get the result
+            return await execution_task
+            
+        except asyncio.CancelledError:
+            # Re-raise as StoppedExecutionError
+            raise StoppedExecutionError("Tool execution cancelled")
     
     def _response_to_observation(
         self, 

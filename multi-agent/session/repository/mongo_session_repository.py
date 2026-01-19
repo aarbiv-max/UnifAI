@@ -39,13 +39,20 @@ class MongoSessionRepository(SessionRepository):
     def save(self, session: WorkflowSession) -> None:
         ctx = session.run_context
 
+        # Handle case where graph_state might be None (e.g., during early stop)
+        if session.graph_state is not None:
+            graph_state_data = session.graph_state.model_dump(mode="json")
+        else:
+            # Fallback to empty dict if graph_state is None
+            graph_state_data = {}
+
         doc = {
             "user_id": ctx.user_id,
             "run_id": ctx.run_id,
             "run_context": ctx.to_dict(),
             "metadata": session.metadata.to_dict(),
             "blueprint_id": session.blueprint_id,
-            "graph_state": session.graph_state.model_dump(mode="json"),
+            "graph_state": graph_state_data,
             "status": session.get_status(),
         }
 

@@ -1,10 +1,12 @@
-from typing import Any, Dict, Iterator, List, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 from .user_session_manager import UserSessionManager
 from .session_executor import SessionExecutor
 from .workflow_session import WorkflowSession
-from .dto import ChatHistoryItem
+from .dto import ChatHistoryItem, StopSessionResult
 from .models import SessionMeta
+from .status import SessionStatus
 from .exceptions import BlueprintNotFoundError
+from .repository.stop_signal_repository import StopSignalRepository
 from core.dto import GroupedCount
 
 
@@ -13,9 +15,15 @@ class SessionService:
     A service to handle session lifecycle: creation, execution, streaming, and listing.
     """
 
-    def __init__(self, manager: UserSessionManager, executor: SessionExecutor):
+    def __init__(
+        self, 
+        manager: UserSessionManager, 
+        executor: SessionExecutor,
+        stop_signal_repo: Optional[StopSignalRepository] = None
+    ):
         self._manager = manager
         self._executor = executor
+        self._stop_signal_repo = stop_signal_repo
 
     def create(self, user_id: str, blueprint_id: str, metadata: Dict[str, Any] | SessionMeta | None = None) -> WorkflowSession:
         """
@@ -161,3 +169,55 @@ class SessionService:
         Delete a session by run_id. Returns True if deleted, False if not found.
         """
         return self._manager.delete_session(run_id)
+
+    def stop_session(self, session_id: str) -> StopSessionResult:
+        """
+        Stop a running session by setting a stop signal.
+        
+        The stop signal will be picked up by the worker executing the session,
+        which will gracefully stop the execution and set status to STOPPED.
+        
+        Args:
+            session_id: The session to stop
+            
+        Returns:
+            StopSessionResult indicating success/failure and details
+        """
+        # Check if stop signal repository is configured
+        if self._stop_signal_repo is None:
+            return StopSessionResult(
+                session_id=session_id,
+                success=False,
+                previous_status="UNKNOWN",
+                message="Stop signal repository not configured"
+            )
+        
+        # Get current status
+        try:
+            current_status = self.get_status(session_id)
+        except KeyError:
+            return StopSessionResult(
+                session_id=session_id,
+                success=False,
+                previous_status="NOT_FOUND",
+                message=f"Session not found: {session_id}"
+            )
+        
+        # Validate session is running
+        if current_status != SessionStatus.RUNNING.name:
+            return StopSessionResult(
+                session_id=session_id,
+                success=False,
+                previous_status=current_status,
+                message=f"Session is not running (status: {current_status})"
+            )
+        
+        # Set stop signal
+        self._stop_signal_repo.set_signal(session_id)
+        
+        return StopSessionResult(
+            session_id=session_id,
+            success=True,
+            previous_status=current_status,
+            message="Stop signal sent. Session will stop shortly."
+        )

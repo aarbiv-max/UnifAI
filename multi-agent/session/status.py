@@ -6,3 +6,4 @@ class SessionStatus(Enum):
     RUNNING = auto()
     COMPLETED = auto()
     FAILED = auto()
+    STOPPED = auto()  # User-initiated stop

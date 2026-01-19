@@ -34,6 +34,7 @@ from elements.nodes.common.agent.strategies.plan_execute import PlanAndExecuteSt
 from elements.nodes.common.agent.execution import (
     AgentIterator, AgentActionExecutor, ExecutionMode, ExecutionHandlerFactory
 )
+from core.stop_signal_context import StoppedExecutionError
 from elements.nodes.common.agent.constants import (
     EarlyStoppingPolicy, ExecutionDefaults, StrategyType, ErrorMessages
 )
@@ -392,6 +393,11 @@ class AgentCapableMixin(Generic[T]):
             if result["output"] is None and not result["error"]:
                 result["output"] = "Agent completed without producing output"
                 result["success"] = False
+        
+        except StoppedExecutionError as e:
+            # User initiated stop - propagate up to SessionExecutor
+            # which will handle the stopped state properly
+            raise
                 
         except Exception as e:
             result["error"] = f"Unexpected error: {e}"
@@ -509,6 +515,10 @@ class AgentCapableMixin(Generic[T]):
                     
                     if config.early_stopping == "first_error":
                         break
+        
+        except StoppedExecutionError:
+            # User initiated stop - propagate up to SessionExecutor
+            raise
                         
         except Exception as e:
             yield {

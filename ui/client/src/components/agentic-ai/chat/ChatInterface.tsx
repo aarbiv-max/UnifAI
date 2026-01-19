@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, ChevronLeft, ChevronRight, Loader2, Sparkles, Info } from "lucide-react";
+import { Send, Trash2, ChevronLeft, ChevronRight, Loader2, Sparkles, Info, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
 import WorkflowStatusBanner, { WorkflowBannerMessages } from '@/components/shared/WorkflowStatusBanner';
+import { stopSession } from '@/api/agentic';
 
 
 // Backend message format
@@ -59,6 +60,7 @@ export default function ChatInterface({
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<
     string | null
   >(null);
@@ -535,6 +537,41 @@ export default function ChatInterface({
     }
   };
 
+  /**
+   * Handle stop workflow button click.
+   * Sends a stop signal to the backend which will gracefully stop the running workflow.
+   */
+  const handleStopWorkflow = async () => {
+    if (!runId || isStopping) return;
+
+    setIsStopping(true);
+    try {
+      const result = await stopSession(runId);
+      
+      if (result.success) {
+        toast({
+          title: "Stopping Workflow",
+          description: "Stop signal sent. The workflow will stop shortly.",
+        });
+      } else {
+        toast({
+          title: "Cannot Stop Workflow",
+          description: result.message || "Failed to stop the workflow.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error stopping workflow:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send stop signal. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsStopping(false);
+    }
+  };
+
   const clearChat = () => {
     setMessages([
       {
@@ -839,17 +876,33 @@ export default function ChatInterface({
               rows={3}
               disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
             />
-            <UmamiTrack 
-              event={UmamiEvents.AGENT_CHAT_SEND_MESSAGE_BUTTON}
-            >
+            {/* Show Stop button when workflow is running, Send button otherwise */}
+            {isTyping ? (
               <Button
-                onClick={handleSendMessage}
-                disabled={inputMessage.trim() === "" || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
-                className="bg-primary hover:bg-[#7525c9] mb-0"
+                onClick={handleStopWorkflow}
+                disabled={isStopping}
+                className="bg-red-600 hover:bg-red-700 mb-0"
+                title="Stop workflow"
               >
-                <Send className="h-4 w-4" />
+                {isStopping ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Square className="h-4 w-4" />
+                )}
               </Button>
-            </UmamiTrack>
+            ) : (
+              <UmamiTrack 
+                event={UmamiEvents.AGENT_CHAT_SEND_MESSAGE_BUTTON}
+              >
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={inputMessage.trim() === "" || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
+                  className="bg-primary hover:bg-[#7525c9] mb-0"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </UmamiTrack>
+            )}
           </div>
           <div className="flex items-start gap-2 mt-2 px-1">
             <Info className="h-3.5 w-3.5 text-gray-400 mt-0.5 flex-shrink-0" />

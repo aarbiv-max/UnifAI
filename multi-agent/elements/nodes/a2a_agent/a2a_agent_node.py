@@ -14,6 +14,7 @@ from elements.nodes.common.capabilities.retriever_capable import RetrieverCapabl
 from elements.nodes.common.capabilities.workload_capable import WorkloadCapableMixin
 from elements.nodes.common.workload import Task, AgentResult
 from elements.providers.a2a_client import A2AProvider
+from core.stop_signal_context import StoppedExecutionError
 
 
 class A2AAgentNode(
@@ -143,6 +144,11 @@ class A2AAgentNode(
             self._route_response(task, agent_result, packet)
 
             print(f"A2AAgent {self.uid}: Delegated task to remote agent, received response")
+
+        except StoppedExecutionError:
+            # User initiated stop - propagate up without error handling
+            print(f"A2AAgent {self.uid}: Execution stopped by user")
+            raise
 
         except Exception as e:
             print(f"A2AAgent {self.uid}: Error processing task: {e}")

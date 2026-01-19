@@ -4,6 +4,14 @@ export interface ChatMessage {
   role: "user" | "assistant";
 }
 
+// Result of a stop session request
+export interface StopSessionResult {
+  session_id: string;
+  success: boolean;
+  previous_status: string;
+  message: string;
+}
+
 // Shared ChatSession interface used across components
 export interface ChatSession {
   id: string;

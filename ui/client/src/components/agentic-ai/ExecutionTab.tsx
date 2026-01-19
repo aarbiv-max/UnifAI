@@ -59,7 +59,7 @@ type ExecutionTabProps = {
 type ChunkData = {
   node: string;
   display_name: string;
-  type: 'llm_token' | 'complete' | 'tool_calling' | 'tool_result' | 'workplan_snapshot';
+  type: 'llm_token' | 'complete' | 'tool_calling' | 'tool_result' | 'workplan_snapshot' | 'workflow_stopped';
   chunk?: string;
   tool?: string;
   output?: string;
@@ -74,6 +74,9 @@ type ChunkData = {
   thread_id?: string;
   owner_uid?: string;
   workplan?: any; // Will contain the full workplan data
+  // Workflow stopped fields
+  session_id?: string;
+  message?: string;
 };
 
 export default function ExecutionTab({
@@ -583,6 +586,14 @@ export default function ExecutionTab({
             existing.workplans.push(workplanSnapshot);
           }
         }
+        break;
+
+      case 'workflow_stopped':
+        // Handle workflow stopped event
+        // Mark the node as stopped and add a message
+        existing.stream = 'STOPPED';
+        existing.text = chunkData.message || 'Workflow stopped by user';
+        console.log('Workflow stopped:', chunkData.message);
         break;
 
       default:

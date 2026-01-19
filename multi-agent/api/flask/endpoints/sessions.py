@@ -154,3 +154,28 @@ def delete_session(session_id):
         return jsonify({"success": deleted}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@sessions_bp.route("/session.stop", methods=["POST"])
+@from_body({
+    "session_id": fields.Str(data_key="sessionId", required=True),
+})
+def stop_session(session_id):
+    """
+    Stop a running session.
+    
+    Sends a stop signal to the worker executing the session.
+    The session will gracefully stop and set status to STOPPED.
+    
+    Returns:
+        - success: true if stop signal was sent
+        - session_id: the session ID
+        - previous_status: the status before stopping
+        - message: description of the result
+    """
+    try:
+        svc = current_app.container.session_service
+        result = svc.stop_session(session_id=session_id)
+        return jsonify(result.asdict()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

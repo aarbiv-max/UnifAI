@@ -25,6 +25,7 @@ from ..primitives import (
     ActionStatus
 )
 from .executor import AgentActionExecutor
+from core.stop_signal_context import should_stop, StoppedExecutionError
 
 
 class ExecutionMode(Enum):
@@ -98,10 +99,16 @@ class AutoExecutionHandler(ExecutionHandler):
             
         Yields:
             Individual observation steps for each action
+            
+        Raises:
+            StoppedExecutionError: If stop signal is detected before execution
         """
         if not actions:
             return
         
+        # Check for stop signal before starting tool execution
+        if should_stop():
+            raise StoppedExecutionError("Tool execution stopped by user")
         
         # Execute all actions together (efficient batch execution)
         batch_observations = self.action_executor.execute_batch(actions)
@@ -111,6 +118,11 @@ class AutoExecutionHandler(ExecutionHandler):
         
         # Yield each observation as individual step (matches LLM conversation format)
         for obs in batch_observations:
+            # Check for stop signal between yielding observations
+            # This allows stopping mid-way through processing results
+            if should_stop():
+                raise StoppedExecutionError("Tool execution stopped by user")
+            
             obs_step = AgentStep(
                 StepType.OBSERVATION,
                 obs,

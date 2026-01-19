@@ -5,6 +5,24 @@ from .models import SessionMeta
 
 
 @dataclass(slots=True)
+class StopSessionResult:
+    """
+    Result of a stop session request.
+    
+    Returned by SessionService.stop_session() to indicate whether
+    the stop signal was successfully set.
+    """
+    session_id: str
+    success: bool
+    previous_status: str
+    message: str = ""
+
+    def asdict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class ChatHistoryItem:
     session_id: str
     metadata: Dict[str, Any]

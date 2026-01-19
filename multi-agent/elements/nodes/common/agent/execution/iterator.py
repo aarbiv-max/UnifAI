@@ -25,6 +25,7 @@ from ..primitives import (
 from ..strategies.base import AgentStrategy
 from elements.llms.common.chat.message import ChatMessage, Role
 from .handlers import ExecutionHandler, GuidedExecutionHandler
+from core.stop_signal_context import should_stop, StoppedExecutionError
 
 
 class AgentIterator:
@@ -104,20 +105,28 @@ class AgentIterator:
         Get next step in agent execution.
         
         Core iteration logic:
-        1. Check for queued steps from previous iteration
-        2. Check if execution is finished
-        3. Get next steps from strategy
-        4. Process each step based on type
-        5. Delegate action handling to execution handler
-        6. Return next step to caller
+        1. Check for stop signal (user-initiated stop)
+        2. Check for queued steps from previous iteration
+        3. Check if execution is finished
+        4. Get next steps from strategy
+        5. Process each step based on type
+        6. Delegate action handling to execution handler
+        7. Return next step to caller
         
         Returns:
             Next AgentStep in execution
             
         Raises:
             StopIteration: When execution is complete
+            StoppedExecutionError: When user initiates stop
         """
         self._iteration_count += 1
+
+        # Check for stop signal at the start of each iteration
+        # This allows stopping between agent steps (e.g., after tool execution)
+        if should_stop():
+            self._finished = True
+            raise StoppedExecutionError("Agent execution stopped by user")
 
         # First, check if we have queued steps from previous processing
         if self._step_queue:
@@ -143,6 +152,12 @@ class AgentIterator:
             # Get next steps from strategy
             steps = self.strategy.think(self.messages)
             print(f"⚡ [AGENT] Processing {len(steps)} steps: {[step.type.value for step in steps]}")
+
+            # Check for stop signal AFTER LLM call completes (before tool execution)
+            # This allows stopping between the LLM response and tool execution
+            if should_stop():
+                self._finished = True
+                raise StoppedExecutionError("Agent execution stopped by user")
 
             # Update conversation messages with assistant responses
             self._update_conversation_messages(steps)
@@ -213,6 +228,11 @@ class AgentIterator:
 
             # If no steps to return, continue to next iteration
             return self.__next__()
+
+        except StoppedExecutionError:
+            # User initiated stop - propagate up without converting to error step
+            self._finished = True
+            raise
 
         except Exception as e:
             # Create error step

@@ -17,6 +17,7 @@ from elements.nodes.common.agent.constants import StrategyType
 from elements.tools.common.execution.models import ExecutorConfig
 from elements.tools.builtin.time import GetCurrentTimeTool
 from elements.tools.builtin.retriever import RetrieverTool
+from core.stop_signal_context import StoppedExecutionError
 
 
 class CustomAgentNode(
@@ -169,6 +170,11 @@ class CustomAgentNode(
             self._route_response(task, agent_result, packet)
 
             print(f"CustomAgent {self.uid}: Processed task, added result to workspace")
+
+        except StoppedExecutionError:
+            # User initiated stop - propagate up without error handling
+            print(f"CustomAgent {self.uid}: Execution stopped by user")
+            raise
 
         except Exception as e:
             print(f"CustomAgent {self.uid}: Error processing task: {e}")
