@@ -16,13 +16,12 @@ class DocLogParser(LogParser):
     @staticmethod
     def extract_doc_id(log_line: str) -> Optional[str]:
         """
-        Extract document ID from a log line if present.
+        Extracts a document identifier from a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
+        Matches common filename formats (e.g., .pdf, .docx, .txt) or explicit alphanumeric IDs containing letters, digits, hyphens, or underscores when present in the log text.
+        
         Returns:
-            The document ID or None if not found
+            The extracted document ID string if found, otherwise None.
         """
         # Try to find document ID in "Processing document" or similar log entries
         patterns = [
@@ -43,13 +42,12 @@ class DocLogParser(LogParser):
     @staticmethod
     def extract_api_endpoint(log_line: str) -> Optional[str]:
         """
-        Extract API endpoint from a log line if present.
+        Extracts an API endpoint URL from a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
+        Searches for full HTTP(S) request URLs and generic "API request to" references and returns the first match.
+        
         Returns:
-            The API endpoint or None if not found
+            The extracted endpoint URL as a string, or None if no endpoint is present.
         """
         # Pattern for httpx logs
         http_pattern = r'HTTP Request: (GET|POST|PUT|DELETE|PATCH) (http[s]?://[^\s"]+)'
@@ -68,13 +66,10 @@ class DocLogParser(LogParser):
     @staticmethod
     def extract_chunk_count(log_line: str) -> Optional[int]:
         """
-        Extract chunk count from a log line if present.
+        Extracts the total number of chunks reported in a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
         Returns:
-            The chunk count or None if not found
+            The extracted chunk count as an `int` if a count is found, `None` otherwise.
         """
         patterns = [
             r'Completed chunking with (\d+) total chunks generated'
@@ -90,13 +85,10 @@ class DocLogParser(LogParser):
     @staticmethod
     def extract_embedding_count(log_line: str) -> Optional[int]:
         """
-        Extract embedding count from a log line if present.
+        Extracts the number of embeddings reported in a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
         Returns:
-            The embedding count or None if not found
+            int: Embedding count if found, None otherwise.
         """
         patterns = [
             r'Starting embedding generation for (\d+) chunks',
@@ -114,13 +106,10 @@ class DocLogParser(LogParser):
     @staticmethod
     def extract_processing_status(log_line: str) -> Optional[PipelineStatus]:
         """
-        Extract processing status from a log line if present.
+        Determine the pipeline processing status indicated by a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
         Returns:
-            The PipelineStatus or None if not found
+            PipelineStatus or None: One of PipelineStatus.ACTIVE, PipelineStatus.DONE, or PipelineStatus.FAILED when the line contains a corresponding indicator, or `None` if no status is present.
         """
         if re.search(r'Starting to process', log_line):
             return PipelineStatus.ACTIVE
@@ -130,4 +119,3 @@ class DocLogParser(LogParser):
             return PipelineStatus.FAILED
         
         return None
-

@@ -21,15 +21,15 @@ class UmamiClient:
         password: str,
     ):
         """
-        Initialize Umami client.
+        Create a configured UmamiClient and authenticate with the Umami service using the provided credentials.
         
-        Args:
-            url: Umami service URL
-            username: Umami login username
-            password: Umami login password
-            
+        Parameters:
+            url (str): Base URL of the Umami service.
+            username (str): Username used to authenticate with Umami.
+            password (str): Password used to authenticate with Umami.
+        
         Raises:
-            ValueError: If configuration is invalid
+            ValueError: If any configuration value is missing or invalid.
         """
         self._url = url
         self._username = username
@@ -40,7 +40,12 @@ class UmamiClient:
         self._login()
 
     def _validate_config(self) -> None:
-        """Validate Umami configuration parameters."""
+        """
+        Validate Umami configuration and raise a ValueError for missing or placeholder credentials.
+        
+        Raises:
+            ValueError: If the URL is empty or "0.0.0.0"; if the username is empty or "dummy"; or if the password is empty or "dummy".
+        """
         if not self._url or self._url == "0.0.0.0":
             raise ValueError("Umami URL is not configured")
         if not self._username or self._username == "dummy":
@@ -49,25 +54,29 @@ class UmamiClient:
             raise ValueError("Umami password is not configured")
 
     def _login(self) -> None:
-        """Authenticate with Umami service."""
+        """
+        Set the Umami base URL and authenticate using the configured credentials so the client can perform API requests.
+        """
         umami.set_url_base(self._url)
         umami.login(self._username, self._password)
         logger.info("Umami client authenticated successfully")
 
     def get_website_id(self, website_name: str) -> Dict[str, Any]:
         """
-        Get website ID from Umami by website name.
+        Retrieve the Umami website ID for a given website name and cache the result.
         
-        Results are cached to avoid repeated API calls.
+        Looks up the website by name via the Umami API, stores the mapping in an internal cache to avoid repeated requests, and returns the Umami base URL alongside the site's ID.
         
-        Args:
-            website_name: Name of the website in Umami
-            
+        Parameters:
+            website_name (str): Name of the website in Umami to look up.
+        
         Returns:
-            Dict with umami_url and website_id
-            
+            dict: Dictionary with keys:
+                - "umami_url" (str): The configured Umami base URL.
+                - "website_id": The ID of the matched website.
+        
         Raises:
-            ValueError: If website not found
+            ValueError: If no website with the given name is found in Umami.
         """
         # Check cache first
         if website_name in self._website_cache:
@@ -94,4 +103,3 @@ class UmamiClient:
         except Exception as e:
             logger.error(f"Failed to get Umami website ID for {website_name}: {e}")
             raise
-

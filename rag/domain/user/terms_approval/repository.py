@@ -10,15 +10,39 @@ class TermsApprovalRepository(ABC):
 
     @abstractmethod
     def is_user_approved(self, username: str) -> bool:
-        """Check if a user has approved the AI transparency notice."""
+        """
+        Return whether the specified user has approved the AI transparency notice.
+        
+        Parameters:
+            username (str): The user's unique username.
+        
+        Returns:
+            bool: True if the user has approved the AI transparency notice, False otherwise.
+        """
         ...
 
     @abstractmethod
     def record_approval(self, username: str) -> TermsApproval:
-        """Record a user's approval. Returns the created/updated approval."""
+        """
+        Record that the given user approved the AI transparency notice.
+        
+        Parameters:
+        	username (str): Username of the user who approved the terms.
+        
+        Returns:
+        	TermsApproval: The created or updated TermsApproval instance for the user.
+        """
         ...
 
     @abstractmethod
     def find_by_username(self, username: str) -> Optional[TermsApproval]:
-        """Get user approval record by username."""
+        """
+        Retrieve the TermsApproval record for a given username.
+        
+        Parameters:
+            username (str): Username identifying the user whose approval record to retrieve.
+        
+        Returns:
+            Optional[TermsApproval]: The user's TermsApproval instance if found, otherwise None.
+        """
         ...

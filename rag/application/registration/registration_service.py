@@ -22,6 +22,12 @@ class RegistrationService:
     """
 
     def __init__(self, factory: RegistrationFactory) -> None:
+        """
+        Initialize the service with a factory for creating registrar instances.
+        
+        Parameters:
+            factory (RegistrationFactory): Factory used to create per-source registrar instances invoked during registration flows.
+        """
         self._factory = factory
 
     def register_sources(
@@ -33,18 +39,20 @@ class RegistrationService:
         skip_validation: bool = False,
     ) -> Dict[str, Any]:
         """
-        Register provided data sources synchronously and return a structured response.
+        Register the given source data items and return the aggregated results.
         
-        Args:
-            data_list: List of source data dictionaries to register
-            source_type: Type of data source (e.g., 'DOCUMENT', 'SLACK')
-            upload_by: Username of the person uploading
-            skip_validation: If True, skip pre-upload validations (extension, size, name).
-                            MD5 duplicate check is always performed.
-                            Should only be True for UI uploads that were pre-validated.
+        Parameters:
+            data_list (List[Dict[str, Any]]): Source data dictionaries to register.
+            source_type (str): Type of the source (e.g., 'DOCUMENT', 'SLACK').
+            upload_by (str): Username of the uploader.
+            skip_validation (bool): If True, skip pre-upload validations (extension, size, name).
+                The MD5 duplicate check is always performed; set True only for pre-validated UI uploads.
         
         Returns:
-            Dict with status, registered_sources, and issues
+            Dict[str, Any]: A dictionary with:
+                - status (str): "registration_complete".
+                - registered_sources (List[Dict[str, Any]]): Successfully registered source records.
+                - issues (List[Dict[str, Any]]): Issues encountered during registration.
         """
         logger.info(
             f"Starting synchronous registration for {len(data_list)} {source_type} sources "

@@ -21,10 +21,13 @@ docs_bp = Blueprint("docs", __name__)
 })
 def upload_docs(files):
     """
-    Upload document files to storage.
+    Upload document files and persist them using the configured file storage service.
     
-    Saves files to local storage. This endpoint receives base64-encoded files
-    and stores them on disk for later processing.
+    Parameters:
+        files (list[dict]): List of file payloads where each dict contains file metadata and base64-encoded content (for example keys: "filename", "content").
+    
+    Returns:
+        tuple: (JSON response, int) — On success returns {"message": "Files uploaded successfully"}, 200. On failure returns {"error": "<message>"}, 500.
     """
     try:
         storage = file_storage()
@@ -45,43 +48,19 @@ def upload_docs(files):
 })
 def validate_files(files, username, check_duplicates):
     """
-    Validate files before upload.
+    Validate file metadata and detect issues such as unsupported extensions, oversized files, and duplicate names.
     
-    This endpoint performs pre-upload validation including:
-    - File extension validation (must be in supported list)
-    - File size validation (max 50 MB per file)
-    - Duplicate name detection (allows re-upload of FAILED documents)
+    Parameters:
+        files (list[dict]): File metadata objects containing at least 'name' (str) and 'size' (int, bytes).
+        username (str): Identifier of the user performing the upload; used to scope validation rules.
+        check_duplicates (bool): Whether to check for duplicate filenames.
     
-    Request body:
-        files: List of file metadata objects with 'name' and 'size' keys
-               Example: [{"name": "document.pdf", "size": 1024000}]
-        username: Username of the person uploading files
-        check_duplicates: Whether to check for duplicate filenames (default: true)
-    
-    Response:
-        {
-            "valid_files": [
-                {"name": "doc.pdf", "normalized_name": "doc.pdf", "size": 1024000}
-            ],
-            "errors": [
-                {
-                    "file_name": "invalid.exe",
-                    "error_type": "extension",
-                    "message": "File type '.exe' is not supported..."
-                }
-            ],
-            "has_errors": true
-        }
-    
-    Usage Flow:
-        1. UI calls this endpoint with file metadata when files are selected
-        2. Backend validates and returns results
-        3. UI only uploads files that passed validation
-        4. UI calls /pipelines/embed with skip_validation=true
-        
-    For external API calls:
-        - Call /pipelines/embed with skip_validation=false (default)
-        - Full validation will be performed during registration
+    Returns:
+        dict: On success, a dictionary with:
+            - "valid_files": list of validated file info (e.g., {"name", "normalized_name", "size"}),
+            - "errors": list of error objects (each containing "file_name", "error_type", "message"),
+            - "has_errors": bool indicating whether any validation errors were found.
+        On failure, a dictionary with an "error" key describing the failure.
     """
     try:
         service = file_validation_service(username=username)
@@ -94,7 +73,15 @@ def validate_files(files, username, check_duplicates):
 
 @docs_bp.route("/supported-extensions", methods=["GET"])
 def get_supported_extensions():
-    """Get list of supported document file extensions."""
+    """
+    Return the list of supported document file extensions.
+    
+    Returns:
+        tuple: A Flask JSON response tuple. On success, the JSON payload contains
+        `"supported_extensions"` mapped to a list of extensions and the HTTP status
+        is 200. On failure, the JSON payload contains `"error"` with the error
+        message and the HTTP status is 500.
+    """
     try:
         config = DocConfigManager()
         extensions = config.get_supported_file_types()
@@ -112,8 +99,15 @@ def get_supported_extensions():
 })
 def get_available_docs(cursor, limit, search):
     """
-    Get paginated list of available documents (DONE status only).
-    Used for dropdown selection in the UI.
+    Retrieve a paginated list of available documents with DONE status.
+    
+    Parameters:
+        cursor (str | None): Pagination cursor identifying the page start; use None to start from the beginning.
+        limit (int): Maximum number of documents to return.
+        search (str | None): Optional search string to filter documents by name or metadata.
+    
+    Returns:
+        response (flask.Response): JSON payload. On success, contains {"documents": [...]} with the requested page of documents; on failure, contains {"error": "<message>" }.
     """
     try:
         result = data_source_service().list_available_docs(
@@ -136,10 +130,20 @@ def get_available_docs(cursor, limit, search):
 })
 def get_available_tags(cursor, limit, search_regex):
     """
-    Get paginated list of available tags from DONE documents.
-    Used for tag dropdown selection in the UI.
+    Retrieve paginated tag options from documents with DONE status.
     
-    Response format matches backend: options array with label/value pairs.
+    Parameters:
+        cursor (str): Cursor for pagination; an empty string is treated as no cursor (start from the beginning).
+        limit (int): Maximum number of tag options to return.
+        search_regex (str | None): Optional regex to filter tags by label or value.
+    
+    Returns:
+        dict: JSON-serializable mapping with keys:
+            - `options` (list): List of tag objects in `{label, value}` format.
+            - `nextCursor` (str | None): Cursor for the next page, or `None` if there is no next page.
+            - `hasMore` (bool): `true` if more pages are available, `false` otherwise.
+            - `total` (int): Total number of matching tags.
+        In error cases, returns a dict with an `error` string describing the failure.
     """
     try:
         result = data_source_service().get_available_tags(
@@ -172,16 +176,18 @@ def get_available_tags(cursor, limit, search_regex):
 })
 def query_match(query, top_k_results, scope, logged_in_user, doc_ids, tags):
     """
-    Search documents using semantic similarity.
-    Optionally filter by document IDs or tags.
+    Search documents by semantic similarity, with optional filters.
     
-    Args:
-        query: Search query text
-        top_k_results: Number of results to return (default: 5)
-        scope: "public" or "private" - filters by upload_by if private
-        logged_in_user: Username for private scope filtering
-        doc_ids: Optional list of document IDs to filter by
-        tags: Optional list of tags to filter by
+    Parameters:
+        query (str): Text query to match against document content.
+        top_k_results (int): Maximum number of matches to return.
+        scope (str): "public" or "private". When "private", restricts results to documents uploaded by `logged_in_user`.
+        logged_in_user (str): Username used to scope private searches.
+        doc_ids (list[str] | None): Optional list of document IDs to restrict the search to.
+        tags (list[str] | None): Optional list of tags to filter results.
+    
+    Returns:
+        tuple: A Flask JSON response and HTTP status code. On success the JSON contains a "matches" key with the search results; on failure the JSON contains an "error" key with an error message.
     """
     try:
         svc = retrieval_service("DOCUMENT")
@@ -199,4 +205,3 @@ def query_match(query, top_k_results, scope, logged_in_user, doc_ids, tags):
     except Exception as e:
         logger.error(f"Failed to query documents: {str(e)}")
         return jsonify({"error": str(e)}), 500
-

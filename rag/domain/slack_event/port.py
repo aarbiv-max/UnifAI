@@ -17,6 +17,10 @@ class SlackEventHandler(ABC):
     
     @abstractmethod
     def handle(self, payload: Dict[str, Any]) -> None:
-        """Process the Slack payload for the supported event type."""
+        """
+        Handle a Slack event payload for this handler's `event_type`.
+        
+        Parameters:
+            payload (Dict[str, Any]): The JSON-decoded Slack event payload containing event-specific fields relevant to the handler.
+        """
         ...
-

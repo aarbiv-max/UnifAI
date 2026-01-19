@@ -20,21 +20,23 @@ class ChannelCreatedEventHandler(SlackEventHandler):
     
     def __init__(self, channel_repo: SlackChannelRepository, project_id: str):
         """
-        Initialize the handler with injected dependencies.
+        Create a ChannelCreatedEventHandler bound to a channel repository and project.
         
-        Args:
-            channel_repo: Repository for Slack channel persistence
-            project_id: Project ID to associate with channels
+        Parameters:
+            channel_repo: Repository used to persist Slack channel entities.
+            project_id: Project identifier to associate stored channels with.
         """
         self._channel_repo = channel_repo
         self._project_id = project_id
     
     def handle(self, payload: Dict[str, Any]) -> None:
         """
-        Process the channel_created event payload.
+        Handle a Slack "channel_created" webhook payload and persist the resulting channel.
         
-        Args:
-            payload: Raw Slack webhook payload
+        Parses the incoming payload into a ChannelCreatedEvent, validates that it is a "channel_created" event with a channel identifier and payload, converts the Slack channel data into a SlackChannel domain model (using the handler's project_id), optionally overrides the channel's last_updated with the event timestamp, and saves the channel to the repository. Exceptions raised during processing are caught and not re-raised.
+         
+        Parameters:
+            payload (Dict[str, Any]): Raw Slack webhook payload for the event.
         """
         try:
             typed = ChannelCreatedEvent.from_payload(payload)
@@ -75,4 +77,3 @@ class ChannelCreatedEventHandler(SlackEventHandler):
                 
         except Exception as e:
             logger.error(f"Error handling {self.event_type}: {e}", exc_info=True)
-

@@ -18,13 +18,20 @@ class EmbeddingGeneratorFactory:
     @staticmethod
     def create(config: Dict[str, Any]) -> EmbeddingGenerator:
         """
-        Create an embedding generator instance.
+        Create an EmbeddingGenerator based on the provided configuration.
         
-        Args:
-            config: Configuration for the embedding generator
-            
+        Parameters:
+            config (Dict[str, Any]): Configuration dictionary. Recognized keys:
+                - type: Embedding generator type (default: "sentence_transformer").
+                - model_name: Model identifier for sentence transformer (default: "all-MiniLM-L6-v2").
+                - batch_size: Inference batch size (default: 32).
+                - device: Computation device (e.g., "cpu", "cuda"); defaults to module-detected device.
+        
         Returns:
-            Initialized embedding generator
+            EmbeddingGenerator: An initialized embedding generator instance configured per `config`.
+        
+        Raises:
+            ValueError: If `type` specifies an unknown embedding generator.
         """
         generator_type = config.get("type", "sentence_transformer")
         
@@ -44,21 +51,26 @@ class VectorRepositoryFactory:
     @staticmethod
     def create(config: Dict[str, Any]) -> VectorRepository:
         """
-        Create a vector repository instance.
+        Create a VectorRepository based on the provided configuration.
         
-        Args:
-            config: Configuration for the vector repository
-                - type: Storage type ("qdrant")
-                - collection_name: Name of the collection
-                - embedding_dim: Dimension of embeddings
-                - url: Server URL (optional, uses env var QDRANT_URL)
-                - port: Server port (optional, uses env var QDRANT_PORT)
-                - grpc_port: gRPC port (optional)
-                - api_key: API key (optional, uses env var QDRANT_API_KEY)
-                - on_disk: Store on disk vs memory (default: True)
-                
+        Parameters:
+            config (Dict[str, Any]): Configuration mapping that may include:
+                - type: Storage type identifier (default: "qdrant").
+                - collection_name: Name of the collection (default: "default_collection").
+                - embedding_dim: Embedding dimensionality (default: 384).
+                - url: Qdrant server URL (default: value of QDRANT_URL environment variable).
+                - port: Qdrant server port (default: value of QDRANT_PORT env var or "6333").
+                - grpc_port: Qdrant gRPC port (optional).
+                - api_key: API key for Qdrant (optional; can be provided via QDRANT_API_KEY).
+                - on_disk: Whether to persist data on disk (default: True).
+                - replication_factor: Replication factor for the collection (default: 1).
+                - write_consistency_factor: Write consistency factor for the collection (default: 1).
+        
         Returns:
-            Initialized vector repository
+            VectorRepository: An initialized vector repository instance configured per `config`.
+        
+        Raises:
+            ValueError: If `type` in config is not a recognized vector storage type.
         """
         storage_type = config.get("type", "qdrant")
         
@@ -76,4 +88,3 @@ class VectorRepositoryFactory:
             )
         else:
             raise ValueError(f"Unknown vector storage type: {storage_type}")
-

@@ -34,21 +34,46 @@ class DataSourceService:
         pipeline_repo: PipelineRepository,
         vector_repo_factory: Callable[[str], VectorRepository],
     ):
+        """
+        Initialize the DataSourceService with repository dependencies and a vector repository factory.
+        
+        Parameters:
+            source_repo (DataSourceRepository): Repository for CRUD operations on DataSource entities.
+            pipeline_repo (PipelineRepository): Repository for querying and managing pipeline records and stats.
+            vector_repo_factory (Callable[[str], VectorRepository]): Factory that returns a VectorRepository for a given collection/collection name (used to delete or manage embeddings).
+        """
         self._source_repo = source_repo
         self._pipeline_repo = pipeline_repo
         self._vector_repo_factory = vector_repo_factory
 
     # --- CRUD ---
     def get_by_id(self, source_id: str) -> Optional[DataSource]:
-        """Get a source by its source_id."""
+        """
+        Retrieve a DataSource by its identifier.
+        
+        Returns:
+            The DataSource if found, otherwise None.
+        """
         return self._source_repo.find_by_id(source_id)
 
     def get_by_pipeline_id(self, pipeline_id: str) -> Optional[DataSource]:
-        """Get a source by its pipeline_id."""
+        """
+        Retrieve the DataSource associated with the given pipeline ID.
+        
+        @returns `DataSource` if a matching source exists, `None` otherwise.
+        """
         return self._source_repo.find_by_pipeline_id(pipeline_id)
 
     def list_sources(self, source_type: Optional[str] = None) -> List[DataSource]:
-        """List all sources, optionally filtered by type."""
+        """
+        Return a list of data sources, optionally filtered by source type.
+        
+        Parameters:
+            source_type (Optional[str]): If provided, only sources with this type are returned.
+        
+        Returns:
+            List[DataSource]: Matching data source domain objects.
+        """
         return self._source_repo.find_all(source_type)
 
     def list_paginated(
@@ -58,26 +83,40 @@ class DataSourceService:
         source_type: Optional[str] = None,
         search: Optional[str] = None,
     ) -> PaginatedResult[Dict[str, Any]]:
-        """List sources with pagination."""
+        """
+        Return a paginated list of data sources optionally filtered by type or search.
+        
+        Parameters:
+            cursor (Optional[str]): Cursor for the page to fetch; use None to start from the first page.
+            limit (int): Maximum number of items to return in the page.
+            source_type (Optional[str]): Optional source type to filter results (e.g., "DOCUMENT").
+            search (Optional[str]): Optional case-insensitive prefix filter applied to source names.
+        
+        Returns:
+            PaginatedResult[Dict[str, Any]]: A paginated result containing source dictionaries and pagination metadata (next_cursor, has_more, total).
+        """
         return self._source_repo.find_paginated(cursor, limit, source_type, search)
 
     def save(self, source: DataSource) -> None:
-        """Save (insert or update) a source."""
+        """
+        Persist a DataSource object to the underlying repository (insert or update).
+        
+        Parameters:
+            source (DataSource): The DataSource instance to persist.
+        """
         self._source_repo.save(source)
 
     def delete(self, source_id: str) -> DeleteResult:
         """
-        Delete a source and all associated data with transaction-like behavior.
+        Delete a data source and its associated pipeline records and vector embeddings.
         
-        Deletion order (abort on vector failure to maintain consistency):
-        1. Vector embeddings from Qdrant (critical - abort if fails)
-        2. MongoDB records (pipeline + source document)
+        Performs ordered cleanup and reports outcomes: vector embeddings are removed first (operation is critical and aborts the overall delete on failure), then pipeline and source records are removed; if the source does not exist a failure result is returned.
         
-        Args:
-            source_id: The source ID to delete
-            
+        Parameters:
+            source_id (str): Identifier of the source to delete.
+        
         Returns:
-            DeleteResult with deletion details
+            DeleteResult: Details of the deletion outcome. Contains `success`, `source_id`, `source_name`, `source_deleted` (whether the source document was removed), `pipelines_deleted` (number of pipeline records removed), `vectors_deleted` (number of vector embeddings removed), and an explanatory `message` when the operation failed or partially failed.
         """
         source = self._source_repo.find_by_id(source_id)
         if not source:
@@ -123,7 +162,16 @@ class DataSourceService:
         )
 
     def update(self, source_id: str, updates: Dict[str, Any]) -> bool:
-        """Update specific fields of a source."""
+        """
+        Update attributes of an existing DataSource and persist the change.
+        
+        Parameters:
+            source_id (str): Identifier of the source to update.
+            updates (Dict[str, Any]): Mapping of DataSource attribute names to new values; only attributes that exist on the DataSource are applied.
+        
+        Returns:
+            bool: `True` if the source was found and updated, `False` otherwise.
+        """
         source = self._source_repo.find_by_id(source_id)
         if not source:
             return False
@@ -140,16 +188,15 @@ class DataSourceService:
 
     def _enrich_with_pipeline_stats(self, sources: List[DataSource]) -> List[Dict[str, Any]]:
         """
-        Enrich sources with pipeline stats.
+        Enriches a list of DataSource objects with pipeline status and aggregated pipeline statistics.
         
-        Single source of truth for stats enrichment logic.
-        Batch-optimized: makes one DB call regardless of source count.
+        Parameters:
+            sources (List[DataSource]): DataSource domain models to enrich.
         
-        Args:
-            sources: List of DataSource domain models
-            
         Returns:
-            List of dicts with source data + status + pipeline_stats
+            List[Dict[str, Any]]: A list of dictionaries for each source containing the source fields plus:
+                - `status`: the pipeline status string if available, otherwise `None`.
+                - `pipeline_stats`: a dict with a `status` key and the pipeline `stats` content when available, otherwise `None`.
         """
         if not sources:
             return []
@@ -188,17 +235,16 @@ class DataSourceService:
         summary: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
-        Upsert source after pipeline execution completes.
+        Create or update a DataSource record after a pipeline run.
         
-        Creates the source if it doesn't exist, or updates sync time and type_data.
-        Called by the pipeline executor after successful/failed pipeline run.
+        If a source with the given pipeline_id exists, update its last_sync_at and merge the optional summary into its type_data; otherwise create a new DataSource populated with the provided identifiers and summary as type_data.
         
-        Args:
-            source_id: Unique source identifier
-            source_name: Human-readable source name
-            source_type: Type of source (SLACK, DOCUMENT, etc.)
-            pipeline_id: Associated pipeline ID
-            summary: Optional dict to merge into type_data (e.g. stats, error info)
+        Parameters:
+            source_id (str): Unique identifier for the source to create (used when inserting).
+            source_name (str): Human-readable name for the source (used when inserting).
+            source_type (str): Source category (e.g., "SLACK", "DOCUMENT").
+            pipeline_id (str): Associated pipeline identifier used to find or link the source.
+            summary (Optional[Dict[str, Any]]): Optional metadata to merge into the source's type_data (e.g., stats or error info).
         """
         existing = self._source_repo.find_by_pipeline_id(pipeline_id)
         now = datetime.utcnow()
@@ -224,22 +270,28 @@ class DataSourceService:
             self._source_repo.save(source)
 
     def list_with_stats(self, source_type: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get all sources enriched with pipeline stats."""
+        """
+        Return sources (optionally filtered by type) enriched with pipeline status and pipeline statistics, sorted by `created_at` descending.
+        
+        Parameters:
+            source_type (Optional[str]): If provided, only include sources of this type.
+        
+        Returns:
+            List[Dict[str, Any]]: A list of source dictionaries augmented with `status` and `pipeline_stats` when available, sorted by `created_at` in descending order.
+        """
         sources = self._source_repo.find_all(source_type)
         result = self._enrich_with_pipeline_stats(sources)
         return sorted(result, key=lambda x: x.get("created_at") or 0, reverse=True)
 
     def get_with_stats(self, source_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get a single source by ID, enriched with pipeline stats.
+        Retrieve a data source by ID and attach pipeline status and pipeline statistics.
         
-        Used for lazy loading expanded row data in UI.
+        Parameters:
+            source_id (str): ID of the data source to fetch.
         
-        Args:
-            source_id: The source ID to retrieve
-            
         Returns:
-            Dict with source data + pipeline stats, or None if not found
+            dict: Source data augmented with `status` and `pipeline_stats`, or `None` if the source was not found.
         """
         source = self._source_repo.find_by_id(source_id)
         if not source:
@@ -259,18 +311,15 @@ class DataSourceService:
         search: Optional[str] = None,
     ) -> PaginatedResult[Dict[str, Any]]:
         """
-        Get paginated list of DONE documents for dropdown selection.
+        Return a paginated list of document sources with status "DONE", normalized for UI dropdowns.
         
-        Filters to only successfully processed (DONE) documents and
-        normalizes the response format for UI consumption.
+        Parameters:
+            cursor (Optional[str]): Pagination cursor to continue from a previous page.
+            limit (int): Maximum number of source records to fetch.
+            search (Optional[str]): Optional name prefix filter to apply when fetching sources.
         
-        Args:
-            cursor: Pagination cursor
-            limit: Max items to return
-            search: Filter by name prefix
-            
         Returns:
-            PaginatedResult with normalized docs {id, name, upload_by}
+            PaginatedResult[Dict[str, Any]]: Paginated result whose `data` is a list of objects with keys `id`, `name`, and `upload_by`. `next_cursor` and `has_more` reflect the upstream pagination, and `total` is the count of items after filtering to DONE status.
         """
         # Get paginated sources
         result = self._source_repo.find_paginated(
@@ -305,18 +354,15 @@ class DataSourceService:
         search: Optional[str] = None,
     ) -> PaginatedResult[Dict[str, str]]:
         """
-        Get tags from DONE documents only (for UI dropdowns).
+        Return distinct tags collected only from sources whose pipeline status is "DONE", formatted for UI dropdowns.
         
-        Unlike get_distinct_tags(), this filters to only include tags
-        from successfully processed documents.
+        Parameters:
+            cursor (Optional[str]): Pagination cursor interpreted as an integer offset (defaults to 0).
+            limit (int): Maximum number of tags to return.
+            search (Optional[str]): Case-insensitive prefix filter applied to tags.
         
-        Args:
-            cursor: Pagination cursor
-            limit: Max tags to return
-            search: Filter tags by prefix (case-insensitive)
-            
         Returns:
-            PaginatedResult with tag options [{label, value}]
+            PaginatedResult[Dict[str, str]]: Paginated result where data is a list of tag objects with keys `label` and `value`.
         """
         # Get all DONE sources
         all_sources = self._source_repo.find_all(source_type="DOCUMENT")
@@ -355,16 +401,16 @@ class DataSourceService:
         source_type: Optional[str] = None,
     ) -> PaginatedResult[Dict[str, str]]:
         """
-        Get paginated distinct tags for dropdown selection.
+        Return paginated distinct tag options formatted for dropdowns.
         
-        Args:
-            cursor: Pagination cursor
-            limit: Max tags to return
-            search: Filter tags by prefix
-            source_type: Optional filter by source type
-            
+        Parameters:
+            cursor (Optional[str]): Cursor for pagination; use None to start from the beginning.
+            limit (int): Maximum number of tags to return.
+            search (Optional[str]): Case-insensitive prefix filter applied to tag values.
+            source_type (Optional[str]): If provided, restrict tags to the given source type.
+        
         Returns:
-            PaginatedResult with tag options [{label, value}]
+            PaginatedResult[Dict[str, str]]: Paginated tag objects with keys `label` and `value`.
         """
         result = self._source_repo.get_distinct_values(
             field="tags",
@@ -376,4 +422,3 @@ class DataSourceService:
         
         # Transform to label/value format for dropdowns
         return result.map(lambda tag: {"label": tag, "value": tag})
-

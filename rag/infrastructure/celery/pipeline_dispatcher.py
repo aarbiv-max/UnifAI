@@ -24,9 +24,10 @@ class CeleryPipelineDispatcher(PipelineTaskDispatcher):
         source_data: Dict[str, Any],
     ) -> TaskResult:
         """
-        Dispatch a single pipeline execution task to Celery.
+        Dispatch a pipeline execution task to Celery for the given source type.
         
-        Routes to source-type-specific queue (e.g., document_queue, slack_queue).
+        Returns:
+            TaskResult: Contains the dispatched task's UUID (`task_id`), the Celery queue name (`queue`), the uppercase `source_type`, and the `pipeline_id` (or `"unknown"` if not present in `source_data`).
         """
         queue = f"{source_type.lower()}_queue"
         pipeline_id = source_data.get("pipeline_id", "unknown")
@@ -57,9 +58,14 @@ class CeleryPipelineDispatcher(PipelineTaskDispatcher):
         sources: List[Dict[str, Any]],
     ) -> List[TaskResult]:
         """
-        Dispatch multiple pipeline execution tasks.
+        Dispatch a pipeline execution task for each source in the provided list.
         
-        Each source gets its own task for parallel processing.
+        Parameters:
+            source_type (str): Source type identifier used to determine the target queue (e.g., "GITHUB").
+            sources (List[Dict[str, Any]]): Iterable of source payloads; each dict is passed to an individual dispatched task.
+        
+        Returns:
+            List[TaskResult]: A list of TaskResult objects, one per source, describing the dispatched tasks.
         """
         results = []
         for source_data in sources:
@@ -68,4 +74,3 @@ class CeleryPipelineDispatcher(PipelineTaskDispatcher):
         
         logger.info(f"Dispatched {len(results)} pipeline tasks for {source_type}")
         return results
-

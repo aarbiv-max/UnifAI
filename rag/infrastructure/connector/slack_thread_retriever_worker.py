@@ -23,14 +23,16 @@ class ThreadRetrieverWorker:
         latest: Optional[str] = None,
     ):
         """
-        Initialize the thread retriever worker.
+        Create a worker that manages a thread pool for fetching Slack thread replies concurrently.
         
-        Args:
-            retriever: SlackThreadRetriever instance for making API calls
-            max_workers: Maximum number of concurrent threads (default: 10)
-            thread_number: Starting thread number for logging (default: 1)
-            oldest: Optional oldest timestamp filter
-            latest: Optional latest timestamp filter
+        Initializes the worker with the given SlackThreadRetriever, creates a ThreadPoolExecutor, and sets the starting thread identifier and optional oldest/latest timestamp filters.
+        
+        Parameters:
+            retriever (SlackThreadRetriever): API client used to fetch thread replies.
+            max_workers (int): Maximum number of concurrent worker threads.
+            thread_number (int): Starting index used to identify/log submitted thread retrieval tasks.
+            oldest (Optional[str]): Optional oldest timestamp filter to apply to retrievals.
+            latest (Optional[str]): Optional latest timestamp filter to apply to retrievals.
         """
         self.retriever = retriever
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
@@ -41,11 +43,13 @@ class ThreadRetrieverWorker:
 
     def submit(self, channel_id: str, thread_ts: str):
         """
-        Submit a thread for retrieval.
+        Schedule retrieval of replies for a Slack thread and record the scheduled task.
         
-        Args:
-            channel_id: The channel ID where the thread is located
-            thread_ts: The timestamp of the parent message
+        This schedules a background task to fetch replies for the thread identified by the given channel ID and parent message timestamp, appends the created future to the worker's internal list, and increments the worker's thread identifier.
+        
+        Parameters:
+            channel_id (str): ID of the channel containing the thread.
+            thread_ts (str): Timestamp of the parent message for the thread.
         """
         future = self.executor.submit(
             self.retriever.get_thread_replies,
@@ -60,10 +64,12 @@ class ThreadRetrieverWorker:
 
     def gather_results(self) -> List[List[Dict[str, Any]]]:
         """
-        Wait for all submitted threads to complete and gather results.
+        Collect completed thread-reply results from submitted retrieval tasks.
+        
+        Waits for all submitted futures to finish, appends non-empty reply lists to the result, logs exceptions raised by individual tasks, and shuts down the executor.
         
         Returns:
-            List of thread message lists (each inner list contains messages from one thread)
+            List[List[Dict[str, Any]]]: A list where each element is a list of message dictionaries representing replies from a single Slack thread.
         """
         results = []
         for future in as_completed(self.futures):
@@ -75,4 +81,3 @@ class ThreadRetrieverWorker:
                 logger.exception(f"Exception while retrieving thread replies: {e}")
         self.executor.shutdown(wait=True)
         return results
-

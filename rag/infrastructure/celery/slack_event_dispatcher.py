@@ -23,7 +23,13 @@ class CelerySlackEventDispatcher(SlackEventDispatcher):
 
     def dispatch(self, payload: Dict[str, Any]) -> SlackEventTaskResult:
         """
-        Dispatch a Slack event payload to Celery for async processing.
+        Enqueue a Slack event payload to the Celery slack events queue.
+        
+        Parameters:
+            payload (Dict[str, Any]): Slack event payload. May include "event_id" (string) and an "event" dict with a "type" field.
+        
+        Returns:
+            SlackEventTaskResult: Result containing the generated `task_id` (UUID string), the `queue` used, the extracted `event_id`, and the extracted `event_type`.
         """
         event_id = payload.get("event_id", "unknown")
         event = payload.get("event", {})
@@ -47,4 +53,3 @@ class CelerySlackEventDispatcher(SlackEventDispatcher):
             event_id=event_id,
             event_type=event_type,
         )
-

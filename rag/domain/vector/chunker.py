@@ -11,11 +11,11 @@ class ContentChunker(ABC):
     
     def __init__(self, max_tokens_per_chunk: int = 500, overlap_tokens: int = 50):
         """
-        Initialize the content chunker with configuration parameters.
+        Create a ContentChunker with token sizing and overlap configuration.
         
-        Args:
-            max_tokens_per_chunk: Maximum number of tokens allowed in a single chunk
-            overlap_tokens: Number of tokens to overlap between adjacent chunks
+        Parameters:
+            max_tokens_per_chunk (int): Maximum tokens allowed in a single chunk. Defaults to 500.
+            overlap_tokens (int): Number of tokens to overlap between adjacent chunks. Defaults to 50.
         """
         self.max_tokens_per_chunk = max_tokens_per_chunk
         self.overlap_tokens = overlap_tokens
@@ -23,37 +23,46 @@ class ContentChunker(ABC):
         
     @property
     def chunks(self) -> List[Dict[str, Any]]:
-        """Return the generated chunks."""
+        """
+        Get the list of generated content chunks.
+        
+        Returns:
+            List[Dict[str, Any]]: The list of chunk dictionaries stored by the chunker, in creation order.
+        """
         return self._chunks
     
     @property
     def chunk_count(self) -> int:
-        """Return the number of chunks generated."""
+        """
+        Number of generated chunks.
+        
+        Returns:
+            chunk_count (int): The count of chunks currently stored in the chunker.
+        """
         return len(self._chunks)
     
     @abstractmethod
     def chunk_content(self, content: Any) -> List[Dict[str, Any]]:
         """
-        Split content into logical chunks according to the implemented strategy.
+        Split input content into logical chunks according to the implemented strategy.
         
-        Args:
-            content: Content to be chunked (format depends on the specific source)
-            
+        Parameters:
+            content (Any): Source content to split; format and structure are implementation-specific.
+        
         Returns:
-            List of chunks with content and metadata
+            List[Dict[str, Any]]: A list of chunk dictionaries. Each dictionary contains the chunk's content (e.g., under a 'content' key) and associated metadata (e.g., under a 'metadata' key).
         """
         pass
     
     @abstractmethod
     def estimate_token_count(self, text: str) -> int:
         """
-        Estimate the number of tokens in a text string.
+        Estimate the number of tokens in the given text.
         
-        Args:
-            text: Text to analyze
-            
+        Parameters:
+            text (str): Input text whose token count will be estimated.
+        
         Returns:
-            Estimated token count
+            int: Estimated number of tokens in the input text.
         """
         pass
-

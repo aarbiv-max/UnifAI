@@ -20,10 +20,12 @@ class BaseConfigurationManager(ABC):
     
     def __init__(self, config_path: Optional[str] = None):
         """
-        Initialize the configuration manager.
+        Create a BaseConfigurationManager and initialize internal storage for configuration and secrets.
         
-        Args:
-            config_path: Optional path to a configuration file
+        If `config_path` is provided and the file exists, load configuration and secrets from that JSON file.
+        
+        Parameters:
+            config_path (Optional[str]): Path to a JSON file containing top-level "config" and "secrets" objects. If omitted or the file does not exist, the manager starts with empty stores.
         """
         self._config: Dict[str, Any] = {}
         self._secrets: Dict[str, Any] = {}
@@ -33,10 +35,12 @@ class BaseConfigurationManager(ABC):
     
     def load_config(self, config_path: str) -> None:
         """
-        Load configuration from a JSON file.
+        Load configuration and secrets from a JSON file into the manager's in-memory stores.
         
-        Args:
-            config_path: Path to the configuration file
+        The file should contain a top-level JSON object with optional "config" and "secrets" mappings. Keys from "config" are merged into self._config and keys from "secrets" are merged into self._secrets; missing sections are treated as empty mappings. Any exception raised while opening, reading, or parsing the file is propagated.
+        
+        Parameters:
+            config_path (str): Path to the JSON configuration file containing "config" and "secrets".
         """
         logger.info(f"Loading configuration from {config_path}")
         try:
@@ -50,10 +54,9 @@ class BaseConfigurationManager(ABC):
     
     def save_config(self, config_path: str) -> None:
         """
-        Save configuration to a JSON file.
+        Persist the manager's configuration and secrets to the given JSON file.
         
-        Args:
-            config_path: Path to save the configuration
+        Writes a JSON object with top-level keys "config" (the configuration dict) and "secrets" (the secrets dict).
         """
         try:
             with open(config_path, 'w') as f:
@@ -68,58 +71,59 @@ class BaseConfigurationManager(ABC):
     
     def get_config_value(self, key: str, default: Any = None) -> Any:
         """
-        Get a configuration value.
+        Retrieve a value from the manager's configuration by key.
         
-        Args:
-            key: The configuration key
-            default: Default value if key doesn't exist
-            
+        Parameters:
+            key (str): Configuration key to look up.
+            default (Any): Value to return if the key is not present.
+        
         Returns:
-            The configuration value or default
+            Any: The stored value for `key`, or `default` if the key is absent.
         """
         return self._config.get(key, default)
     
     def set_config_value(self, key: str, value: Any) -> None:
         """
-        Set a configuration value.
+        Set or update an in-memory configuration entry.
         
-        Args:
-            key: The configuration key
-            value: The value to set
+        Parameters:
+            key: The configuration key to set.
+            value: The value to assign to the configuration key.
         """
         self._config[key] = value
     
     def get_secret(self, key: str, default: Any = None) -> Any:
         """
-        Get a secret value.
+        Retrieve a secret value by key.
         
-        Args:
-            key: The secret key
-            default: Default value if key doesn't exist
-            
+        Parameters:
+            key (str): The secret's key.
+            default (Any): Value to return if the key is not present.
+        
         Returns:
-            The secret value or default
+            The secret value associated with `key`, or `default` if the key is absent.
         """
         return self._secrets.get(key, default)
     
     def set_secret(self, key: str, value: Any) -> None:
         """
-        Set a secret value.
+        Set a secret value identified by `key`.
         
-        Args:
-            key: The secret key
-            value: The value to set
+        Parameters:
+            key (str): The secret's identifier.
+            value (Any): The secret value to store.
         """
         self._secrets[key] = value
     
     @abstractmethod
     def validate_config(self) -> Tuple[bool, List[str]]:
         """
-        Validate the current configuration.
+        Validate the current in-memory configuration and collect any validation errors.
+        
+        Performs checks defined by subclasses and reports whether the configuration is valid.
         
         Returns:
-            Tuple of (is_valid, list_of_errors)
+            tuple: (is_valid, errors) where `is_valid` is `True` if no validation errors were found, `False` otherwise; `errors` is a list of human-readable error messages describing validation failures.
         """
         pass
-
 

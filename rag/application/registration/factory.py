@@ -27,6 +27,15 @@ class RegistrationFactory:
         doc_validators: DocValidators,
         slack_validators: SlackValidators,
     ) -> None:
+        """
+        Initialize the factory with dependencies required to create registration flows.
+        
+        Parameters:
+            data_source_repository (DataSourceRepository): Repository used to persist or look up data source records.
+            upload_folder (str): Filesystem path where uploaded documents are stored.
+            doc_validators (DocValidators): Validators applied to document uploads.
+            slack_validators (SlackValidators): Validators applied to Slack uploads.
+        """
         self._data_source_repository = data_source_repository
         self._upload_folder = upload_folder
         self._doc_validators = doc_validators
@@ -40,14 +49,19 @@ class RegistrationFactory:
         skip_validation: bool = False,
     ) -> RegistrationPort:
         """
-        Create a registration instance for the given source type.
+        Create a configured registration flow instance for the specified data source type.
         
-        Args:
-            source_type: Type of data source (e.g., 'slack', 'document')
-            upload_by: Username of the person uploading
-            instance: Data instance to register
-            skip_validation: If True, skip pre-upload validations (extension, size, name).
-                            MD5 duplicate check is always performed.
+        If `skip_validation` is True, pre-upload validations (extension, size, name) are skipped; an MD5 duplicate check is always performed.
+        
+        Parameters:
+            source_type (str): Data source type (case-insensitive), e.g. "slack" or "document".
+            upload_by (str): Identifier of the user initiating the upload.
+            instance (Dict[str, Any]): Payload describing the data source instance to register.
+            skip_validation (bool): When True, skip pre-upload validators; defaults to False.
+        
+        Returns:
+            RegistrationPort: A registration instance configured for the requested source type.
+        
         """
         normalized = (source_type or "").strip().lower()
 

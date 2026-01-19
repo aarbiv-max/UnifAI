@@ -15,6 +15,18 @@ class SlackEventResponse:
     task_result: Optional[SlackEventTaskResult] = None
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize the SlackEventResponse into a dictionary suitable for JSON responses.
+        
+        The resulting dictionary always contains the keys "success", "event_type", and "message". If a `task_result` is present, the dictionary also includes a "task" key whose value is the serialized task result.
+        
+        Returns:
+            Dict[str, Any]: A mapping with keys:
+                - "success": whether handling succeeded
+                - "event_type": the Slack event type
+                - "message": a human-readable message
+                - "task" (optional): serialized task result when available
+        """
         result = {
             "success": self.success,
             "event_type": self.event_type,
@@ -39,26 +51,27 @@ class SlackEventDispatchService:
 
     def __init__(self, dispatcher: SlackEventDispatcher):
         """
-        Initialize with injected dispatcher.
+        Create a service that dispatches Slack event payloads using the provided dispatcher.
         
-        Args:
-            dispatcher: Port for dispatching async tasks (injected adapter)
+        Parameters:
+            dispatcher (SlackEventDispatcher): Port used to dispatch Slack event payloads for processing.
         """
         self._dispatcher = dispatcher
 
     def handle_webhook(self, payload: Dict[str, Any]) -> SlackEventResponse:
         """
-        Handle incoming Slack Events API webhook.
+        Process a Slack Events API webhook payload and return a normalized SlackEventResponse.
         
-        Handles two payload types:
-        1. url_verification - Slack health check, returns challenge
-        2. event_callback - Actual event, dispatched to async worker
+        Handles the following payload types:
+        - `url_verification`: returns the Slack `challenge` value in the response message.
+        - `event_callback`: dispatches the payload via the injected dispatcher; on success the response includes the dispatch `task_result`, on failure the response indicates the error.
+        - any other type: treated as ignored and returns a success response indicating the event was ignored.
         
-        Args:
-            payload: Raw payload from Slack Events API
-            
+        Parameters:
+            payload (Dict[str, Any]): Raw webhook payload received from Slack Events API.
+        
         Returns:
-            SlackEventResponse with handling result
+            SlackEventResponse: Outcome of handling the webhook. For `url_verification`, `message` contains the challenge string. For successful `event_callback` dispatches, `task_result` contains the dispatcher result; on dispatch failure `success` is `False` and `message` contains the error. For unknown types, `message` states the event was ignored.
         """
         payload_type = payload.get("type", "unknown")
 
@@ -99,4 +112,3 @@ class SlackEventDispatchService:
             event_type=payload_type,
             message="Unknown event type, ignored",
         )
-

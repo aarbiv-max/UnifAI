@@ -10,20 +10,46 @@ class PipelineService:
     """Application service for Pipeline aggregate."""
 
     def __init__(self, pipeline_repo: PipelineRepository):
+        """
+        Initialize the service with a PipelineRepository.
+        
+        Parameters:
+            pipeline_repo (PipelineRepository): Repository used for persisting and retrieving pipeline records; stored for use by the service's methods.
+        """
         self._repo = pipeline_repo
 
     # --- CRUD ---
     def get(self, pipeline_id: str) -> Optional[PipelineRecord]:
-        """Get a pipeline record by ID."""
+        """
+        Retrieve a pipeline record by its identifier.
+        
+        Parameters:
+            pipeline_id (str): The pipeline's unique identifier.
+        
+        Returns:
+            Optional[PipelineRecord]: The matching PipelineRecord if found, otherwise `None`.
+        """
         return self._repo.find_by_id(pipeline_id)
 
     def delete(self, pipeline_id: str) -> int:
-        """Delete pipeline record(s). Returns count deleted."""
+        """
+        Delete pipeline record(s) by ID.
+        
+        Returns:
+            int: The number of records deleted.
+        """
         return self._repo.delete(pipeline_id)
 
     # --- Business Methods ---
     def register(self, pipeline_id: str, source_type: str) -> PipelineRecord:
-        """Create new pipeline record if doesn't exist, otherwise update timestamp."""
+        """
+        Ensure a PipelineRecord exists for the given pipeline ID, creating one if absent.
+        
+        If a record already exists, its last_updated timestamp is refreshed before saving; otherwise a new record is created with status PENDING, current UTC timestamps, and an empty PipelineStats and saved.
+        
+        Returns:
+            PipelineRecord: The existing or newly created pipeline record.
+        """
         existing = self._repo.find_by_id(pipeline_id)
         if existing:
             existing.last_updated = datetime.utcnow()
@@ -47,11 +73,14 @@ class PipelineService:
         status: Union[PipelineStatus, str],
     ) -> bool:
         """
-        Update pipeline status with automatic timestamp and processing time calculation.
+        Update the status of a pipeline record and persist timestamp and processing time.
         
-        Args:
-            pipeline_id: The pipeline ID
-            status: PipelineStatus enum or string value
+        Parameters:
+            pipeline_id (str): ID of the pipeline to update.
+            status (PipelineStatus | str): New status as a PipelineStatus instance or its string representation.
+        
+        Returns:
+            bool: `True` if the record was found and updated, `False` if no record exists for the given ID.
         """
         # Convert string to enum if needed
         if isinstance(status, str):
@@ -75,14 +104,14 @@ class PipelineService:
 
     def increment_stats(self, pipeline_id: str, stats_updates: Dict[str, Any]) -> bool:
         """
-        Increment pipeline statistics atomically.
+        Atomically increment numeric statistics fields for a pipeline.
         
-        Args:
-            pipeline_id: The pipeline ID
-            stats_updates: Dict of stat field names to increment values
-                          e.g. {"documents_retrieved": 5, "chunks_generated": 10}
+        Parameters:
+            pipeline_id (str): Identifier of the pipeline whose stats will be updated.
+            stats_updates (Dict[str, Any]): Mapping of statistic field names to increment values,
+                e.g. {"documents_retrieved": 5, "chunks_generated": 10}.
         
         Returns:
-            True if updated successfully
+            `true` if the update succeeded, `false` otherwise.
         """
         return self._repo.increment_stats(pipeline_id, stats_updates)

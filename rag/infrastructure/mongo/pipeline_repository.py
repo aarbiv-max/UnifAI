@@ -13,15 +13,33 @@ class MongoPipelineRepository(PipelineRepository):
     """MongoDB implementation of the PipelineRepository port."""
 
     def __init__(self, collection: Collection):
+        """
+        Initialize the repository with a MongoDB collection.
+        
+        Parameters:
+            collection (Collection): MongoDB collection used for all persistence operations by this repository.
+        """
         self._col = collection
 
     def find_by_id(self, pipeline_id: str) -> Optional[PipelineRecord]:
-        """Get pipeline record by ID."""
+        """
+        Retrieve a pipeline record by its pipeline_id.
+        
+        Returns:
+            PipelineRecord or None: `PipelineRecord` if found, `None` otherwise.
+        """
         doc = self._col.find_one({"pipeline_id": pipeline_id})
         return self._to_model(doc) if doc else None
 
     def save(self, record: PipelineRecord) -> None:
-        """Insert or update pipeline record (upsert by pipeline_id)."""
+        """
+        Upserts the given pipeline record into the repository.
+        
+        Performs an update-or-insert using the record's pipeline_id as the selector; when inserting a new document, initializes its created_at from the record.
+        
+        Parameters:
+            record (PipelineRecord): The pipeline record to persist (used as the source of fields and the upsert key).
+        """
         doc = self._to_document(record)
         self._col.update_one(
             {"pipeline_id": record.pipeline_id},
@@ -33,7 +51,14 @@ class MongoPipelineRepository(PipelineRepository):
         )
 
     def update_status(self, pipeline_id: str, status: PipelineStatus) -> bool:
-        """Update pipeline status. Returns True if updated."""
+        """
+        Update the pipeline's status and set its last_updated timestamp.
+        
+        If the new status is `PipelineStatus.DONE`, computes the processing time in seconds from the pipeline's `created_at` to now and stores it in `stats.processing_time`. Updates are applied to the document identified by `pipeline_id`.
+        
+        Returns:
+            True if a document was modified, False otherwise.
+        """
         now = datetime.utcnow()
         update_fields: Dict[str, Any] = {
             "status": status.value,
@@ -57,7 +82,12 @@ class MongoPipelineRepository(PipelineRepository):
         return result.modified_count > 0
 
     def get_stats_batch(self, pipeline_ids: List[str]) -> Dict[str, PipelineRecord]:
-        """Batch fetch pipeline records for enrichment."""
+        """
+        Batch-fetch pipeline records and return them keyed by pipeline_id.
+        
+        Returns:
+            Dict[str, PipelineRecord]: Mapping from pipeline_id to the corresponding PipelineRecord for each found document.
+        """
         if not pipeline_ids:
             return {}
 
@@ -70,7 +100,15 @@ class MongoPipelineRepository(PipelineRepository):
         return {doc["pipeline_id"]: self._to_model(doc) for doc in docs}
 
     def delete(self, pipeline_id: str) -> int:
-        """Delete pipeline(s). Returns count deleted."""
+        """
+        Delete pipelines whose pipeline_id starts with the provided identifier.
+        
+        Parameters:
+            pipeline_id (str): Identifier prefix used to match pipelines to delete.
+        
+        Returns:
+            int: Number of documents deleted; returns 0 if an error occurred during deletion.
+        """
         try:
             # Support regex for related pipelines (e.g., sub-pipelines)
             result = self._col.delete_many({"pipeline_id": {"$regex": f"^{pipeline_id}"}})
@@ -80,7 +118,18 @@ class MongoPipelineRepository(PipelineRepository):
             return 0
 
     def increment_stats(self, pipeline_id: str, stats_updates: Dict[str, Any]) -> bool:
-        """Increment pipeline statistics atomically using $inc."""
+        """
+        Atomically increments numeric statistics fields for a pipeline and updates its last_updated timestamp.
+        
+        Updates the nested `stats` fields specified by `stats_updates` by adding the provided amounts and sets `last_updated` to the current UTC time. If `stats_updates` is empty, no update is performed and the function reports success.
+        
+        Parameters:
+            pipeline_id (str): Identifier of the pipeline to update.
+            stats_updates (Dict[str, Any]): Mapping of statistics field names (keys under `stats`) to increment amounts.
+        
+        Returns:
+            `true` if a document was modified by the update, `false` otherwise.
+        """
         if not stats_updates:
             return True
 
@@ -97,7 +146,21 @@ class MongoPipelineRepository(PipelineRepository):
         return result.modified_count > 0
 
     def get_source_stats(self, source_type: str) -> Dict[str, Any]:
-        """Get aggregated statistics for a specific source type."""
+        """
+        Aggregate pipeline counts and latest update timestamp for the given source type.
+        
+        Parameters:
+            source_type (str): The source type to filter pipelines by.
+        
+        Returns:
+            Dict[str, Any]: A dictionary with the following keys:
+                - total_pipelines (int): Total number of pipelines for the source type.
+                - active_pipelines (int): Number of pipelines with status equal to `ACTIVE`.
+                - completed_pipelines (int): Number of pipelines with status equal to `DONE`.
+                - failed_pipelines (int): Number of pipelines with status equal to `FAILED`.
+                - pending_pipelines (int): Number of pipelines with status equal to `PENDING`.
+                - latest_update (datetime | None): The most recent `last_updated` timestamp for the source type, or `None` if no pipelines exist.
+        """
         pipeline = [
             {"$match": {"source_type": source_type}},
             {"$group": {
@@ -128,11 +191,27 @@ class MongoPipelineRepository(PipelineRepository):
 
     # --- Mapping methods ---
     def _to_model(self, doc: Dict[str, Any]) -> PipelineRecord:
-        """Convert MongoDB document to domain model."""
+        """
+        Map a MongoDB document to a PipelineRecord domain model.
+        
+        Parameters:
+            doc (Dict[str, Any]): MongoDB document representing a pipeline.
+        
+        Returns:
+            PipelineRecord: Domain model instance constructed from the document.
+        """
         return PipelineRecord.from_dict(doc)
 
     def _to_document(self, record: PipelineRecord) -> Dict[str, Any]:
-        """Convert domain model to MongoDB document."""
+        """
+        Convert a PipelineRecord to a MongoDB-compatible document.
+        
+        Parameters:
+            record (PipelineRecord): Domain pipeline record to convert.
+        
+        Returns:
+            Dict[str, Any]: Document dictionary suitable for Mongo, with the `created_at` field removed.
+        """
         doc = record.to_dict()
         doc.pop("created_at", None)  # Handled separately in upsert
         return doc

@@ -19,11 +19,13 @@ class PDFChunkerStrategy(ContentChunker):
     
     def __init__(self, max_tokens_per_chunk: int = 500, overlap_tokens: int = 50):
         """
-        Initialize the PDF chunker strategy.
+        Initialize the PDF chunker strategy and configure tokenization and character-based chunk sizing.
         
-        Args:
-            max_tokens_per_chunk: Maximum number of tokens allowed in a single chunk
-            overlap_tokens: Number of tokens to overlap between adjacent chunks
+        Attempts to initialize a tiktoken encoder using the "cl100k_base" encoding; if initialization fails, the instance falls back to a token-estimation mode by leaving the tokenizer unset. Calls the base class initializer with the provided token limits and computes character-based chunk_size and chunk_overlap by assuming 4 characters per token.
+        
+        Parameters:
+            max_tokens_per_chunk (int): Maximum number of tokens allowed in a single chunk.
+            overlap_tokens (int): Number of tokens to overlap between adjacent chunks.
         """
         super().__init__(max_tokens_per_chunk, overlap_tokens)
         try:
@@ -45,13 +47,13 @@ class PDFChunkerStrategy(ContentChunker):
     
     def estimate_token_count(self, text: str) -> int:
         """
-        Estimate the number of tokens in a text string.
+        Estimate the number of tokens in a text string using the initialized tokenizer or a character-based fallback.
         
-        Args:
-            text: Text to analyze
-            
+        Parameters:
+            text (str): Input text to estimate token count for.
+        
         Returns:
-            Estimated token count
+            int: Estimated number of tokens in the input text.
         """
         if self.tokenizer:
             return len(self.tokenizer.encode(text))
@@ -61,13 +63,22 @@ class PDFChunkerStrategy(ContentChunker):
     
     def chunk_content(self, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Split PDF content into logical chunks while preserving natural boundaries.
+        Produce content chunks from PDF documents while preserving natural text boundaries.
         
-        Args:
-            documents: List of document objects with content and metadata
-            
+        Splits each document's 'content' into chunks using paragraph- and sentence-aware boundaries, estimates token counts (using the configured tokenizer or a fallback), and returns chunks enriched with metadata including chunk_index, total_chunks, token_count, document_id, filename, and adjacent chunk references (`prev_chunk_id`, `next_chunk_id`). Documents with empty or missing content are skipped.
+        
+        Parameters:
+            documents (List[Dict[str, Any]]): List of document objects. Each document is expected to include:
+                - 'content' (str): Raw text to split.
+                - 'id' (str, optional): Document identifier (used to build chunk ids).
+                - 'filename' (str, optional): Human-readable filename for logging/metadata.
+                - 'metadata' (dict, optional): Additional metadata to merge into each chunk's metadata.
+        
         Returns:
-            List of chunks with content and metadata
+            List[Dict[str, Any]]: List of chunk dictionaries, each with keys:
+                - 'id' (str): Unique chunk id of the form "<document_id>_chunk_<index>".
+                - 'text' (str): Chunk text.
+                - 'metadata' (dict): Chunk metadata as described above.
         """
         logger.info(f"Starting to chunk {len(documents)} PDF documents")
         self._chunks = []

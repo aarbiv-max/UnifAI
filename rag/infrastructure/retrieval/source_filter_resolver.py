@@ -32,10 +32,10 @@ class SourceFilterResolver:
     
     def __init__(self, sources_collection: Collection):
         """
-        Initialize the filter resolver.
+        Initialize the resolver with a MongoDB collection of source documents.
         
-        Args:
-            sources_collection: MongoDB collection containing source documents
+        Parameters:
+            sources_collection (Collection): MongoDB collection containing source documents used to resolve source_ids for filtering.
         """
         self._col = sources_collection
     
@@ -46,17 +46,18 @@ class SourceFilterResolver:
         tags: Optional[List[str]] = None,
     ) -> Optional[Set[str]]:
         """
-        Resolve filters to source_ids using OR logic.
+        Resolve filters into matching source IDs using OR logic across doc IDs and tags.
         
-        Args:
-            source_type: Filter by source type (e.g., "DOCUMENT", "SLACK")
-            doc_ids: Optional list of specific document IDs to include
-            tags: Optional list of tags - include docs with ANY of these tags
+        Parameters:
+            source_type (str): Source type to constrain the query; normalized to uppercase.
+            doc_ids (Optional[List[str]]): If provided, include documents whose `source_id` is in this list.
+            tags (Optional[List[str]]): If provided, include documents that have any of these tags.
         
         Returns:
-            - None: No filters applied (search all documents)
-            - Empty set: Filters applied but no matches found
-            - Set[str]: Matching source_ids (union of doc_ids OR tags matches)
+            Optional[Set[str]]: 
+                - `None` if neither `doc_ids` nor `tags` are provided (no filters applied).
+                - A set of matching `source_id` strings when filters are applied and matches exist.
+                - An empty set if filters are applied but no matches are found or an error occurs while querying.
         """
         if not doc_ids and not tags:
             return None

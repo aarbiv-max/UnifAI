@@ -10,7 +10,14 @@ settings_bp = Blueprint("settings", __name__)
 
 @settings_bp.route("/get.umami.settings", methods=["GET"])
 def get_umami_settings():
-    """Get Umami analytics settings for the frontend."""
+    """
+    Fetches Umami analytics website settings for frontend use.
+    
+    Reads the configured `umami_website_name` (defaults to "unifai") and retrieves the corresponding website data from the Umami client.
+    
+    Returns:
+        A tuple (payload, status_code) where `payload` is a JSON-serializable dict containing the Umami website data on success, or an error message dict on failure; `status_code` is 200 on success, 500 for configuration errors, or 503 when the Umami service is unavailable.
+    """
     try:
         config = AppConfig.get_instance()
         website_name = config.get("umami_website_name", "unifai")
@@ -22,4 +29,3 @@ def get_umami_settings():
     except Exception as e:
         logger.error(f"Umami service unavailable: {e}")
         return jsonify({"error": "Umami service unavailable"}), 503
-

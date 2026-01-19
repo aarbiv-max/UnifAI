@@ -17,10 +17,28 @@ class BotInstallationCheckerAdapter:
     """
 
     def __init__(self, slack_connector: Any) -> None:
+        """
+        Initialize the adapter with a Slack API connector.
+        
+        Stores the provided connector on the instance for performing Slack API requests. If None, API checks will be skipped.
+        
+        Parameters:
+            slack_connector (Any): Connector used to call the Slack API (or None to disable API calls).
+        """
         self._connector = slack_connector
 
     def is_bot_installed_in_channel(self, channel_id: str) -> bool:
-        """Check if bot is member of channel via Slack API."""
+        """
+        Determine whether the bot is a member of the Slack channel identified by channel_id.
+        
+        Returns False if channel_id is invalid, if no Slack connector is configured, or if the Slack API returns an error or the API call fails.
+        
+        Parameters:
+            channel_id (str): Slack channel ID to check.
+        
+        Returns:
+            bool: True if the bot is a member of the channel, False otherwise.
+        """
         if not isinstance(channel_id, str) or not channel_id:
             return False
 
@@ -49,10 +67,26 @@ class MembershipUpdaterAdapter:
     """
 
     def __init__(self, storage: Any) -> None:
+        """
+        Initialize the MembershipUpdaterAdapter with a storage backend for updating Slack channel membership.
+        
+        Parameters:
+            storage (Any): Storage backend exposing `slack_channels.update_membership(channel_id: str, is_member: bool, timestamp: float) -> bool`.
+                           The adapter stores this backend as an instance attribute and relies on that method to persist membership changes.
+        """
         self._storage = storage
 
     def update_membership(self, channel_id: str, is_member: bool) -> bool:
-        """Update bot membership flag in database."""
+        """
+        Update the stored membership state for a Slack channel.
+        
+        Parameters:
+            channel_id (str): Slack channel identifier to update.
+            is_member (bool): Whether the bot is a member of the channel.
+        
+        Returns:
+            bool: `True` if the storage update succeeded, `False` otherwise.
+        """
         try:
             if hasattr(self._storage, "slack_channels") and hasattr(self._storage.slack_channels, "update_membership"):
                 return bool(

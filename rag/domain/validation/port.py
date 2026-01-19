@@ -13,14 +13,32 @@ class DataSourceValidator:
     error_message_key: str = ""
 
     def validate(self, **kwargs: Any) -> Tuple[bool, Optional[ValidationIssue]]:
-        """Validate before execution using keyword arguments.
-
-        Return (True, None) if valid, otherwise (False, ValidationIssue).
+        """
+        Perform pre-execution validation using provided keyword arguments.
+        
+        Subclasses should override to implement specific checks and return a structured result.
+        
+        Parameters:
+            **kwargs (Any): Validator-specific inputs required to perform validation.
+        
+        Returns:
+            Tuple[bool, Optional[ValidationIssue]]: `(True, None)` if validation passes; otherwise `(False, ValidationIssue)`.
         """
         ...
 
     def build_issue(self, message: Optional[str] = None) -> ValidationIssue:
-        """Helper for implementations to build a structured ValidationIssue."""
+        """
+        Construct a structured ValidationIssue for this validator.
+        
+        Parameters:
+            message (Optional[str]): Optional override for the validator's default error message.
+        
+        Returns:
+            ValidationIssue: A mapping with keys:
+                - "issue_key": the validator's `error_message_key` or "ValidationError" if not set.
+                - "message": the provided `message` or the validator's `error_message`.
+                - "validator_name": the validator's `name` or the validator class name.
+        """
         issue_message = message if message is not None else self.error_message
         return {
             "issue_key": self.error_message_key or "ValidationError",

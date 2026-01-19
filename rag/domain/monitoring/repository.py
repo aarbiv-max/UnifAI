@@ -16,24 +16,24 @@ class MonitoringRepository(ABC):
     @abstractmethod
     def save_metrics(self, entry: MetricsEntry) -> None:
         """
-        Save a metrics snapshot.
+        Persist a metrics snapshot for a pipeline.
         
-        Args:
-            entry: The metrics entry to save
+        Parameters:
+            entry (MetricsEntry): Metrics snapshot to persist.
         """
         ...
 
     @abstractmethod
     def get_metrics(self, pipeline_id: str, limit: int = 100) -> List[MetricsEntry]:
         """
-        Get metrics history for a specific pipeline.
+        Retrieve the recent metrics history for a pipeline.
         
-        Args:
-            pipeline_id: The ID of the pipeline
-            limit: Maximum number of entries to return
-            
+        Parameters:
+            pipeline_id (str): Identifier of the pipeline to query.
+            limit (int): Maximum number of entries to return (default 100).
+        
         Returns:
-            List of metrics entries, most recent first
+            List[MetricsEntry]: Metrics entries ordered most recent first.
         """
         ...
 
@@ -41,24 +41,24 @@ class MonitoringRepository(ABC):
     @abstractmethod
     def save_error(self, entry: ErrorEntry) -> None:
         """
-        Save an error record.
+        Persist an error entry associated with pipeline execution.
         
-        Args:
-            entry: The error entry to save
+        Parameters:
+            entry (ErrorEntry): Error entry to save; must include the pipeline identifier and error details.
         """
         ...
 
     @abstractmethod
     def get_errors(self, pipeline_id: str, limit: int = 100) -> List[ErrorEntry]:
         """
-        Get error history for a specific pipeline.
+        Retrieve the error history for a specific pipeline.
         
-        Args:
-            pipeline_id: The ID of the pipeline
-            limit: Maximum number of entries to return
-            
+        Parameters:
+            pipeline_id (str): Identifier of the pipeline to query.
+            limit (int): Maximum number of entries to return. Defaults to 100.
+        
         Returns:
-            List of error entries, most recent first
+            List[ErrorEntry]: Error entries for the pipeline, ordered most recent first.
         """
         ...
 
@@ -66,38 +66,33 @@ class MonitoringRepository(ABC):
     @abstractmethod
     def save_log(self, entry: LogEntry) -> None:
         """
-        Save a log entry.
+        Persist a log entry for later retrieval and analysis.
         
-        Args:
-            entry: The log entry to save
+        Parameters:
+            entry (LogEntry): Log entry data to persist (e.g., timestamp, level, message, source and pipeline association).
         """
         ...
 
     @abstractmethod
     def get_logs_by_source(self, source_type: str, limit: int = 10) -> List[LogEntry]:
         """
-        Get recent logs for a specific source type.
+        Get recent log entries filtered by a specific source type.
         
-        Args:
-            source_type: The source type to filter by
-            limit: Maximum number of entries to return
-            
+        Parameters:
+            source_type (str): The source type to filter logs by.
+            limit (int): Maximum number of entries to return.
+        
         Returns:
-            List of log entries, most recent first
+            List[LogEntry]: Log entries matching `source_type`, ordered most recent first.
         """
         ...
 
     @abstractmethod
     def get_logs_by_pipeline(self, pipeline_id: str, limit: int = 100) -> List[LogEntry]:
         """
-        Get logs for a specific pipeline.
+        Retrieve recent log entries for a specific pipeline.
         
-        Args:
-            pipeline_id: The ID of the pipeline
-            limit: Maximum number of entries to return
-            
         Returns:
-            List of log entries, most recent first
+            List[LogEntry]: Log entries for the given pipeline ordered most recent first, limited to `limit` entries.
         """
         ...
-

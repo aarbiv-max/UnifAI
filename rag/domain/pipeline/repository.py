@@ -10,7 +10,12 @@ class PipelineRepository(ABC):
 
     @abstractmethod
     def find_by_id(self, pipeline_id: str) -> Optional[PipelineRecord]:
-        """Get pipeline record by ID."""
+        """
+        Retrieve the pipeline record for the given pipeline ID.
+        
+        Returns:
+            PipelineRecord if found, `None` otherwise.
+        """
         ...
 
     @abstractmethod
@@ -20,49 +25,73 @@ class PipelineRepository(ABC):
 
     @abstractmethod
     def update_status(self, pipeline_id: str, status: PipelineStatus) -> bool:
-        """Update pipeline status. Returns True if updated."""
+        """
+        Update the status of a pipeline record.
+        
+        Parameters:
+            pipeline_id (str): Identifier of the pipeline to update.
+            status (PipelineStatus): New status to set on the pipeline.
+        
+        Returns:
+            True if the status was updated, False otherwise.
+        """
         ...
 
     @abstractmethod
     def get_stats_batch(self, pipeline_ids: List[str]) -> Dict[str, PipelineRecord]:
-        """Batch fetch pipeline records for enrichment."""
+        """
+        Retrieve multiple pipeline records by their IDs for enrichment.
+        
+        Parameters:
+            pipeline_ids (List[str]): Sequence of pipeline IDs to fetch.
+        
+        Returns:
+            Dict[str, PipelineRecord]: Mapping from pipeline ID to the corresponding PipelineRecord for any records found.
+        """
         ...
 
     @abstractmethod
     def delete(self, pipeline_id: str) -> int:
-        """Delete pipeline(s). Returns count deleted."""
+        """
+        Delete pipeline records by ID.
+        
+        Parameters:
+            pipeline_id (str): Identifier of the pipeline to delete.
+        
+        Returns:
+            int: Number of records deleted.
+        """
         ...
 
     @abstractmethod
     def increment_stats(self, pipeline_id: str, stats_updates: Dict[str, Any]) -> bool:
         """
-        Increment pipeline statistics atomically.
+        Atomically increment numeric statistic fields on the specified pipeline record.
         
-        Args:
-            pipeline_id: The pipeline ID
-            stats_updates: Dict of stat field names to increment values
-                          e.g. {"documents_retrieved": 5, "chunks_generated": 10}
+        Parameters:
+            pipeline_id (str): Identifier of the pipeline to update.
+            stats_updates (Dict[str, Any]): Mapping of statistic field names to increment values (e.g., {"documents_retrieved": 5, "chunks_generated": 10}). Values should be numeric and will be applied as atomic increments.
         
         Returns:
-            True if updated successfully
+            bool: `True` if the statistics were updated, `False` otherwise.
         """
         ...
 
     @abstractmethod
     def get_source_stats(self, source_type: str) -> Dict[str, Any]:
         """
-        Get aggregated statistics for a specific source type.
+        Aggregates statistics for pipelines of the given source type.
         
-        Args:
-            source_type: The source type to get statistics for
-            
+        Parameters:
+            source_type (str): Source type key used to filter pipelines (for example, a connector or ingestion type).
+        
         Returns:
-            Dictionary containing aggregated statistics including:
-            - total_pipelines: Total count of pipelines
-            - active_pipelines: Count of active pipelines
-            - completed_pipelines: Count of done pipelines
-            - failed_pipelines: Count of failed pipelines
-            - pending_pipelines: Count of pending pipelines
-            - latest_update: Most recent update timestamp
+            Dict[str, Any]: Mapping of aggregated statistic names to their values:
+                - total_pipelines: Total count of pipelines for the source.
+                - active_pipelines: Count of pipelines currently active.
+                - completed_pipelines: Count of pipelines that have completed successfully.
+                - failed_pipelines: Count of pipelines that have failed.
+                - pending_pipelines: Count of pipelines awaiting processing.
+                - latest_update: Timestamp of the most recent update among the matched pipelines.
         """
         ...

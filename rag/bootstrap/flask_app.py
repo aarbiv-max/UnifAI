@@ -20,16 +20,14 @@ from global_utils.flask.request_rules import RequestRules
 
 def create_app() -> Flask:
     """
-    Application factory for Flask app.
+    Create and configure a Flask application for the project.
     
-    Creates a Flask application with:
-    - CORS configuration
-    - Secret key
-    - All HTTP endpoint blueprints registered
-    - Request validation rules
+    The returned app has its secret key and version set from AppConfig (with sensible defaults),
+    CORS enabled (supports credentials and uses FRONTEND_URL or a localhost default), HTTP endpoint
+    blueprints registered, and request validation rules initialized.
     
     Returns:
-        Configured Flask application
+        Configured Flask application instance.
     """
     app = Flask(__name__)
     config = AppConfig.get_instance()
@@ -72,4 +70,3 @@ if __name__ == "__main__":
         port=config.port,
         debug=True,
     )
-

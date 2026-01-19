@@ -17,7 +17,20 @@ class PipelineStartResult:
     task_results: List[Dict[str, Any]] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dict for JSON serialization."""
+        """
+        Produce a dictionary representation of the pipeline start result suitable for JSON serialization.
+        
+        Returns:
+            result (dict): Dictionary with keys:
+                - registration_completed (bool): Whether registration completed.
+                - registration (dict): Raw registration response.
+                - pipeline_execution (dict): Execution summary containing:
+                    - status (str): "pipeline_workflow_started" when tasks were submitted, otherwise "no_registered_sources".
+                    - message (str): Human-readable summary message.
+                    - pipeline_worker_tasks_submitted (int): Number of dispatched tasks.
+                    - source_count (int): Number of registered sources.
+                    - tasks (list[dict]): Per-task result dictionaries.
+        """
         return {
             "registration_completed": self.registration_completed,
             "registration": self.registration_response,
@@ -51,11 +64,9 @@ class PipelineDispatchService:
         task_dispatcher: PipelineTaskDispatcher,
     ):
         """
-        Initialize with injected dependencies.
+        Configure the PipelineDispatchService with its registration and task-dispatch ports.
         
-        Args:
-            registration_svc: Service for registering sources
-            task_dispatcher: Port for dispatching async tasks (injected adapter)
+        Stores the provided RegistrationService and PipelineTaskDispatcher for use when starting pipelines.
         """
         self._registration = registration_svc
         self._dispatcher = task_dispatcher
@@ -68,21 +79,16 @@ class PipelineDispatchService:
         skip_validation: bool = False,
     ) -> PipelineStartResult:
         """
-        Start the pipeline workflow for provided data sources.
+        Start the pipeline for the given data sources by registering them and dispatching pipeline tasks.
         
-        Performs registration synchronously, then dispatches pipeline
-        execution tasks to async workers.
-        
-        Args:
-            data: List of data sources to register and process
-            source_type: Type of data source (DOCUMENT, SLACK, etc.)
-            upload_by: Username of the current user
-            skip_validation: If True, skip file validation during registration.
-                            Should only be True when files have been pre-validated
-                            via the /docs/validate endpoint (UI flow).
+        Parameters:
+            data (List[Dict[str, Any]]): The source items to register and process.
+            source_type (str): Source category (e.g., "DOCUMENT", "SLACK"); case is normalized by the service.
+            upload_by (str): Identifier of the user or system initiating the upload.
+            skip_validation (bool): If True, skip file validation during registration (use only when sources have been pre-validated).
         
         Returns:
-            PipelineStartResult with registration and dispatch details
+            PipelineStartResult: Summary of the registration and dispatch outcomes, including counts, the raw registration response, and per-task result dictionaries.
         """
         logger.info(f"Starting pipeline for {len(data)} {source_type} sources by {upload_by}")
 
@@ -116,4 +122,3 @@ class PipelineDispatchService:
             registration_response=reg_response,
             task_results=[t.to_dict() for t in task_results],
         )
-

@@ -25,12 +25,15 @@ class SlackChunkerStrategy(ContentChunker):
         time_window_seconds: int = 300  # 5 minutes in seconds
     ):
         """
-        Initialize the Slack chunker with configuration parameters.
+        Configure the Slack chunker with token limits, overlap, and conversation grouping window.
         
-        Args:
-            max_tokens_per_chunk: Maximum number of tokens allowed in a single chunk
-            overlap_tokens: Number of tokens to overlap between adjacent chunks
-            time_window_seconds: Maximum time difference between messages to consider them part of the same conversation
+        Parameters:
+            max_tokens_per_chunk: Maximum token count allowed for a single chunk; chunks exceeding this will be split.
+            overlap_tokens: Number of tokens to overlap between adjacent chunks to preserve context across splits.
+            time_window_seconds: Maximum time difference in seconds between messages to consider them part of the same conversation burst.
+        
+        Notes:
+            Initializes an OpenAI-compatible tokenizer using the `cl100k_base` encoding for token estimation.
         """
         super().__init__(max_tokens_per_chunk, overlap_tokens)
         self.time_window_seconds = time_window_seconds
@@ -38,16 +41,16 @@ class SlackChunkerStrategy(ContentChunker):
     
     def chunk_content(self, content: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]], upload_by: str = "default") -> List[Dict[str, Any]]:
         """
-        Split Slack content into logical chunks using a hybrid strategy.
+        Chunk Slack messages and threads into text chunks annotated with metadata.
         
-        This method handles both individual messages and thread messages,
-        applying appropriate chunking strategies for each.
+        Preserves thread integrity when possible, groups non-threaded messages by time proximity, and enforces token-size limits so each returned chunk is within the configured size.
         
-        Args:
-            content: Either a list of processed messages or a list of thread message lists
-            
+        Parameters:
+            content (Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]]): Either a flat list of message objects or a list of threads where each thread is a list of message objects. Each message is expected to include timestamp, user, text, and channel information.
+            upload_by (str): Identifier for who uploaded or requested the chunking (stored in chunk metadata).
+        
         Returns:
-            List of chunks with content and metadata
+            List[Dict[str, Any]]: A list of chunk objects. Each chunk contains the chunk text and metadata such as source_type, channel, time range, message_count, token_count, and any split/chunk indexing information.
         """
         self._chunks = []
         
@@ -64,10 +67,13 @@ class SlackChunkerStrategy(ContentChunker):
     
     def _chunk_threads(self, threads: List[List[Dict[str, Any]]], upload_by) -> None:
         """
-        Process thread messages, treating each thread as a potential chunk.
+        Convert Slack threads into chunk dictionaries and append them to the instance's internal chunk list.
         
-        Args:
-            threads: List of threads, where each thread is a list of messages
+        Each thread is formatted and estimated for token length; if it fits within the configured token limit a single chunk is appended, otherwise the thread is split and multiple chunk entries are appended. Chunk metadata includes source_type, channel_name, upload_by, thread_id, time_range, message_count, and either token_count (for whole-thread chunks) or is_split plus chunk-specific metadata (for split fragments).
+        
+        Parameters:
+            threads (List[List[Dict[str, Any]]]): List of threads, where each thread is a list of message dicts. Each message is expected to include a "time_stamp" and a "metadata" dict containing at least "channel_name"; an optional "thread_ts" in metadata may be used as the thread identifier.
+            upload_by (str): Identifier for who uploaded or initiated the chunking; added to each chunk's metadata.
         """
         for thread_index, thread in enumerate(threads):
             if not thread:
@@ -114,10 +120,13 @@ class SlackChunkerStrategy(ContentChunker):
     
     def _chunk_individual_messages(self, messages: List[Dict[str, Any]], upload_by) -> None:
         """
-        Process individual messages by grouping them into time-based conversation bursts.
+        Group non-thread Slack messages into time-windowed conversation bursts and produce token-limited chunks appended to self._chunks.
         
-        Args:
-            messages: List of individual messages (not part of threads)
+        Each burst contains messages whose timestamps are within self.time_window_seconds of each other. For each burst the function formats the messages as text, estimates token usage, and either appends a single chunk with metadata or splits the text into multiple chunks when it exceeds self.max_tokens_per_chunk. Appended chunk metadata includes source_type, channel_name, upload_by, time_range, message_count, token_count, and when splitting, an is_split flag and per-fragment chunk_index/chunk_count.
+        
+        Parameters:
+            messages (List[Dict[str, Any]]): List of Slack message objects (not threaded). Each message is expected to include at least "time_stamp" and "metadata" with "channel_name", plus fields used by the formatter (e.g., user and text).
+            upload_by (str): Identifier for who/uploaded the content; recorded in chunk metadata.
         """
         if not messages:
             return
@@ -186,14 +195,13 @@ class SlackChunkerStrategy(ContentChunker):
     
     def _split_large_content(self, text: str, metadata: Dict[str, Any]) -> None:
         """
-        Split large content that exceeds token limits into smaller chunks.
+        Split a text that exceeds token limits into smaller chunks and append them to self._chunks with updated metadata.
         
-        Uses LangChain's RecursiveCharacterTextSplitter for intelligent splitting
-        at natural text boundaries like paragraph breaks, sentences, etc.
+        Each resulting chunk is sized to respect the instance's max_tokens_per_chunk and overlap_tokens settings. The provided metadata is copied into each chunk and augmented with `chunk_index`, `chunk_count`, and `token_count` to preserve provenance and ordering.
         
-        Args:
-            text: Text content to split
-            metadata: Metadata to associate with the resulting chunks
+        Parameters:
+            text (str): The text content to split into smaller chunks.
+            metadata (Dict[str, Any]): Base metadata to associate with each generated chunk; this dict will be copied and extended per chunk.
         """
         # Calculate approximately how many characters per token for this content
         chars_per_token = len(text) / max(1, self.estimate_token_count(text))
@@ -227,13 +235,19 @@ class SlackChunkerStrategy(ContentChunker):
     
     def _format_thread_as_text(self, thread_messages: List[Dict[str, Any]]) -> str:
         """
-        Format thread messages into a human-readable text representation.
+        Format a Slack thread's messages into a human-readable multiline text block.
         
-        Args:
-            thread_messages: List of messages in a thread
-            
+        Each message is rendered on its own line prefixed with a readable timestamp and user. The output begins with a header containing the channel name and thread identifier.
+        
+        Parameters:
+            thread_messages (List[Dict[str, Any]]): Ordered list of message objects where each message contains:
+                - "time_stamp" (str | numeric): Unix timestamp of the message.
+                - "user" (str): Display name or identifier of the message author.
+                - "text" (str): Message content.
+                - "metadata" (dict): Must include "channel_name" (str). May include "thread_ts" (str) to identify the thread.
+        
         Returns:
-            Formatted text representation of the thread
+            str: Multiline string representing the thread, with a header and one timestamped "user: text" line per message.
         """
         lines = []
         
@@ -256,13 +270,18 @@ class SlackChunkerStrategy(ContentChunker):
     
     def _format_messages_as_text(self, messages: List[Dict[str, Any]]) -> str:
         """
-        Format individual messages into a human-readable conversation.
+        Format a list of Slack messages into a readable multi-line conversation text block.
         
-        Args:
-            messages: List of messages to format
-            
+        Parameters:
+            messages (List[Dict[str, Any]]): Ordered list of message objects where each message contains:
+                - "time_stamp": epoch timestamp (string or number),
+                - "user": display name or identifier,
+                - "text": message content,
+                - "metadata": dict containing "channel_name".
+        
         Returns:
-            Formatted text representation of the conversation
+            str: A multi-line string with a header showing channel and time range, a separator line,
+                 and each message on its own line formatted as "[HH:MM:SS] user: text".
         """
         lines = []
         
@@ -287,13 +306,10 @@ class SlackChunkerStrategy(ContentChunker):
     
     def estimate_token_count(self, text: str) -> int:
         """
-        Estimate the number of tokens in a text string using tiktoken.
+        Estimate the number of tokens in the given text using the configured tokenizer.
         
-        Args:
-            text: Text to tokenize
-            
         Returns:
-            Number of tokens in the text
+            token_count (int): Number of tokens for the provided text; returns 0 for empty input.
         """
         if not text:
             return 0

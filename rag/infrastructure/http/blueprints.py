@@ -13,17 +13,17 @@ from infrastructure.http.terms_approval import terms_approval_bp
 
 def register_blueprints(app: Flask) -> None:
     """
-    Register all HTTP endpoint blueprints.
+    Register HTTP blueprints onto the given Flask application under the /api/{parent}/ URL prefixes.
     
-    URL prefixes match backend pattern: /api/{parent}/
-    - /api/health/ - Health checks
-    - /api/vector/ - Vector storage stats
-    - /api/settings/ - Application settings
-    - /api/pipelines/ - Pipeline execution
-    - /api/data_sources/ - Data source management
-    - /api/docs/ - Document operations
-    - /api/slack/ - Slack integration
-    - /api/terms_approval/ - Terms approval
+    Registers the following blueprint-to-prefix mappings:
+    - /api/health/ -> Health checks
+    - /api/vector/ -> Vector storage stats
+    - /api/settings/ -> Application settings
+    - /api/pipelines/ -> Pipeline execution
+    - /api/data_sources/ -> Data source management
+    - /api/docs/ -> Document operations
+    - /api/slack/ -> Slack integration
+    - /api/terms_approval/ -> Terms approval
     """
     app.register_blueprint(health_bp, url_prefix="/api/health/")
     app.register_blueprint(vector_bp, url_prefix="/api/vector/")
@@ -33,4 +33,3 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(docs_bp, url_prefix="/api/docs/")
     app.register_blueprint(slack_bp, url_prefix="/api/slack/")
     app.register_blueprint(terms_approval_bp, url_prefix="/api/terms_approval/")
-

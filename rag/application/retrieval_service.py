@@ -46,6 +46,12 @@ class RetrievalService:
         filter_resolver: SourceFilterResolver,
         source_type: str = "DOCUMENT",
     ):
+        """
+        Initialize the retrieval service with components required for embedding generation, vector search, and source filtering.
+        
+        Parameters:
+            source_type (str): Default source type to use when resolving filters (e.g., "DOCUMENT").
+        """
         self._embedder = embedder
         self._vector_repo = vector_repo
         self._filter_resolver = filter_resolver
@@ -61,18 +67,20 @@ class RetrievalService:
         tags: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Execute a vector search with optional filtering.
+        Execute a vector search for the given query and return matching documents, optionally constrained by scope, document IDs, or tags.
         
-        Args:
-            query: Search query text
-            limit: Number of results to return
-            scope: "public" or "private" - filters by upload_by if private
-            user: User identifier for private scope filtering
-            doc_ids: Optional list of document IDs to filter by
-            tags: Optional list of tags to filter by
-            
+        If document/tag filters are provided and resolve to no matching source IDs, the function returns an empty list.
+        
+        Parameters:
+            query (str): Text to search.
+            limit (int): Maximum number of results to return.
+            scope (str): "public" or "private". When "private", results are restricted to those uploaded by `user`.
+            user (str): User identifier used to restrict results when scope is "private".
+            doc_ids (Optional[List[str]]): Optional list of document IDs to restrict the search to specific source IDs.
+            tags (Optional[List[str]]): Optional list of tags to restrict the search to specific source IDs.
+        
         Returns:
-            List of search result dictionaries ordered by relevance
+            List[Dict[str, Any]]: List of result dictionaries ordered by relevance, each containing `id`, `score`, `content`, and `metadata`.
         """
         # 1. Resolve source filters (doc_ids/tags -> source_ids)
         allowed_source_ids = self._filter_resolver.resolve(
@@ -120,13 +128,13 @@ class RetrievalService:
 
     def search_with_query(self, query: SearchQuery) -> List[Dict[str, Any]]:
         """
-        Execute a vector search using a SearchQuery object.
+        Perform a retrieval using the provided SearchQuery and return matching results.
         
-        Args:
-            query: SearchQuery containing search parameters
-            
+        Parameters:
+            query (SearchQuery): SearchQuery containing the text and filtering parameters to apply.
+        
         Returns:
-            List of search result dictionaries ordered by relevance
+            List[Dict[str, Any]]: Search result dictionaries ordered by relevance. Each dictionary contains keys `id`, `score`, `content`, and `metadata`.
         """
         return self.search(
             query=query.query_text,

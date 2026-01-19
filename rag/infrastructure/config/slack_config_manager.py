@@ -13,10 +13,12 @@ class SlackConfigManager(BaseConfigurationManager):
     
     def __init__(self, config_path: Optional[str] = None):
         """
-        Initialize the Slack configuration manager.
+        Initialize the Slack configuration manager and load any saved project tokens.
         
-        Args:
-            config_path: Optional path to a configuration file
+        Creates the internal mapping for per-project OAuth tokens and, if the configuration contains a 'project_tokens' section, populates that mapping from the configuration.
+        
+        Parameters:
+            config_path (Optional[str]): Path to a configuration file to load (if None, uses default locations).
         """
         super().__init__(config_path)
         self._project_tokens: Dict[str, Dict[str, str]] = {}
@@ -28,10 +30,10 @@ class SlackConfigManager(BaseConfigurationManager):
     
     def validate_config(self) -> Tuple[bool, List[str]]:
         """
-        Validate Slack-specific configuration.
+        Validate that at least one project is configured and that every configured project has a bot token.
         
         Returns:
-            Tuple of (is_valid, list_of_errors)
+            Tuple[bool, List[str]]: `True` if the configuration has at least one project and every project includes a bot token, `False` otherwise; second element is a list of error messages describing any missing configuration.
         """
         errors = []
         
@@ -49,13 +51,13 @@ class SlackConfigManager(BaseConfigurationManager):
     def set_project_tokens(self, project_id: str, user_token: Optional[str] = None, 
                          bot_token: Optional[str] = None) -> None:
         """
-        Set OAuth tokens for a specific project.
-        
-        Args:
-            project_id: The project identifier
-            user_token: User OAuth token
-            bot_token: Bot User OAuth token
-        """
+                         Set or update OAuth tokens for a project and synchronize them into the manager's configuration.
+                         
+                         Parameters:
+                         	project_id (str): The project identifier for which to store tokens.
+                         	user_token (Optional[str]): User OAuth token to set for the project; if omitted, the existing user token is left unchanged.
+                         	bot_token (Optional[str]): Bot OAuth token to set for the project; if omitted, the existing bot token is left unchanged.
+                         """
         if project_id not in self._project_tokens:
             self._project_tokens[project_id] = {}
         
@@ -70,16 +72,16 @@ class SlackConfigManager(BaseConfigurationManager):
     
     def get_project_tokens(self, project_id: str) -> Dict[str, str]:
         """
-        Get OAuth tokens for a specific project.
+        Return the OAuth tokens configured for the given project.
         
-        Args:
-            project_id: The project identifier
-            
+        Parameters:
+            project_id (str): Project identifier whose tokens to retrieve.
+        
         Returns:
-            Dictionary containing user_token and bot_token
+            Dict[str, str]: Mapping containing `'user_token'` and/or `'bot_token'` for the project.
         
         Raises:
-            KeyError: If project_id doesn't exist
+            KeyError: If no tokens are configured for `project_id`.
         """
         if project_id not in self._project_tokens:
             raise KeyError(f"No tokens configured for project {project_id}")
@@ -97,10 +99,13 @@ class SlackConfigManager(BaseConfigurationManager):
     
     def set_default_project(self, project_id: str) -> None:
         """
-        Set the default project ID.
+        Set the default project used by the manager.
         
-        Args:
-            project_id: The project identifier to set as default
+        Parameters:
+            project_id (str): Project identifier to set as the default.
+        
+        Raises:
+            KeyError: If `project_id` is not present in the configured project tokens.
         """
         if project_id not in self._project_tokens:
             raise KeyError(f"Cannot set default project to {project_id}; not in project tokens")

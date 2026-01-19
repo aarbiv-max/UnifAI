@@ -13,6 +13,11 @@ class SlackEventService:
     
     def __init__(self):
         # Maps event_type -> factory that returns a SlackEventHandler
+        """
+        Initialize the SlackEventService.
+        
+        Sets up an empty registry that maps Slack event type strings to factory callables which produce SlackEventHandler instances.
+        """
         self._event_factories: Dict[str, Callable[[], SlackEventHandler]] = {}
     
     def register_factory(self, event_type: str, factory: Callable[[], SlackEventHandler]) -> None:
@@ -21,9 +26,13 @@ class SlackEventService:
     
     def dispatch(self, payload: Dict[str, Any]) -> bool:
         """
-        Dispatch payload to the matching handler by event.type.
+        Dispatches the given Slack event payload to a registered handler based on the payload's event type.
         
-        Returns True if a handler was found and executed, False otherwise.
+        Parameters:
+            payload (Dict[str, Any]): Slack event payload expected to contain an "event" object with a "type" field.
+        
+        Returns:
+            bool: True if a matching handler was found and invoked, False otherwise.
         """
         event_data = payload.get("event", {}) or {}
         event_type = event_data.get("type")
@@ -37,4 +46,3 @@ class SlackEventService:
         event_handler = event_factory()
         event_handler.handle(payload)
         return True
-

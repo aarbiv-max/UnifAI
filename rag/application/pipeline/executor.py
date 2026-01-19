@@ -39,13 +39,13 @@ class PipelineExecutor:
         vector_repository: Callable[[str], VectorRepository],
     ):
         """
-        Initialize the pipeline executor.
+        Create a PipelineExecutor with required service dependencies and a vector repository factory.
         
-        Args:
-            pipeline_service: Service for pipeline CRUD and status tracking
-            monitoring_service: Service for log monitoring and error recording
-            data_source_service: Service for source upsert operations
-            vector_repository: Callable that returns a VectorRepository for a collection name
+        Parameters:
+            pipeline_service (PipelineService): Manages pipeline registration, status updates, and persistence.
+            monitoring_service (MonitoringService): Manages log monitoring and error recording during execution.
+            data_source_service (DataSourceService): Performs upsert operations for source metadata after a run.
+            vector_repository (Callable[[str], VectorRepository]): Factory that returns a VectorRepository given a collection name.
         """
         self._pipeline_svc = pipeline_service
         self._monitoring_svc = monitoring_service
@@ -58,17 +58,16 @@ class PipelineExecutor:
         context: PipelineContext
     ) -> Any:
         """
-        Execute pipeline using the provided source handler.
+        Orchestrates a full pipeline run using the provided source handler and execution context.
         
-        Args:
-            handler: Source-specific pipeline handler implementing SourcePipelinePort
-            context: Pipeline execution context with all required metadata
-            
+        Executes collection, processing, chunking/embedding, and storing steps in sequence while updating pipeline status, managing log monitoring, and upserting source metadata on success or failure.
+        
+        Parameters:
+            handler: Source-specific pipeline handler implementing the SourcePipelinePort interface.
+            context: Pipeline execution context containing pipeline_id, source_id, source_name, and other metadata required for the run.
+        
         Returns:
-            Result from the storage step (typically count of stored embeddings)
-            
-        Raises:
-            Exception: Re-raises any exception after recording error and cleanup
+            The result of the storing step (typically the number of embeddings stored).
         """
         source_type = handler.source_type
         vector_repo = self._vector_repository(f"{source_type.lower()}_data")
@@ -151,4 +150,3 @@ class PipelineExecutor:
             # Always cleanup: stop monitoring and run handler cleanup
             self._monitoring_svc.finish_log_monitoring()
             handler.cleanup(context)
-

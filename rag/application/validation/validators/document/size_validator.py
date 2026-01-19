@@ -31,17 +31,25 @@ class SizeValidator(DataSourceValidator):
     error_message_key = "File too large"
 
     def __init__(self, max_file_size_bytes: int = DEFAULT_MAX_FILE_SIZE_BYTES) -> None:
+        """
+        Initialize the SizeValidator with a maximum allowed file size.
+        
+        Parameters:
+            max_file_size_bytes (int): Maximum file size in bytes. Defaults to 50 MB (50 * 1024 * 1024).
+        """
         self._max_file_size_bytes = max_file_size_bytes
 
     def validate(self, **kwargs: Any) -> Tuple[bool, Optional[ValidationIssue]]:
         """
-        Validate the file size.
+        Validate that a file at the provided path does not exceed the configured maximum size.
         
-        Args:
-            doc_path: Path to the uploaded file on disk
-            
+        If `doc_path` is missing, the path does not exist, or the file size cannot be determined, validation is skipped (passes) so other validators may handle those conditions.
+        
+        Parameters:
+            doc_path (str, optional): Path to the uploaded file on disk, provided via kwargs.
+        
         Returns:
-            Tuple of (is_valid, issue). issue is None if valid.
+            Tuple[bool, Optional[ValidationIssue]]: `True, None` if the file is within the allowed size or validation is skipped; `False, ValidationIssue` if the file size exceeds the configured maximum (issue message contains formatted size and limit).
         """
         doc_path = kwargs.get("doc_path", "")
         

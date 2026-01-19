@@ -15,10 +15,23 @@ class TaskResult:
     dispatched_at: datetime = None
 
     def __post_init__(self):
+        """
+        Set the dispatched_at timestamp to the current UTC time when it was not provided.
+        
+        If `dispatched_at` is None, assigns the current UTC datetime (naive `datetime` in UTC) to the field.
+        """
         if self.dispatched_at is None:
             self.dispatched_at = datetime.utcnow()
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize the TaskResult to a plain dictionary.
+        
+        The `dispatched_at` field is converted to an ISO 8601 string if present, otherwise `None`.
+        
+        Returns:
+            dict: Mapping with keys `"task_id"`, `"queue"`, `"source_type"`, `"pipeline_id"`, and `"dispatched_at"`.
+        """
         return {
             "task_id": self.task_id,
             "queue": self.queue,
@@ -44,14 +57,14 @@ class PipelineTaskDispatcher(ABC):
         source_data: Dict[str, Any],
     ) -> TaskResult:
         """
-        Dispatch a single pipeline execution task.
+        Dispatch a pipeline execution task for a single source and return its dispatch metadata.
         
-        Args:
-            source_type: Type of source (DOCUMENT, SLACK, etc.)
-            source_data: Registered source data containing pipeline_id and metadata
-            
+        Parameters:
+            source_type (str): The source category (e.g., "DOCUMENT", "SLACK").
+            source_data (Dict[str, Any]): Registered source data; must include a `pipeline_id` and may include additional metadata used for dispatching.
+        
         Returns:
-            TaskResult with dispatch details
+            TaskResult: Object containing dispatch details (`task_id`, `queue`, `source_type`, `pipeline_id`, `dispatched_at`).
         """
         ...
 
@@ -62,14 +75,13 @@ class PipelineTaskDispatcher(ABC):
         sources: List[Dict[str, Any]],
     ) -> List[TaskResult]:
         """
-        Dispatch multiple pipeline execution tasks.
+        Dispatch multiple pipeline execution tasks to asynchronous workers.
         
-        Args:
-            source_type: Type of source (DOCUMENT, SLACK, etc.)
-            sources: List of registered source data
-            
+        Parameters:
+            source_type (str): Source category identifier (e.g., "DOCUMENT", "SLACK").
+            sources (List[Dict[str, Any]]): List of registered source data entries; each entry should include the pipeline identifier and any metadata required for dispatch.
+        
         Returns:
-            List of TaskResult for each dispatched task
+            List[TaskResult]: A list of TaskResult objects, one per dispatched task.
         """
         ...
-

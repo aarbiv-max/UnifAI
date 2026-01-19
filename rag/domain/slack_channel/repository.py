@@ -11,7 +11,12 @@ class SlackChannelRepository(ABC):
 
     @abstractmethod
     def find_by_channel_id(self, channel_id: str) -> Optional[SlackChannel]:
-        """Find a channel by its ID."""
+        """
+        Retrieve the SlackChannel with the given channel ID.
+        
+        Returns:
+            SlackChannel or None: `SlackChannel` if a channel with the specified `channel_id` exists, `None` otherwise.
+        """
         ...
 
     @abstractmethod
@@ -24,41 +29,74 @@ class SlackChannelRepository(ABC):
         search: Optional[str] = None,
     ) -> PaginatedResult[Dict[str, Any]]:
         """
-        Get channels with pagination support.
+        Retrieve channels for a project with pagination and optional filtering.
         
-        Args:
-            project_id: Project ID to filter by
-            types: Optional channel types (comma-separated: "private_channel,public_channel")
-            cursor: Optional cursor for pagination
-            limit: Number of channels to return
-            search: Optional search pattern for channel names
-            
+        Parameters:
+            project_id: Project identifier to filter channels by.
+            types: Optional comma-separated channel types (e.g., "private_channel,public_channel").
+            cursor: Optional pagination cursor to continue a previous listing.
+            limit: Maximum number of channels to return.
+            search: Optional substring to filter channel names.
+        
         Returns:
-            PaginatedResult containing channel documents
+            PaginatedResult[Dict[str, Any]] containing channel documents as dictionaries.
         """
         ...
 
     @abstractmethod
     def exists_for_project(self, project_id: str) -> bool:
-        """Check if there are any channels for the project."""
+        """
+        Determine whether any Slack channels are associated with the given project.
+        
+        Returns:
+            `true` if at least one channel exists for the project, `false` otherwise.
+        """
         ...
 
     @abstractmethod
     def save(self, channel: SlackChannel) -> bool:
-        """Save a channel. Returns True if successful."""
+        """
+        Persist a SlackChannel instance to storage.
+        
+        Parameters:
+            channel (SlackChannel): The SlackChannel to persist.
+        
+        Returns:
+            bool: `true` if the channel was saved successfully, `false` otherwise.
+        """
         ...
 
     @abstractmethod
     def save_many(self, channels: List[SlackChannel]) -> None:
-        """Save multiple channels in batch."""
+        """
+        Persist multiple SlackChannel instances in a single batch operation.
+        
+        Parameters:
+            channels (List[SlackChannel]): The SlackChannel objects to persist. The implementation may perform the saves transactionally or in bulk; callers should not assume individual rollback semantics.
+        """
         ...
 
     @abstractmethod
     def update_membership(self, channel_id: str, is_member: bool, timestamp: float) -> bool:
-        """Update membership flag. Returns True if updated."""
+        """
+        Set the membership status for a Slack channel at a specific timestamp.
+        
+        Parameters:
+            channel_id (str): Identifier of the Slack channel to update.
+            is_member (bool): Whether the channel should be marked as a member.
+            timestamp (float): POSIX timestamp (seconds since epoch) when the membership change occurred.
+        
+        Returns:
+            True if the membership flag was updated, False otherwise.
+        """
         ...
 
     @abstractmethod
     def delete_by_project(self, project_id: str) -> int:
-        """Delete all channels for a project. Returns count deleted."""
+        """
+        Delete all SlackChannel records associated with the given project.
+        
+        Returns:
+            int: The number of channels deleted.
+        """
         ...

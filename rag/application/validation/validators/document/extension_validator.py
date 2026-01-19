@@ -26,17 +26,26 @@ class ExtensionValidator(DataSourceValidator):
     error_message_key = "Unsupported file type"
 
     def __init__(self, supported_extensions: List[str]) -> None:
+        """
+        Initialize the validator with allowed file extensions.
+        
+        Parameters:
+            supported_extensions (List[str]): Allowed file extensions to validate against. Each entry should include the leading dot (e.g., '.pdf', '.jpg') and is compared against the file's lowercase extension.
+        """
         self._supported_extensions = supported_extensions
 
     def validate(self, **kwargs: Any) -> Tuple[bool, Optional[ValidationIssue]]:
         """
-        Validate the file extension.
+        Check that the provided filename's extension is one of the supported extensions.
         
-        Args:
-            source_name: The filename to validate
-            
+        If no filename is provided, validation is deferred (validator returns success so other validators may handle it).
+        
+        Parameters:
+            source_name (str): The filename to validate; only the substring after the last `.` is used as the extension.
+        
         Returns:
-            Tuple of (is_valid, issue). issue is None if valid.
+            A tuple where the first element is `True` if the extension is supported (or no filename was provided), `False` otherwise.
+            The second element is a `ValidationIssue` describing the unsupported extension when the first element is `False`, otherwise `None`.
         """
         source_name = kwargs.get("source_name", "")
         

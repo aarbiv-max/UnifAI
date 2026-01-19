@@ -17,13 +17,13 @@ class LogParser:
     @staticmethod
     def parse_log_line(log_line: str) -> Tuple[datetime, str, str, str]:
         """
-        Parse a log line into its components.
+        Parse a log line into timestamp, module name, log level, and message.
         
-        Args:
-            log_line: A string containing a log entry
-            
+        If the line matches "YYYY-MM-DD HH:MM:SS,mmm - module - LEVEL - message", returns the parsed values.
+        If the line does not match, returns the current datetime, module "unknown", log level "INFO", and the original log line as the message.
+        
         Returns:
-            Tuple containing (timestamp, module, log_level, message)
+            (timestamp, module, log_level, message): A tuple where `timestamp` is a datetime, `module` and `log_level` are strings, and `message` is the log message. On parse failure, `timestamp` is the current time, `module` is "unknown", `log_level` is "INFO", and `message` is the original `log_line`.
         """
         # Example log format: 2025-05-04 03:19:30,185 - data_pipeline - INFO - Making API request to Slack endpoint: auth.test
         pattern = r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (\w+) - (\w+) - (.*)'
@@ -40,13 +40,15 @@ class LogParser:
     @staticmethod
     def extract_chunk_count(log_line: str) -> Optional[int]:
         """
-        Extract chunk count from a log line if present.
+        Extracts the total chunk count from a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
+        Searches for messages of the form "Completed chunking with <N> total chunks generated" and returns the integer count.
+        
+        Parameters:
+            log_line (str): A single log entry to inspect.
+        
         Returns:
-            The chunk count or None if not found
+            int: The extracted chunk count if present, `None` otherwise.
         """
         pattern = r'Completed chunking with (\d+) total chunks generated'
         match = re.search(pattern, log_line)
@@ -57,13 +59,13 @@ class LogParser:
     @staticmethod
     def extract_embedding_count(log_line: str) -> Optional[int]:
         """
-        Extract embedding count from a log line if present.
+        Extracts the number of embeddings reported as stored in a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
+        Parameters:
+            log_line (str): Log entry to search for an embedding count.
+        
         Returns:
-            The embedding count or None if not found
+            int | None: The extracted number of stored embeddings if present, otherwise None.
         """
         pattern = r'Stored (\d+) embeddings'
         match = re.search(pattern, log_line)
@@ -75,13 +77,9 @@ class LogParser:
     @staticmethod
     def extract_pipeline_status(log_line: str) -> Optional[PipelineStatus]:
         """
-        Extract pipeline status from a log line if present.
+        Infers a pipeline status from a single log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
-        Returns:
-            The pipeline status or None if not found
+        @returns `PipelineStatus.DONE` if the line indicates embeddings were stored, `PipelineStatus.FAILED` if the line indicates an error or failure, `None` otherwise.
         """
         # Examples to detect completion
         if "Stored" in log_line and "embeddings" in log_line:
@@ -92,4 +90,3 @@ class LogParser:
             return PipelineStatus.FAILED
             
         return None
-

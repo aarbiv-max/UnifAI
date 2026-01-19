@@ -31,10 +31,12 @@ class DocConfigManager(BaseConfigurationManager):
     
     def __init__(self, config_path: Optional[str] = None):
         """
-        Initialize the document configuration manager.
+        Create a DocConfigManager, ensure required default settings are present, and prepare the image extraction directory if enabled.
         
-        Args:
-            config_path: Optional path to a configuration file
+        Initializes the base configuration using the optional config_path, merges any keys from DEFAULT_CONFIG into the manager's internal configuration when missing, and creates the directory specified by `image_extraction_path` if `extract_images` is enabled.
+        
+        Parameters:
+            config_path (Optional[str]): Path to a configuration file to load; if None, the manager uses its default loading behavior.
         """
         super().__init__(config_path)
         
@@ -49,10 +51,16 @@ class DocConfigManager(BaseConfigurationManager):
     
     def validate_config(self) -> Tuple[bool, List[str]]:
         """
-        Validate the current configuration for document processing.
+        Validate the document processing configuration and collect any validation errors.
+        
+        This performs validation of critical configuration entries used for document parsing and extraction, including:
+        - `supported_extensions`: must be a non-empty list.
+        - Numeric parameters (`chunk_size`, `chunk_overlap`, `max_file_size_mb`, `timeout_seconds`): must be numeric and fall within sensible ranges.
+        - Boolean flags (`include_metadata`, `use_ocr`, `extract_tables`, `extract_images`): must be boolean values.
+        - `image_extraction_path`: must be a non-empty string when `extract_images` is enabled.
         
         Returns:
-            Tuple of (is_valid, list_of_errors)
+            (is_valid, errors) (Tuple[bool, List[str]]): `is_valid` is True if no validation errors were found; `errors` is a list of human-readable validation messages.
         """
         errors = []
         
@@ -90,22 +98,22 @@ class DocConfigManager(BaseConfigurationManager):
     
     def get_supported_file_types(self) -> List[str]:
         """
-        Get the list of supported file types.
+        Return the list of supported file extensions from the configuration.
         
         Returns:
-            List of supported file extensions
+            List[str]: Supported file extension strings from the current configuration.
         """
         return self.get_config_value("supported_extensions", [])
     
     def is_file_type_supported(self, file_extension: str) -> bool:
         """
-        Check if a file type is supported.
+        Determines whether a file extension is included in the configured supported file types.
         
-        Args:
-            file_extension: The file extension to check (without dot)
-            
+        Parameters:
+            file_extension (str): The file extension to check; a leading dot is allowed and case is ignored.
+        
         Returns:
-            True if supported, False otherwise
+            `true` if the extension is supported, `false` otherwise.
         """
         file_extension = file_extension.lower().lstrip('.')
         return file_extension in self.get_supported_file_types()

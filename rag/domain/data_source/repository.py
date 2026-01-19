@@ -11,17 +11,38 @@ class DataSourceRepository(ABC):
 
     @abstractmethod
     def find_by_id(self, source_id: str) -> Optional[DataSource]:
-        """Get source by source_id."""
+        """
+        Retrieve a data source by its source_id.
+        
+        Parameters:
+            source_id (str): Unique identifier of the data source.
+        
+        Returns:
+            DataSource or None: The matching DataSource if found, otherwise None.
+        """
         ...
 
     @abstractmethod
     def find_by_pipeline_id(self, pipeline_id: str) -> Optional[DataSource]:
-        """Get source by pipeline_id."""
+        """
+        Retrieve the data source associated with the given pipeline ID.
+        
+        Returns:
+            DataSource: The matching data source if found, `None` otherwise.
+        """
         ...
 
     @abstractmethod
     def find_all(self, source_type: Optional[str] = None) -> List[DataSource]:
-        """Get all sources, optionally filtered by type."""
+        """
+        Return all data sources, optionally filtered by type.
+        
+        Parameters:
+            source_type (Optional[str]): If provided, only sources whose type equals this value (e.g., "DOCUMENT", "SLACK") are returned.
+        
+        Returns:
+            List[DataSource]: DataSource instances matching the filter.
+        """
         ...
 
     @abstractmethod
@@ -33,16 +54,16 @@ class DataSourceRepository(ABC):
         search: Optional[str] = None,
     ) -> PaginatedResult[Dict[str, Any]]:
         """
-        Paginated query for sources.
+        Retrieve a page of data sources with optional type and name-prefix filtering.
         
-        Args:
-            cursor: Pagination cursor
-            limit: Max items to return
-            source_type: Filter by type (e.g., "DOCUMENT", "SLACK")
-            search: Filter by name prefix (case-insensitive)
-            
+        Parameters:
+            cursor (Optional[str]): Pagination cursor for the current page.
+            limit (int): Maximum number of items to return.
+            source_type (Optional[str]): Optional filter by source type (e.g., "DOCUMENT", "SLACK").
+            search (Optional[str]): Optional case-insensitive prefix filter applied to source names.
+        
         Returns:
-            PaginatedResult containing source documents
+            PaginatedResult[Dict[str, Any]]: A paginated result containing dictionaries that represent source documents and pagination metadata (e.g., next cursor).
         """
         ...
 
@@ -56,26 +77,38 @@ class DataSourceRepository(ABC):
         limit: int = 50,
     ) -> PaginatedResult[str]:
         """
-        Get distinct values from a field (e.g., tags, categories).
+        Retrieve distinct string values for a given field across data sources with optional filtering and pagination.
         
-        Args:
-            field: Field path to extract distinct values from (e.g., "tags")
-            source_type: Filter by source type
-            search: Filter values by prefix (case-insensitive)
-            cursor: Pagination cursor
-            limit: Max values to return
-            
+        Parameters:
+            field (str): Field path to extract distinct values from (e.g., "tags").
+            source_type (Optional[str]): Optional filter by source type (e.g., "DOCUMENT", "SLACK").
+            search (Optional[str]): Optional case-insensitive prefix filter for returned values.
+            cursor (Optional[str]): Pagination cursor for the current page.
+            limit (int): Maximum number of distinct values to return.
+        
         Returns:
-            PaginatedResult containing unique string values
+            PaginatedResult[str]: A paginated result containing distinct string values.
         """
         ...
 
     @abstractmethod
     def save(self, source: DataSource) -> None:
-        """Insert or update a source (upsert by pipeline_id)."""
+        """
+        Insert or update a DataSource in persistent storage using its pipeline_id.
+        
+        If a data source with the same pipeline_id already exists, persist changes to that record; otherwise create a new record.
+        
+        Parameters:
+            source (DataSource): The DataSource aggregate to persist (upsert by its pipeline_id).
+        """
         ...
 
     @abstractmethod
     def delete(self, source_id: str) -> bool:
-        """Delete source by ID. Returns True if deleted."""
+        """
+        Delete a data source by its identifier.
+        
+        Returns:
+            true if a source was deleted, false otherwise.
+        """
         ...

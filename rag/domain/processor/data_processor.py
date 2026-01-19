@@ -10,48 +10,68 @@ class DataProcessor(ABC):
     """
     
     def __init__(self):
-        """Initialize the base data processor."""
+        """
+        Create a DataProcessor and initialize internal storage for raw and processed items.
+        
+        Initializes two internal lists:
+            _data: stores raw input items.
+            _processed_data: stores processed output items.
+        """
         self._data = []
         self._processed_data = []
         
     @property
     def data_length(self) -> int:
-        """Return the count of raw data items."""
+        """
+        Number of raw data items stored in the processor.
+        
+        Returns:
+            int: The number of raw data items.
+        """
         return len(self._data)
     
     @property
     def processed_data_length(self) -> int:
-        """Return the count of processed data items."""
+        """
+        Number of processed data items.
+        
+        Returns:
+            int: The number of items in the processor's internal processed-data list.
+        """
         return len(self._processed_data)
     
     @abstractmethod
     def process(self, data: Union[List[Dict[str, Any]], Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
         """
-        Process the raw data from the source.
+        Process raw data items from the source and return them as a list of processed records.
         
-        Args:
-            data: List of raw data items to process
-            **kwargs: Additional parameters specific to the processor
-            
+        Parameters:
+            data (Union[List[Dict[str, Any]], Dict[str, Any]]): A single raw item or a list of raw data items to process.
+            **kwargs: Processor-specific options.
+        
         Returns:
-            List of processed data items
+            List[Dict[str, Any]]: A list of processed data items.
         """
         pass
     
     @abstractmethod
     def clean_content(self, content: str) -> str:
         """
-        Clean and normalize content text.
+        Clean and normalize textual content for downstream processing.
         
-        Args:
-            content: Raw content text
-            
+        Parameters:
+            content (str): Raw input text to be cleaned.
+        
         Returns:
-            Cleaned and normalized text
+            str: Cleaned and normalized text.
         """
         pass
     
     def get_processed_data(self) -> List[Dict[str, Any]]:
-        """Return the processed datsa."""
+        """
+        Return the processor's stored processed data items.
+        
+        Returns:
+            List[Dict[str, Any]]: The list of processed data items maintained by the processor.
+        """
         return self._processed_data
-

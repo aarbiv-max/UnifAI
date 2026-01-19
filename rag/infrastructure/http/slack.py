@@ -20,7 +20,12 @@ DEFAULT_PROJECT_ID = "default"
 
 @slack_bp.route("/fetch.available.slack.channels", methods=["PUT"])
 def fetch_slack_channels():
-    """Fetch and cache Slack channels from the API."""
+    """
+    Fetch and cache Slack channels from the API.
+    
+    Returns:
+        flask.Response: On success, a JSON response {"status": "channels fetched and cached", "count": <int>} with HTTP 200. On failure, a JSON response {"error": "<message>"} with HTTP 500.
+    """
     try:
         connector = slack_connector(DEFAULT_PROJECT_ID)
         channels = connector.fetch_and_cache_channels()
@@ -39,13 +44,16 @@ def fetch_slack_channels():
 })
 def get_available_channels(types, cursor, limit, search_regex):
     """
-    Get cached Slack channels with pagination.
+    Retrieve cached Slack channels with optional filtering and pagination.
     
-    Args:
-        types: Channel types filter (e.g., "public_channel,private_channel") - required
-        cursor: Pagination cursor
-        limit: Max channels to return
-        search_regex: Search pattern for channel names
+    Parameters:
+        types (str): Comma-separated channel type filters (e.g., "public_channel,private_channel").
+        cursor (str): Pagination cursor returned by a previous call; use empty string or None for the first page.
+        limit (int): Maximum number of channels to return.
+        search_regex (str|None): Optional regular expression to filter channel names.
+    
+    Returns:
+        tuple: (Response, int) where the JSON body contains a "channels" key with the paginated channels and related metadata, and the int is the HTTP status code.
     """
     try:
         connector = slack_connector(DEFAULT_PROJECT_ID)
@@ -65,7 +73,14 @@ def get_available_channels(types, cursor, limit, search_regex):
 @slack_bp.route("/slack.channel.chunks", methods=["GET"])
 @from_query({"channel_name": fields.Str(required=True)})
 def get_channel_chunks(channel_name):
-    """Get chunk count for a specific Slack channel."""
+    """
+    Return the number of stored data chunks for the given Slack channel.
+    
+    Returns:
+        dict: JSON-serializable mapping containing:
+            - channel_name (str): the provided channel name
+            - chunk_count (int): number of matching chunks
+    """
     try:
         count = vector_stats_service().count_by_filter(
             collection_name="slack_data",
@@ -88,14 +103,16 @@ def get_channel_chunks(channel_name):
 })
 def get_user_info(user_id, include_locale):
     """
-    Get user information from Slack using the users.info API.
+    Retrieve Slack user information.
     
-    Args:
-        user_id: Optional user ID to get info for. If not provided, gets info for current authenticated user.
-        include_locale: Whether to include locale information in the response.
+    If `user_id` is provided, returns information for that user; otherwise returns information for the current authenticated user.
+    
+    Parameters:
+        user_id (str | None): Slack user ID to look up, or None to use the authenticated user.
+        include_locale (bool): If True, include locale information in the returned user data.
     
     Returns:
-        JSON response containing user information from Slack
+        dict: JSON response with `status: "success"` and `user_info` (dict) on success; on error returns JSON with an `error` string.
     """
     try:
         connector = slack_connector(DEFAULT_PROJECT_ID)
@@ -116,7 +133,18 @@ def get_user_info(user_id, include_locale):
     "logged_in_user": fields.Str(required=False, load_default="default", data_key="loggedInUser"),
 })
 def query_match(query, top_k_results, scope, logged_in_user):
-    """Search Slack messages using semantic similarity."""
+    """
+    Perform a semantic search over Slack messages.
+    
+    Parameters:
+        query (str): Text query to search for.
+        top_k_results (int): Maximum number of results to return.
+        scope (str): Search scope (e.g., "public" or other access scopes).
+        logged_in_user (str): Identifier of the requesting user used to scope results.
+    
+    Returns:
+        A Flask JSON response containing `search_results` (list of matching result objects) with HTTP status 200 on success, or `error` (string) with HTTP status 500 on failure.
+    """
     try:
         svc = retrieval_service("SLACK")
         results = svc.search(
@@ -135,7 +163,12 @@ def query_match(query, top_k_results, scope, logged_in_user):
 
 @slack_bp.route("/stats", methods=["GET"])
 def slack_stats():
-    """Get aggregated Slack statistics."""
+    """
+    Retrieve aggregated Slack statistics.
+    
+    Returns:
+        A Flask JSON response containing the aggregated statistics as a dictionary (HTTP 200) on success; on failure returns a JSON object with an "error" message and HTTP 500.
+    """
     try:
         stats = slack_stats_service().get_stats()
         return jsonify(stats.to_dict()), 200
@@ -147,11 +180,12 @@ def slack_stats():
 @slack_bp.route("/events", methods=["POST"])
 def slack_events():
     """
-    Handle Slack Events API webhooks.
+    Handle incoming Slack Events API webhooks.
     
-    Handles:
-    - URL verification challenge
-    - Event callbacks (dispatched to Celery)
+    Processes the JSON payload from Slack. If the payload is a URL verification challenge, returns the challenge string; otherwise returns a JSON acknowledgement and dispatches event callbacks for asynchronous processing.
+    
+    Returns:
+        Flask response: For URL verification, the raw challenge string with HTTP 200. For other events, a JSON object `{"status": "ok", "message": <message>}` with HTTP 200. On failure, a JSON object `{"error": <error message>}` with HTTP 500.
     """
     try:
         payload = request.get_json()
@@ -169,4 +203,3 @@ def slack_events():
     except Exception as e:
         logger.error(f"Failed to handle Slack event: {str(e)}")
         return jsonify({"error": str(e)}), 500
-

@@ -12,10 +12,10 @@ class DataConnector(ABC):
     
     def __init__(self, config_manager: Any):
         """
-        Initialize the data connector.
+        Initialize the DataConnector with a configuration manager and default internal state.
         
-        Args:
-            config_manager: Configuration manager for this connector
+        Parameters:
+            config_manager (Any): Provides configuration, credentials, or services required by the connector.
         """
         self._config_manager = config_manager
         self._base_url: str = ""
@@ -23,17 +23,32 @@ class DataConnector(ABC):
     
     @property
     def base_url(self) -> str:
-        """Get the base URL for API calls."""
+        """
+        Base URL used for API calls.
+        
+        Returns:
+            The base URL string for constructing API endpoints.
+        """
         return self._base_url
     
     @base_url.setter
     def base_url(self, url: str) -> None:
-        """Set the base URL for API calls."""
+        """
+        Set the base URL used for API calls.
+        
+        Parameters:
+            url (str): The base URL to use for subsequent API requests.
+        """
         self._base_url = url
     
     @property
     def available_apis(self) -> List[str]:
-        """Get the list of available API endpoints."""
+        """
+        Retrieve the configured available API endpoint identifiers.
+        
+        Returns:
+            List[str]: The list of available API endpoint identifiers.
+        """
         return self._available_apis
     
     @abstractmethod
@@ -49,10 +64,9 @@ class DataConnector(ABC):
     @abstractmethod
     def test_connection(self) -> bool:
         """
-        Test connection to the data source.
+        Verify that a working connection to the data source can be established.
         
         Returns:
-            True if connection is successful, False otherwise
+            True if the connection is successful, False otherwise.
         """
         pass
-

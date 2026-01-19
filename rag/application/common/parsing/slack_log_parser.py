@@ -15,13 +15,10 @@ class SlackLogParser(LogParser):
     @staticmethod
     def extract_slack_channel_id(log_line: str) -> Optional[str]:
         """
-        Extract Slack channel ID from a log line if present.
+        Extracts a Slack channel ID from a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
         Returns:
-            The channel ID or None if not found
+            channel_id (str | None): The captured channel ID if present, `None` otherwise.
         """
         pattern = r'ID: ([A-Z0-9]+)'
         match = re.search(pattern, log_line)
@@ -32,13 +29,10 @@ class SlackLogParser(LogParser):
     @staticmethod
     def extract_api_endpoint(log_line: str) -> Optional[str]:
         """
-        Extract API endpoint from a log line if present.
+        Extracts a Slack API endpoint string from a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
         Returns:
-            The API endpoint or None if not found
+            The captured endpoint string if present, `None` otherwise.
         """
         pattern = r'API request to Slack endpoint: ([\w\.]+)'
         match = re.search(pattern, log_line)
@@ -49,17 +43,16 @@ class SlackLogParser(LogParser):
     @staticmethod
     def extract_message_count(log_line: str) -> Optional[int]:
         """
-        Extract message count from a log line if present.
+        Extracts the number of messages retrieved from a log line.
         
-        Args:
-            log_line: A string containing a log entry
-            
+        Parameters:
+            log_line (str): Log entry text potentially containing a "Retrieved <N> messages" phrase.
+        
         Returns:
-            The message count or None if not found
+            int | None: The number of messages if the pattern is found, otherwise None.
         """
         pattern = r'Retrieved (\d+) messages'
         match = re.search(pattern, log_line)
         if match:
             return int(match.group(1))
         return None
-

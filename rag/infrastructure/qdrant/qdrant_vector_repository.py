@@ -33,18 +33,18 @@ class QdrantVectorRepository(VectorRepository):
         write_consistency_factor: int = 1,
     ):
         """
-        Initialize the Qdrant vector repository.
+        Configure and connect a Qdrant client for the specified collection and repository settings.
         
-        Args:
-            collection_name: Name of the collection in Qdrant
-            embedding_dim: Dimension of the embedding vectors
-            url: URL of the Qdrant server (e.g., "http://localhost")
-            port: HTTP port of the Qdrant server (default: 6333)
-            grpc_port: gRPC port of the Qdrant server (default: 6334)
-            api_key: API key for Qdrant Cloud (if applicable)
-            on_disk: Whether to store vectors on disk (True) or in memory (False)
-            replication_factor: Number of replicas for each segment
-            write_consistency_factor: How many replicas should confirm write
+        Parameters:
+            collection_name (str): Target Qdrant collection name to operate on.
+            embedding_dim (int): Dimensionality of stored embedding vectors.
+            url (Optional[str]): Qdrant server URL; falls back to the QDRANT_URL environment variable or "http://localhost".
+            port (Optional[int]): HTTP port for the Qdrant server; falls back to QDRANT_PORT or 6333.
+            grpc_port (Optional[int]): gRPC port for the Qdrant server; falls back to QDRANT_GRPC_PORT or 6334.
+            api_key (Optional[str]): API key for Qdrant Cloud; falls back to QDRANT_API_KEY.
+            on_disk (bool): Persist vectors on disk when True; keep in memory when False.
+            replication_factor (int): Number of replicas to use for collection segments.
+            write_consistency_factor (int): Number of replicas required to acknowledge writes.
         """
         self._collection_name = collection_name
         self._embedding_dim = embedding_dim
@@ -63,7 +63,12 @@ class QdrantVectorRepository(VectorRepository):
         logger.info(f"Initialized Qdrant client connecting to {self._url}")
 
     def _create_client(self) -> qdrant_client.QdrantClient:
-        """Create the Qdrant client based on URL format."""
+        """
+        Create a configured Qdrant client using HTTP when the URL begins with 'http://' or 'https://', otherwise use gRPC.
+        
+        Returns:
+            qdrant_client.QdrantClient: A Qdrant client configured with the instance's URL, port/grpc_port, api_key, and protocol preference.
+        """
         if self._url.startswith(("http://", "https://")):
             # HTTP client
             return qdrant_client.QdrantClient(
@@ -132,13 +137,15 @@ class QdrantVectorRepository(VectorRepository):
 
     def store(self, chunks: List[VectorChunk]) -> int:
         """
-        Store vector chunks in Qdrant.
+        Store a list of vector chunks into the configured Qdrant collection.
         
-        Args:
-            chunks: List of VectorChunk objects to store
-            
+        Chunks without an embedding are skipped; chunks without an id are assigned a generated UUID. Each stored point uses the chunk's embedding as the vector and includes payload with the chunk's text and metadata.
+        
+        Parameters:
+            chunks (List[VectorChunk]): VectorChunk objects whose embeddings, text, and metadata will be stored.
+        
         Returns:
-            Number of chunks successfully stored
+            int: Number of chunks successfully stored.
         """
         if not chunks:
             logger.warning("No chunks provided for storage")
@@ -192,15 +199,15 @@ class QdrantVectorRepository(VectorRepository):
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[SearchResult]:
         """
-        Search for similar vectors in Qdrant.
+        Finds nearest vectors to a query embedding in the configured Qdrant collection.
         
-        Args:
-            query_embedding: Query vector to search for
-            top_k: Number of results to return
-            filters: Optional filters to apply to the search
-            
+        Parameters:
+            query_embedding (List[float]): Embedding vector used as the search query.
+            top_k (int): Maximum number of results to return.
+            filters (Optional[Dict[str, Any]]): Optional mapping of payload field names to values to restrict results; values may be single values or lists.
+        
         Returns:
-            List of SearchResult objects with similarity scores
+            List[SearchResult]: Results ordered by descending similarity score; each contains `id`, `score`, `content`, and `metadata`.
         """
         # Convert filters to Qdrant filter format if provided
         qdrant_filter = self._convert_filters(filters) if filters else None
@@ -230,14 +237,14 @@ class QdrantVectorRepository(VectorRepository):
 
     def count(self, filters: Optional[Dict[str, Any]] = None, exact: bool = False) -> int:
         """
-        Count vectors in the Qdrant collection.
+        Count vectors in the collection, optionally applying the given filters.
         
-        Args:
-            filters: Optional filters to apply to the count
-            exact: Whether to perform exact count (slower but accurate)
-            
+        Parameters:
+            filters (Optional[Dict[str, Any]]): Field-value constraints to restrict which vectors are counted.
+            exact (bool): If true, perform an exact (potentially slower) count; otherwise an approximate count may be used.
+        
         Returns:
-            Count of vectors matching the criteria
+            int: Number of vectors matching the criteria.
         """
         qdrant_filter = self._convert_filters(filters) if filters else None
 
@@ -251,13 +258,13 @@ class QdrantVectorRepository(VectorRepository):
 
     def delete(self, ids: Optional[List[str]] = None) -> int:
         """
-        Delete vectors by their IDs or filters.
+        Delete points from the configured Qdrant collection by their IDs.
         
-        Args:
-            ids: List of vector IDs to delete
-            filters: Filters to select vectors to delete
+        Parameters:
+            ids (Optional[List[str]]): List of point IDs to delete; if None or empty, no action is performed.
+        
         Returns:
-            Number of vectors deleted
+            int: Number of IDs supplied for deletion (0 if none).
         """
         if not ids:
             return 0
@@ -272,13 +279,13 @@ class QdrantVectorRepository(VectorRepository):
 
     def delete_by_filter(self, filters: Dict[str, Any]) -> int:
         """
-        Delete vectors matching a filter.
+        Delete all vectors that match the provided filter and return how many were deleted.
         
-        Args:
-            filters: Filters to select vectors to delete
-            
+        Parameters:
+            filters (Dict[str, Any]): Dictionary of field-value conditions used to select vectors to delete.
+        
         Returns:
-            Number of vectors deleted
+            int: Number of vectors deleted.
         """
         if not filters:
             return 0
@@ -295,25 +302,30 @@ class QdrantVectorRepository(VectorRepository):
 
     def delete_by_source_id(self, source_id: str) -> int:
         """
-        Delete vectors matching a source ID.
+        Delete all vectors whose payload metadata has the given source ID.
         
-        Args:
-            source_id: Source ID to delete vectors for
-            
+        Parameters:
+            source_id (str): The metadata.source_id value to match for deletion.
+        
         Returns:
-            Number of vectors deleted
+            int: Number of vectors deleted.
         """
         return self.delete_by_filter({"metadata.source_id": source_id})
 
     def _convert_filters(self, filters: Dict[str, Any]) -> qmodels.Filter:
         """
-        Convert generic filters to Qdrant-specific filter format.
+        Convert a dictionary of field filters into a Qdrant Filter.
         
-        Args:
-            filters: Dictionary of filter conditions
-            
+        Each key in `filters` is a payload field name and each value is either a single value
+        or a list of values. Single values produce a FieldCondition; lists produce an OR
+        (`should`) group for that field. All field conditions are combined with `must`.
+        
+        Parameters:
+            filters (Dict[str, Any]): Mapping from payload field name (e.g., "metadata.source_id")
+                to a value or list of values to match.
+        
         Returns:
-            Qdrant filter object
+            qmodels.Filter: Qdrant Filter representing the provided field match conditions.
         """
         must_conditions = []
 

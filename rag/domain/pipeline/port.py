@@ -36,79 +36,76 @@ class SourcePipelinePort(ABC):
     @abstractmethod
     def source_type(self) -> str:
         """
-        Return the source type identifier.
+        Expose the source type identifier for this pipeline implementation.
         
         Returns:
-            Source type string (e.g., 'SLACK', 'DOCUMENT')
+            str: Source type identifier (for example, 'SLACK' or 'DOCUMENT').
         """
         ...
     
     @abstractmethod
     def collect(self, context: PipelineContext) -> Any:
         """
-        Collect raw data from the source.
+        Collect raw data from the source using the provided pipeline context.
         
-        Args:
-            context: Pipeline execution context
-            
+        Parameters:
+            context (PipelineContext): Execution metadata (pipeline and source identifiers and metadata) that scopes and informs collection.
+        
         Returns:
-            Raw data from the source (format depends on source type)
+            Any: Raw data retrieved from the source; the structure and type depend on the source implementation.
         """
         ...
     
     @abstractmethod
     def process(self, context: PipelineContext, raw_data: Any) -> Any:
         """
-        Process collected data into a normalized format.
+        Normalize raw collected data into a format suitable for chunking and embedding.
         
-        Args:
-            context: Pipeline execution context
-            raw_data: Raw data from the collect step
-            
+        Parameters:
+            context (PipelineContext): Execution metadata for the current pipeline run.
+            raw_data (Any): Source-specific data returned by the collect step.
+        
         Returns:
-            Processed data ready for chunking
+            Any: Processed data ready for the chunk_and_embed step (structure is source-dependent).
         """
         ...
     
     @abstractmethod
     def chunk_and_embed(self, context: PipelineContext, processed: Any) -> List[VectorChunk]:
         """
-        Chunk content and generate embeddings.
+        Split processed source data into chunks and produce embeddings for each chunk.
         
-        Args:
-            context: Pipeline execution context
-            processed: Processed data from the process step
-            
+        Parameters:
+            context (PipelineContext): Execution metadata that implementations may use to influence chunking or embedding (e.g., pipeline or source identifiers).
+            processed (Any): Normalized data produced by the `process` step; its format depends on the source implementation.
+        
         Returns:
-            List of VectorChunk objects ready for storage
+            List[VectorChunk]: A list of VectorChunk instances containing chunked content and their corresponding embeddings.
         """
         ...
     
     @abstractmethod
     def get_summary(self, context: PipelineContext, collected: Any) -> Dict:
         """
-        Get execution summary for reporting.
+        Produce a source-specific execution summary for reporting.
         
-        Args:
-            context: Pipeline execution context
-            collected: Collected data (for extracting stats)
-            
+        Parameters:
+            context (PipelineContext): Execution context for the pipeline run.
+            collected (Any): Raw data returned by `collect`, used to derive summary metrics.
+        
         Returns:
-            Summary dictionary with source-specific information
+            Dict: A dictionary containing source-specific summary information (for example counts, processing stats, and error indicators).
         """
         ...
     
     def cleanup(self, context: PipelineContext) -> bool:
         """
-        Optional cleanup hook.
+        Perform optional source-specific cleanup tasks for the given pipeline context.
         
-        Override in handlers that require cleanup (e.g., deleting temp files).
+        Parameters:
+            context (PipelineContext): Execution context for the pipeline.
         
-        Args:
-            context: Pipeline execution context
-            
         Returns:
-            True if cleanup was performed, False otherwise
+            `True` if cleanup was performed, `False` otherwise.
         """
         return False
-

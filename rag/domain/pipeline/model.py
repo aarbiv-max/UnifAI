@@ -30,7 +30,15 @@ class PipelineStats:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PipelineStats":
-        """Create a PipelineStats instance from a dictionary."""
+        """
+        Construct a PipelineStats from a mapping of field names to values.
+        
+        Parameters:
+            data (Dict[str, Any]): Mapping of field names to values; keys matching the dataclass fields will be used.
+        
+        Returns:
+            PipelineStats: Instance populated from `data`; any missing fields are filled with their declared default values.
+        """
         return cls(**{
             f.name: data.get(f.name, f.default)
             for f in fields(cls)
@@ -38,7 +46,12 @@ class PipelineStats:
         })
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert the PipelineStats instance to a dictionary."""
+        """
+        Convert the PipelineStats to a dictionary mapping field names to their values.
+        
+        Returns:
+            stats_dict (Dict[str, Any]): Dictionary representation of the PipelineStats instance.
+        """
         return asdict(self)
 
 
@@ -55,7 +68,17 @@ class PipelineRecord:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PipelineRecord":
-        """Create a PipelineRecord instance from a dictionary."""
+        """
+        Construct a PipelineRecord from a mapping of values.
+        
+        Parses and maps keys from `data` into a PipelineRecord. The `status` value is converted to a PipelineStatus and defaults to `PipelineStatus.PENDING` if missing or invalid. `created_at` and `last_updated` default to the current UTC time when absent. `stats` is constructed via PipelineStats.from_dict from the `stats` mapping (or an empty mapping), and `metadata` defaults to an empty dict when not provided.
+        
+        Parameters:
+            data (Dict[str, Any]): Mapping containing pipeline fields (e.g., "pipeline_id", "source_type", "status", "created_at", "last_updated", "stats", "metadata").
+        
+        Returns:
+            PipelineRecord: Instance populated from the provided `data`.
+        """
         # Handle status parsing
         status_value = data.get("status", "PENDING")
         try:
@@ -74,7 +97,19 @@ class PipelineRecord:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert the PipelineRecord instance to a dictionary."""
+        """
+        Serialize the PipelineRecord to a dictionary.
+        
+        Returns:
+            record_dict (Dict[str, Any]): A dictionary containing the record's fields:
+                - "pipeline_id": the pipeline identifier (str)
+                - "source_type": the source type (str)
+                - "status": the status value as a string
+                - "created_at": the creation timestamp (datetime)
+                - "last_updated": the last-updated timestamp (datetime)
+                - "stats": the pipeline statistics as a dictionary
+                - "metadata": additional metadata (Dict[str, Any])
+        """
         return {
             "pipeline_id": self.pipeline_id,
             "source_type": self.source_type,

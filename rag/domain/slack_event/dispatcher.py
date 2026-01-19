@@ -15,10 +15,21 @@ class SlackEventTaskResult:
     dispatched_at: datetime = None
 
     def __post_init__(self):
+        """
+        Ensure the instance has a UTC timestamp for when the task was dispatched.
+        
+        If `dispatched_at` is `None`, assign the current UTC time (`datetime.utcnow()`) to `self.dispatched_at`.
+        """
         if self.dispatched_at is None:
             self.dispatched_at = datetime.utcnow()
 
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize the SlackEventTaskResult to a plain dictionary.
+        
+        Returns:
+            dict: Dictionary with keys "task_id", "queue", "event_id", "event_type", and "dispatched_at" (ISO 8601 string if set, otherwise None).
+        """
         return {
             "task_id": self.task_id,
             "queue": self.queue,
@@ -45,13 +56,12 @@ class SlackEventDispatcher(ABC):
     @abstractmethod
     def dispatch(self, payload: Dict[str, Any]) -> SlackEventTaskResult:
         """
-        Dispatch a Slack event payload for async processing.
+        Dispatches a Slack Events API payload to an external task queue for background processing.
         
-        Args:
-            payload: Full Slack event payload from Events API
-            
+        Parameters:
+            payload (Dict[str, Any]): Full Slack event payload as received from the Events API.
+        
         Returns:
-            SlackEventTaskResult with dispatch details
+            SlackEventTaskResult: Describes the created task (task_id, queue, event_id, event_type, dispatched_at).
         """
         ...
-

@@ -25,11 +25,11 @@ class MonitoringService:
         pipeline_repo: PipelineRepository,
     ):
         """
-        Initialize the monitoring service.
+        Create a MonitoringService that coordinates monitoring and pipeline repositories, logging, and an in-memory cache for recent logs.
         
-        Args:
-            monitoring_repo: Repository for metrics/errors/logs persistence
-            pipeline_repo: Repository for pipeline record access
+        Parameters:
+            monitoring_repo (MonitoringRepository): Repository used to persist metrics, errors, and logs.
+            pipeline_repo (PipelineRepository): Repository used to access and update pipeline records.
         """
         self._monitoring_repo = monitoring_repo
         self._pipeline_repo = pipeline_repo
@@ -44,11 +44,13 @@ class MonitoringService:
 
     def log_metrics(self, pipeline_id: str, metrics: Dict[str, Any]) -> None:
         """
-        Log performance metrics for a pipeline.
+        Persist and register metrics for a pipeline.
         
-        Args:
-            pipeline_id: The ID of the pipeline
-            metrics: Dictionary containing metrics data
+        Updates the pipeline's aggregated statistics and saves a metrics snapshot associated with the pipeline's source type. If the pipeline cannot be found, the method returns without modifying state.
+        
+        Parameters:
+            pipeline_id (str): Identifier of the pipeline to which the metrics belong.
+            metrics (Dict[str, Any]): Mapping of metric names to their values to be recorded.
         """
         pipeline = self._pipeline_repo.find_by_id(pipeline_id)
         if not pipeline:
@@ -76,12 +78,14 @@ class MonitoringService:
         error_details: Optional[Dict] = None,
     ) -> None:
         """
-        Record an error that occurred during pipeline execution.
+        Record an error for the specified pipeline and persist it to the monitoring repository.
         
-        Args:
-            pipeline_id: The ID of the pipeline where the error occurred
-            error_message: A descriptive error message
-            error_details: Optional dictionary with additional error details
+        If the pipeline ID is not found, logs a warning and returns without saving.
+        
+        Parameters:
+            pipeline_id (str): Identifier of the pipeline associated with the error.
+            error_message (str): Human-readable description of the error.
+            error_details (Optional[Dict]): Additional structured details about the error; defaults to an empty dict when not provided.
         """
         pipeline = self._pipeline_repo.find_by_id(pipeline_id)
         if not pipeline:
@@ -99,37 +103,37 @@ class MonitoringService:
 
     def get_source_stats(self, source_type: str) -> Dict:
         """
-        Get aggregated statistics for a specific source type.
+        Retrieve aggregated statistics for the given source type.
         
-        Args:
-            source_type: The source type to get statistics for
-            
+        Parameters:
+            source_type (str): Identifier of the source type (e.g., "SLACK", "DOCUMENT").
+        
         Returns:
-            Dictionary containing aggregated statistics
+            dict: Aggregated statistics keyed by metric names (for example, "api_calls", "documents_retrieved", counts or other numeric metrics).
         """
         return self._pipeline_repo.get_source_stats(source_type)
 
     def get_recent_activity(self, source_type: str, limit: int = 10) -> List[str]:
         """
-        Get recent log entries for a specific source type.
+        Retrieve up to `limit` recent log messages for the given source type.
         
-        Args:
-            source_type: The source type to get logs for
-            limit: Maximum number of log entries to return
-            
+        Parameters:
+            source_type (str): Source type to filter logs by.
+            limit (int): Maximum number of messages to return.
+        
         Returns:
-            List of log message strings
+            List[str]: List of log message strings (up to `limit` most recent).
         """
         logs = self._monitoring_repo.get_logs_by_source(source_type, limit)
         return [log.message for log in logs]
 
     def process_log_line(self, log_line: str, pipeline_id: Optional[str] = None) -> None:
         """
-        Process a log line to extract monitoring information.
+        Parse a single log line, persist a structured log entry, update the in-memory recent-log cache, and record any metrics extracted for the associated pipeline.
         
-        Args:
-            log_line: A string containing a log entry
-            pipeline_id: Optional pipeline ID. If None, will attempt to extract from log
+        Parameters:
+            log_line (str): Raw log line to be parsed and processed.
+            pipeline_id (Optional[str]): Optional pipeline identifier to associate with the log and metrics; if omitted, the method will attempt to extract a pipeline ID from the log line.
         """
         timestamp, module, level, message = LogParser.parse_log_line(log_line)
         
@@ -162,7 +166,17 @@ class MonitoringService:
             self.log_metrics(pipeline_id, metrics)
 
     def _detect_source_type(self, message: str, pipeline_id: Optional[str], module: str) -> str:
-        """Detect source type from log content."""
+        """
+        Infer the log's source type as "SLACK", "DOCUMENT", or "OTHER" based on message content, pipeline id, and module name.
+        
+        Parameters:
+            message (str): The log message text to inspect.
+            pipeline_id (Optional[str]): Pipeline identifier; used to detect Slack-related pipelines when it contains "slack".
+            module (str): The originating module name; used to detect document-related modules when it starts with "docling".
+        
+        Returns:
+            str: "`SLACK` if the message contains 'Slack' or the pipeline_id contains 'slack', `DOCUMENT` if the message mentions document types (e.g., 'document', 'pdf', 'docx') or the module starts with 'docling', `OTHER` otherwise."
+        """
         if "Slack" in message or (pipeline_id and 'slack' in pipeline_id):
             return "SLACK"
         elif "document" in message.lower() or "pdf" in message.lower() or "docx" in message.lower() or module.startswith("docling"):
@@ -170,7 +184,16 @@ class MonitoringService:
         return "OTHER"
 
     def _extract_pipeline_id(self, log_line: str, source_type: str) -> Optional[str]:
-        """Extract pipeline ID from log line based on source type."""
+        """
+        Derive a pipeline identifier from a log line for the given source type.
+        
+        Parameters:
+            log_line (str): Raw log text to inspect for an identifier.
+            source_type (str): Source category used to select extraction logic; expected values include `"SLACK"` and `"DOCUMENT"`.
+        
+        Returns:
+            pipeline_id (Optional[str]): `'slack_<channel_id>'` for Slack logs or `'doc_<doc_id>'` for Document logs when an identifier is found, `None` otherwise.
+        """
         if source_type == "SLACK":
             channel_id = SlackLogParser.extract_slack_channel_id(log_line)
             if channel_id:
@@ -182,7 +205,21 @@ class MonitoringService:
         return None
 
     def _extract_metrics(self, log_line: str, source_type: str) -> Dict[str, Any]:
-        """Extract metrics from log line."""
+        """
+        Derive monitoring metrics from a single log line for the specified source type.
+        
+        Parses the log line using source-specific and generic extractors and returns a dictionary of observed metric counters. Possible keys include:
+        - `api_calls`: number of API calls observed (1 when an API endpoint is detected).
+        - `documents_retrieved`: number of documents retrieved or started for processing.
+        - `chunks_generated`: number of chunks produced.
+        - `embeddings_created`: number of embeddings created.
+        
+        Parameters:
+            source_type (str): Source category of the log ("SLACK", "DOCUMENT", or other) which controls source-specific extraction rules.
+        
+        Returns:
+            Dict[str, Any]: Mapping of metric names to their extracted values; empty if no metrics were found.
+        """
         metrics: Dict[str, Any] = {}
         
         # Process based on source type
@@ -230,14 +267,11 @@ class MonitoringService:
 
     def start_log_monitoring(self, pipeline_id: str = "", target_logger: Optional[logging.Logger] = None) -> None:
         """
-        Start monitoring a logger for pipeline information.
+        Attach a handler to a logger that forwards formatted log records into the service's log-processing pipeline, optionally associating them with a specific pipeline ID.
         
-        This method adds a custom handler to the logger to capture log messages
-        directly without needing a file.
-        
-        Args:
-            pipeline_id: Optional pipeline ID to associate with all logs
-            target_logger: The logger instance to monitor (default: uses internal logger)
+        Parameters:
+            pipeline_id (str): Optional pipeline identifier to associate with every captured log message. If empty, captured logs are processed without an explicit pipeline association.
+            target_logger (logging.Logger | None): Logger to monitor. If omitted, the service's internal logger is used.
         """
         if target_logger is None:
             target_logger = self._logger
@@ -248,9 +282,20 @@ class MonitoringService:
         
         class MonitoringHandler(logging.Handler):
             def __init__(self):
+                """
+                Initialize a MonitoringService instance.
+                
+                Performs base-class initialization.
+                """
                 super().__init__()
             
             def emit(self, record: logging.LogRecord) -> None:
+                """
+                Handle a logging record by formatting it and sending the resulting log line to the monitoring service tied to the handler's pipeline.
+                
+                Parameters:
+                    record (logging.LogRecord): The log record to format and process.
+                """
                 log_line = self.format(record)
                 service.process_log_line(log_line, pipeline_id)
         
@@ -263,10 +308,13 @@ class MonitoringService:
         self._monitoring_logger = target_logger
 
     def finish_log_monitoring(self) -> None:
-        """Turn off monitoring a logger for pipeline information."""
+        """
+        Stop and detach the active monitoring log handler.
+        
+        If a monitoring handler is attached, removes it from its logger and clears internal references; does nothing if no handler is active.
+        """
         if self._monitoring_handler and self._monitoring_logger:
             self._monitoring_logger.removeHandler(self._monitoring_handler)
             self._monitoring_handler = None
             self._monitoring_logger = None
             self._logger.info("Finished log monitoring")
-

@@ -13,13 +13,13 @@ terms_approval_bp = Blueprint("terms_approval", __name__)
 @from_query({"username": fields.Str(required=True)})
 def check_user_approval(username):
     """
-    Check if a user has approved the AI transparency notice.
+    Check whether the specified user has approved the AI transparency notice.
     
-    Args:
-        username: Username of the current user
-        
+    Parameters:
+        username (str): The username to check approval for.
+    
     Returns:
-        JSON response indicating if user is approved
+        dict: JSON object containing the approval status on success; on failure, a JSON object with an "error" message.
     """
     try:
         result = terms_approval_service().check_approval_status(username)
@@ -33,13 +33,15 @@ def check_user_approval(username):
 @from_body({"username": fields.Str(required=True)})
 def approve_user(username):
     """
-    Record a user's approval of the AI transparency notice.
+    Record that a user has approved the AI transparency notice.
     
-    Args:
-        username: Username of the user who approved
-        
+    Parameters:
+        username (str): The username of the user who approved the notice.
+    
     Returns:
-        JSON response indicating success
+        A JSON HTTP response: on success, a 200 response with a success envelope containing
+        "status", "message", and any additional keys returned by the service; on failure,
+        a 500 response with {"error": "<error message>"}.
     """
     try:
         result = terms_approval_service().record_approval(username)

@@ -13,7 +13,12 @@ class VectorStats:
     total: int
     
     def to_dict(self) -> dict:
-        """Convert to dictionary for API responses."""
+        """
+        Convert the stats to a dictionary suitable for API responses.
+        
+        Returns:
+            dict: Mapping with keys "slack", "document", and "total" containing their respective integer counts.
+        """
         return {
             "slack": self.slack,
             "document": self.document,
@@ -36,20 +41,19 @@ class VectorStatsService:
     
     def __init__(self, vector_repo_factory: Callable[[str], VectorRepository]):
         """
-        Initialize with a repository factory.
+        Create a VectorStatsService using a repository factory.
         
-        Args:
-            vector_repo_factory: Factory function that creates VectorRepository
-                                 for a given collection name
+        Parameters:
+            vector_repo_factory (Callable[[str], VectorRepository]): Factory that returns a VectorRepository for a given collection name.
         """
         self._repo_factory = vector_repo_factory
     
     def get_chunk_counts(self) -> VectorStats:
         """
-        Get exact chunk counts for all source types.
+        Get exact chunk counts for the configured source collections.
         
         Returns:
-            VectorStats with slack, document, and total counts
+            VectorStats: Counts for `slack` and `document`, and `total` as their sum.
         """
         slack_repo = self._repo_factory("slack_data")
         doc_repo = self._repo_factory("document_data")
@@ -65,14 +69,14 @@ class VectorStatsService:
     
     def get_count_for_collection(self, collection_name: str, exact: bool = True) -> int:
         """
-        Get chunk count for a specific collection.
+        Retrieve the number of vector chunks stored in the specified collection.
         
-        Args:
-            collection_name: Name of the vector collection
-            exact: Whether to perform exact count (slower but accurate)
-            
+        Parameters:
+            collection_name (str): Name of the vector collection to query.
+            exact (bool): Whether to perform an exact count; if False an estimated count may be returned.
+        
         Returns:
-            Number of chunks in the collection
+            int: Number of chunks in the collection.
         """
         repo = self._repo_factory(collection_name)
         return repo.count(exact=exact)
@@ -84,33 +88,16 @@ class VectorStatsService:
         exact: bool = True,
     ) -> int:
         """
-        Count chunks matching specific filters in a collection.
+        Count vector chunks in a collection that match given metadata filters.
         
-        This method allows counting chunks based on metadata filters,
-        such as counting all chunks for a specific channel or document.
+        Parameters:
+            collection_name (str): Collection identifier (e.g., "slack_data" or "document_data").
+            filters (Dict[str, Any]): Mapping of metadata field paths to values to match
+                (for example {"metadata.channel_name": "general"} or {"metadata.source_id": "doc_123"}).
+            exact (bool): Whether to perform an exact (potentially slower) count.
         
-        Args:
-            collection_name: Name of the vector collection (e.g., 'slack_data')
-            filters: Dictionary of filter criteria to match
-                     Example: {"metadata.channel_name": "general"}
-            exact: Whether to perform exact count (slower but accurate)
-            
         Returns:
-            Number of chunks matching the filter criteria
-            
-        Example:
-            # Count chunks for a specific Slack channel
-            count = service.count_by_filter(
-                collection_name="slack_data",
-                filters={"metadata.channel_name": "engineering"},
-            )
-            
-            # Count chunks for a specific document
-            count = service.count_by_filter(
-                collection_name="document_data", 
-                filters={"metadata.source_id": "doc_123"},
-            )
+            int: Number of chunks matching the provided filter criteria.
         """
         repo = self._repo_factory(collection_name)
         return repo.count(filters=filters, exact=exact)
-

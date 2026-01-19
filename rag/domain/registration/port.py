@@ -26,29 +26,46 @@ class RegistrationPort(ABC):
     @property
     @abstractmethod
     def source_data(self) -> BaseSourceData:
-        """Aggregated, immutable source data object (id, name, pipeline_id, form_data, etc.)."""
+        """
+        Expose the aggregated, immutable source data for this registration instance.
+        
+        Returns:
+            BaseSourceData: Aggregated, immutable source data containing fields such as `id`, `name`, `pipeline_id`, and `form_data`.
+        """
         ...
 
     @abstractmethod
     def run_validator(self) -> Tuple[bool, Dict[str, Any] | None]:
-        """Run source-specific validation for a single instance and return (is_valid, issue)."""
+        """
+        Validate the current source data for a single registration instance.
+        
+        Returns:
+            tuple: A pair (is_valid, issue) where:
+                is_valid (bool): `True` if validation succeeded, `False` otherwise.
+                issue (dict | None): Structured validation issues when `is_valid` is `False`, otherwise `None`.
+        """
         ...
 
     @abstractmethod
     def register(self) -> Tuple[Dict[str, Any] | None, Dict[str, Any] | None]:
         """
-        Register a single instance. Returns (registered_source_dict, issue_dict).
-        If registration is successful, issue_dict should be None. If validation fails,
-        registered_source_dict should be None and issue_dict should contain structured info.
+        Persist the source represented by this port and return the persisted data or structured issues.
+        
+        Concrete implementations perform the actual registration/persistence and report any structured issues encountered.
+        
+        Returns:
+            registered_source_dict (Dict[str, Any] | None): Data for the registered source when registration succeeds, otherwise None.
+            issue_dict (Dict[str, Any] | None): Structured information describing validation or registration problems when registration fails, otherwise None.
         """
         ...
 
     def run_registration(self) -> Tuple[Dict[str, Any] | None, Dict[str, Any] | None]:
         """
-        Orchestrate the single-item registration flow:
-        1) validate the instance
-        2) register (persist) if valid
-        Returns (registered_source_dict, issue_dict)
+        Orchestrates validation and registration for a single source instance.
+        
+        Performs validation via run_validator and, only if valid, performs registration via register().
+        Returns:
+            (registered_source_dict, issue_dict): `registered_source_dict` is the registered source data when registration succeeds, otherwise `None`. `issue_dict` contains validation or registration issues when present, otherwise `None`.
         """
         is_valid, issue = self.run_validator()
         if not is_valid:

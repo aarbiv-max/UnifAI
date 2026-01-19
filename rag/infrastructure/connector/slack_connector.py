@@ -24,12 +24,15 @@ class SlackConnector(DataConnector):
         project_id: Optional[str] = None,
     ):
         """
-        Initialize the Slack connector.
+        Initialize a SlackConnector with a configuration manager and channel repository for a specific project.
         
-        Args:
-            config_manager: Configuration manager for Slack
-            channel_repo: Repository for Slack channel persistence
-            project_id: Optional project ID to use, defaults to the default project
+        Parameters:
+            project_id (Optional[str]): Project identifier to use; when omitted the config manager's default project is used.
+        
+        Raises:
+            ValueError: If no project_id is provided and no default project is configured.
+            ValueError: If project tokens cannot be found for the resolved project.
+            ValueError: If a bot token is not configured for the resolved project.
         """
         super().__init__(config_manager)
         self.base_url = "https://slack.com/api/"
@@ -64,10 +67,10 @@ class SlackConnector(DataConnector):
     
     def authenticate(self) -> bool:
         """
-        Authenticate with Slack API using configured tokens.
+        Validate configured Slack tokens by calling the Slack auth.test endpoint.
         
         Returns:
-            True if authentication succeeds, False otherwise
+            True if authentication succeeds, False otherwise.
         """
         try:
             # Test authentication by calling the auth.test endpoint
@@ -96,20 +99,22 @@ class SlackConnector(DataConnector):
     def _make_api_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None, 
                           method: str = "GET", use_user_token: bool = False) -> Dict[str, Any]:
         """
-        Make a request to the Slack API with rate limiting handling.
-        
-        Args:
-            endpoint: The API endpoint (without base URL)
-            params: Optional parameters to send with the request
-            method: HTTP method to use (GET or POST)
-            use_user_token: Whether to use the user token instead of the bot token
-            
-        Returns:
-            The response from the API as a dictionary
-            
-        Raises:
-            Exception: If the request fails after all retries
-        """
+                          Perform an authenticated request to a Slack API endpoint and return the parsed JSON response.
+                          
+                          Selects the bot or user token, handles Slack rate limiting (honors `Retry-After`) and retries on transient errors. Does not include the base URL in `endpoint`.
+                          
+                          Parameters:
+                              endpoint (str): Slack API path (e.g., "conversations.list") without the base URL.
+                              params (Optional[Dict[str, Any]]): Parameters to send with the request; used as query params for GET and as JSON body for POST.
+                              method (str): HTTP method to use, typically "GET" or "POST".
+                              use_user_token (bool): If True, use the configured user token; otherwise use the bot token.
+                          
+                          Returns:
+                              Dict[str, Any]: The parsed JSON response from Slack.
+                          
+                          Raises:
+                              Exception: If the request fails after the configured retries or if Slack returns a non-retryable error.
+                          """
         url = f"{self.base_url}{endpoint}"
         token = self._user_token if use_user_token else self._bot_token
         
@@ -193,11 +198,12 @@ class SlackConnector(DataConnector):
     
     def fetch_available_slack_channels(self) -> List[Dict[str, str]]:
         """
-        Fetch all available Slack channels (both public and private) and cache them in MongoDB.
-        This function fetches all channels without API call limits and stores them in the database.
+        Fetches all public and private Slack channels for the configured project and caches them in the channel repository.
+        
+        Clears any existing channels for the project in the repository, retrieves all available channels from Slack (across pages), stores them in the repository in batches, and returns the aggregated channel records.
         
         Returns:
-            List of dictionaries containing channel_id, channel_name, and type
+            List[Dict[str, str]]: List of channel dictionaries, each containing `channel_id`, `channel_name`, and `type`.
         """
         channels: List[SlackChannel] = []
         cursor = None
@@ -283,15 +289,19 @@ class SlackConnector(DataConnector):
     
     def _fallback_with_pagination(self, types: Optional[str] = None, cursor: Optional[str] = None, limit: int = 50) -> Dict[str, Any]:
         """
-        Fallback method that fetches channels from API and formats them with pagination.
+        Format channels fetched from the Slack API into a cursor-style paginated response.
         
-        Args:
-            types: Optional channel types to filter by
-            cursor: Optional cursor for pagination (skip count)
-            limit: Number of channels to return
-            
+        Parameters:
+            types (Optional[str]): Optional Slack channel types filter (e.g., "public_channel,private_channel"); used when fetching fallback channels.
+            cursor (Optional[str]): Optional string cursor representing the zero-based start index to page from; non-integer values are treated as 0.
+            limit (int): Maximum number of channels to include in the returned page.
+        
         Returns:
-            Dictionary containing paginated channels data with pagination metadata
+            dict: Pagination result with the following keys:
+                - channels (List[Dict[str, Any]]): The current page of channel dictionaries.
+                - nextCursor (Optional[str]): String cursor for the next page start index, or None if there are no more results.
+                - hasMore (bool): True if additional pages are available, False otherwise.
+                - total (int): Total number of channels available from the fallback fetch.
         """
         # Fallback to API call with limited results if cache fails
         fallback_channels = self._fallback_get_channels(types, max_api_calls=5)
@@ -318,15 +328,16 @@ class SlackConnector(DataConnector):
     
     def _fallback_get_channels(self, types: Optional[str] = None, max_api_calls: int = 5) -> List[Dict[str, str]]:
         """
-        Fallback method to get channels directly from API with limited calls.
-        Used when cache retrieval fails.
+        Fetch a limited set of Slack channels directly from the API as a cache fallback.
         
-        Args:
-            types: Optional channel types to filter by (e.g., 'private_channel', 'public_channel')
-            max_api_calls: Maximum number of API calls to make
-            
+        Calls conversations.list up to max_api_calls times (paginating via next_cursor) and aggregates channel records until no more pages or the call limit is reached.
+        
+        Parameters:
+            types (Optional[str]): Comma-separated Slack channel types to include (e.g., "public_channel,private_channel"). If omitted, all channel types are returned.
+            max_api_calls (int): Maximum number of API requests to perform.
+        
         Returns:
-            List of dictionaries containing channel_id, channel_name, and is_private
+            List[Dict[str, str]]: List of channel dictionaries each containing `channel_id`, `channel_name`, and `is_private`.
         """
         channels: List[SlackChannel] = []
         cursor = None
@@ -371,15 +382,17 @@ class SlackConnector(DataConnector):
         latest: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], List[List[Dict[str, Any]]]]:
         """
-        Get conversation history for a Slack channel with pagination handling and concurrently fetches thread replies.
+        Retrieve a channel's conversation history and concurrently fetch thread replies.
         
-        Args:
-            channel_id: The ID of the channel to fetch history for
-            limit: Maximum number of messages to return per page
-            cursor: Pagination cursor from a previous request
+        Parameters:
+        	channel_id (str): ID of the Slack channel to fetch messages from.
+        	limit (int): Maximum number of messages to request per API page.
+        	cursor (Optional[str]): Pagination cursor from a previous response to continue listing.
+        	oldest (Optional[str]): Inclusive oldest message timestamp to filter results.
+        	latest (Optional[str]): Inclusive latest message timestamp to filter results.
         
         Returns:
-            List of message objects from the conversation history
+        	tuple: (messages, threads) where `messages` is a list of message dicts from the channel history, and `threads` is a list of threads; each thread is a list of message dicts representing replies to a thread root.
         """
         all_messages = []
         current_cursor = cursor
@@ -434,17 +447,19 @@ class SlackConnector(DataConnector):
     
     def get_user_info(self, user_id: Optional[str] = None, include_locale: bool = False) -> Dict[str, Any]:
         """
-        Get information about a user using Slack's users.info API.
+        Retrieve Slack user information via the `users.info` API.
         
-        Args:
-            user_id: User ID to get info for. If None, gets info for the current authenticated user.
-            include_locale: Whether to include locale information in the response.
-            
+        If `user_id` is not provided, the current authenticated user ID is determined via `auth.test` (using the user token) and used for the request.
+        
+        Parameters:
+            user_id (Optional[str]): Slack user ID to retrieve. If omitted, uses the current authenticated user.
+            include_locale (bool): If True, include the user's locale data in the response.
+        
         Returns:
-            Dictionary containing user information
-            
+            Dict[str, Any]: Full Slack API response from `users.info`, containing the `user` object on success.
+        
         Raises:
-            Exception: If the API request fails
+            Exception: If obtaining the current user ID fails or if the `users.info` API response indicates an error.
         """
         params: Dict[str, Any] = {}
         
@@ -473,4 +488,3 @@ class SlackConnector(DataConnector):
         logger.info(f"Successfully retrieved user info for user: {user_info.get('name', 'Unknown')}")
         
         return response
-

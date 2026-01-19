@@ -18,14 +18,18 @@ class SlackProcessor(DataProcessor):
         
     def process(self, data: List[Dict[str, Any]], channel_name: str) -> List[Dict[str, Any]]:
         """
-        Process Slack message data.
+        Normalize raw Slack conversation messages into processed records suitable for embedding.
         
-        Args:
-            data: List of raw Slack messages from the conversations.history API
-            channel_name: Name of the Slack channel the messages are from
-            
+        Parameters:
+            data (List[Dict[str, Any]]): Raw Slack messages (as returned by conversations.history).
+            channel_name (str): Slack channel name to attach to each message's metadata.
+        
         Returns:
-            List of processed Slack messages with normalized content
+            List[Dict[str, Any]]: Processed messages. Each item contains:
+                - `time_stamp`: original message `ts`
+                - `user`: original message `user`
+                - `text`: cleaned message text
+                - `metadata`: dict with `channel_name` and optional `thread_ts` when present
         """
         logger.info(f"Starting to process {len(data)} Slack messages from channel: {channel_name}")
         
@@ -59,13 +63,13 @@ class SlackProcessor(DataProcessor):
     
     def clean_content(self, content: str) -> str:
         """
-        Clean and normalize Slack message text.
+        Normalize Slack message text by converting mentions, removing Slack-specific formatting, and normalizing URLs.
         
-        Args:
-            content: Raw message text from Slack API
-            
+        Parameters:
+            content (str): Raw message text from the Slack API.
+        
         Returns:
-            Cleaned and normalized text
+            str: Cleaned text with user mentions converted to @user_id, channel mentions converted to #channel_name, Slack formatting markers (code blocks, inline code, bold, italic, strikethrough) removed, and Slack-style URLs converted to readable form (e.g., `<https://...|text>` -> `text`, `<https://...>` -> `https://...`). The result is stripped of leading/trailing whitespace.
         """
         if not content:
             return ""
@@ -80,15 +84,10 @@ class SlackProcessor(DataProcessor):
     
     def _handle_user_mentions(self, text: str) -> str:
         """
-        Handle Slack user mention formatting (<@USER_ID>).
+        Normalize Slack user mentions of the form <@USER_ID> into @USER_ID.
         
-        In the future, this could replace user IDs with actual names.
-        
-        Args:
-            text: Text containing user mentions
-            
         Returns:
-            Text with standardized user mentions
+            str: Text with Slack user mention tokens replaced by `@USER_ID`.
         """
         # For now, we're keeping the user ID but normalizing the format
         # Future enhancement: Replace with actual user names via the Slack Users API
@@ -96,26 +95,28 @@ class SlackProcessor(DataProcessor):
     
     def _handle_channel_mentions(self, text: str) -> str:
         """
-        Handle Slack channel mention formatting (<#CHANNEL_ID|channel_name>).
+        Convert Slack channel mentions of the form <#CHANNEL_ID|channel_name> into #channel_name.
         
-        Args:
-            text: Text containing channel mentions
-            
+        Parameters:
+            text (str): Input text that may contain Slack channel mention tokens.
+        
         Returns:
-            Text with standardized channel mentions
+            str: Text with Slack channel mentions replaced by `#channel_name`.
         """
         import re
         return re.sub(r'<#([A-Z0-9]+)\|([^>]+)>', r'#\2', text)
     
     def _handle_special_formatting(self, text: str) -> str:
         """
-        Handle Slack's special text formatting (bold, italic, code blocks).
+        Strip Slack-specific formatting tokens from the given text.
         
-        Args:
-            text: Text with Slack formatting
-            
+        Removes code block and inline code delimiters (```...``` and `...`), emphasis markers for bold (`*...*`), italic (`_..._`), and strikethrough (`~...~`), preserving the enclosed content.
+        
+        Parameters:
+            text (str): Text that may contain Slack formatting.
+        
         Returns:
-            Text with normalized formatting
+            str: The text with Slack formatting markers removed.
         """
         import re
         
@@ -134,13 +135,16 @@ class SlackProcessor(DataProcessor):
     
     def _handle_urls(self, text: str) -> str:
         """
-        Handle Slack URL formatting (<https://example.com|link text>).
+        Normalize Slack-formatted URLs into plain text.
         
-        Args:
-            text: Text containing formatted URLs
-            
+        Converts Slack angle-bracket URL forms so that `<https://example.com|label>` becomes `label`
+        and `<https://example.com>` becomes `https://example.com`.
+        
+        Parameters:
+            text (str): Input text that may contain Slack-formatted URLs.
+        
         Returns:
-            Text with standardized URLs
+            str: Text with Slack URL markup replaced by link labels or raw URLs.
         """
         import re
         
@@ -154,16 +158,15 @@ class SlackProcessor(DataProcessor):
         
     def batch_process(self, data_batches: List[Dict[str, Any]], channel_name: str) -> List[Dict[str, Any]]:
         """
-        Process batches in parallel using threading or multiprocessing.
+        Process multiple message batches in parallel and return a flattened list of processed messages.
         
-        Useful for processing large datasets or messages from multiple API calls.
+        Parameters:
+            data_batches (Iterable[List[Dict[str, Any]]]): An iterable of message batches; each batch is a list of raw message dictionaries expected by process().
+            channel_name (str): Slack channel name to attach to each processed message's metadata.
         
-        Args:
-            data_batches: List of message batches
-            channel_name: Name of the Slack channel
-            
         Returns:
-            Combined list of all processed messages"""
+            List[Dict[str, Any]]: Combined list of processed message dictionaries from all batches.
+        """
         from concurrent.futures import ThreadPoolExecutor
         
         logger.info(f"Starting parallel batch processing of {len(data_batches)} batches")
@@ -180,4 +183,3 @@ class SlackProcessor(DataProcessor):
 
         logger.info(f"Completed batch processing. Total processed messages: {len(all_processed)}")            
         return all_processed
-

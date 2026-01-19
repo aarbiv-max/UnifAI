@@ -33,6 +33,15 @@ class DocValidators:
         size_validator: SizeValidator,
         name_duplicate_validator: NameDuplicateValidator,
     ) -> None:
+        """
+        Initialize DocValidators with the validator instances used to assemble validation pipelines.
+        
+        Parameters:
+            duplicate_validator (DuplicateValidator): Validator that performs MD5 duplicate checks.
+            extension_validator (ExtensionValidator): Validator that verifies allowed file extensions.
+            size_validator (SizeValidator): Validator that enforces size limits.
+            name_duplicate_validator (NameDuplicateValidator): Validator that detects duplicate file names.
+        """
         self._duplicate_validator = duplicate_validator
         self._extension_validator = extension_validator
         self._size_validator = size_validator
@@ -40,14 +49,15 @@ class DocValidators:
 
     def create_validators(self, skip_validation: bool = False) -> List[DataSourceValidator]:
         """
-        Create the list of validators to run.
+        Selects and returns the ordered list of document validators to execute.
         
-        Args:
-            skip_validation: If True, only include MD5 DuplicateValidator.
-                           If False, include all validators for full validation.
-                           
+        If `skip_validation` is True, returns only the duplicate (MD5) validator. If False, returns validators in this exact execution order: extension, size, name-duplicate, then duplicate.
+        
+        Parameters:
+            skip_validation (bool): When True, run only the MD5 duplicate check; when False, run the full validation pipeline.
+        
         Returns:
-            List of validators to execute in order.
+            List[DataSourceValidator]: Ordered list of validators to execute.
         """
         if skip_validation:
             # UI flow: files were pre-validated, only check MD5 duplicates

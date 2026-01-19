@@ -34,13 +34,9 @@ class DocumentPipelineHandler(SourcePipelinePort):
         embedder: EmbeddingGenerator,
     ):
         """
-        Initialize the Document pipeline handler.
+        DocumentPipelineHandler initializer.
         
-        Args:
-            connector: Document connector for file processing
-            processor: Document processor for text transformation
-            chunker: PDF/Document chunker for content splitting
-            embedder: Embedding generator for vector creation
+        Store the provided connector, processor, chunker, and embedder on the instance and initialize the internal collected-data cache.
         """
         self._connector = connector
         self._processor = processor
@@ -50,18 +46,23 @@ class DocumentPipelineHandler(SourcePipelinePort):
     
     @property
     def source_type(self) -> str:
-        """Return the source type identifier."""
+        """
+        Identify the pipeline's source type.
+        
+        Returns:
+            The source type string "DOCUMENT".
+        """
         return "DOCUMENT"
     
     def collect(self, context: PipelineContext) -> Dict:
         """
-        Collect document content.
+        Collect the document specified in the pipeline context and cache the result.
         
-        Args:
-            context: Pipeline context with document path information
-            
+        Parameters:
+        	context (PipelineContext): Pipeline context whose metadata must include `doc_path` (path to the document) and may include `upload_by`.
+        
         Returns:
-            Document data dictionary with content and metadata
+        	collected (Dict): Document data dictionary containing the document content and associated metadata; also stored in the handler's internal cache.
         """
         logger.info(f"Collecting document: {context.metadata.get('doc_path')}")
         
@@ -73,14 +74,14 @@ class DocumentPipelineHandler(SourcePipelinePort):
     
     def process(self, context: PipelineContext, raw_data: Dict) -> Dict:
         """
-        Process document content.
+        Process raw document data into a normalized document dictionary suitable for downstream pipeline steps.
         
-        Args:
-            context: Pipeline context
-            raw_data: Document data from collect step
-            
+        Parameters:
+            context (PipelineContext): Pipeline execution context with metadata about the document.
+            raw_data (dict): Raw document data produced by the collection step.
+        
         Returns:
-            Processed document dictionary
+            dict: Processed document dictionary with normalized fields and the original content preserved.
         """
         return self._processor.process(
             raw_data,
@@ -92,14 +93,14 @@ class DocumentPipelineHandler(SourcePipelinePort):
     
     def chunk_and_embed(self, context: PipelineContext, processed: Dict) -> List[VectorChunk]:
         """
-        Chunk content and generate embeddings.
+        Prepare a processed document for vector storage by chunking its content, attaching source metadata, and generating embeddings for each chunk.
         
-        Args:
-            context: Pipeline context
-            processed: Processed document data
-            
+        Parameters:
+            context (PipelineContext): Pipeline context; its `source_id` is added to each chunk's metadata.
+            processed (Dict): Processed document data ready for chunking and embedding.
+        
         Returns:
-            List of VectorChunk objects ready for storage
+            List[VectorChunk]: A list of VectorChunk objects, each containing the chunk text, its embedding (numeric sequence), and metadata that includes `source_id` and `source_type`.
         """
         # Prepare document for embedding
         embedding_ready = self._processor.prepare_for_single_doc_embedding(processed)
@@ -128,14 +129,14 @@ class DocumentPipelineHandler(SourcePipelinePort):
     
     def get_summary(self, context: PipelineContext, collected: Any) -> Dict:
         """
-        Get execution summary for Document pipeline.
+        Return a document summary containing page count, full text, and file size.
         
-        Args:
-            context: Pipeline context
-            collected: Collected document data
-            
         Returns:
-            Summary dictionary with document-specific information
+            dict: {
+                "page_count": int — number of pages (0 if unavailable),
+                "full_text": str — full document text (empty string if unavailable),
+                "file_size": int — file size in bytes (0 if unavailable)
+            }
         """
         if self._cached_collected:
             return {
@@ -151,10 +152,13 @@ class DocumentPipelineHandler(SourcePipelinePort):
     
     def cleanup(self, context: PipelineContext) -> bool:
         """
-        Cleanup uploaded document file after pipeline execution.
+        Remove the uploaded document file referenced by the pipeline context.
         
-        Args:
-            context: Pipeline context with document path
+        Parameters:
+            context (PipelineContext): Pipeline context whose metadata should contain `"doc_path"` specifying the file path to remove.
+        
+        Returns:
+            bool: `True` if the file was removed, `False` otherwise.
         """
         doc_path = context.metadata.get("doc_path")
         if doc_path:

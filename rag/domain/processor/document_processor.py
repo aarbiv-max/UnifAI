@@ -13,7 +13,13 @@ class DocumentProcessor(DataProcessor):
     """
     
     def __init__(self):
-        """Initialize the document processor."""
+        """
+        Set up the DocumentProcessor and initialize regex patterns used for cleaning content.
+        
+        Initializes the base DataProcessor, logs the initialization, and defines the internal
+        _regex dictionaries `self._markdown_patterns` and `self._text_patterns` which are
+        used by the class's markdown and text cleaning helpers.
+        """
         super().__init__()
         logger.info("DocumentProcessor initialized")
         
@@ -42,18 +48,21 @@ class DocumentProcessor(DataProcessor):
         
     def process(self, doc: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """
-        Process a single document data dictionary to prepare for embedding.
-
-        Args:
-            doc: A single document data dictionary
-            **kwargs: Additional parameters specific to document processing
-                - clean_markdown: Whether to clean markdown content (default: True)
-                - clean_text: Whether to clean text content (default: False)
-                - remove_references: Whether to remove references section (default: False)
-                - preserve_original: Whether to preserve original content (default: True)
-            
+        Process a single document dictionary to prepare its content and metadata for embedding.
+        
+        Parameters:
+            doc (Dict[str, Any]): Document data dictionary to process.
+            **kwargs: Processing options:
+                clean_markdown (bool): Whether to clean markdown content. Defaults to True.
+                clean_text (bool): Whether to clean plain text content. Defaults to False.
+                remove_references (bool): Whether to remove a references section when cleaning text. Defaults to False.
+                preserve_original (bool): Whether to keep original fields and add cleaned fields instead of replacing them. Defaults to True.
+        
         Returns:
-            Processed document data dictionary
+            Dict[str, Any]: The processed document dictionary with cleaned fields and processing metadata.
+        
+        Raises:
+            ValueError: If `doc` is None.
         """
         # Handle case where doc is None (e.g., from failed document collection)
         if doc is None:
@@ -115,14 +124,14 @@ class DocumentProcessor(DataProcessor):
 
     def process_docs(self, data: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
         """
-        Process a list of document data dictionaries.
-
-        Args:
-            data: List of document dictionaries
-            **kwargs: Processing options passed to individual `process` calls
-
+        Process each document in the provided list using the given processing options.
+        
+        Parameters:
+            data (List[Dict[str, Any]]): List of document dictionaries to process.
+            **kwargs: Processing options applied to each document.
+        
         Returns:
-            List of processed document data dictionaries
+            List[Dict[str, Any]]: Processed document dictionaries.
         """
         logger.info(f"Starting batch document processing for {len(data)} documents")
         processed = [self.process(doc, **kwargs) for doc in data]
@@ -131,14 +140,16 @@ class DocumentProcessor(DataProcessor):
     
     def clean_content(self, content: str, remove_references: bool = False) -> str:
         """
-        Clean and normalize plain text content.
+        Clean and normalize plain-text content.
         
-        Args:
-            content: Raw content text
-            remove_references: Whether to remove references section
-            
+        Optionally remove a trailing references section matched by the processor's references pattern, collapse consecutive whitespace to single spaces, and trim leading/trailing whitespace.
+        
+        Parameters:
+            content (str): Raw content text.
+            remove_references (bool): If True, remove a references section before normalizing whitespace.
+        
         Returns:
-            Cleaned and normalized text
+            str: Cleaned and normalized text (empty string if input is falsy).
         """
         if not content:
             return ""
@@ -158,13 +169,15 @@ class DocumentProcessor(DataProcessor):
     
     def clean_markdown(self, markdown: str) -> str:
         """
-        Clean and normalize markdown content.
+        Clean and normalize Markdown content.
         
-        Args:
-            markdown: Raw markdown content
-            
+        Removes code blocks and tables, replaces links with their link text, removes images, HTML tags, inline code, and horizontal rules, collapses multiple blank lines into a single separation, and trims surrounding whitespace. If `markdown` is empty or falsy, returns an empty string.
+        
+        Parameters:
+            markdown (str): Raw Markdown content to clean.
+        
         Returns:
-            Cleaned markdown content
+            str: The cleaned Markdown text.
         """
         if not markdown:
             return ""
@@ -203,13 +216,16 @@ class DocumentProcessor(DataProcessor):
     
     def extract_document_sections(self, doc: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Extract sections from a document based on headings.
+        Split a document's Markdown into sections defined by Markdown heading lines.
         
-        Args:
-            doc: Document data dictionary
-            
+        Parameters:
+            doc (Dict[str, Any]): Document dictionary expected to contain a "markdown" key with the Markdown source text. If "markdown" is absent, the function logs a warning and returns an empty list.
+        
         Returns:
-            List of section dictionaries with title and content
+            List[Dict[str, Any]]: A list of section dictionaries in document order. Each section has:
+                - `title` (str): Heading text (or "Introduction" for leading content before the first heading).
+                - `level` (int): Heading level (1–6 for `#`–`######`, 0 for the initial Introduction).
+                - `content` (str): The Markdown lines that belong to the section (text between this heading and the next).
         """
         if "markdown" not in doc:
             logger.warning(f"Cannot extract sections: markdown not found in document {doc.get('filename', 'Unknown')}")
@@ -246,15 +262,19 @@ class DocumentProcessor(DataProcessor):
     
     def prepare_for_single_doc_embedding(self, doc: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Prepare a single processed document for embedding.
-
-        This method extracts the key content that should be sent to the chunking and embedding layer.
-
-        Args:
-            doc: A single processed document
-
+        Build a minimal, embedding-ready document from a processed document.
+        
+        Selects cleaned text when available and extracts a small metadata subset with sensible defaults.
+        
+        Parameters:
+            doc (Dict[str, Any]): Processed document dictionary (may contain keys like "path", "filename", "text", "clean_text", and "metadata").
+        
         Returns:
-            Simplified document dictionary for embedding
+            Dict[str, Any]: Simplified document with keys:
+                - id: basename of the document path
+                - filename: original filename
+                - content: text to embed (uses `clean_text` if present, otherwise `text`)
+                - metadata: dict containing `title`, `upload_by`, `page_count`, `word_count`, and `source_path`
         """
         try:
             # Create a simplified document for embedding
@@ -280,15 +300,14 @@ class DocumentProcessor(DataProcessor):
     def prepare_for_embedding(self, processed_docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Prepare a list of processed documents for embedding.
-
-        Args:
-            processed_docs: List of processed document dictionaries
-
+        
+        Parameters:
+            processed_docs (List[Dict[str, Any]]): Processed document dictionaries to transform into embedding-ready form.
+        
         Returns:
-            List of simplified embedding document dictionaries
+            List[Dict[str, Any]]: Embedding-ready document dictionaries. Each dictionary contains keys including `id`, `filename`, `content`, and `metadata`.
         """
         logger.info(f"Preparing {len(processed_docs)} documents for embedding")
         embedding_docs = [self.prepare_for_single_doc_embedding(doc) for doc in processed_docs]
         logger.info(f"Prepared {len(embedding_docs)} documents for embedding")
         return embedding_docs
-

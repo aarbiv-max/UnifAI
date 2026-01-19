@@ -39,6 +39,17 @@ class FileValidationResult:
     errors: List[FileValidationError]
     
     def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialize the validation result into a plain dictionary.
+        
+        The returned dictionary contains:
+        - "valid_files": list of validated file records (each includes at least name, normalized_name, and size).
+        - "errors": list of error objects, each with "file_name", "error_type", and "message".
+        - "has_errors": `true` if there is at least one error, `false` otherwise.
+        
+        Returns:
+            dict: A mapping with keys "valid_files", "errors", and "has_errors".
+        """
         return {
             "valid_files": self.valid_files,
             "errors": [
@@ -82,12 +93,12 @@ class FileValidationService:
         name_checker: NameDuplicateCheckerAdapter,
     ):
         """
-        Initialize the validation service.
+        Create a FileValidationService configured for a specific user.
         
-        Args:
-            username: The username of the person uploading files
-            config_manager: Document configuration manager for supported extensions
-            name_checker: Name duplicate checker adapter
+        Parameters:
+            username (str): Username of the user performing uploads.
+            config_manager (DocConfigManager): Provides supported file types via get_supported_file_types().
+            name_checker (NameDuplicateCheckerAdapter): Adapter used to normalize names and detect duplicates.
         """
         self.username = username
         self.config_manager = config_manager
@@ -95,12 +106,28 @@ class FileValidationService:
         self.name_checker = name_checker
         
     def _is_extension_supported(self, filename: str) -> bool:
-        """Check if the file extension is supported."""
+        """
+        Determine whether a filename's extension is among the service's supported extensions.
+        
+        Parameters:
+            filename (str): The filename to check.
+        
+        Returns:
+            `True` if the filename's extension (including the leading dot) is present in supported extensions, `False` otherwise.
+        """
         extension = filename.lower().rsplit('.', 1)[-1] if '.' in filename else ''
         return f".{extension}" in self.supported_extensions
     
     def _is_size_valid(self, size_bytes: int) -> bool:
-        """Check if the file size is within limits."""
+        """
+        Determine whether a file size does not exceed the configured maximum.
+        
+        Parameters:
+            size_bytes (int): File size in bytes to validate. The maximum allowed size is defined by MAX_FILE_SIZE_BYTES.
+        
+        Returns:
+            `true` if size_bytes is less than or equal to MAX_FILE_SIZE_BYTES, `false` otherwise.
+        """
         return size_bytes <= MAX_FILE_SIZE_BYTES
     
     def validate(
@@ -109,15 +136,20 @@ class FileValidationService:
         check_duplicates: bool = True
     ) -> FileValidationResult:
         """
-        Validate a list of files for upload.
+        Validate a list of files for upload and return their validation outcome.
         
-        Args:
-            files: List of file metadata dictionaries with 'name' and 'size' keys.
-                   Example: [{"name": "doc.pdf", "size": 1024000}]
-            check_duplicates: Whether to check for duplicate filenames (default True)
-            
+        Parameters:
+            files (List[Dict[str, Any]]): List of file metadata dictionaries. Each dict must include:
+                - "name" (str): Original filename.
+                - "size" (int): File size in bytes.
+            check_duplicates (bool): Whether to check for duplicate filenames against the user's
+                existing documents and within the current batch.
+        
         Returns:
-            FileValidationResult containing valid files and errors.
+            FileValidationResult: Contains:
+                - valid_files: List of dicts for files that passed validation with keys
+                  "name", "normalized_name", and "size".
+                - errors: List of FileValidationError entries describing validation failures.
         """
         valid_files: List[Dict[str, Any]] = []
         errors: List[FileValidationError] = []
@@ -198,5 +230,4 @@ class FileValidationService:
         )
         
         return FileValidationResult(valid_files=valid_files, errors=errors)
-
 

@@ -13,7 +13,18 @@ class TermsApproval:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TermsApproval":
-        """Create a TermsApproval instance from a dictionary."""
+        """
+        Construct a TermsApproval instance from a dictionary.
+        
+        Parameters:
+            data (Dict[str, Any]): Dictionary that may contain the keys
+                'username', 'approved_at', and 'created_at'. Missing 'username'
+                defaults to an empty string; missing 'approved_at' defaults to the
+                current UTC time.
+        
+        Returns:
+            TermsApproval: A TermsApproval populated from the provided dictionary.
+        """
         return cls(
             username=data.get("username", ""),
             approved_at=data.get("approved_at", datetime.utcnow()),
@@ -21,5 +32,10 @@ class TermsApproval:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert the TermsApproval instance to a dictionary."""
+        """
+        Return a dictionary mapping the instance's field names to their values.
+        
+        Returns:
+            dict: A dictionary with keys 'username', 'approved_at', and 'created_at' mapped to their corresponding values from this TermsApproval instance.
+        """
         return asdict(self)

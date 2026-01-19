@@ -18,7 +18,19 @@ class MetricsEntry:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MetricsEntry":
-        """Create a MetricsEntry from a dictionary."""
+        """
+        Create a MetricsEntry from a dictionary, applying defaults for any missing fields.
+        
+        Parameters:
+            data (Dict[str, Any]): Source mapping. Recognized keys:
+                - "pipeline_id": pipeline identifier (defaults to "").
+                - "source_type": source type string (defaults to "").
+                - "metrics": metrics dictionary (defaults to {}).
+                - "timestamp": datetime for the entry (defaults to current UTC time).
+        
+        Returns:
+            MetricsEntry: Instance populated from `data` with defaults applied.
+        """
         return cls(
             pipeline_id=data.get("pipeline_id", ""),
             source_type=data.get("source_type", ""),
@@ -27,7 +39,12 @@ class MetricsEntry:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for storage."""
+        """
+        Convert the dataclass instance into a dictionary suitable for storage.
+        
+        Returns:
+            Dict[str, Any]: Mapping of field names to their values.
+        """
         return asdict(self)
 
 
@@ -44,7 +61,20 @@ class ErrorEntry:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ErrorEntry":
-        """Create an ErrorEntry from a dictionary."""
+        """
+        Create an ErrorEntry instance from a dictionary of fields.
+        
+        Parameters:
+            data (Dict[str, Any]): Dictionary with optional keys:
+                - "pipeline_id" (str): pipeline identifier, defaults to empty string.
+                - "source_type" (str): origin of the error, defaults to empty string.
+                - "error_message" (str): human-readable error message, defaults to empty string.
+                - "error_details" (Dict[str, Any]): additional error metadata, defaults to {}.
+                - "timestamp" (datetime): occurrence time, defaults to current UTC time.
+        
+        Returns:
+            ErrorEntry: An ErrorEntry populated from the provided dictionary.
+        """
         return cls(
             pipeline_id=data.get("pipeline_id", ""),
             source_type=data.get("source_type", ""),
@@ -54,7 +84,12 @@ class ErrorEntry:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for storage."""
+        """
+        Convert the dataclass instance into a dictionary suitable for storage.
+        
+        Returns:
+            Dict[str, Any]: Mapping of field names to their values.
+        """
         return asdict(self)
 
 
@@ -72,7 +107,21 @@ class LogEntry:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "LogEntry":
-        """Create a LogEntry from a dictionary."""
+        """
+        Create a LogEntry from a dictionary of fields.
+        
+        Parameters:
+            data (Dict[str, Any]): Mapping with optional keys:
+                - "source_type": source/type of the log (defaults to "").
+                - "message": log message text (defaults to "").
+                - "level": log severity level (defaults to "").
+                - "module": originating module name (defaults to "").
+                - "timestamp": datetime for the entry (defaults to current UTC if missing).
+                - "pipeline_id": associated pipeline identifier (defaults to None).
+        
+        Returns:
+            LogEntry: An instance populated from the provided mapping with defaults applied for missing keys.
+        """
         return cls(
             source_type=data.get("source_type", ""),
             message=data.get("message", ""),
@@ -83,6 +132,10 @@ class LogEntry:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for storage."""
+        """
+        Convert the dataclass instance into a dictionary suitable for storage.
+        
+        Returns:
+            Dict[str, Any]: Mapping of field names to their values.
+        """
         return asdict(self)
-

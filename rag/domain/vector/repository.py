@@ -10,10 +10,10 @@ class VectorRepository(ABC):
 
     def __init__(self, collection_name: str):
         """
-        Initialize the vector storage.
+        Initialize the repository with the target collection name used for storing vectors.
         
-        Args:
-            collection_name: Name of the collection to store vectors
+        Parameters:
+            collection_name (str): Name of the vector storage collection to use.
         """
         self.collection_name = collection_name
     
@@ -21,23 +21,22 @@ class VectorRepository(ABC):
     @abstractmethod
     def initialize(self) -> None:
         """
-        Initialize the vector storage.
+        Prepare the vector storage backend for use.
         
-        Creates the collection/index if it doesn't exist and sets up
-        necessary configuration.
+        Ensures the configured collection or index exists and is ready (created/configured) for storing and querying vectors.
         """
         ...
 
     @abstractmethod
     def store(self, chunks: List[VectorChunk]) -> int:
         """
-        Store vector chunks in the storage.
+        Persist a list of vector chunks to the repository.
         
-        Args:
-            chunks: List of VectorChunk objects to store
-            
+        Parameters:
+            chunks (List[VectorChunk]): VectorChunk objects to persist.
+        
         Returns:
-            Number of chunks successfully stored
+            int: Number of chunks successfully stored.
         """
         ...
 
@@ -49,66 +48,67 @@ class VectorRepository(ABC):
         filters: Optional[Dict[str, Any]] = None,
     ) -> List[SearchResult]:
         """
-        Search for similar vectors.
+        Find vectors most similar to the provided query embedding.
         
         Args:
-            query_embedding: Query vector to search for
-            top_k: Number of results to return
-            filters: Optional filters to apply to the search
-            
+            query_embedding (List[float]): Embedding vector used as the search query.
+            top_k (int): Maximum number of results to return.
+            filters (Optional[Dict[str, Any]]): Optional metadata filters to restrict results (key-value pairs applied to stored vector metadata).
+        
         Returns:
-            List of SearchResult objects with similarity scores
+            List[SearchResult]: Matching search results ordered by descending similarity score.
         """
         ...
 
     @abstractmethod
     def count(self, filters: Optional[Dict[str, Any]] = None, exact: bool = False) -> int:
         """
-        Count vectors in the storage.
+        Count vectors stored in the collection, optionally constrained by filters or using exact counting.
         
-        Args:
-            filters: Optional filters to apply to the count
-            exact: Whether to perform exact count (slower but accurate)
-            
+        Parameters:
+            filters (Optional[Dict[str, Any]]): Filters to constrain which vectors are counted (for example, metadata conditions).
+            exact (bool): If True, perform an exact (potentially slower) count; if False, allow an approximate/fast count.
+        
         Returns:
-            Count of vectors matching the criteria
+            int: The number of vectors matching the provided criteria.
         """
         ...
 
     @abstractmethod
     def delete(self, ids: Optional[List[str]] = None) -> int:
         """
-        Delete vectors by their IDs.
+        Delete vectors identified by the given IDs.
         
-        Args:
-            ids: List of vector IDs to delete
-            
+        Parameters:
+            ids (Optional[List[str]]): Optional list of vector IDs to delete.
+        
         Returns:
-            Number of vectors deleted
+            int: Number of vectors deleted.
         """
         ...
 
     @abstractmethod
     def delete_by_filter(self, filters: Dict[str, Any]) -> int:
         """
-        Delete vectors matching a filter.
+        Delete vectors that match the provided filters.
         
-        Args:
-            filters: Filters to select vectors to delete
-            
+        Parameters:
+            filters (Dict[str, Any]): Criteria used to select vectors for deletion.
+        
         Returns:
-            Number of vectors deleted
+            int: Number of vectors deleted.
         """
         ... 
 
     @abstractmethod
     def delete_by_source_id(self, source_id: str) -> int:
         """
-        Delete vectors by source ID.
+        Delete all vectors associated with the given source ID.
         
-        Args:
-            source_id: Source ID to delete vectors for
+        Parameters:
+            source_id (str): Source identifier whose vectors should be removed.
+        
         Returns:
-            Number of vectors deleted
+            int: Number of vectors deleted.
         """
         ...

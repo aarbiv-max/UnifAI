@@ -13,10 +13,9 @@ class SlackThreadRetriever:
     
     def __init__(self, slack_connector):
         """
-        Initialize the thread retriever.
+        Initialize SlackThreadRetriever with a SlackConnector instance.
         
-        Args:
-            slack_connector: Instance of SlackConnector to use for API calls
+        Stores the provided connector for making Slack API requests.
         """
         self._connector = slack_connector
     
@@ -29,17 +28,17 @@ class SlackThreadRetriever:
         latest: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Get all replies in a thread.
+        Retrieve messages from a Slack thread within optional time bounds.
         
-        Args:
-            channel_id: The channel ID where the thread is located
-            thread_ts: The timestamp of the parent message
-            thread_number: The thread number (for logging)
-            oldest: Optional oldest timestamp to fetch from
-            latest: Optional latest timestamp to fetch to
-            
+        Parameters:
+            channel_id: ID of the channel containing the thread.
+            thread_ts: Timestamp of the parent (root) message of the thread.
+            thread_number: Sequential identifier used for logging/tracing.
+            oldest: Optional inclusive lower time bound (Slack timestamp) for messages to fetch.
+            latest: Optional inclusive upper time bound (Slack timestamp) for messages to fetch.
+        
         Returns:
-            List of message objects from the thread
+            messages: List of message objects from the thread; returns an empty list if the Slack API reports an error.
         """
         params = {
             'channel': channel_id,
@@ -63,4 +62,3 @@ class SlackThreadRetriever:
         logger.info(f"Retrieved {len(messages)} messages from thread {thread_number}")
         
         return messages
-

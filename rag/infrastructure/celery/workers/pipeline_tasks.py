@@ -17,23 +17,19 @@ from shared.logger import logger
 
 def build_context(source_type: str, source_data: dict) -> PipelineContext:
     """
-    Translate Celery message format → domain PipelineContext.
+    Build a PipelineContext from a Celery message payload.
     
-    Logic identical to backend's pipeline_tasks.py lines 24-47:
-    - Extract pipeline_id and metadata from source_data
-    - Clean metadata (remove pipeline_id, type_data to avoid duplicates)
-    - Add type_data from source_data top level
-    - Extract source identifiers based on source type
+    Validates presence of pipeline_id and metadata, normalizes and augments metadata (injecting top-level type_data if present), and extracts source-specific identifiers for supported source types ("SLACK", "DOCUMENT").
     
-    Args:
-        source_type: Type of source (SLACK, DOCUMENT, etc.)
-        source_data: RegisteredSource data from registration task
-        
+    Parameters:
+        source_type (str): Source type string (e.g., "SLACK", "DOCUMENT"); case-insensitive.
+        source_data (dict): Incoming message payload expected to contain at least "pipeline_id" and "metadata".
+    
     Returns:
-        PipelineContext ready for executor
-        
+        PipelineContext: Domain context with pipeline_id, uppercased source_type, source_id, source_name, and cleaned metadata.
+    
     Raises:
-        ValueError: If pipeline_id or metadata missing, or unsupported source type
+        ValueError: If pipeline_id or metadata are missing, or if source_type is unsupported.
     """
     # Extract (same as backend lines 25-26)
     pipeline_id = source_data.get("pipeline_id")
@@ -75,20 +71,21 @@ def build_context(source_type: str, source_data: dict) -> PipelineContext:
 @CeleryApp().app.task(bind=True)
 def execute_pipeline_task(self, source_type: str, source_data: dict):
     """
-    General pipeline execution task that works with any source type.
+    Execute a pipeline for the given source by building a domain context and delegating to the application executor.
     
-    This is a thin driving adapter - receives Celery message and delegates
-    to application layer. Logic identical to backend's pipeline_tasks.py.
+    Parameters:
+        source_type (str): Source type identifier (e.g., "SLACK", "DOCUMENT").
+        source_data (dict): Registered source payload containing:
+            - pipeline_id (str): Identifier of the pipeline to run.
+            - metadata (dict): Source-specific metadata.
+            - type_data (dict, optional): Additional source settings (may also appear at top level).
     
-    Args:
-        source_type: Type of source (SLACK, DOCUMENT, etc.)
-        source_data: RegisteredSource data from registration task
-            - pipeline_id: str
-            - metadata: dict with source-specific fields
-            - type_data: optional dict with additional settings
-            
     Returns:
-        dict with pipeline_id, source_type, status, and result
+        dict: Execution outcome with keys:
+            - pipeline_id (str): The pipeline identifier.
+            - source_type (str): The provided source type.
+            - status (str): `"success"` on successful execution.
+            - result: The value returned by the pipeline executor.
     """
     try:
         logger.info(f"Starting pipeline execution for {source_type} source: {source_data}")
@@ -113,4 +110,3 @@ def execute_pipeline_task(self, source_type: str, source_data: dict):
     except Exception as e:
         logger.error(f"Pipeline execution failed for {source_type}: {str(e)}", exc_info=True)
         raise
-

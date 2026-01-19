@@ -18,11 +18,16 @@ pipelines_bp = Blueprint("pipelines", __name__)
 })
 def start_pipeline(data, source_type, logged_in_user, skip_validation):
     """
-    Register sources and dispatch pipeline tasks.
+    Register provided sources and start a pipeline run.
     
-    This endpoint:
-    1. Validates and registers data sources
-    2. Dispatches async pipeline tasks to Celery
+    Parameters:
+        data (list[dict]): List of source records to register and process.
+        source_type (str): Identifier of the source type for the provided data.
+        logged_in_user (str): Identifier of the user initiating the request.
+        skip_validation (bool): When True, skip source validation before starting the pipeline.
+    
+    Returns:
+        tuple: A JSON response body and an HTTP status code. On success, returns the pipeline service result converted to a dict and status 200. On failure, returns {"error": <message>} and status 500.
     """
     try:
         result = pipeline_dispatch_service().start_pipeline(
@@ -37,4 +42,3 @@ def start_pipeline(data, source_type, logged_in_user, skip_validation):
     except Exception as e:
         logger.error(f"Failed to start pipeline: {str(e)}")
         return jsonify({"error": str(e)}), 500
-

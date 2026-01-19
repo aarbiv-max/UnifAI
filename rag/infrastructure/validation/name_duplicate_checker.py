@@ -20,24 +20,40 @@ class NameDuplicateCheckerAdapter:
     """
 
     def __init__(self, storage: Any) -> None:
+        """
+        Initialize the NameDuplicateCheckerAdapter with a storage backend used for duplicate checks.
+        
+        Parameters:
+            storage (Any): Storage backend used to fetch documents and pipeline status. Expected to optionally implement
+                `get_source_by_query(query: dict) -> List[dict]` and `get_pipeline_status(pipeline_id: str) -> Optional[str]`.
+        """
         self._storage = storage
 
     def normalize_filename(self, filename: str) -> str:
         """
-        Normalize filename for duplicate checking.
-        Uses secure_filename to ensure consistent comparison.
+        Produce a normalized filename suitable for duplicate name comparisons.
+        
+        Parameters:
+            filename (str): The original filename to normalize.
+        
+        Returns:
+            str: The normalized filename.
         """
         return secure_filename(filename)
 
     def get_existing_documents_for_user(self, username: str) -> List[Dict[str, Any]]:
         """
-        Get existing documents for a user.
+        Retrieve document sources uploaded by a specific user.
         
-        Args:
-            username: The username to fetch documents for
-            
+        If the underlying storage does not support `get_source_by_query` or an error occurs while querying,
+        an empty list is returned.
+        
+        Parameters:
+            username (str): Username whose documents to retrieve.
+        
         Returns:
-            List of document dictionaries for the user
+            List[Dict[str, Any]]: A list of document dictionaries for the user, or an empty list if none are found
+            or on error.
         """
         if not hasattr(self._storage, "get_source_by_query"):
             return []
@@ -54,13 +70,13 @@ class NameDuplicateCheckerAdapter:
 
     def get_pipeline_status(self, pipeline_id: str) -> Optional[str]:
         """
-        Get the status of a pipeline by its ID.
+        Retrieve the status of a pipeline given its ID.
         
-        Args:
-            pipeline_id: The pipeline ID to look up
-            
+        Parameters:
+            pipeline_id (str): The pipeline identifier to look up.
+        
         Returns:
-            The pipeline status string, or None if not found
+            The pipeline status string if available, otherwise None.
         """
         if not pipeline_id:
             return None
@@ -75,17 +91,14 @@ class NameDuplicateCheckerAdapter:
         existing_docs: List[Dict[str, Any]],
     ) -> Tuple[bool, Optional[str]]:
         """
-        Check if a normalized filename has a blocking duplicate in existing docs.
+        Determine whether a normalized filename is blocked by an existing document.
         
-        Args:
-            normalized_name: The normalized filename to check
-            existing_docs: List of existing documents to check against
-            
+        Parameters:
+            normalized_name (str): Normalized filename to check.
+            existing_docs (List[Dict[str, Any]]): Documents to compare; each may include 'source_name' and an optional 'pipeline_id'.
+        
         Returns:
-            Tuple of (is_blocking_duplicate, existing_doc_status)
-            
-        Note: Documents with FAILED status are NOT considered blocking duplicates,
-        allowing users to retry failed uploads.
+            Tuple[bool, Optional[str]]: `True` and the existing document's pipeline status if a blocking duplicate exists; `False, None` otherwise. Documents with a pipeline status of "FAILED" do not block.
         """
         for doc in existing_docs:
             doc_name = doc.get("source_name", "")
@@ -107,14 +120,14 @@ class NameDuplicateCheckerAdapter:
         username: str,
     ) -> Tuple[bool, Optional[str]]:
         """
-        Convenience method to check if a filename is a duplicate for a user.
+        Check whether a filename would be considered a blocking duplicate for a given user.
         
-        Args:
-            filename: The filename to check (will be normalized)
-            username: The username to check duplicates for
-            
+        Parameters:
+            filename (str): The filename to check; it will be normalized before comparison.
+            username (str): The username whose existing documents will be checked.
+        
         Returns:
-            Tuple of (is_blocking_duplicate, existing_doc_status)
+            tuple: `True` if a blocking duplicate exists for the user, `False` otherwise; the second element is the matching document's pipeline status or `None`.
         """
         if not filename:
             return False, None

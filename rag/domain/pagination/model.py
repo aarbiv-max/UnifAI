@@ -20,13 +20,17 @@ class PaginatedResult(Generic[T]):
 
     def to_dict(self, data_key: str = "data") -> Dict[str, Any]:
         """
-        Convert to API response format with custom data key.
+        Serialize the paginated result into a dictionary using a customizable key for the items.
         
-        Args:
-            data_key: Key name for the data array (e.g., "channels", "documents", "tags")
-            
+        Parameters:
+            data_key (str): Key name to use for the items list in the resulting dictionary (e.g., "data", "channels", "documents").
+        
         Returns:
-            Dict ready for JSON serialization
+            Dict[str, Any]: Dictionary with keys:
+                - the provided `data_key`: the page's item list
+                - "nextCursor": cursor token for the next page or `None`
+                - "hasMore": `True` if more pages are available, `False` otherwise
+                - "total": total number of items in the current context
         """
         return {
             data_key: self.data,
@@ -37,13 +41,13 @@ class PaginatedResult(Generic[T]):
 
     def map(self, fn) -> "PaginatedResult":
         """
-        Transform data items while preserving pagination metadata.
+        Apply a function to each item in the paginated data, returning a new PaginatedResult with transformed items while preserving pagination metadata.
         
-        Args:
-            fn: Function to apply to each item
-            
+        Parameters:
+            fn (Callable): Function applied to each item in `data`; may change the item type.
+        
         Returns:
-            New PaginatedResult with transformed data
+            PaginatedResult: A new PaginatedResult containing the transformed `data` and the original `next_cursor`, `has_more`, and `total`.
         """
         return PaginatedResult(
             data=[fn(item) for item in self.data],
@@ -54,15 +58,13 @@ class PaginatedResult(Generic[T]):
 
     def filter(self, predicate) -> "PaginatedResult":
         """
-        Filter data items while preserving pagination metadata.
+        Create a PaginatedResult containing only items that satisfy the given predicate while preserving pagination metadata.
         
-        Note: This updates total to reflect filtered count.
+        Parameters:
+            predicate (Callable[[T], bool]): Function that returns `True` for items to keep.
         
-        Args:
-            predicate: Function that returns True for items to keep
-            
         Returns:
-            New PaginatedResult with filtered data
+            PaginatedResult[T]: New paginated result with filtered data and `total` set to the number of retained items.
         """
         filtered = [item for item in self.data if predicate(item)]
         return PaginatedResult(
@@ -71,4 +73,3 @@ class PaginatedResult(Generic[T]):
             has_more=self.has_more,
             total=len(filtered),
         )
-

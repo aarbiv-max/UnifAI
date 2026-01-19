@@ -20,10 +20,24 @@ class MongoSlackChannelRepository(SlackChannelRepository):
     }
 
     def __init__(self, collection: Collection):
+        """
+        Initialize the repository with a PyMongo collection.
+        
+        Parameters:
+            collection (Collection): PyMongo Collection used to persist and query Slack channel documents.
+        """
         self._col = collection
 
     def find_by_channel_id(self, channel_id: str) -> Optional[SlackChannel]:
-        """Find a channel by its ID."""
+        """
+        Retrieve a SlackChannel by its Slack channel identifier.
+        
+        Parameters:
+            channel_id (str): The Slack channel's unique identifier.
+        
+        Returns:
+            SlackChannel: The channel object if found, `None` if no matching document exists or an error occurred.
+        """
         try:
             doc = self._col.find_one({"channel_id": channel_id})
             return SlackChannel.from_dict(doc) if doc else None
@@ -40,9 +54,19 @@ class MongoSlackChannelRepository(SlackChannelRepository):
         search: Optional[str] = None,
     ) -> PaginatedResult[Dict[str, Any]]:
         """
-        Get channels with pagination using the builder.
+        Retrieve a paginated list of channel documents for a project.
         
-        Uses PaginatedQueryBuilder for consistent pagination logic.
+        Performs a paginated query filtered by the given project_id, optionally restricted to channel types (comma-separated, mapped via internal type map) and/or text-searched against channel_name. Results are sorted alphabetically by channel_name and paginated using the provided cursor and limit.
+        
+        Parameters:
+            project_id (str): ID of the project whose channels to query.
+            types (Optional[str]): Comma-separated external channel types to include; each value is trimmed and mapped to the repository's internal type names.
+            cursor (Optional[str]): Pagination cursor identifying the page start.
+            limit (int): Maximum number of documents to return.
+            search (Optional[str]): Text to match against the channel_name field.
+        
+        Returns:
+            PaginatedResult[Dict[str, Any]]: Paginated result containing channel documents and pagination metadata.
         """
         builder = (PaginatedQueryBuilder(self._col)
             .with_filter({"project_id": project_id})
@@ -58,11 +82,24 @@ class MongoSlackChannelRepository(SlackChannelRepository):
         return builder.documents()
 
     def exists_for_project(self, project_id: str) -> bool:
-        """Check if there are any channels for the project."""
+        """
+        Determine whether any channels exist for the given project.
+        
+        Returns:
+            `true` if at least one channel document with the provided `project_id` exists, `false` otherwise.
+        """
         return self._col.count_documents({"project_id": project_id}) > 0
 
     def save(self, channel: SlackChannel) -> bool:
-        """Save a channel."""
+        """
+        Insert the given SlackChannel into the repository collection.
+        
+        Parameters:
+            channel (SlackChannel): Channel to persist.
+        
+        Returns:
+            bool: True if the channel was successfully inserted, False otherwise.
+        """
         try:
             self._col.insert_one(channel.to_dict())
             return True
@@ -71,14 +108,29 @@ class MongoSlackChannelRepository(SlackChannelRepository):
             return False
 
     def save_many(self, channels: List[SlackChannel]) -> None:
-        """Save multiple channels in batch."""
+        """
+        Insert multiple SlackChannel records into the MongoDB collection in a single batch.
+        
+        Parameters:
+            channels (List[SlackChannel]): Channels to insert; if empty, no operation is performed.
+        """
         if channels:
             docs = [ch.to_dict() for ch in channels]
             self._col.insert_many(docs)
             logger.info(f"Cached {len(channels)} channels to MongoDB")
 
     def update_membership(self, channel_id: str, is_member: bool, timestamp: float) -> bool:
-        """Update membership flag."""
+        """
+        Set the repository membership status and update the last-updated timestamp for a Slack channel.
+        
+        Parameters:
+            channel_id (str): Slack channel identifier to update.
+            is_member (bool): Whether the app is a member of the channel.
+            timestamp (float): POSIX timestamp to store as the channel's last updated time.
+        
+        Returns:
+            bool: `True` if a document was modified, `False` otherwise.
+        """
         try:
             result = self._col.update_one(
                 {"channel_id": channel_id},
@@ -90,7 +142,15 @@ class MongoSlackChannelRepository(SlackChannelRepository):
             return False
 
     def delete_by_project(self, project_id: str) -> int:
-        """Delete all channels for a project."""
+        """
+        Delete all Slack channel documents belonging to the given project.
+        
+        Parameters:
+            project_id (str): Identifier of the project whose channels should be removed.
+        
+        Returns:
+            int: Number of documents deleted.
+        """
         result = self._col.delete_many({"project_id": project_id})
         logger.info(f"Cleared {result.deleted_count} existing channels for project {project_id}")
         return result.deleted_count

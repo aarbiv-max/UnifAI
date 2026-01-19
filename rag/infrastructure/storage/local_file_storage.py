@@ -23,32 +23,38 @@ class LocalFileStorage:
 
     def __init__(self, upload_folder: str):
         """
-        Initialize local file storage.
+        Create a LocalFileStorage configured to store uploads at the given folder.
         
-        Args:
-            upload_folder: Directory path for storing uploaded files
+        Parameters:
+            upload_folder (str): Path to the directory where uploaded files will be stored; the directory is created if it does not exist.
         """
         self._upload_folder = upload_folder
         os.makedirs(upload_folder, exist_ok=True)
 
     @property
     def upload_folder(self) -> str:
-        """Get the upload folder path."""
+        """
+        Return the configured upload folder path used for storing files.
+        
+        Returns:
+            str: The configured upload folder path.
+        """
         return self._upload_folder
 
     def save_files(self, files: List[Dict[str, str]]) -> List[str]:
         """
-        Save multiple base64-encoded files.
+        Save multiple files provided as base64-encoded payloads.
         
-        Args:
-            files: List of file dicts with "name" and "content" (base64) keys
-            
+        Parameters:
+            files (List[Dict[str, str]]): List of dictionaries each containing:
+                - "name": the desired filename
+                - "content": base64-encoded file data
+        
         Returns:
-            List of saved file paths
-            
+            List[str]: Full filesystem paths where each file was saved, in the same order as input.
+        
         Raises:
-            ValueError: If file dict is missing required keys
-            Exception: If file write fails
+            ValueError: If any dictionary is missing the required "name" or "content" keys.
         """
         saved_paths = []
         
@@ -63,28 +69,28 @@ class LocalFileStorage:
 
     def save_base64(self, filename: str, base64_content: str) -> str:
         """
-        Save a single base64-encoded file.
+        Save a base64-encoded file to the configured upload folder.
         
-        Args:
-            filename: Original filename (will be sanitized)
-            base64_content: Base64-encoded file content
-            
+        Parameters:
+            filename (str): Original filename; it will be sanitized before writing.
+            base64_content (str): Base64-encoded file content to decode and save.
+        
         Returns:
-            Full path where the file was saved
+            str: Full filesystem path where the file was saved.
         """
         content = base64.b64decode(base64_content)
         return self.save(filename, content)
 
     def save(self, filename: str, content: bytes) -> str:
         """
-        Save raw bytes to a file.
+        Save raw bytes to disk using a sanitized filename.
         
-        Args:
-            filename: Original filename (will be sanitized)
-            content: Raw file bytes
-            
+        Parameters:
+            filename (str): Original filename; it will be sanitized before writing.
+            content (bytes): Raw file bytes to write.
+        
         Returns:
-            Full path where the file was saved
+            str: Full filesystem path where the file was saved.
         """
         safe_name = secure_filename(filename)
         path = os.path.join(self._upload_folder, safe_name)
@@ -97,38 +103,38 @@ class LocalFileStorage:
 
     def get_path(self, filename: str) -> str:
         """
-        Get the full path for a filename (without saving).
+        Compute the full filesystem path where a sanitized filename would be stored without writing the file.
         
-        Args:
-            filename: Original filename (will be sanitized)
-            
+        Parameters:
+            filename (str): Original filename; it will be sanitized before joining into the upload folder path.
+        
         Returns:
-            Full path where the file would be stored
+            str: Full path to the file location within the configured upload folder.
         """
         safe_name = secure_filename(filename)
         return os.path.join(self._upload_folder, safe_name)
 
     def exists(self, filename: str) -> bool:
         """
-        Check if a file exists in storage.
+        Determine whether a stored file exists for the given filename.
         
-        Args:
-            filename: Original filename (will be sanitized)
-            
+        Parameters:
+            filename (str): Original filename; it will be sanitized before checking.
+        
         Returns:
-            True if file exists
+            `true` if the file exists, `false` otherwise.
         """
         return os.path.exists(self.get_path(filename))
 
     def delete(self, filename: str) -> bool:
         """
-        Delete a file from storage.
+        Delete the named file from the configured upload folder.
         
-        Args:
-            filename: Original filename (will be sanitized)
-            
+        Parameters:
+            filename (str): Filename to delete; it will be sanitized before resolving the stored path.
+        
         Returns:
-            True if file was deleted, False if it didn't exist
+            bool: `True` if the file was deleted, `False` otherwise.
         """
         path = self.get_path(filename)
         
@@ -137,4 +143,3 @@ class LocalFileStorage:
             logger.info(f"Deleted file: {secure_filename(filename)}")
             return True
         return False
-

@@ -35,10 +35,10 @@ class PaginatedQueryBuilder:
 
     def __init__(self, collection: Collection):
         """
-        Initialize builder with a MongoDB collection.
+        Create a PaginatedQueryBuilder bound to a PyMongo collection and initialize default pagination state.
         
-        Args:
-            collection: PyMongo Collection instance
+        Parameters:
+            collection (Collection): PyMongo collection used as the query target.
         """
         self._col = collection
         self._filters: List[Dict[str, Any]] = []
@@ -55,15 +55,13 @@ class PaginatedQueryBuilder:
 
     def with_filter(self, filter_dict: Dict[str, Any]) -> "PaginatedQueryBuilder":
         """
-        Add filter conditions (merged with existing filters).
+        Add a MongoDB filter to the builder's criteria.
         
-        Can be called multiple times to add more conditions.
+        Parameters:
+            filter_dict (Dict[str, Any]): Query filter to append; ignored if falsy.
         
-        Args:
-            filter_dict: MongoDB query filter
-            
         Returns:
-            Self for chaining
+            self: The builder instance for chaining.
         """
         if filter_dict:
             self._filters.append(filter_dict)
@@ -75,16 +73,14 @@ class PaginatedQueryBuilder:
         field: str = "name"
     ) -> "PaginatedQueryBuilder":
         """
-        Add regex search on a specific field.
+        Configure a start-anchored, case-insensitive regex search on a field.
         
-        Uses start-anchored, case-insensitive matching.
+        Parameters:
+            pattern (Optional[str]): Search pattern to apply; if provided, it will be used as a regex (the raw string is stored and will be treated as a search pattern). Passing `None` disables the search.
+            field (str): Document field to apply the search against. Defaults to `"name"`.
         
-        Args:
-            pattern: Search pattern (will be regex-escaped)
-            field: Field to search in
-            
         Returns:
-            Self for chaining
+            PaginatedQueryBuilder: Self to allow method chaining.
         """
         self._search_regex = pattern
         self._search_field = field
@@ -96,14 +92,14 @@ class PaginatedQueryBuilder:
         desc: bool = True
     ) -> "PaginatedQueryBuilder":
         """
-        Set sort field and order.
+        Configure the sort field and direction for subsequent queries.
         
-        Args:
-            field: Field to sort by
-            desc: True for descending (newest first), False for ascending
-            
+        Parameters:
+            field (str): The document field to sort by.
+            desc (bool): If True, sort descending (newest first); if False, sort ascending.
+        
         Returns:
-            Self for chaining
+            PaginatedQueryBuilder: The builder instance for method chaining.
         """
         self._sort_field = field
         self._sort_order = -1 if desc else 1
@@ -115,14 +111,14 @@ class PaginatedQueryBuilder:
         limit: int = 50
     ) -> "PaginatedQueryBuilder":
         """
-        Set pagination parameters.
+        Configure pagination parameters for the query builder.
         
-        Args:
-            cursor: Opaque cursor from previous response (skip count as string)
-            limit: Maximum items to return
-            
+        Parameters:
+            cursor (Optional[str]): Opaque cursor from a previous response; interpreted as a numeric skip count when numeric.
+            limit (int): Maximum number of items to return.
+        
         Returns:
-            Self for chaining
+            PaginatedQueryBuilder: The builder instance for method chaining.
         """
         self._cursor = cursor
         self._limit = limit
@@ -134,24 +130,22 @@ class PaginatedQueryBuilder:
 
     def documents(self) -> PaginatedResult[Dict[str, Any]]:
         """
-        Execute query and return full documents.
+        Return paginated full documents matching the configured query.
         
         Returns:
-            PaginatedResult containing document dicts
+            PaginatedResult[Dict[str, Any]]: A paginated result containing the list of matching document dictionaries, the next cursor (string or None), a has_more flag, and the total matching count.
         """
         return self._execute(distinct_field=None)
 
     def distinct(self, field: str) -> PaginatedResult[str]:
         """
-        Execute query and return distinct values from a field.
+        Return distinct values for a specified field as a paginated result.
         
-        Useful for tags, categories, or any field with repeated values.
+        Parameters:
+            field (str): Dot-notation path to the target field (e.g., "tags" or "metadata.category").
         
-        Args:
-            field: Dot-notation path to field (e.g., "tags", "metadata.category")
-            
         Returns:
-            PaginatedResult containing unique string values
+            PaginatedResult[str]: Unique string values for the field along with pagination metadata (`next_cursor`, `has_more`, `total`).
         """
         return self._execute(distinct_field=field)
 
@@ -160,13 +154,26 @@ class PaginatedQueryBuilder:
     # ══════════════════════════════════════════════════════════════════════════
 
     def _parse_cursor(self) -> int:
-        """Parse cursor string to skip value."""
+        """
+        Convert the builder's cursor string to a numeric skip offset.
+        
+        Returns:
+            skip (int): Numeric skip offset derived from the builder's `_cursor`; returns 0 if `_cursor` is absent or not composed solely of digits.
+        """
         if self._cursor and self._cursor.isdigit():
             return int(self._cursor)
         return 0
 
     def _build_search_match(self, field: str) -> Dict[str, Any]:
-        """Build regex match condition for search."""
+        """
+        Builds a MongoDB regex match for the configured search pattern on the given field.
+        
+        Parameters:
+            field (str): Document field to apply the search regex against.
+        
+        Returns:
+            dict: A MongoDB match expression that performs a start-anchored, case-insensitive regex on `field`, or an empty dict if no search pattern is configured.
+        """
         if not self._search_regex:
             return {}
         pattern = f"^{re.escape(self._search_regex)}"
@@ -178,7 +185,12 @@ class PaginatedQueryBuilder:
         fetched_count: int, 
         total: int
     ) -> tuple:
-        """Compute next_cursor and has_more from counts."""
+        """
+        Determine the next pagination cursor and whether more results remain.
+        
+        Returns:
+            tuple: `next_cursor` is the string representation of `skip + fetched_count` when more results exist, `None` otherwise; `has_more` is `True` if `total` is greater than `skip + fetched_count`, `False` otherwise.
+        """
         next_pos = skip + fetched_count
         if next_pos < total:
             return str(next_pos), True
@@ -186,11 +198,19 @@ class PaginatedQueryBuilder:
 
     def _execute(self, distinct_field: Optional[str]) -> PaginatedResult:
         """
-        Execute the paginated query.
+        Execute the configured query and return a paginated result of documents or distinct field values.
         
-        Args:
-            distinct_field: If set, extract unique values from this field.
-                           If None, return full documents.
+        When `distinct_field` is provided, the query returns unique, non-null, non-empty values for that field; otherwise it returns full documents matching the configured filters, search, and sort. The result includes a data slice, the total matching count, a next cursor for pagination, and a boolean indicating if more items remain.
+        
+        Parameters:
+            distinct_field (Optional[str]): If set, return distinct values from this field instead of full documents.
+        
+        Returns:
+            PaginatedResult: Contains:
+                - data: list of documents (when `distinct_field` is None) or list of distinct field values (when provided).
+                - next_cursor: string cursor for the next page, or `None` if there is no further data.
+                - has_more: `true` if more items remain after this page, `false` otherwise.
+                - total: integer total count of matching items.
         """
         skip = self._parse_cursor()
         pipeline = []
@@ -259,4 +279,3 @@ class PaginatedQueryBuilder:
         except Exception as e:
             logger.error(f"Error in paginated query: {e}")
             return PaginatedResult(data=[], next_cursor=None, has_more=False, total=0)
-

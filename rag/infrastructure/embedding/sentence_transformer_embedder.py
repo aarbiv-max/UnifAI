@@ -16,6 +16,17 @@ class SentenceTransformerEmbedding(EmbeddingGenerator):
     _instance = None
 
     def __new__(cls, model_name: str = "all-MiniLM-L6-v2", batch_size: int = 32, device: Optional[str] = None):
+        """
+        Ensure a single shared instance of SentenceTransformerEmbedding is returned (singleton constructor).
+        
+        Parameters:
+            model_name (str): Model identifier to be used when the singleton is first initialized.
+            batch_size (int): Default batch size to be used when the singleton is first initialized.
+            device (Optional[str]): Device spec (e.g., "cpu", "cuda") to be used when the singleton is first initialized.
+        
+        Returns:
+            SentenceTransformerEmbedding: The single shared instance of the embedding generator. Subsequent calls return the existing instance; provided parameters apply only on the first initialization.
+        """
         if cls._instance is None:
             cls._instance = super(SentenceTransformerEmbedding, cls).__new__(cls)
             cls._instance._initialized = False
@@ -28,12 +39,12 @@ class SentenceTransformerEmbedding(EmbeddingGenerator):
         device: Optional[str] = None
     ):
         """
-        Initialize the SentenceTransformer embedding generator.
+        Create and initialize the singleton SentenceTransformer embedding generator.
         
-        Args:
-            model_name: Name of the pre-trained sentence transformer model
-            batch_size: Number of chunks to process in a single batch
-            device: Device to run the model on (e.g., "cpu", "cuda"). None for auto.
+        Parameters:
+            model_name (str): Pretrained SentenceTransformer model identifier to load (e.g., "all-MiniLM-L6-v2").
+            batch_size (int): Number of text chunks processed per batch when generating embeddings.
+            device (Optional[str]): Device for model execution ("cpu", "cuda", or None to let the library choose).
         """
         if self._initialized:
             return
@@ -54,13 +65,13 @@ class SentenceTransformerEmbedding(EmbeddingGenerator):
 
     def generate_embeddings(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Generate embeddings for all chunks using SentenceTransformer.
+        Generate embeddings for each chunk and attach the resulting embedding to the chunk.
         
-        Args:
-            chunks: List of chunks with text and metadata
-            
+        Parameters:
+            chunks (List[Dict[str, Any]]): Sequence of chunk dictionaries. Each chunk must contain a "text" key with the text to encode; other metadata keys are preserved.
+        
         Returns:
-            List of chunks with embeddings added
+            List[Dict[str, Any]]: A list of shallow copies of the input chunks where each chunk includes an "embedding" key holding the embedding vector. Returns an empty list if `chunks` is empty.
         """
         if not chunks:
             logger.warning("No chunks provided for embedding generation")
@@ -95,17 +106,16 @@ class SentenceTransformerEmbedding(EmbeddingGenerator):
     
     def generate_query_embedding(self, query: str) -> np.ndarray:
         """
-        Generate an embedding for a search query.
+        Compute an embedding vector for the given query text.
         
-        Args:
-            query: Search query text
-            
         Returns:
-            Embedding vector for the query
+            NumPy ndarray containing the query's embedding vector.
+        
+        Raises:
+            ValueError: If `query` is empty.
         """
         if not query:
             raise ValueError("Query text is empty")
         
         embedding = self.model.encode(query)
         return embedding
-

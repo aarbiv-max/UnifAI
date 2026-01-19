@@ -29,7 +29,15 @@ class ChannelCreatedEvent(BaseSlackEvent):
 
     @classmethod
     def from_payload(cls, payload: Dict[str, Any]) -> "ChannelCreatedEvent":
-        """Parse a ChannelCreatedEvent from raw Slack webhook payload."""
+        """
+        Create a ChannelCreatedEvent by extracting event and channel fields from a Slack webhook payload.
+        
+        Parameters:
+            payload (Dict[str, Any]): Raw Slack webhook payload containing an "event" object with an optional "channel" object.
+        
+        Returns:
+            ChannelCreatedEvent: Instance populated from the payload; missing string fields default to empty strings and absent "is_private" is treated as False.
+        """
         e = payload.get("event") or {}
         ch = e.get("channel") or {}
         return cls(
@@ -40,4 +48,3 @@ class ChannelCreatedEvent(BaseSlackEvent):
             is_private=bool(ch.get("is_private", False)),
             channel_raw=ch,
         )
-

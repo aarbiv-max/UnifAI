@@ -19,10 +19,12 @@ class DocumentConnector(DataConnector):
     
     def __init__(self, config_manager: Optional[DocConfigManager] = None):
         """
-        Initialize the document connector.
+        Set up the connector with a document conversion pipeline configured for non‑OCR PDF processing and initialize internal state.
         
-        Args:
-            config_manager: Configuration manager for document processing
+        Initializes the connector's configuration (creates a default DocConfigManager when none is provided), configures a PDF pipeline with OCR disabled, creates a PDF format option that uses the PyPdfiumDocumentBackend, instantiates a DocumentConverter with that option, and initializes an internal conversion results cache. Logs connector initialization.
+        
+        Parameters:
+            config_manager (Optional[DocConfigManager]): Configuration manager to use; if None, a default DocConfigManager is created.
         """
         if config_manager is None:
             config_manager = DocConfigManager()
@@ -51,32 +53,38 @@ class DocumentConnector(DataConnector):
     
     def authenticate(self) -> bool:
         """
-        No authentication required for local document processing.
+        Indicates that no authentication is required for local document processing.
         
         Returns:
-            True as no authentication is needed
+            True indicating authentication is not required.
         """
         logger.info("Document connector does not require authentication")
         return True
     
     def test_connection(self) -> bool:
         """
-        Test if document processing is available and working.
+        Check whether document processing is available.
         
         Returns:
-            True if document processing capabilities are available
+            True if document processing capabilities are available, False otherwise.
         """
         return True
     
     def process_document(self, document_path: str, upload_by: str = "default") -> Optional[Dict[str, Any]]:
         """
-        Process a document file and extract text and metadata.
+        Process a local document file, extract its text and markdown, and optionally include extracted metadata.
         
-        Args:
-            document_path: Path to the document file
-            
+        Parameters:
+        	document_path (str): Path to the local document file to process.
+        	upload_by (str): Identifier for who uploaded or supplied the document; included in metadata when enabled.
+        
         Returns:
-            Dictionary containing extracted text and metadata, or None if processing failed
+        	document_data (dict): Dictionary containing:
+        		- `text`: extracted plain text from the document
+        		- `markdown`: document exported to markdown
+        		- `path`: the original document path
+        		- `filename`: the document's base filename
+        		- `metadata` (optional): metadata dictionary when `include_metadata` is enabled in configuration
         """
         # Validate the file exists
         if not os.path.exists(document_path):
@@ -143,13 +151,13 @@ class DocumentConnector(DataConnector):
     
     def process_documents(self, document_paths: List[str]) -> List[Dict[str, Any]]:
         """
-        Process multiple documents.
+        Process a list of local document file paths and return their processed data.
         
-        Args:
-            document_paths: List of paths to document files
-            
+        Parameters:
+            document_paths (List[str]): Iterable of filesystem paths to documents to process.
+        
         Returns:
-            List of processed document data
+            List[Dict[str, Any]]: A list of document data dictionaries for successfully processed documents. Each dictionary contains extracted text and markdown, and may include metadata such as title, upload information, file size, page count, and counts of tables/images when available.
         """
         logger.info(f"Processing batch of {len(document_paths)} documents")
         results = []
@@ -164,13 +172,20 @@ class DocumentConnector(DataConnector):
     
     def process_document_url(self, document_url: str) -> Optional[Dict[str, Any]]:
         """
-        Process a document from a URL.
+        Process a document available at the given URL and extract its text, markdown, and optional metadata.
         
-        Args:
-            document_url: URL of the document
-            
+        Parameters:
+            document_url (str): URL of the document to process.
+        
         Returns:
-            Dictionary containing extracted text and metadata, or None if processing failed
+            dict: A dictionary containing extracted content with keys:
+                - "text": the plain text extracted from the document.
+                - "markdown": the document exported to Markdown.
+                - "url": the original document URL.
+                - "metadata" (optional): extracted metadata when enabled in configuration.
+        
+        Raises:
+            DoclingProcessingError: If processing fails or no extractable text is found.
         """
         try:
             logger.info(f"Processing document from URL: {document_url}")
@@ -215,13 +230,24 @@ class DocumentConnector(DataConnector):
     
     def _extract_metadata(self, conversion_result: ConversionResult, upload_by="default", file_size=0) -> Dict[str, Any]:
         """
-        Extract metadata from a conversion result.
+        Builds a metadata dictionary from a ConversionResult containing document properties, counts, and detected assets.
         
-        Args:
-            conversion_result: The document conversion result
-            
+        Parameters:
+            conversion_result (ConversionResult): The conversion result produced by the document converter; used to read document metadata, pages, exported text, tables, and images.
+            upload_by (str): Identifier of who uploaded or processed the document; stored under the `upload_by` key.
+            file_size (float): File size in megabytes; formatted and stored under the `file_size` key when greater than zero.
+        
         Returns:
-            Dictionary containing document metadata
+            dict: A metadata dictionary that may include the following keys:
+                - `title`: Document title or "Untitled".
+                - `upload_by`: Value of `upload_by` parameter.
+                - `file_size`: Formatted string like "<size> MB" or "Unknown size".
+                - `page_count`: Number of pages (defaults to 1 if unavailable).
+                - `character_count`: Number of characters in the exported text.
+                - `word_count`: Number of words in the exported text.
+                - `table_count`: Number of tables (if tables were detected).
+                - `image_count`: Number of images (if images were detected).
+                - any additional keys present in the document's native `metadata`.
         """
         metadata = {}
         
@@ -264,13 +290,16 @@ class DocumentConnector(DataConnector):
     
     def get_document_structure(self, document_path: str) -> Optional[Dict[str, Any]]:
         """
-        Get the hierarchical structure of a document.
+        Retrieve the hierarchical structure (title and sections) of a previously processed document.
         
-        Args:
-            document_path: Path to the document
-            
+        Parameters:
+            document_path (str): Path or URL of the document to retrieve structure for.
+        
         Returns:
-            Dictionary representing the document structure, or None if not available
+            structure (Optional[Dict[str, Any]]): A dictionary with keys:
+                - "title" (str): Document title or "Untitled".
+                - "sections" (List[Dict[str, Any]]): Each section dict contains "title" (str), "level" (int), and "text" (str).
+            Returns `None` if the document has not been processed or if the structure cannot be extracted.
         """
         if document_path not in self._conversion_results:
             logger.warning(f"Document not processed yet: {document_path}")
@@ -298,4 +327,3 @@ class DocumentConnector(DataConnector):
         except Exception as e:
             logger.error(f"Error extracting document structure: {str(e)}")
             return None
-
