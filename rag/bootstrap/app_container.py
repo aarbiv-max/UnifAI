@@ -200,9 +200,24 @@ def slack_connector(project_id: str):
 
 @lru_cache(maxsize=1)
 def document_connector():
-    """Document connector for PDF and other document formats."""
-    from infrastructure.connector.document_connector import DocumentConnector
-    return DocumentConnector()
+    """Document connector for PDF and other document formats.
+    
+    Uses local docling library by default.
+    Set USE_REMOTE_DOCLING=true to use the remote docling service.
+    """
+    from bootstrap.factories import DocumentConnectorFactory
+    from config.app_config import AppConfig
+    
+    config = AppConfig.get_instance()
+    
+    if config.use_remote_docling:
+        return DocumentConnectorFactory.create({
+            "type": "remote",
+            "service_url": config.docling_service_url,
+            "timeout": config.docling_service_timeout,
+        })
+    else:
+        return DocumentConnectorFactory.create({"type": "local"})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -409,9 +424,25 @@ def slack_event_service():
 
 @lru_cache(maxsize=1)
 def embedding_generator():
-    """Shared embedding generator (sentence transformer)."""
+    """Shared embedding generator.
+    
+    Uses local SentenceTransformer by default.
+    Set USE_REMOTE_EMBEDDING=true to use the remote embedding service.
+    """
     from bootstrap.factories import EmbeddingGeneratorFactory
-    return EmbeddingGeneratorFactory.create({"type": "sentence_transformer"})
+    from config.app_config import AppConfig
+    
+    config = AppConfig.get_instance()
+    
+    if config.use_remote_embedding:
+        return EmbeddingGeneratorFactory.create({
+            "type": "remote",
+            "service_url": config.embedding_service_url,
+            "timeout": config.embedding_service_timeout,
+            "model_name": config.embedding_service_model,
+        })
+    else:
+        return EmbeddingGeneratorFactory.create({"type": "sentence_transformer"})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -582,6 +613,9 @@ def clear_all_caches():
     slack_event_dispatch_service.cache_clear()
     # Embedding
     embedding_generator.cache_clear()
+    # Reset remote adapter singletons (they use class-level singleton pattern)
+    from infrastructure.embedding.remote_embedding_generator import RemoteEmbeddingGenerator
+    RemoteEmbeddingGenerator.reset_instance()
     # Retrieval
     source_filter_resolver.cache_clear()
     retrieval_service.cache_clear()
