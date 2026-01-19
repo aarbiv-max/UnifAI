@@ -3,6 +3,7 @@ from utils.storage.mongo.base import MongoConnection
 from utils.storage.mongo.pipelines_repository import PipelinesRepository
 from utils.storage.mongo.sources_repository import SourcesRepository
 from utils.storage.mongo.slack_channels_repository import SlackChannelsRepository
+from utils.storage.mongo.terms_user_approval_repository import TermsUserApprovalRepository
 from utils.storage.mongo.utils import make_json_safe
 from pymongo import UpdateOne
 from config.constants import Database, Collection as CollectionName
@@ -26,12 +27,15 @@ class MongoStorage:
         self.slack_channels = SlackChannelsRepository(
             conn.get_collection(Database.DATA_SOURCES.value, CollectionName.SLACK_CHANNELS.value, [("project_id", False), ("channel_id", False)])
         )
+        self.terms_user_approval = TermsUserApprovalRepository(
+            conn.get_collection(Database.USERS.value, CollectionName.TERMS_USER_APPROVAL.value, [("username", True)])
+        )
         
         self._conn = conn
 
-    def get_all_sources(self, source_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_all_sources(self, source_type: Optional[str] = None, projection: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Get all sources (delegates to sources repository)."""
-        return self.sources.get_all(source_type)
+        return self.sources.get_all(source_type, projection)
 
     def get_source_by_query(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Get sources by query (delegates to sources repository)."""
@@ -66,13 +70,17 @@ class MongoStorage:
         """Get pipeline stats (delegates to pipelines repository)."""
         return self.pipelines.get_stats(pipeline_ids)
 
+    def get_pipeline_status(self, pipeline_id: str) -> str:
+        """Get single pipeline status (delegates to pipelines repository)."""
+        return self.pipelines.get_status(pipeline_id)
+
     def delete_pipeline(self, pipeline_id: str) -> Dict[str, Any]:
         """Delete pipeline (delegates to pipelines repository)."""
         return self.pipelines.delete(pipeline_id)
 
-    def get_all(self, source_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_all(self, source_type: Optional[str] = None, projection: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Alias for get_all_sources to maintain SourceRepository interface compatibility."""
-        return self.get_all_sources(source_type)
+        return self.get_all_sources(source_type, projection)
 
     def get_paginated(
         self,
@@ -126,9 +134,14 @@ class MongoStorage:
         del result["data"]
         return result
 
-    def list_sources(self, source_type: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get all sources enriched with pipeline stats (for backward compatibility)."""
-        sources = self.sources.get_all(source_type)
+    def list_sources(self, source_type: Optional[str] = None, projection: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Get all sources enriched with pipeline stats.
+        
+        Args:
+            source_type: Optional filter by source type
+            projection: Optional MongoDB projection
+        """
+        sources = self.sources.get_all(source_type, projection=projection)
         pipeline_ids = [s.get('pipeline_id') for s in sources if s.get('pipeline_id')]
         valid_ids = [pid for pid in pipeline_ids if pid is not None]
         pipeline_stats = self.pipelines.get_stats(valid_ids)

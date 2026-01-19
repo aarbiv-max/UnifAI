@@ -13,3 +13,4 @@ python-dotenv
 pydantic==2.11.7
 pydantic_settings
 jsonschema
+umami-analytics

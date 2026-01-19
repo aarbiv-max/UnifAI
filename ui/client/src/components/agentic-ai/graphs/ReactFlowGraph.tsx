@@ -28,6 +28,9 @@ import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { useStreamingData } from "../StreamingDataContext";
 import { BuildingBlock } from "../../../types/graph";
 import InnerRefElement from "./InnerRefElement";
+import NodeValidationIndicator from "./NodeValidationIndicator";
+import { ValidationResultModal } from "../workspace/ValidationResultModal";
+import { ElementValidationResult } from "@/types/validation";
 import axios from "../../../http/axiosAgentConfig";
 
 // Node status enum
@@ -39,6 +42,9 @@ interface EnhancedNodeData extends NodeData {
   allBlocks?: any[];
   workspaceData?: any;
   fetchResourceById?: (refId: string) => Promise<any>;
+  validationResult?: ElementValidationResult;
+  isValidating?: boolean;
+  onShowValidationDetails?: (result: ElementValidationResult) => void;
 }
 
 // Custom node components with status-aware styling
@@ -203,7 +209,7 @@ const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({
       />
 
       <motion.div
-        className={`rounded-lg ${statusStyles.containerClass} ${statusStyles.borderGlow} transition-all duration-300 px-4 py-2`}
+        className={`relative rounded-lg ${statusStyles.containerClass} ${statusStyles.borderGlow} transition-all duration-300 px-4 py-2`}
         initial={{ opacity: 0 }}
         animate={{
           opacity: 1,
@@ -225,6 +231,21 @@ const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({
           },
         }}
       >
+        {/* Validation indicator - top right corner (only shown for invalid nodes) */}
+        {(data.isValidating || (data.validationResult && !data.validationResult.is_valid)) && (
+          <div className="absolute -top-1 -right-1 z-10">
+            <NodeValidationIndicator
+              validationResult={data.validationResult}
+              isValidating={data.isValidating}
+              onClick={() => {
+                if (data.validationResult && data.onShowValidationDetails) {
+                  data.onShowValidationDetails(data.validationResult);
+                }
+              }}
+            />
+          </div>
+        )}
+
         {/* Main node content */}
         <div className="flex items-center relative">
           <div className="mr-2">{data.icon}</div>
@@ -705,6 +726,8 @@ type ReactFlowGraphProps = {
   interactive?: boolean;
   streamingDataContext?: any;
   isLiveRequest?: boolean; // Optional parameter for live tracking
+  validationResults?: Record<string, ElementValidationResult>;
+  isValidating?: boolean;
 };
 
 export default function ReactFlowGraph({
@@ -716,6 +739,8 @@ export default function ReactFlowGraph({
   interactive = true,
   streamingDataContext = null,
   isLiveRequest = false,
+  validationResults,
+  isValidating = false,
 }: ReactFlowGraphProps): React.ReactElement {
   const [nodes, setNodes, onNodesChange] = useNodesState<EnhancedNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -723,6 +748,28 @@ export default function ReactFlowGraph({
   const [nodeStatusMap, setNodeStatusMap] = useState<
     Record<string, NodeStatus>
   >({});
+  
+  // Refs to hold latest validation data - allows accessing current values during async operations
+  // This solves the race condition: when graph loading completes, we can immediately apply
+  // whatever validation results are available, without needing an intermediate state
+  const validationResultsRef = useRef(validationResults);
+  const isValidatingRef = useRef(isValidating);
+  
+  // Keep refs synchronized with props
+  useEffect(() => {
+    validationResultsRef.current = validationResults;
+    isValidatingRef.current = isValidating;
+  }, [validationResults, isValidating]);
+  
+  // Validation modal state
+  const [selectedValidationResult, setSelectedValidationResult] = useState<ElementValidationResult | null>(null);
+  const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
+  
+  // Handler to show validation details for a node
+  const handleShowValidationDetails = useCallback((result: ElementValidationResult) => {
+    setSelectedValidationResult(result);
+    setIsValidationModalOpen(true);
+  }, []);
 
   const { fitView, zoomOut } = useReactFlow();
   const initializedRef = useRef(false);
@@ -829,7 +876,30 @@ export default function ReactFlowGraph({
         const { nodes: newNodes, edges: newEdges } =
           parseGraphFlow(targetBlueprintObj.spec_dict, fetchResourceById);
 
-        setNodes(newNodes);
+        // Apply validation data directly to nodes during loading
+        // This handles the case where validation finished before graph loading
+        const currentValidationResults = validationResultsRef.current;
+        const currentIsValidating = isValidatingRef.current;
+        
+        const nodesWithValidation = newNodes.map((node) => {
+          // Only validationResult is node-specific (looked up by node's rid)
+          const nodeRid = node.data.workspaceData?.rid;
+          const validationResult = nodeRid && currentValidationResults 
+            ? currentValidationResults[nodeRid] 
+            : undefined;
+          
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              validationResult,
+              isValidating: currentIsValidating,
+              onShowValidationDetails: handleShowValidationDetails,
+            },
+          };
+        });
+
+        setNodes(nodesWithValidation);
         setEdges(newEdges);
 
         // Auto-fit and zoom after loading
@@ -874,6 +944,46 @@ export default function ReactFlowGraph({
       }, 100);
     }
   }, [nodes, edges, isLoading, fitView, zoomOut]);
+
+  // Update nodes with validation data when validation state changes
+  // This handles the case where validation completes AFTER nodes are already loaded
+  // (The case where validation finishes first is handled in convertGraphFlowToReactFlow)
+  useEffect(() => {
+    setNodes((currentNodes) => {
+      // Skip if no nodes loaded yet - validation will be applied during graph loading
+      if (currentNodes.length === 0) return currentNodes;
+      
+      // Check if any node actually needs an update to avoid unnecessary re-renders
+      let hasChanges = false;
+      const updatedNodes = currentNodes.map((node) => {
+        const nodeRid = node.data.workspaceData?.rid;
+        const validationResult = nodeRid && validationResults ? validationResults[nodeRid] : undefined;
+        
+        // Check if this node's validation data has changed
+        const validationChanged = 
+          node.data.validationResult !== validationResult || 
+          node.data.isValidating !== isValidating ||
+          node.data.onShowValidationDetails !== handleShowValidationDetails;
+        
+        if (!validationChanged) {
+          return node; // No change needed
+        }
+        
+        hasChanges = true;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            validationResult,
+            isValidating,
+            onShowValidationDetails: handleShowValidationDetails,
+          },
+        };
+      });
+      
+      return hasChanges ? updatedNodes : currentNodes;
+    });
+  }, [validationResults, isValidating, handleShowValidationDetails, setNodes]);
 
   if (isLoading) {
     return (
@@ -976,6 +1086,14 @@ export default function ReactFlowGraph({
         {showMiniMap && <MiniMap />}
         {showBackground && <Background color="#aaa" gap={16} />}
       </ReactFlow>
+
+      {/* Validation Result Modal */}
+      <ValidationResultModal
+        validationResult={selectedValidationResult}
+        isOpen={isValidationModalOpen}
+        onOpenChange={setIsValidationModalOpen}
+        showRefreshButton={false}
+      />
     </div>
   );
 }

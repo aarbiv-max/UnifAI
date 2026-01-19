@@ -12,11 +12,12 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FieldValidation } from "./FieldValidation";
+import { FieldValidation, ItemValidationResult } from "./FieldValidation";
 import { FieldPopulation } from "./FieldPopulation";
 import { AgentCardVisualization } from "./AgentCardVisualization";
 import { ElementType } from "../../../types/workspace";
 import { maskSecretValue } from "../../../utils/maskSecretFields";
+import { XCircle } from "lucide-react";
 
 interface FieldRendererProps {
   fieldName: string;
@@ -32,6 +33,7 @@ interface FieldRendererProps {
   refOptions: { [category: string]: any[] };
   fieldType: "secret" | "public";
   fieldValidationStates?: { [fieldName: string]: boolean };
+  itemValidationStates?: { [fieldName: string]: ItemValidationResult[] };
   isArrayWithRefItems: (fieldSchema: any) => boolean;
   getArrayItemsSchema: (fieldSchema: any) => any;
   extractCategoryFromField: (fieldSchema: any) => string | null;
@@ -39,7 +41,7 @@ interface FieldRendererProps {
   onArrayChange?: (field: string, index: number, value: any) => void;
   onAddArrayItem?: (field: string) => void;
   onRemoveArrayItem?: (field: string, index: number) => void;
-  onValidationChange: (fieldName: string, isValid: boolean) => void;
+  onValidationChange: (fieldName: string, isValid: boolean, itemResults?: ItemValidationResult[]) => void;
   onPopulateResult: (fieldName: string, results: string[] | any, multiSelect: boolean) => void;
 }
 
@@ -57,6 +59,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   refOptions,
   fieldType,
   fieldValidationStates,
+  itemValidationStates,
   isArrayWithRefItems,
   getArrayItemsSchema,
   extractCategoryFromField,
@@ -67,6 +70,30 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   onValidationChange,
   onPopulateResult,
 }) => {
+  // Check if this field has validation errors based on validation action result
+  // Use useMemo to recalculate when fieldValidationStates changes after validation action
+  // For non-required fields with no value, don't show error
+  const hasFieldError = React.useMemo(() => {
+    if (!validationHint || fieldValidationStates?.[fieldName] !== false) {
+      return false;
+    }
+    // If field is not required and has no value, don't show error
+    const hasValue = value !== undefined && value !== null && value !== '' && 
+      !(Array.isArray(value) && value.length === 0);
+    if (!isRequired && !hasValue) {
+      return false;
+    }
+    return true;
+  }, [validationHint, fieldValidationStates, fieldName, value, isRequired]);
+
+  // Helper function to check if a specific item in a list field is invalid
+  const isItemInvalid = React.useCallback((rid: string): boolean => {
+    const itemResults = itemValidationStates?.[fieldName];
+    if (!itemResults) return false;
+    const itemResult = itemResults.find(item => item.rid === rid);
+    return itemResult ? !itemResult.isValid : false;
+  }, [itemValidationStates, fieldName]);
+
   const [showMasked, setShowMasked] = useState(true);
   const isSecret = fieldType === "secret";
 
@@ -168,14 +195,30 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
 
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName}>
+        <Label htmlFor={fieldName} className="flex items-center flex-wrap gap-1">
           {fieldName} {isRequired && <span className="text-red-400">*</span>}
           {category && (
             <Badge variant="outline" className="ml-2 text-xs">
               {category}
             </Badge>
           )}
+          {validationHint && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              validation
+            </Badge>
+          )}
+          {populateHint && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              populate
+            </Badge>
+          )}
+          {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
         </Label>
+        
+        {fieldSchema.description && (
+          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+        )}
+
         <div className="space-y-2">
           <Select
             value=""
@@ -188,7 +231,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               }
             }}
           >
-            <SelectTrigger className="bg-background-dark">
+            <SelectTrigger className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}>
               <SelectValue placeholder={`Add ${category}`} />
             </SelectTrigger>
             <SelectContent>
@@ -212,12 +255,14 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
                 const selectedOption = validOptions.find(
                   (opt: any) => opt.rid === selectedRid,
                 );
+                const itemInvalid = isItemInvalid(selectedRid);
                 return (
                   <Badge
                     key={index}
                     variant="secondary"
-                    className="flex items-center gap-1"
+                    className={`flex items-center gap-1 ${itemInvalid ? 'border-red-500 border' : ''}`}
                   >
+                    {itemInvalid && <XCircle className="h-3 w-3 text-red-500" />}
                     {selectedOption
                       ? `${selectedOption.name} (${selectedOption.type})`
                       : selectedRid}
@@ -239,8 +284,33 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             </div>
           )}
         </div>
-        {fieldSchema.description && (
-          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+
+        {/* Validation component for array $ref fields */}
+        {validationHint && (
+          <FieldValidation
+            fieldName={fieldName}
+            fieldValue={value}
+            validationHint={validationHint}
+            elementActions={elementActions}
+            selectedElementType={elementType}
+            isRequired={isRequired}
+            onValidationChange={onValidationChange}
+          />
+        )}
+
+        {/* Population component for array $ref fields */}
+        {populateHint && (
+          <FieldPopulation
+            fieldName={fieldName}
+            populateHint={populateHint}
+            elementActions={elementActions}
+            selectedElementType={elementType}
+            formData={formData}
+            onPopulateResult={onPopulateResult}
+            hideUI={populateHint.selection_type === 'automatic'}
+            autoTrigger={areDependenciesValid}
+            currentValue={value}
+          />
         )}
       </div>
     );
@@ -262,26 +332,45 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
 
       return (
         <div key={fieldName} className="space-y-2">
-          <Label htmlFor={fieldName}>
+          <Label htmlFor={fieldName} className="flex items-center flex-wrap gap-1">
             {fieldName} {isRequired && <span className="text-red-400">*</span>}
             {category && (
               <Badge variant="outline" className="ml-2 text-xs">
                 {category}
               </Badge>
             )}
+            {validationHint && (
+              <Badge variant="outline" className="ml-2 text-xs">
+                validation
+              </Badge>
+            )}
+            {populateHint && (
+              <Badge variant="outline" className="ml-2 text-xs">
+                populate
+              </Badge>
+            )}
+            {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
           </Label>
+          
+          {fieldSchema.description && (
+            <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+          )}
+
           <Select
             value={value && value !== "" ? value : undefined}
             onValueChange={(newValue) => {
               onInputChange(fieldName, newValue);
             }}
           >
-            <SelectTrigger className="bg-background-dark">
+            <SelectTrigger className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}>
               <SelectValue placeholder={`Select ${fieldName}`} />
             </SelectTrigger>
             <SelectContent>
               {validOptions.map((option: any) => (
-                <SelectItem key={option.rid} value={option.rid}>
+                <SelectItem 
+                  key={option.rid} 
+                  value={option.rid}
+                >
                   {option.name} ({option.type})
                 </SelectItem>
               ))}
@@ -293,8 +382,32 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             </SelectContent>
           </Select>
 
-          {fieldSchema.description && (
-            <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+          {/* Validation component for $ref fields */}
+          {validationHint && (
+            <FieldValidation
+              fieldName={fieldName}
+              fieldValue={value}
+              validationHint={validationHint}
+              elementActions={elementActions}
+              selectedElementType={elementType}
+              isRequired={isRequired}
+              onValidationChange={onValidationChange}
+            />
+          )}
+
+          {/* Population component for $ref fields */}
+          {populateHint && (
+            <FieldPopulation
+              fieldName={fieldName}
+              populateHint={populateHint}
+              elementActions={elementActions}
+              selectedElementType={elementType}
+              formData={formData}
+              onPopulateResult={onPopulateResult}
+              hideUI={populateHint.selection_type === 'automatic'}
+              autoTrigger={areDependenciesValid}
+              currentValue={value}
+            />
           )}
         </div>
       );
@@ -306,8 +419,9 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   if (fieldSchema.type === "object") {
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName}>
+        <Label htmlFor={fieldName} className="flex items-center">
           {fieldName} {isRequired && <span className="text-red-400">*</span>}
+          {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
         </Label>
         <Textarea
           id={fieldName}
@@ -324,7 +438,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             }
           }}
           rows={6}
-          className="bg-background-dark resize-none font-mono text-sm"
+          className={`bg-background-dark resize-none font-mono text-sm ${hasFieldError ? 'border-red-500' : ''}`}
           placeholder="Enter JSON object (e.g., {})"
         />
         {fieldSchema.description && (
@@ -346,8 +460,9 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
 
     return (
       <div key={fieldName} className="space-y-2">
-        <Label>
+        <Label className="flex items-center">
           {fieldName} {isRequired && <span className="text-red-400">*</span>}
+          {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
         </Label>
         <div className="space-y-2">
           {(value || []).map((item: any, index: number) => (
@@ -355,7 +470,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               <Input
                 value={item}
                 onChange={(e) => onArrayChange(fieldName, index, e.target.value)}
-                className="bg-background-dark flex-1"
+                className={`bg-background-dark flex-1 ${hasFieldError ? 'border-red-500' : ''}`}
                 placeholder={`${fieldName} item ${index + 1}`}
               />
               <Button
@@ -393,10 +508,12 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             id={fieldName}
             checked={value}
             onCheckedChange={(checked) => onInputChange(fieldName, checked)}
+            className={hasFieldError ? 'border-red-500' : ''}
           />
-          <Label htmlFor={fieldName}>
+          <Label htmlFor={fieldName} className="flex items-center">
             {fieldName}{" "}
             {isRequired && <span className="text-red-400">*</span>}
+            {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
           </Label>
         </div>
         {fieldSchema.description && (
@@ -419,8 +536,9 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   if (isNumberField) {
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName}>
+        <Label htmlFor={fieldName} className="flex items-center">
           {fieldName} {isRequired && <span className="text-red-400">*</span>}
+          {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
         </Label>
         <Input
           id={fieldName}
@@ -431,7 +549,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               e.target.value === "" ? null : parseFloat(e.target.value);
             onInputChange(fieldName, numValue);
           }}
-          className="bg-background-dark"
+          className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}
           placeholder={fieldSchema.description}
         />
         {fieldSchema.description && (
@@ -449,7 +567,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   ) {
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName}>
+        <Label htmlFor={fieldName} className="flex items-center flex-wrap gap-1">
           {fieldName} {isRequired && <span className="text-red-400">*</span>}
           {isSecret && (
             <Badge variant="outline" className="ml-2 text-xs">
@@ -461,97 +579,25 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               validation
             </Badge>
           )}
-          {populateHint && (
-            <Badge variant="outline" className="ml-2 text-xs">
-              populate
-            </Badge>
-          )}
-        </Label>
-
-        {fieldSchema.description && (
-          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-        )}
-
-        {populateHint?.selection_type != 'automatic' && (
-          <Textarea
-            id={fieldName}
-            value={value}
-            onChange={(e) => onInputChange(fieldName, e.target.value)}
-            rows={4}
-            className="bg-background-dark resize-none"
-            placeholder={fieldSchema.description}
-            readOnly={!!populateHint}
-            disabled={!!populateHint}
-          />
-        )}
-
-        {validationHint && (
-          <FieldValidation
-            fieldName={fieldName}
-            fieldValue={value}
-            validationHint={validationHint}
-            elementActions={elementActions}
-            selectedElementType={elementType}
-            onValidationChange={onValidationChange}
-          />
-        )}
-        {populateHint && (
-          <FieldPopulation
-            fieldName={fieldName}
-            populateHint={populateHint}
-            elementActions={elementActions}
-            selectedElementType={elementType}
-            formData={formData}
-            onPopulateResult={onPopulateResult}
-            hideUI={populateHint.selection_type == 'automatic'}
-            autoTrigger={areDependenciesValid}
-          />
-        )}
-        {/* Agent Card Visualization */}
-        {fieldName === "agent_card" && (
-          <AgentCardVisualization agentCard={value} 
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Handle regular string fields (with secret masking if needed)
-  const secretProps = getSecretInputProps();
-
-  return (
-    <div key={fieldName} className="space-y-2">
-      <Label htmlFor={fieldName}>
-        {fieldName} {isRequired && <span className="text-red-400">*</span>}
-        {isSecret && (
-          <Badge variant="outline" className="ml-2 text-xs">
-            secret
-          </Badge>
-        )}
-        {validationHint && (
-          <Badge variant="outline" className="ml-2 text-xs">
-            validation
-          </Badge>
-        )}
         {populateHint && (
           <Badge variant="outline" className="ml-2 text-xs">
             populate
           </Badge>
         )}
+        {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
       </Label>
-      
+
       {fieldSchema.description && (
         <p className="text-xs text-gray-400">{fieldSchema.description}</p>
       )}
 
       {populateHint?.selection_type != 'automatic' && (
-        <Input
+        <Textarea
           id={fieldName}
-          type={secretProps.inputType}
-          value={secretProps.displayValue}
-          onChange={secretProps.handleChange}
-          onFocus={secretProps.handleFocus}
-          className="bg-background-dark"
+          value={value}
+          onChange={(e) => onInputChange(fieldName, e.target.value)}
+          rows={4}
+          className={`bg-background-dark resize-none ${hasFieldError ? 'border-red-500' : ''}`}
           placeholder={fieldSchema.description}
           readOnly={!!populateHint}
           disabled={!!populateHint}
@@ -565,6 +611,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           validationHint={validationHint}
           elementActions={elementActions}
           selectedElementType={elementType}
+          isRequired={isRequired}
           onValidationChange={onValidationChange}
         />
       )}
@@ -578,12 +625,89 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           onPopulateResult={onPopulateResult}
           hideUI={populateHint.selection_type == 'automatic'}
           autoTrigger={areDependenciesValid}
+          currentValue={value}
         />
       )}
       {/* Agent Card Visualization */}
       {fieldName === "agent_card" && (
-        <AgentCardVisualization agentCard={value} />
+        <AgentCardVisualization agentCard={value} 
+        />
       )}
     </div>
   );
+}
+
+  // Handle regular string fields (with secret masking if needed)
+  const secretProps = getSecretInputProps();
+
+  return (
+    <div key={fieldName} className="space-y-2">
+      <Label htmlFor={fieldName} className="flex items-center flex-wrap gap-1">
+        {fieldName} {isRequired && <span className="text-red-400">*</span>}
+        {isSecret && (
+          <Badge variant="outline" className="ml-2 text-xs">
+            secret
+          </Badge>
+        )}
+        {validationHint && (
+          <Badge variant="outline" className="ml-2 text-xs">
+            validation
+          </Badge>
+        )}
+      {populateHint && (
+        <Badge variant="outline" className="ml-2 text-xs">
+          populate
+        </Badge>
+      )}
+      {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
+    </Label>
+    
+    {fieldSchema.description && (
+      <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+    )}
+
+    {populateHint?.selection_type != 'automatic' && (
+      <Input
+        id={fieldName}
+        type={secretProps.inputType}
+        value={secretProps.displayValue}
+        onChange={secretProps.handleChange}
+        onFocus={secretProps.handleFocus}
+        className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}
+        placeholder={fieldSchema.description}
+        readOnly={!!populateHint}
+        disabled={!!populateHint}
+      />
+    )}
+
+    {validationHint && (
+      <FieldValidation
+        fieldName={fieldName}
+        fieldValue={value}
+        validationHint={validationHint}
+        elementActions={elementActions}
+        selectedElementType={elementType}
+        isRequired={isRequired}
+        onValidationChange={onValidationChange}
+      />
+    )}
+    {populateHint && (
+      <FieldPopulation
+        fieldName={fieldName}
+        populateHint={populateHint}
+        elementActions={elementActions}
+        selectedElementType={elementType}
+        formData={formData}
+        onPopulateResult={onPopulateResult}
+        hideUI={populateHint.selection_type == 'automatic'}
+        autoTrigger={areDependenciesValid}
+        currentValue={value}
+      />
+    )}
+    {/* Agent Card Visualization */}
+    {fieldName === "agent_card" && (
+      <AgentCardVisualization agentCard={value} />
+    )}
+  </div>
+);
 };

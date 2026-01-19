@@ -1,20 +1,37 @@
-from typing import Any, Dict, List, Mapping
-from .models.blueprint import BlueprintSpec, BlueprintDraft
-from .repository.repository import BlueprintRepository
-from .resolver import BlueprintResolver
+from typing import Any, Dict, List, Mapping, Optional
+
+from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft
+from blueprints.repository.repository import BlueprintRepository
+from blueprints.resolver import BlueprintResolver
+from blueprints.validation.collector import BlueprintConfigCollector
+from blueprints.exceptions import (
+    BlueprintNotFoundError,
+    BlueprintSaveError,
+    BlueprintMetadataError,
+)
 from core.ref import RefWalker
+from elements.common.validator import ValidationContext
+from validation.models import BlueprintValidationResult
+from validation.service import ElementValidationService
 
 
 class BlueprintService:
-    def __init__(self, repo: BlueprintRepository, resolver: BlueprintResolver):
+    def __init__(
+        self, 
+        repo: BlueprintRepository, 
+        resolver: BlueprintResolver,
+        validation_service: ElementValidationService = None,
+    ):
         self._repo = repo
         self._resolver = resolver
+        self._validation_service = validation_service
+        self._config_collector = BlueprintConfigCollector()
 
     # ────────── Write ──────────
-    def save_draft(self, *, user_id: str, draft_dict: dict) -> str:
+    def save_draft(self, *, user_id: str, draft_dict: dict, metadata: Optional[Dict[str, Any]] = None) -> str:
         draft_bp = BlueprintDraft(**draft_dict)
         rid_refs = list(RefWalker.external_rids(draft_bp))
-        return self._repo.save(user_id=user_id, spec=draft_bp, rid_refs=rid_refs)
+        return self._repo.save(user_id=user_id, spec=draft_bp, rid_refs=rid_refs, metadata=metadata or {})
 
     # ────────── Single-blueprint reads (ID is globally unique) ──────────
     def load_draft(self, blueprint_id: str) -> BlueprintDraft:
@@ -113,3 +130,93 @@ class BlueprintService:
         Return the JSON schema of the BlueprintDraft model.
         """
         return BlueprintDraft.model_json_schema()
+
+# ────────── Blueprint Metadata ──────────
+    def set_metadata(self, blueprint_id: str, metadata: Dict[str, Any]) -> bool:
+        """
+        Set the metadata dictionary for a blueprint.
+        
+        :param blueprint_id: The blueprint ID
+        :param metadata: Dictionary of metadata to set
+        :return: True if the document was modified
+        :raises BlueprintNotFoundError: If blueprint doesn't exist
+        :raises BlueprintMetadataError: If update fails
+        """
+        if not self.exists(blueprint_id):
+            raise BlueprintNotFoundError(blueprint_id)
+        
+        try:
+            return self._repo.set_metadata(blueprint_id=blueprint_id, metadata=metadata)
+        except Exception as e:
+            raise BlueprintMetadataError(blueprint_id, f"Failed to update metadata: {str(e)}")
+    # ────────── Validation ──────────
+    def validate_blueprint(
+        self,
+        blueprint_id: str,
+        timeout_seconds: float = 10.0,
+    ) -> BlueprintValidationResult:
+        """
+        Validate all elements in a saved blueprint.
+        
+        Args:
+            blueprint_id: Blueprint ID to validate
+            timeout_seconds: Timeout for network checks
+            
+        Returns:
+            BlueprintValidationResult with all element results
+            
+        Raises:
+            RuntimeError: If validation service not configured
+            KeyError: If blueprint not found
+        """
+        self._ensure_validation_service()
+        spec = self.load_resolved(blueprint_id)
+        return self._validate_spec(spec, blueprint_id, timeout_seconds)
+
+    def validate_draft(
+        self,
+        draft_dict: dict,
+        timeout_seconds: float = 10.0,
+    ) -> BlueprintValidationResult:
+        """
+        Validate a blueprint draft before saving.
+        
+        This validates a blueprint YAML/JSON without requiring it to be saved first.
+        Useful for UI validation before creating a blueprint.
+        
+        Args:
+            draft_dict: The blueprint draft as a dictionary
+            timeout_seconds: Timeout for network checks
+            
+        Returns:
+            BlueprintValidationResult with all element results
+            
+        Raises:
+            RuntimeError: If validation service not configured
+            ValueError: If draft schema validation fails
+        """
+        self._ensure_validation_service()
+        spec = self.resolve_draft_dict(draft_dict)
+        return self._validate_spec(spec, "draft", timeout_seconds)
+
+    # ────────── Validation Helpers ──────────
+    def _ensure_validation_service(self) -> None:
+        """Raise if validation service not configured."""
+        if self._validation_service is None:
+            raise RuntimeError("ValidationService not configured")
+
+    def _validate_spec(
+        self,
+        spec: BlueprintSpec,
+        blueprint_id: str,
+        timeout_seconds: float,
+    ) -> BlueprintValidationResult:
+        """Collect configs from spec, validate, and build result."""
+        configs = self._config_collector.collect(spec)
+        context = ValidationContext(timeout_seconds=timeout_seconds)
+        results = self._validation_service.validate_ordered(configs, context)
+        return BlueprintValidationResult(
+            blueprint_id=blueprint_id,
+            is_valid=all(r.is_valid for r in results.values()),
+            element_results=results,
+        )

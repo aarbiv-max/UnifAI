@@ -1,14 +1,6 @@
 import axios from '../http/axiosAgentConfig';
 import { normalizeCategory } from '@/constants/resources';
 
-export interface WorkflowBlueprint {
-  blueprint_id: string;
-  spec_dict: any;
-  name?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface Session {
   session_id: string;
   blueprint_id: string;
@@ -31,13 +23,6 @@ export interface AgenticStats {
   categoriesInUse: number;
   blueprintSessionCounts?: Record<string, number>;
   resourcesByCategory: ResourceStats[];
-}
-
-// Fetch available blueprints
-export async function fetchBlueprints(userId?: string): Promise<WorkflowBlueprint[]> {
-  const userIdParam = userId || 'default';
-  const response = await axios.get(`/blueprints/available.blueprints.get?userId=${userIdParam}`);
-  return response.data || [];
 }
 
 // Fetch active sessions
@@ -125,10 +110,4 @@ export async function fetchAgenticStats(userId?: string): Promise<AgenticStats> 
   };
 }
 
-// Fetch resolved blueprints (for AvailableFlows component)
-export async function fetchResolvedBlueprints(userId?: string): Promise<WorkflowBlueprint[]> {
-  const userIdParam = userId || 'default';
-  const response = await axios.get(`/blueprints/available.blueprints.resolved.get?userId=${userIdParam}`);
-  return response.data || [];
-}
 

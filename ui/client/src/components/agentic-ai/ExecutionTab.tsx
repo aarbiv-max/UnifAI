@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import * as Switch from '@radix-ui/react-switch';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -12,17 +11,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Users, Clock, ArrowUpRight, SplitSquareVertical, Trash2, Plus, X } from "lucide-react";
+import { motion } from "framer-motion";
+import { MessageSquare, Users, Clock, Trash2, Plus } from "lucide-react";
 import ChatInterface from "./chat/ChatInterface";
 import ExecutionStream from "./ExecutionStream";
 import ReactFlowGraph from "./graphs/ReactFlowGraph";
-import { GraphNode } from "../../pages/AgenticAI"
 import axios from '../../http/axiosAgentConfig'
+import { getBlueprintInfo } from '@/api/blueprints'
 import { useStreamingData } from './StreamingDataContext'
 import { EnhancedStreamReader } from '@/components/shared/stream/StreamJsonParser'
 import { useAuth } from "@/contexts/AuthContext";
-import AvailableFlows from "./AvailableFlows";
+import { useAgenticAI } from "@/contexts/AgenticAIContext";
+import WorkflowsPanel from "./WorkflowsPanel";
 import { ReactFlowProvider } from "reactflow";
 import {
   Dialog,
@@ -33,36 +33,15 @@ import {
   CustomDialogContent,
 } from "@/components/ui/dialog";
 import { GraphFlow, FlowObject } from "./graphs/interfaces";
+import { UmamiTrack } from '@/components/ui/umamitrack';
+import { UmamiEvents } from '@/config/umamiEvents';
+import { useBlueprintValidation } from "@/hooks/use-blueprint-validation";
 
-// Types for the API response
-interface ChatMessage {
-  content: string;
-  role: 'user' | 'assistant';
-}
+import { ChatSession, ChatMessage, ChatSessionData, SessionStateData } from "@/types/session";
+import {transformSessionData, sortSessionsByTimestamp} from "@/utils/sessionHelpers";
+import { checkSessionSharingStatus } from "@/hooks/use-sharing-status";
+import { useSessionManagement } from "@/hooks/use-session-management";
 
-interface ChatSessionData {
-  metadata: Record<string, any>;
-  blueprint_id: string;
-  session_id: string;
-  started_at: string;
-  blueprint_exists: boolean;
-}
-
-interface SessionStateData {
-  final_output: string;
-  messages: ChatMessage[];
-}
-
-interface ChatSession {
-  id: string;
-  blueprintId: string;
-  title: string;
-  lastActive: string;
-  timestamp: Date;
-  preview: string;
-  messages: ChatMessage[];
-  blueprintExists: boolean;
-}
 
 export type SessionPayload = {
   sessionId: string;
@@ -115,7 +94,9 @@ export default function ExecutionTab({
   const [showAddFlowModal, setShowAddFlowModal] = useState(false);
   const [selectedFlowForModal, setSelectedFlowForModal] = useState<FlowObject | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
-  const [isLoadingFlowsForModal, setIsLoadingFlowsForModal] = useState(false);
+  const [sharedLinkBlueprintName, setSharedLinkBlueprintName] = useState<string>("");
+  const [isLoadingBlueprintName, setIsLoadingBlueprintName] = useState<boolean>(false);
+  const [isSharingDisabled, setIsSharingDisabled] = useState<boolean>(false);
   // Three panel widths: Available Chats, ChatInterface, Blueprint Graph
   const [chatSidebarWidth, setChatSidebarWidth] = useState(20);
   const [chatInterfaceWidth, setChatInterfaceWidth] = useState(50);
@@ -127,9 +108,31 @@ export default function ExecutionTab({
 
   const { nodeListRef, forceUpdate } = useStreamingData();
   const { user } = useAuth();
+  const { cacheBlueprintValidationResults } = useAgenticAI();
+  
+  // Derived state: Chat-only mode is active for shared link sessions
+  // This single flag drives all chat-only experience behaviors (no graph, no resize, etc.)
+  const isChatOnlyMode = selectedSession?.fromSharedLink ?? false;
+  
+  // Blueprint validation hook
+  const {
+    isValidating: isValidatingBlueprint,
+    validationResults: blueprintValidationResults,
+    isValid: isBlueprintValid,
+    validateBlueprint: validateSelectedBlueprint,
+  } = useBlueprintValidation({
+    onCacheResults: cacheBlueprintValidationResults,
+    showToastOnFailure: true,
+  });
 
   // Toggle Blueprint Graph visibility
+  // For chat-only sessions (shared links), toggling is disabled
   const toggleBlueprintGraph = () => {
+    // Don't allow toggling for chat-only sessions
+    if (isChatOnlyMode) {
+      return;
+    }
+    
     if (isBlueprintGraphHidden) {
       // Show the Blueprint Graph - restore to saved width
       const availableWidth = 100 - chatSidebarWidth;
@@ -217,80 +220,35 @@ export default function ExecutionTab({
     };
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
-  // Utility functions
-  const generateRandomId = (): string => {
-    return `chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  };
-
-  const generateRandomTitle = (index: number): string => {
-    return `Chat ${index + 1}`;
-  };
-
-  const formatTimestamp = (timestamp: string): string => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
-
-    if (diffInMinutes < 60) {
-      return `${diffInMinutes} min ago`;
-    } else if (diffInHours < 24) {
-      return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    } else if (diffInDays < 7) {
-      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
-    } else {
-      return date.toLocaleDateString();
-    }
-  };
+  const { currentMessages, loadSessionMessages, clearMessages, setCurrentMessages } =
+    useSessionManagement();
 
   const handleGlobalScopeToggle = () => {
     setGlobalScope(prevScope => prevScope === 'public' ? 'private' : 'public');
   };
 
-  const getPreviewText = (messages: ChatMessage[]): string => {
-    const userMessage = messages.find(msg => msg.role === 'user');
-    if (userMessage && userMessage.content) {
-      return userMessage.content.length > 50
-        ? `${userMessage.content.substring(0, 50)}...`
-        : userMessage.content;
-    }
-    return 'No message content available';
-  };
+  const transformApiDataToSessions = async (apiData: ChatSessionData[]): Promise<ChatSession[]> => {
+    // Transform sessions and fetch fresh public_usage_scope status for shared link sessions
+    const sessions = await Promise.all(
+      apiData.map(async (sessionData, index) => {
+        const baseSession = transformSessionData(sessionData, index);
 
-  const transformApiDataToSessions = (apiData: ChatSessionData[]): ChatSession[] => {
-    return apiData.map((sessionData, index) => {
-      const title = sessionData.metadata?.title || generateRandomTitle(index);
-      const id = sessionData.session_id || generateRandomId();
-      const blueprintId = sessionData.blueprint_id;
-      const blueprintExists = sessionData.blueprint_exists;
-      const timestamp = new Date(sessionData.started_at);
-      const lastActive = formatTimestamp(sessionData.started_at);
-      const preview = 'Click to load messages...';
-      
-      return {
-        id,
-        blueprintId,
-        title,
-        lastActive,
-        timestamp,
-        preview,
-        messages: [], // Messages will be loaded separately when session is selected
-        blueprintExists,  
-      };
-    });
-  };
+        // Fetch fresh public_usage_scope status for shared link sessions to ensure accuracy
+        const isSharingDisabled = await checkSessionSharingStatus(
+          baseSession.blueprintId,
+          baseSession.fromSharedLink ?? false,
+          baseSession.blueprintExists,
+          sessionData.metadata?.public_usage_scope
+        );
 
-  // Fetch session state (messages) for a specific session
-  const fetchSessionState = async (sessionId: string): Promise<SessionStateData | null> => {
-    try {
-      const response = await axios.get(`/sessions/session.state.get?sessionId=${sessionId}`);
-      return response.data;
-    } catch (err) {
-      console.error('Error fetching session state:', err);
-      return null;
-    }
+        return {
+          ...baseSession,
+          isSharingDisabled,
+        };
+      })
+    );
+
+    return sessions;
   };
 
   // Fetch chat sessions from API
@@ -301,35 +259,17 @@ export default function ExecutionTab({
 
       const userId = user?.username || "default";
       const response = await axios.get(`/sessions/session.user.chat.get?userId=${userId}`);
-      const transformedSessions = transformApiDataToSessions(response.data);
+      const transformedSessions = await transformApiDataToSessions(response.data);
 
-      // sort chat sessions based on the latest date
-      const sortedSessions = transformedSessions.sort((firstSession, secondSession) => secondSession.timestamp.getTime() - firstSession.timestamp.getTime());
+      // Sort chat sessions based on the latest date
+      const sortedSessions = sortSessionsByTimestamp(transformedSessions);
       setChatSessions(sortedSessions);
 
-      // Auto-select the first session if available and fetch its state
+      // Auto-select the first session if available - use handleSessionSelect to trigger status checks
       if (sortedSessions.length > 0 && !selectedSession) {
         const firstSession = sortedSessions[0];
-        setSelectedSession(firstSession);
-        
-        // Fetch the state for the first session
-        const stateData = await fetchSessionState(firstSession.id);
-        if (stateData && stateData.messages) {
-          setCurrentSessionMessages(stateData.messages);
-          
-          // Update the session's preview with actual message content
-          const updatedSession = {
-            ...firstSession,
-            messages: stateData.messages,
-            preview: getPreviewText(stateData.messages)
-          };
-          setSelectedSession(updatedSession);
-          
-          // Update the session in the list as well
-          setChatSessions(prevSessions => 
-            prevSessions.map(s => s.id === firstSession.id ? updatedSession : s)
-          );
-        }
+        // Use handleSessionSelect to ensure status checks and other logic run
+        await handleSessionSelect(firstSession);
       }
     } catch (err) {
       console.error('Error fetching chat sessions:', err);
@@ -343,28 +283,83 @@ export default function ExecutionTab({
   const handleSessionSelect = async (session: ChatSession) => {
     setSelectedSession(session);
     
-    // If messages are already loaded for this session, use them
-    if (session.messages && session.messages.length > 0) {
-      setCurrentSessionMessages(session.messages);
-    } else {
-      // Otherwise, fetch the session state
-      const stateData = await fetchSessionState(session.id);
-      if (stateData && stateData.messages) {
-        setCurrentSessionMessages(stateData.messages);
+    // Trigger blueprint validation
+    if (session.blueprintId) {
+      validateSelectedBlueprint(session.blueprintId);
+    }
+    
+    // Reset blueprint name and loading state when switching sessions
+    setSharedLinkBlueprintName("");
+    setIsLoadingBlueprintName(false);
+    
+    // For chat-only sessions (shared links), configure panel layout for message area
+    // Note: Using session.fromSharedLink here (not isChatOnlyMode) because state hasn't updated yet
+    if (session.fromSharedLink) {
+      setIsBlueprintGraphHidden(false); // Ensure right panel is visible for message
+      setBlueprintGraphWidth(30); // Set width for the chat-only message area
+      const remainingWidth = 100 - chatSidebarWidth - 30;
+      setChatInterfaceWidth(remainingWidth);
+    }
+    // For regular sessions, keep current graph visibility state
+    
+    // Fetch blueprint info once and extract both sharing status and name
+    // This consolidates two API calls into one (getBlueprintInfo contains usageScope in metadata)
+    if (!session.blueprintExists) {
+      // If workflow is deleted, reset sharing disabled state (deleted message will show instead)
+      setIsSharingDisabled(false);
+    } else if (session.blueprintId) {
+      setIsLoadingBlueprintName(true);
+      try {
+        const blueprintInfo = await getBlueprintInfo(session.blueprintId);
         
-        // Update the session with loaded messages and preview
-        const updatedSession = {
-          ...session,
-          messages: stateData.messages,
-          preview: getPreviewText(stateData.messages)
-        };
-        setSelectedSession(updatedSession);
+        // Extract sharing status from metadata.usageScope
+        if (session.fromSharedLink) {
+          const isPublic = blueprintInfo.metadata?.usageScope === "public";
+          const disabled = !isPublic;
+          setIsSharingDisabled(disabled);
+          // Update the session with the current sharing status
+          setChatSessions(prev => prev.map(s => 
+            s.id === session.id ? { ...s, isSharingDisabled: disabled } : s
+          ));
+        } else {
+          // For non-shared-link sessions, sharing status doesn't matter
+          setIsSharingDisabled(false);
+        }
         
-        // Update the session in the list as well
-        setChatSessions(prevSessions => 
-          prevSessions.map(s => s.id === session.id ? updatedSession : s)
-        );
+        // Extract blueprint name
+        if (blueprintInfo.spec_dict?.name) {
+          setSharedLinkBlueprintName(blueprintInfo.spec_dict.name);
+        } else {
+          console.warn('Blueprint name not found in response:', blueprintInfo);
+          setSharedLinkBlueprintName("Unknown");
+        }
+      } catch (error: any) {
+        console.error('Error fetching blueprint info:', error);
+        // On error, assume sharing is disabled for safety and set name to Unknown
+        if (session.fromSharedLink) {
+          setIsSharingDisabled(true);
+          setChatSessions(prev => prev.map(s => 
+            s.id === session.id ? { ...s, isSharingDisabled: true } : s
+          ));
+          setSharedLinkBlueprintName("Unknown");
+        }
+      } finally {
+        setIsLoadingBlueprintName(false);
       }
+    }
+    
+    // Load session messages using the shared hook
+    const updatedSession = await loadSessionMessages(session);
+    if (updatedSession) {
+      setSelectedSession(updatedSession);
+      setCurrentSessionMessages(updatedSession.messages);
+
+      // Update the session in the list as well
+      setChatSessions(prevSessions =>
+        prevSessions.map(s => (s.id === session.id ? updatedSession : s))
+      );
+    } else {
+      setCurrentSessionMessages([]);
     }
   };
 
@@ -428,25 +423,23 @@ export default function ExecutionTab({
         userId: user?.username || "default",
       };
 
-      const response = await axios.post(
+      await axios.post(
         "/sessions/user.session.create",
         selectedBlueprint,
       );
 
-      await fetchChatSessions();
+      // Fetch updated sessions
+      const userId = user?.username || "default";
+      const response = await axios.get(`/sessions/session.user.chat.get?userId=${userId}`);
+      const transformedSessions = transformApiDataToSessions(response.data);
+      const sortedSessions = transformedSessions.sort((firstSession, secondSession) => secondSession.timestamp.getTime() - firstSession.timestamp.getTime());
+      setChatSessions(sortedSessions);
 
       // Auto-select the newly created session
-      // Wait a bit for state to update, then find the newest session with matching blueprintId
-      setTimeout(() => {
-        setChatSessions(prevSessions => {
-          const newestSession = prevSessions.find(session => session.blueprintId === graphId);
-          if (newestSession) {
-            setSelectedSession(newestSession);
-            setCurrentSessionMessages(newestSession.messages);
-          }
-          return prevSessions; // Return unchanged sessions
-        });
-      }, 100);
+      const newestSession = sortedSessions.find(session => session.blueprintId === graphId);
+      if (newestSession) {
+        await handleSessionSelect(newestSession);
+      }
 
       setShowAddFlowModal(false);
       setSelectedFlowForModal(null);
@@ -686,15 +679,18 @@ export default function ExecutionTab({
             Interact with your AI assistant and monitor execution details
           </p>
         </div>
-        {/* Commenting the next part out due to Nir's request. If and when commenting back in need to take care of coloring. */}
+
+          {/* <UmamiTrack event={UmamiEvents.AGENT_CHAT_TOGGLE_EXECUTION_STREAM_BUTTON}> */}
+            {/* Commenting the next part out due to Nir's request. If and when commenting back in need to take care of coloring. */}
         {/* <Button
-          className={`flex items-center gap-2 ${isActiveChatSession ? "bg-[#03DAC6] hover:bg-opacity-80" : "bg-gray-700 text-gray-300 cursor-not-allowed"}`}
-          onClick={() => setShowExecutionStream(!showExecutionStream)}
-          disabled={!isActiveChatSession}
-        >
-          <SplitSquareVertical className="h-4 w-4" />
-          {showExecutionStream ? "Hide" : "Open"} Execution Stream
-        </Button> */}
+            className={`flex items-center gap-2 ${isActiveChatSession ? "bg-[#03DAC6] hover:bg-opacity-80" : "bg-gray-700 text-gray-300 cursor-not-allowed"}`}
+            onClick={() => setShowExecutionStream(!showExecutionStream)}
+            disabled={!isActiveChatSession}
+            >
+            <SplitSquareVertical className="h-4 w-4" />
+            {showExecutionStream ? "Hide" : "Open"} Execution Stream
+            </Button> */}
+          {/* </UmamiTrack> */}
       </div>
 
       <div className="flex resizable-container gap-0" style={{ height: "calc(100vh - 230px)" }}>
@@ -709,6 +705,7 @@ export default function ExecutionTab({
                 <div className="flex items-center gap-1 flex-shrink-0 max-w-fit">
                   {/* Commenting the next part out since it's related to our RAG system. If and when commenting back in need to take care of coloring. */}
                   {/* Global Scope Toggle */}
+                  {/* <UmamiTrack event={UmamiEvents.AGENT_CHAT_TOGGLE_GLOBAL_SCOPE_BUTTON}> */}
                   {/* <Switch.Root
                     className="relative w-20 h-5 rounded-full bg-gray-600 data-[state=checked]:bg-[#03DAC6] transition-colors cursor-pointer flex-shrink-0"
                     checked={globalScope === 'public'}
@@ -726,25 +723,29 @@ export default function ExecutionTab({
                       className="absolute top-[1px] left-[1px] h-4 w-4 rounded-full bg-white transition-transform duration-300 z-10 transform data-[state=checked]:translate-x-[60px]"
                     /> */}
                   {/* </Switch.Root> */}
+                  {/* </UmamiTrack> */}
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
                     <Users className="h-3 w-3" />
                   </Button>
+                  
+                  <UmamiTrack event={UmamiEvents.AGENT_CHAT_ADD_FLOW_BUTTON} includeUserData={false}>
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     className="h-6 w-6 p-0 text-[#03DAC6] hover:bg-[#03DAC6] hover:bg-opacity-20 flex-shrink-0" 
                     onClick={handleAddFlowClick}
                     title="Add new chat from flow"
-                  >
+                    >
                     <Plus className="h-3 w-3" />
                   </Button>
+                  </UmamiTrack>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="p-0 flex-grow">
               {chatSessions.length === 0 ? (
                 <div className="p-4 text-center text-gray-400 text-sm">
-                  No chat sessions availableﬂ
+                  No chat sessions available
                 </div>
               ) : (
                 <div className="h-full max-h-[75vh] overflow-y-auto py-2">
@@ -756,7 +757,7 @@ export default function ExecutionTab({
                           ? "border-[hsl(var(--primary))] bg-primary/20"
                           : "border-transparent hover:bg-background-surface"
                       } ${
-                        !session.blueprintExists 
+                        !session.blueprintExists || session.isSharingDisabled
                           ? "opacity-50 bg-gray-800/30" 
                           : ""
                       }`}
@@ -771,14 +772,16 @@ export default function ExecutionTab({
                             {session.title}
                           </span>
                         </div>
+                        <UmamiTrack event={UmamiEvents.AGENT_CHAT_DELETE_CHAT_BUTTON} includeUserData={false}>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-6 w-6 p-0 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={(e) => handleDeleteChat(session, e)}
-                        >
+                          >
                           <Trash2 className="h-3 w-3" />
                         </Button>
+                        </UmamiTrack>
                       </div>
                       <div className="mt-1 flex items-center text-xs text-gray-400">
                         <Clock className="h-3 w-3 mr-1" />
@@ -815,8 +818,12 @@ export default function ExecutionTab({
               triggerExecution={triggerExecution}
               initialMessages={currentSessionMessages}
               blueprintExists={selectedSession?.blueprintExists ?? true}
+              isSharingDisabled={isSharingDisabled}
+              blueprintValid={isBlueprintValid}
+              isValidatingBlueprint={isValidatingBlueprint}
               onToggleBlueprintGraph={toggleBlueprintGraph}
               isBlueprintGraphHidden={isBlueprintGraphHidden}
+              isChatOnlyMode={isChatOnlyMode}
             />
           </div>
           
@@ -831,22 +838,25 @@ export default function ExecutionTab({
           )}
         </div>
 
-        {/* Second Resizable divider - only show when Blueprint Graph is visible */}
-        {!isBlueprintGraphHidden && (
+        {/* Second Resizable divider - only show when right panel is visible */}
+        {/* For chat-only sessions: always show (displays message). For regular: show when graph not hidden */}
+        {(isChatOnlyMode || !isBlueprintGraphHidden) && (
           <div
-            className={`w-1 cursor-col-resize transition-colors duration-200 flex-shrink-0 ${
+            className={`w-1 transition-colors duration-200 flex-shrink-0 ${
+              isChatOnlyMode ? 'cursor-default' : 'cursor-col-resize'
+            } ${
               isResizing && activeResizer === 'right' ? 'opacity-100' : 'opacity-50'
             }`}
             style={{
               backgroundColor: 'hsl(var(--primary))',
             }}
-            onMouseDown={handleMouseDown('right')}
-            title="Drag to resize panels"
+            onMouseDown={isChatOnlyMode ? undefined : handleMouseDown('right')}
+            title={isChatOnlyMode ? "Workflow not available for chat-only sessions" : "Drag to resize panels"}
           />
         )}
 
-        {/* Blueprint Graph Visualization - Dynamic width */}
-        {!isBlueprintGraphHidden && (
+        {/* Blueprint Graph Visualization or Chat-Only Message - Dynamic width */}
+        {(isChatOnlyMode || !isBlueprintGraphHidden) && (
           <div className="flex-shrink-0" style={{ width: `${blueprintGraphWidth}%` }}>
             <Card className="bg-background-card shadow-card border-gray-800 h-full flex flex-col ml-0">
             {/* TODO: Add below general component that gets 'blueprintId' and showing his title and uid - can be called from multiple places */}
@@ -865,7 +875,22 @@ export default function ExecutionTab({
               )}
             </CardHeader> */}
             <CardContent className="p-0 flex-grow">
-              {selectedSession?.blueprintId ? (
+              {isChatOnlyMode ? (
+                <div className="flex items-center justify-center h-full text-gray-400 text-sm flex-col p-6">
+                  <p className="mb-2 text-base">This session was created from a shared chat link</p>
+                  <p className="text-xs text-gray-500 mb-1">
+                    Workflow: <span className="font-medium text-gray-300">
+                      {isLoadingBlueprintName ? "Loading..." : (sharedLinkBlueprintName || "Unknown")}
+                    </span>
+                  </p>
+                  <p className="text-xs text-gray-500">Workflow details are not available in shared link sessions</p>
+                  {isSharingDisabled && (
+                    <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-md">
+                      <p className="text-xs text-red-400">Chat sharing has been disabled for this workflow</p>
+                    </div>
+                  )}
+                </div>
+              ) : selectedSession?.blueprintId ? (
                 <ReactFlowProvider key={`main-graph-${selectedSession.blueprintId}`}>
                   <ReactFlowGraph
                     blueprintId={selectedSession.blueprintId}
@@ -875,6 +900,8 @@ export default function ExecutionTab({
                     showBackground={true}
                     interactive={true}
                     isLiveRequest={isLiveRequest}
+                    validationResults={blueprintValidationResults}
+                    isValidating={isValidatingBlueprint}
                   />
                 </ReactFlowProvider>
               ) : (
@@ -898,7 +925,7 @@ export default function ExecutionTab({
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-hidden">
             <ReactFlowProvider key={`new-chat-graph-${showAddFlowModal}`}>
-              <AvailableFlows
+              <WorkflowsPanel
                 selectedFlow={selectedFlowForModal}
                 onFlowSelect={handleFlowSelect}
                 showActiveStatus={false}

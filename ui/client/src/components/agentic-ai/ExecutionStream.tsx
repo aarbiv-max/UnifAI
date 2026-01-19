@@ -6,11 +6,12 @@ import {
   Pause, Play, Trash2, Download, Info, AlertCircle, CheckCircle,
   Search, User, FileSearch, GitPullRequest, Database, Code, MessageSquare, Brain, Wrench, Layers
 } from "lucide-react";
-import { GraphNode } from "../../pages/AgenticAI"
+import { GraphNode } from "../../pages/AgenticWorkflows"
 import { useStreamingData, NodeEntry } from "./StreamingDataContext"
 import axios from '../../http/axiosAgentConfig'
 import { GraphFlow } from './graphs/interfaces'
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchResolvedBlueprints } from "@/api/blueprints";
 
 interface LogEntry {
   id: string;
@@ -89,8 +90,7 @@ export default function ExecutionStream({
   // Create agent nodes from selected graph nodes on component mount
   useEffect(() => {
     const getGraphNodes = async () => {
-      const response = await axios.get(`/blueprints/available.blueprints.resolved.get?userId=${user?.username || "default"}`);
-      const blueprintObjects = response.data;
+      const blueprintObjects = await fetchResolvedBlueprints(user?.username || "default");
       
       // Find the specific graph flow by blueprint_id
       const targetBlueprintObj = blueprintObjects.find((blueprintObj: any, index: number) => 
