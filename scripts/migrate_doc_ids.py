@@ -40,6 +40,18 @@ CATEGORY = "retrievers"
 # ────────────────────────────────────────────────────────────────
 
 def needs_migration(cfg: dict) -> bool:
+    """
+    Determine whether the configuration's "doc_ids" list contains any string entries that need migration.
+    
+    Parameters:
+        cfg (dict): Retriever configuration which may include a "doc_ids" key mapping to a list of document identifiers or objects.
+    
+    Returns:
+        `true` if any element in `cfg["doc_ids"]` is a string, `false` otherwise.
+    
+    Notes:
+        Treats missing or falsy `doc_ids` as an empty list.
+    """
     for d in cfg.get("doc_ids", []) or []:
         if isinstance(d, str):
             return True
@@ -47,6 +59,16 @@ def needs_migration(cfg: dict) -> bool:
 
 
 def convert_doc_ids(old: list, docs_map: dict) -> list:
+    """
+    Convert a list of document identifiers (which may be strings or dicts) into a normalized list of objects each containing `id` and `name`.
+    
+    Parameters:
+        old (list): List of document entries where each entry is either a string document id or a dict containing at least an `"id"` key.
+        docs_map (dict): Mapping from document id to display name used to populate the `name` field when missing.
+    
+    Returns:
+        list: A list of dicts where each dict has keys `"id"` and `"name"`. For string entries, `id` is the string and `name` is taken from `docs_map` or falls back to the id. For dict entries, an existing `"name"` is preserved; if missing, it is populated from `docs_map` or set to the id.
+    """
     out = []
     for d in old or []:
         if isinstance(d, str):
@@ -59,6 +81,15 @@ def convert_doc_ids(old: list, docs_map: dict) -> list:
 
 
 def fetch_sources(db, ids: List[str]) -> Dict[str, str]:
+    """
+    Build a mapping from source IDs to their display names by querying the data_sources.sources collection.
+    
+    Parameters:
+        ids (List[str]): Iterable of source IDs to resolve.
+    
+    Returns:
+        Dict[str, str]: A mapping where each key is a source_id and each value is the corresponding source_name from the database; if a name is missing, the source_id is used as the value.
+    """
     if not ids:
         return {}
 
@@ -77,6 +108,17 @@ def fetch_sources(db, ids: List[str]) -> Dict[str, str]:
 # ────────────────────────────────────────────────────────────────
 
 def migrate(dry_run: bool):
+    """
+    Migrate retriever configurations' doc_ids from string arrays to object arrays in the MongoDB retrievers collection.
+    
+    Resolves document names from the data_sources.sources collection, transforms each retriever's cfg_dict.doc_ids into the new object form, and updates the retriever documents when not running in dry-run mode. Prints progress to stdout and returns a summary of processed records.
+    
+    Parameters:
+        dry_run (bool): If True, simulate the migration without writing changes to the database.
+    
+    Returns:
+        dict: A stats dictionary with keys "checked", "migrated", and "skipped" indicating the number of retrievers inspected, migrated (or would be migrated in dry run), and skipped.
+    """
     client = pymongo.MongoClient(f"mongodb://{MONGODB_IP}:{MONGODB_PORT}/")
 
     retrievers_db = client[RETRIEVERS_DB]
@@ -149,6 +191,11 @@ def migrate(dry_run: bool):
 # ────────────────────────────────────────────────────────────────
 
 def main():
+    """
+    CLI entry point that runs the doc_ids migration for retriever configurations.
+    
+    Parses the --apply flag from command-line arguments to determine whether to perform a real migration or a dry run (default). Executes the migration, prints a summary of statistics, and—when running as a dry run—prints a reminder to re-run with --apply to commit changes.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()

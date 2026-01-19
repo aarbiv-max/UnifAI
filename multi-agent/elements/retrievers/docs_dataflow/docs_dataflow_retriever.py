@@ -13,8 +13,16 @@ class DocsDataflowRetriever(BaseRetriever):
     @staticmethod
     def _extract_values(items: Optional[List[Union[dict, str]]], value_field: str) -> Optional[List[str]]:
         """
-        Extract values from a list of items.
-        Items can be dicts (with value stored in value_field) or plain strings.
+        Normalize a list of dicts or strings into a list of string values.
+        
+        If `items` is falsy, returns None. For each dict in `items`, extracts the value at `value_field` or, if absent, the `'value'` key and converts it to a string when present. Plain strings are included as-is. Returns None if no values are extracted.
+        
+        Parameters:
+            items (Optional[List[Union[dict, str]]]): Collection of dicts or strings to normalize.
+            value_field (str): Primary key name to read from dict items.
+        
+        Returns:
+            Optional[List[str]]: List of extracted string values, or `None` when input is falsy or yields no values.
         """
         if not items:
             return None
@@ -40,7 +48,18 @@ class DocsDataflowRetriever(BaseRetriever):
             doc_ids: Optional[List[Union[dict, str]]] = None,
             tags: Optional[List[str]] = None,
     ):
-        self.threshold = threshold
+        """
+            Initialize the retriever with Dataflow provider configuration and normalized document filters.
+            
+            Parameters:
+                top_k_results (int): Maximum number of nearest neighbors to request from the provider.
+                threshold (float): Minimum score threshold for returned matches.
+                timeout (float): Provider request timeout in seconds.
+                doc_ids (Optional[List[Union[dict, str]]]): Optional list of document identifiers or dicts containing an identifier under the key `'id'` (or `'value'`); normalized to a list of strings via `_extract_values` and stored on the instance, or `None` if not provided or empty.
+                tags (Optional[List[str]]): Optional list of tags used to filter provider queries.
+            
+            """
+            self.threshold = threshold
         self.doc_ids = self._extract_values(doc_ids, 'id')
         self.tags = tags
         config = DataflowProviderConfig(
