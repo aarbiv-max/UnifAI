@@ -449,7 +449,8 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   }
 
   // Handle array fields (non-$ref arrays)
-  if (fieldSchema.type === "array") {
+  // Skip default array rendering if there's a populate hint - FieldPopulation will handle display
+  if (fieldSchema.type === "array" && !populateHint) {
     if (!onArrayChange || !onAddArrayItem || !onRemoveArrayItem) {
       console.warn(
         "Array handlers not provided for array field",
@@ -468,7 +469,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           {(value || []).map((item: any, index: number) => (
             <div key={index} className="flex gap-2">
               <Input
-                value={item}
+                value={typeof item === 'object' ? JSON.stringify(item) : item}
                 onChange={(e) => onArrayChange(fieldName, index, e.target.value)}
                 className={`bg-background-dark flex-1 ${hasFieldError ? 'border-red-500' : ''}`}
                 placeholder={`${fieldName} item ${index + 1}`}
@@ -495,6 +496,100 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
         {fieldSchema.description && (
           <p className="text-xs text-gray-400">{fieldSchema.description}</p>
         )}
+      </div>
+    );
+  }
+  
+  // Handle array fields WITH populate hint - show textarea with names + FieldPopulation for selection
+  // Also handles anyOf schemas (from Optional[List[...]]) that contain an array type
+  const isArrayWithPopulate = populateHint && (
+    fieldSchema.type === "array" ||
+    (fieldSchema.anyOf && fieldSchema.anyOf.some((opt: any) => opt.type === "array"))
+  );
+  
+  if (isArrayWithPopulate) {
+    const displayFieldPath = populateHint.display_field || populateHint.label_field;
+
+    // Resolve dot-notation path on an object (e.g., "name.x" -> obj.name.x)
+    const resolvePath = (obj: any, path: string): any => {
+      if (!obj || !path) return undefined;
+      const parts = path.split('.');
+      let current = obj;
+      for (const part of parts) {
+        if (current == null || typeof current !== 'object') return undefined;
+        current = current[part];
+      }
+      return current;
+    };
+
+    const getItemLabel = (item: any): string => {
+      if (item == null) return '';
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object') {
+        // Use display_field path from populateHint contract (supports dot-notation)
+        // IMPORTANT: We strictly follow the BE-GUI protocol - backend MUST specify display_field
+        if (displayFieldPath) {
+          const val = resolvePath(item, displayFieldPath);
+          if (val != null && typeof val !== 'object') {
+            return String(val);
+          }
+        }
+        // No fallbacks - if display_field not configured, show stringified object
+        // This makes it obvious the backend needs to configure the hint properly
+        return JSON.stringify(item);
+      }
+      return String(item);
+    };
+
+    const getDisplayText = (): string => {
+      if (!value) return '';
+      if (Array.isArray(value)) {
+        if (value.length === 0) return '';
+        return value.map(getItemLabel).join(', ');
+      }
+      return getItemLabel(value);
+    };
+
+    const getDisplayName = (): string => {
+      if (populateHint.display_name) {
+        return populateHint.display_name;
+      }
+      return fieldName;
+    }
+
+    return (
+      <div key={fieldName} className="space-y-2">
+        <Label htmlFor={fieldName}>
+          {getDisplayName()} {isRequired && <span className="text-red-400">*</span>}
+          {populateHint && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              populate
+            </Badge>
+          )}
+        </Label>
+        {fieldSchema.description && (
+          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+        )}
+        {/* Textarea showing selected names (read-only) */}
+        <Textarea
+          id={fieldName}
+          value={getDisplayText()}
+          readOnly
+          disabled
+          rows={1}
+          className="bg-background-dark resize-none"
+          placeholder={fieldSchema.description || `Selected ${fieldName} will appear here...`}
+        />
+        <FieldPopulation
+          fieldName={fieldName}
+          populateHint={populateHint}
+          elementActions={elementActions}
+          selectedElementType={elementType}
+          formData={formData}
+          onPopulateResult={onPopulateResult}
+          hideUI={populateHint.selection_type === 'automatic'}
+          autoTrigger={areDependenciesValid}
+        />
       </div>
     );
   }
