@@ -17,6 +17,7 @@ const CustomEdge: React.FC<CustomEdgeProps> = ({
   targetPosition,
   style = {},
   markerEnd,
+  markerStart,
   data,
   onDelete,
 }) => {
@@ -34,7 +35,10 @@ const CustomEdge: React.FC<CustomEdgeProps> = ({
     // Try to get onDelete from data first, then from props
     const deleteFunction = data?.onDelete || onDelete;
     if (deleteFunction) {
-      deleteFunction(id);
+      const edgeIds = Array.isArray(data?.bidirectionalEdgeIds)
+        ? data.bidirectionalEdgeIds
+        : [id];
+      edgeIds.forEach((edgeId: string) => deleteFunction(edgeId));
     }
   };
 
@@ -46,6 +50,7 @@ const CustomEdge: React.FC<CustomEdgeProps> = ({
         className="react-flow__edge-path"
         d={edgePath}
         markerEnd={markerEnd}
+        markerStart={markerStart}
       />
       {/* Delete button positioned at the middle of the edge */}
       <foreignObject

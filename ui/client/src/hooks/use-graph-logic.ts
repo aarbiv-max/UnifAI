@@ -47,6 +47,47 @@ interface YamlFlowState {
   conditions?: YamlFlowCondition[];
 }
 
+const normalizeNodeConfig = (rawConfig: any, nodeType?: string): any => {
+  if (!rawConfig || typeof rawConfig !== "object") {
+    return rawConfig;
+  }
+
+  const normalized = { ...rawConfig };
+  const resolvedType =
+    normalized.type || nodeType || normalized.custom_agent_node?.type;
+
+  if (resolvedType && !normalized.type) {
+    normalized.type = resolvedType;
+  }
+
+  // Flatten legacy nested configs like { custom_agent_node: { ... } }
+  if (
+    normalized.custom_agent_node &&
+    typeof normalized.custom_agent_node === "object"
+  ) {
+    Object.assign(normalized, normalized.custom_agent_node);
+    delete normalized.custom_agent_node;
+  }
+
+  if (resolvedType === "custom_agent_node") {
+    if ("provider" in normalized) {
+      const providerValue = normalized.provider;
+      if (providerValue) {
+        normalized.providers = Array.isArray(providerValue)
+          ? providerValue
+          : [providerValue];
+      }
+      delete normalized.provider;
+    }
+
+    if (normalized.providers && !Array.isArray(normalized.providers)) {
+      normalized.providers = [normalized.providers];
+    }
+  }
+
+  return normalized;
+};
+
 const defaulYmlState: YamlFlowState = {
   nodes: [
     {
@@ -148,11 +189,20 @@ export const useGraphLogic = () => {
       setIsValidating(true);
 
       // Convert YAML flow to YAML string using js-yaml library
+      const normalizedNodes = (yamlFlow.nodes || []).map((node) => {
+        const resolvedType = node.type || node.config?.type;
+        return {
+          ...node,
+          type: resolvedType,
+          config: normalizeNodeConfig(node.config || {}, resolvedType),
+        };
+      });
+
       const yamlFlowForValidation = {
         name: yamlFlow.name || "Untitled blueprint",
         description: yamlFlow.description || "default",
         conditions: yamlFlow.conditions || [],
-        nodes: yamlFlow.nodes || [],
+        nodes: normalizedNodes,
         plan: yamlFlow.plan || [],
       };
 
@@ -843,11 +893,17 @@ export const useGraphLogic = () => {
             (node) => node.rid === nodeRid,
           );
 
-          const newYamlNode = {
-            rid: nodeRid,
-            name: block.workspaceData?.name || block.label,
-            config: block.workspaceData?.config || {},
-          };
+        const nodeType = block.workspaceData?.type;
+        const normalizedConfig = normalizeNodeConfig(
+          block.workspaceData?.config || {},
+          nodeType,
+        );
+        const newYamlNode = {
+          rid: nodeRid,
+          name: block.workspaceData?.name || block.label,
+          type: nodeType,
+          config: normalizedConfig,
+        };
 
           const newPlanStep = {
             uid: nodeUid,
@@ -1003,10 +1059,20 @@ export const useGraphLogic = () => {
         setIsSaving(true);
 
         // Update yamlFlow with name and description
+        const normalizedNodes = (yamlFlow.nodes || []).map((node) => {
+          const resolvedType = node.type || node.config?.type;
+          return {
+            ...node,
+            type: resolvedType,
+            config: normalizeNodeConfig(node.config || {}, resolvedType),
+          };
+        });
+
         const updatedYamlFlow = {
           ...yamlFlow,
           name: name,
           description: description,
+          nodes: normalizedNodes,
         };
 
         setYamlFlow(updatedYamlFlow);

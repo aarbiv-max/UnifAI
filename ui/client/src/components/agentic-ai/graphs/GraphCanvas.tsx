@@ -17,7 +17,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import CustomNode from "./CustomNode";
 import CustomEdge from "./CustomEdge";
-import BidirectionalOffsetEdge from "./BidirectionalOffsetEdge";
 import GraphHeader from "./GraphHeader";
 import * as yaml from 'js-yaml';
 
@@ -27,7 +26,6 @@ const nodeTypes: NodeTypes = {
 
 const edgeTypes: EdgeTypes = {
   custom: CustomEdge,
-  bidirectionalOffset: BidirectionalOffsetEdge,
 };
 
 // Helper function to detect and mark bidirectional edge pairs
@@ -35,76 +33,61 @@ const processBidirectionalEdges = (edges: Edge[]): Edge[] => {
   const edgeMap = new Map<string, Edge[]>();
   const processedEdges: Edge[] = [];
 
+  const getPairKey = (source: string, target: string) =>
+    source < target ? `${source}--${target}` : `${target}--${source}`;
+
+  const isBidirectionalEligible = (edge: Edge) => !edge.data?.isConditional;
+
   // Group edges by node pairs (regardless of direction)
-  edges.forEach(edge => {
-    const key1 = `${edge.source}-${edge.target}`;
-    const key2 = `${edge.target}-${edge.source}`;
-    
-    // Check if reverse edge already exists
-    const existingKey = edgeMap.has(key1) ? key1 : edgeMap.has(key2) ? key2 : key1;
-    
-    if (!edgeMap.has(existingKey)) {
-      edgeMap.set(existingKey, []);
+  edges.forEach((edge) => {
+    const key = getPairKey(edge.source, edge.target);
+    if (!edgeMap.has(key)) {
+      edgeMap.set(key, []);
     }
-    edgeMap.get(existingKey)!.push(edge);
+    edgeMap.get(key)!.push(edge);
   });
 
   // Process each edge group
-  edgeMap.forEach((edgeGroup, key) => {
-    if (edgeGroup.length === 2) {
-      // Bidirectional pair detected - keep both edges but mark them
+  edgeMap.forEach((edgeGroup) => {
+    if (
+      edgeGroup.length === 2 &&
+      edgeGroup.every((edge) => isBidirectionalEligible(edge))
+    ) {
       const [edge1, edge2] = edgeGroup;
-      
-      // Determine which edge goes "up" and which goes "down" based on node positions
-      // For now, we'll use a simple rule: first edge gets offset to the right, second to the left
-      
-      const offsetEdge1: Edge = {
+      const pairKey = getPairKey(edge1.source, edge1.target);
+
+      processedEdges.push({
         ...edge1,
-        type: 'bidirectionalOffset',
+        id: `bidirectional-${pairKey}`,
+        type: "custom",
+        animated: true,
         data: {
           ...edge1.data,
           bidirectionalPair: true,
-          offsetDirection: 'right', // Offset to the right
-          pairId: edge2.id,
+          bidirectionalEdgeIds: [edge1.id, edge2.id],
         },
         style: {
-          stroke: '#10B981',
-          strokeWidth: 2.5,
+          stroke: "#3B82F6",
+          strokeWidth: 3,
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          width: 20,
-          height: 20,
-          color: '#10B981',
+          width: 12,
+          height: 12,
+          color: "#3B82F6",
         },
-      };
-      
-      const offsetEdge2: Edge = {
-        ...edge2,
-        type: 'bidirectionalOffset',
-        data: {
-          ...edge2.data,
-          bidirectionalPair: true,
-          offsetDirection: 'left', // Offset to the left
-          pairId: edge1.id,
-        },
-        style: {
-          stroke: '#10B981',
-          strokeWidth: 2.5,
-        },
-        markerEnd: {
+        markerStart: {
           type: MarkerType.ArrowClosed,
-          width: 20,
-          height: 20,
-          color: '#10B981',
+          width: 12,
+          height: 12,
+          color: "#3B82F6",
         },
-      };
-      
-      processedEdges.push(offsetEdge1, offsetEdge2);
-    } else if (edgeGroup.length === 1) {
-      // Single directional edge - keep as is
-      processedEdges.push(edgeGroup[0]);
+      });
+      return;
     }
+
+    // Non-bidirectional or complex cases - keep original edges
+    processedEdges.push(...edgeGroup);
   });
 
   return processedEdges;
