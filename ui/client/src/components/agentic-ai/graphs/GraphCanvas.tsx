@@ -28,71 +28,6 @@ const edgeTypes: EdgeTypes = {
   custom: CustomEdge,
 };
 
-// Helper function to detect and mark bidirectional edge pairs
-const processBidirectionalEdges = (edges: Edge[]): Edge[] => {
-  const edgeMap = new Map<string, Edge[]>();
-  const processedEdges: Edge[] = [];
-
-  const getPairKey = (source: string, target: string) =>
-    source < target ? `${source}--${target}` : `${target}--${source}`;
-
-  const isBidirectionalEligible = (edge: Edge) => !edge.data?.isConditional;
-
-  // Group edges by node pairs (regardless of direction)
-  edges.forEach((edge) => {
-    const key = getPairKey(edge.source, edge.target);
-    if (!edgeMap.has(key)) {
-      edgeMap.set(key, []);
-    }
-    edgeMap.get(key)!.push(edge);
-  });
-
-  // Process each edge group
-  edgeMap.forEach((edgeGroup) => {
-    if (
-      edgeGroup.length === 2 &&
-      edgeGroup.every((edge) => isBidirectionalEligible(edge))
-    ) {
-      const [edge1, edge2] = edgeGroup;
-      const pairKey = getPairKey(edge1.source, edge1.target);
-
-      processedEdges.push({
-        ...edge1,
-        id: `bidirectional-${pairKey}`,
-        type: "custom",
-        animated: true,
-        data: {
-          ...edge1.data,
-          bidirectionalPair: true,
-          bidirectionalEdgeIds: [edge1.id, edge2.id],
-        },
-        style: {
-          stroke: "#3B82F6",
-          strokeWidth: 3,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 12,
-          height: 12,
-          color: "#3B82F6",
-        },
-        markerStart: {
-          type: MarkerType.ArrowClosed,
-          width: 12,
-          height: 12,
-          color: "#3B82F6",
-        },
-      });
-      return;
-    }
-
-    // Non-bidirectional or complex cases - keep original edges
-    processedEdges.push(...edgeGroup);
-  });
-
-  return processedEdges;
-};
-
 interface GraphCanvasProps {
   nodes: Node[];
   edges: Edge[];
@@ -104,6 +39,7 @@ interface GraphCanvasProps {
   onDragOver: (event: React.DragEvent) => void;
   onClearGraph: () => void;
   onSaveGraph: () => void;
+  onRearrangeGraph: () => void;
   onDeleteEdge?: (edgeId: string) => void;
   onBack?: () => void;
   onAttachCondition?: (nodeId: string, condition: any) => void;
@@ -122,6 +58,7 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   onDragOver,
   onClearGraph,
   onSaveGraph,
+  onRearrangeGraph,
   onDeleteEdge,
   onBack,
   onAttachCondition,
@@ -129,9 +66,6 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   isGraphValid = false,
 }) => {
   const [showYamlDebug, setShowYamlDebug] = useState(false);
-  
-  // Process edges to detect and transform bidirectional connections
-  const processedEdges = processBidirectionalEdges(edges);
 
   return (
     <div className="flex-1 relative">
@@ -139,6 +73,7 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
         <GraphHeader
           onClearGraph={onClearGraph}
           onSaveGraph={onSaveGraph}
+          onRearrangeGraph={onRearrangeGraph}
           onBack={onBack}
           isGraphValid={isGraphValid}
         />
@@ -173,7 +108,7 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
             <ReactFlowProvider>
               <ReactFlow
                 nodes={nodes}
-                edges={processedEdges.map(edge => ({
+                edges={edges.map(edge => ({
                   ...edge,
                   type: edge.type || 'custom',
                   data: {

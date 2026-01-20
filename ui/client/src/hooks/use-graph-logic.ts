@@ -47,47 +47,6 @@ interface YamlFlowState {
   conditions?: YamlFlowCondition[];
 }
 
-const normalizeNodeConfig = (rawConfig: any, nodeType?: string): any => {
-  if (!rawConfig || typeof rawConfig !== "object") {
-    return rawConfig;
-  }
-
-  const normalized = { ...rawConfig };
-  const resolvedType =
-    normalized.type || nodeType || normalized.custom_agent_node?.type;
-
-  if (resolvedType && !normalized.type) {
-    normalized.type = resolvedType;
-  }
-
-  // Flatten legacy nested configs like { custom_agent_node: { ... } }
-  if (
-    normalized.custom_agent_node &&
-    typeof normalized.custom_agent_node === "object"
-  ) {
-    Object.assign(normalized, normalized.custom_agent_node);
-    delete normalized.custom_agent_node;
-  }
-
-  if (resolvedType === "custom_agent_node") {
-    if ("provider" in normalized) {
-      const providerValue = normalized.provider;
-      if (providerValue) {
-        normalized.providers = Array.isArray(providerValue)
-          ? providerValue
-          : [providerValue];
-      }
-      delete normalized.provider;
-    }
-
-    if (normalized.providers && !Array.isArray(normalized.providers)) {
-      normalized.providers = [normalized.providers];
-    }
-  }
-
-  return normalized;
-};
-
 const defaulYmlState: YamlFlowState = {
   nodes: [
     {
@@ -189,20 +148,11 @@ export const useGraphLogic = () => {
       setIsValidating(true);
 
       // Convert YAML flow to YAML string using js-yaml library
-      const normalizedNodes = (yamlFlow.nodes || []).map((node) => {
-        const resolvedType = node.type || node.config?.type;
-        return {
-          ...node,
-          type: resolvedType,
-          config: normalizeNodeConfig(node.config || {}, resolvedType),
-        };
-      });
-
       const yamlFlowForValidation = {
         name: yamlFlow.name || "Untitled blueprint",
         description: yamlFlow.description || "default",
         conditions: yamlFlow.conditions || [],
-        nodes: normalizedNodes,
+        nodes: yamlFlow.nodes || [],
         plan: yamlFlow.plan || [],
       };
 
@@ -893,16 +843,10 @@ export const useGraphLogic = () => {
             (node) => node.rid === nodeRid,
           );
 
-        const nodeType = block.workspaceData?.type;
-        const normalizedConfig = normalizeNodeConfig(
-          block.workspaceData?.config || {},
-          nodeType,
-        );
         const newYamlNode = {
           rid: nodeRid,
           name: block.workspaceData?.name || block.label,
-          type: nodeType,
-          config: normalizedConfig,
+          config: block.workspaceData?.config || {},
         };
 
           const newPlanStep = {
@@ -936,6 +880,152 @@ export const useGraphLogic = () => {
     },
     [nodeId, setNodes, nodes, deleteNode, allBlocksData, attachConditionToNode, toast],
   );
+
+  const rearrangeGraph = useCallback(() => {
+    if (!yamlFlow.plan || yamlFlow.plan.length === 0 || nodes.length === 0) {
+      return;
+    }
+
+    const nodeIds = nodes.map((node) => node.id);
+    const predecessors = new Map<string, Set<string>>();
+
+    const ensureNode = (nodeId: string) => {
+      if (!predecessors.has(nodeId)) {
+        predecessors.set(nodeId, new Set());
+      }
+    };
+
+    nodeIds.forEach(ensureNode);
+
+    const addPredecessor = (targetId: string, predecessorId: string) => {
+      if (!targetId || !predecessorId || targetId === predecessorId) {
+        return;
+      }
+      ensureNode(targetId);
+      predecessors.get(targetId)!.add(predecessorId);
+    };
+
+    yamlFlow.plan.forEach((step) => {
+      ensureNode(step.uid);
+      if (step.after) {
+        const preds = Array.isArray(step.after) ? step.after : [step.after];
+        preds.forEach((predId) => addPredecessor(step.uid, predId));
+      }
+
+      if (step.branches && typeof step.branches === "object") {
+        Object.values(step.branches).forEach((targetId) => {
+          if (typeof targetId === "string") {
+            addPredecessor(targetId, step.uid);
+          }
+        });
+      }
+    });
+
+    const levels: Record<string, number> = {};
+    const remaining = new Set(nodeIds);
+
+    const getMaxLevel = () =>
+      Object.keys(levels).length > 0 ? Math.max(...Object.values(levels)) : -1;
+
+    while (remaining.size > 0) {
+      let progressed = false;
+      for (const nodeId of Array.from(remaining)) {
+        const preds = Array.from(predecessors.get(nodeId) || []);
+        const allAssigned = preds.every((predId) => levels[predId] !== undefined);
+        if (preds.length === 0 || allAssigned) {
+          const level = preds.length
+            ? Math.max(...preds.map((predId) => levels[predId])) + 1
+            : 0;
+          levels[nodeId] = level;
+          remaining.delete(nodeId);
+          progressed = true;
+        }
+      }
+
+      if (!progressed) {
+        const fallbackLevel = getMaxLevel() + 1;
+        remaining.forEach((nodeId) => {
+          levels[nodeId] = fallbackLevel;
+        });
+        remaining.clear();
+      }
+    }
+
+    const nodesByLevel: Record<number, string[]> = {};
+    nodeIds.forEach((nodeId) => {
+      const level = levels[nodeId] ?? 0;
+      if (!nodesByLevel[level]) {
+        nodesByLevel[level] = [];
+      }
+      nodesByLevel[level].push(nodeId);
+    });
+
+    const currentX = new Map(nodes.map((node) => [node.id, node.position.x]));
+    const averageX =
+      nodes.reduce((sum, node) => sum + node.position.x, 0) / nodes.length;
+
+    const barycenter = (nodeId: string) => {
+      const preds = Array.from(predecessors.get(nodeId) || []);
+      if (preds.length === 0) {
+        return currentX.get(nodeId) ?? 0;
+      }
+      const total = preds.reduce(
+        (sum, predId) => sum + (currentX.get(predId) ?? 0),
+        0,
+      );
+      return total / preds.length;
+    };
+
+    const sortedLevels = Object.keys(nodesByLevel)
+      .map((level) => Number(level))
+      .sort((a, b) => a - b);
+
+    const orderedByLevel: Record<number, string[]> = {};
+    sortedLevels.forEach((level) => {
+      orderedByLevel[level] = [...nodesByLevel[level]].sort((a, b) => {
+        const diff = barycenter(a) - barycenter(b);
+        if (diff !== 0) {
+          return diff;
+        }
+        return (currentX.get(a) ?? 0) - (currentX.get(b) ?? 0);
+      });
+    });
+
+    const levelGapY = 180;
+    const nodeGapX = 280;
+    const startY = 100;
+    const newPositions = new Map<string, { x: number; y: number }>();
+
+    sortedLevels.forEach((level) => {
+      const ids = orderedByLevel[level];
+      const width = (ids.length - 1) * nodeGapX;
+      const startX = averageX - width / 2;
+      ids.forEach((nodeId, index) => {
+        newPositions.set(nodeId, {
+          x: startX + index * nodeGapX,
+          y: startY + level * levelGapY,
+        });
+      });
+    });
+
+    setNodes((currentNodes) => {
+      const updatedNodes = currentNodes.map((node) => ({
+        ...node,
+        position: newPositions.get(node.id) || node.position,
+      }));
+
+      setCurrentGraph((prev) => ({
+        ...prev,
+        nodes: updatedNodes,
+        metadata: {
+          ...prev.metadata,
+          lastModified: new Date(),
+        },
+      }));
+
+      return updatedNodes;
+    });
+  }, [nodes, setNodes, setCurrentGraph, yamlFlow.plan]);
 
   const handleNodesChange = useCallback(
     (changes: any[]) => {
@@ -1059,20 +1149,10 @@ export const useGraphLogic = () => {
         setIsSaving(true);
 
         // Update yamlFlow with name and description
-        const normalizedNodes = (yamlFlow.nodes || []).map((node) => {
-          const resolvedType = node.type || node.config?.type;
-          return {
-            ...node,
-            type: resolvedType,
-            config: normalizeNodeConfig(node.config || {}, resolvedType),
-          };
-        });
-
         const updatedYamlFlow = {
           ...yamlFlow,
           name: name,
           description: description,
-          nodes: normalizedNodes,
         };
 
         setYamlFlow(updatedYamlFlow);
@@ -1288,6 +1368,7 @@ export const useGraphLogic = () => {
     onDragOver,
     onDragStart,
     onDragEnd,
+    rearrangeGraph,
     clearGraph,
     openSaveModal,
     saveGraph,

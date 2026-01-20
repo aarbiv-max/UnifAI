@@ -7,6 +7,7 @@ export enum UmamiEvents {
     AGENT_CHAT_SEND_MESSAGE_BUTTON = "agent-chat-send-message-button",
     AGENT_GRAPHS_BACK_BUTTON = "agent-graphs-back-button",
     AGENT_GRAPHS_CLEAR_BUTTON = "agent-graphs-clear-button",
+    AGENT_GRAPHS_REARRANGE_BUTTON = "agent-graphs-rearrange-button",
     AGENT_GRAPHS_SAVE_BUTTON = "agent-graphs-save-blueprint-button",
     AGENT_GRAPHS_LOAD_FLOW_BUTTON = "agent-graphs-load-flow-button",
     AGENT_GRAPHS_BUILD_FLOW_BUTTON = "agent-graphs-build-flow-button",

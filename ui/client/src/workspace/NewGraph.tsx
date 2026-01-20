@@ -27,6 +27,7 @@ export default function NewGraph({ onBack }: NewGraphProps) {
     onDrop,
     onDragOver,
     onDragStart,
+    rearrangeGraph,
     clearGraph,
     saveGraph,
     deleteEdge,
@@ -111,6 +112,7 @@ export default function NewGraph({ onBack }: NewGraphProps) {
           onDragOver={onDragOver}
           onClearGraph={handleClearGraph}
           onSaveGraph={handleSaveGraph}
+          onRearrangeGraph={rearrangeGraph}
           onDeleteEdge={deleteEdge}
           onBack={onBack}
           onAttachCondition={attachConditionToNode}
