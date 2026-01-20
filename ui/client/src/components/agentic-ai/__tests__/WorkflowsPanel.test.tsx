@@ -53,11 +53,15 @@ vi.mock("@/utils/blueprintHelpers", () => ({
   convertGraphFlowToFlowObject: () => flow,
 }));
 
+const validationState = {
+  isValidating: false,
+  validationResults: null,
+  isValid: true,
+};
+
 vi.mock("@/hooks/use-blueprint-validation", () => ({
   useBlueprintValidation: () => ({
-    isValidating: false,
-    validationResults: null,
-    isValid: true,
+    ...validationState,
     validateBlueprint: vi.fn(),
     clearValidation: vi.fn(),
   }),
@@ -102,6 +106,40 @@ describe("WorkflowsPanel", () => {
     await waitFor(() => {
       expect(onFlowSelect).toHaveBeenCalledWith(flow);
     });
+  });
+
+  it("shows empty state when no workflows are available", async () => {
+    fetchBlueprintsMock.mockResolvedValueOnce([]);
+    fetchActiveSessionsMock.mockResolvedValueOnce([]);
+
+    render(
+      <WorkflowsPanel
+        selectedFlow={null}
+        onFlowSelect={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("No flows available")).toBeInTheDocument();
+  });
+
+  it("selects a workflow when clicked", async () => {
+    fetchBlueprintsMock.mockResolvedValueOnce([
+      { blueprint_id: "bp-1", spec_dict: { name: "Flow One" } },
+    ]);
+    fetchActiveSessionsMock.mockResolvedValueOnce([]);
+    const onFlowSelect = vi.fn();
+
+    render(
+      <WorkflowsPanel
+        selectedFlow={null}
+        onFlowSelect={onFlowSelect}
+      />,
+    );
+
+    const label = await screen.findByText("Flow One");
+    const user = userEvent.setup();
+    await user.click(label);
+    expect(onFlowSelect).toHaveBeenCalledWith(flow);
   });
 
   it("opens share for a flow", async () => {

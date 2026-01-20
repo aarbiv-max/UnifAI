@@ -52,16 +52,19 @@ describe("ShareWorkflow", () => {
     expect(screen.getByText("https://share/bp-1")).toBeInTheDocument();
   });
 
-  it("enables sharing when toggled", async () => {
+  it("toggles share panel open/close and shows success toast", async () => {
     const user = userEvent.setup();
     getBlueprintInfoMock.mockResolvedValueOnce({
       metadata: { usageScope: "private" },
     });
     setBlueprintMetadataMock.mockResolvedValueOnce({});
+    setBlueprintMetadataMock.mockResolvedValueOnce({});
 
     render(<ShareWorkflow blueprintId="bp-2" />);
 
     const toggle = await screen.findByRole("switch");
+    expect(screen.queryByText("Share Link")).not.toBeInTheDocument();
+
     await user.click(toggle);
 
     expect(setBlueprintMetadataMock).toHaveBeenCalledWith(
@@ -69,7 +72,50 @@ describe("ShareWorkflow", () => {
       { usageScope: "public" },
       "tester",
     );
-    expect(toastSpy).toHaveBeenCalled();
+    expect(toastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Sharing Enabled",
+      }),
+    );
+    expect(await screen.findByText("Share Link")).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(setBlueprintMetadataMock).toHaveBeenCalledWith(
+      "bp-2",
+      { usageScope: "private" },
+      "tester",
+    );
+    expect(screen.queryByText("Share Link")).not.toBeInTheDocument();
+  });
+
+  it("disables sharing when workflow is invalid", async () => {
+    getBlueprintInfoMock.mockResolvedValueOnce({
+      metadata: { usageScope: "private" },
+    });
+
+    render(<ShareWorkflow blueprintId="bp-3" isValid={false} />);
+
+    const toggle = await screen.findByRole("switch");
+    expect(toggle).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Fix validation errors to enable sharing for this workflow",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows warning when sharing an invalid workflow", async () => {
+    getBlueprintInfoMock.mockResolvedValueOnce({
+      metadata: { usageScope: "public" },
+    });
+
+    render(<ShareWorkflow blueprintId="bp-4" isValid={false} />);
+
+    expect(
+      await screen.findByText(
+        "Warning: This workflow is shared but has validation errors",
+      ),
+    ).toBeInTheDocument();
   });
 });
 

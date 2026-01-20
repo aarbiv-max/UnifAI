@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { render } from "@/test-utils/render";
 import ExecutionTab from "../ExecutionTab";
 
@@ -14,7 +15,9 @@ vi.mock("../../../http/axiosAgentConfig", () => ({
 }));
 
 vi.mock("../chat/ChatInterface", () => ({
-  default: () => <div>ChatInterface</div>,
+  default: ({ runId }: { runId: string }) => (
+    <div data-testid="chat-interface">ChatInterface {runId}</div>
+  ),
 }));
 
 vi.mock("../ExecutionStream", () => ({
@@ -96,6 +99,88 @@ describe("ExecutionTab", () => {
     axiosMock.post.mockReset();
     axiosMock.delete.mockReset();
     axiosMock.get.mockResolvedValue({ data: [] });
+  });
+
+  it("selects the newest session by default", async () => {
+    axiosMock.get.mockResolvedValueOnce({
+      data: [
+        {
+          session_id: "session-old",
+          blueprint_id: "bp-old",
+          started_at: "2024-01-01T00:00:00.000Z",
+          blueprint_exists: true,
+          metadata: { title: "Old Session" },
+        },
+        {
+          session_id: "session-new",
+          blueprint_id: "bp-new",
+          started_at: "2024-02-01T00:00:00.000Z",
+          blueprint_exists: true,
+          metadata: { title: "New Session" },
+        },
+      ],
+    });
+
+    render(<ExecutionTab runId={null} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-interface")).toHaveTextContent(
+        "ChatInterface session-new",
+      );
+    });
+  });
+
+  it("updates active session content when switching sessions", async () => {
+    axiosMock.get.mockResolvedValueOnce({
+      data: [
+        {
+          session_id: "session-a",
+          blueprint_id: "bp-a",
+          started_at: "2024-01-01T00:00:00.000Z",
+          blueprint_exists: true,
+          metadata: { title: "Session A" },
+        },
+        {
+          session_id: "session-b",
+          blueprint_id: "bp-b",
+          started_at: "2024-02-01T00:00:00.000Z",
+          blueprint_exists: true,
+          metadata: { title: "Session B" },
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    render(<ExecutionTab runId={null} />);
+
+    expect(await screen.findByText("Session B")).toBeInTheDocument();
+    await user.click(screen.getByText("Session A"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-interface")).toHaveTextContent(
+        "ChatInterface session-a",
+      );
+    });
+  });
+
+  it("marks disabled sessions visually when blueprint is missing", async () => {
+    axiosMock.get.mockResolvedValueOnce({
+      data: [
+        {
+          session_id: "session-disabled",
+          blueprint_id: "bp-disabled",
+          started_at: "2024-02-01T00:00:00.000Z",
+          blueprint_exists: false,
+          metadata: { title: "Disabled Session" },
+        },
+      ],
+    });
+
+    render(<ExecutionTab runId={null} />);
+
+    const label = await screen.findByText("Disabled Session");
+    const row = label.closest(".opacity-50");
+    expect(row).not.toBeNull();
   });
 
   it("renders error state when sessions fail to load", async () => {

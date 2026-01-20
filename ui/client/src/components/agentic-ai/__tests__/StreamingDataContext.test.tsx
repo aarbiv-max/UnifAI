@@ -27,7 +27,7 @@ const TestConsumer = () => {
 };
 
 describe("StreamingDataContext", () => {
-  it("adds and clears streaming entries", async () => {
+  it("initializes with defaults and updates on changes", async () => {
     const user = userEvent.setup();
 
     render(
@@ -44,5 +44,17 @@ describe("StreamingDataContext", () => {
     await user.click(screen.getByRole("button", { name: "Clear" }));
     expect(screen.getByTestId("count")).toHaveTextContent("0");
   });
+
+  it("throws when used outside the provider", () => {
+    const ConsumerOutside = () => {
+      useStreamingData();
+      return <div>Outside</div>;
+    };
+
+    expect(() => render(<ConsumerOutside />)).toThrow(
+      "useStreamingData must be used within a StreamingDataProvider",
+    );
+  });
 });
+
 
