@@ -2,28 +2,51 @@ name: AI Code Review Assistant
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, reopened]
+  
+  workflow_dispatch:
+  
+  issue_comment:
+    types: [created]
 
 jobs:
   review:
+    # Run if:
+    # 1. PR opened/reopened
+    # 2. Manual trigger
+    # 3. Comment contains /run-cr
+
+    # Check if PR or if comment contains the trigger
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request && contains(github.event.comment.body, '/run-cr'))
+
     runs-on: ubuntu-latest
 
     permissions:
       pull-requests: write
       contents: read
+      issues: write
 
     steps:
+      - name: Get PR Info
+        if: github.event_name == 'issue_comment'
+        id: pr_data
+        run: |
+          # Use GitHub CLI to get the branch name for the PR
+          PR_JSON=$(gh pr view ${{ github.event.issue.number }} --json headRefName,baseRefName)
+          echo "head_ref=$(echo $PR_JSON | jq -r .headRefName)" >> $GITHUB_OUTPUT
+          echo "base_ref=$(echo $PR_JSON | jq -r .baseRefName)" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref }}
-
-      - name: Fetch base branch
-        run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
-          git branch -a
-          git log --oneline --decorate -n 5
+          # Use the fetched head_ref if it's a comment, otherwise standard PR ref
+          ref: ${{ steps.pr_data.outputs.head_ref || github.event.pull_request.head.ref }}
 
       # -------------------------
       # ✅ CodeRabbit AI Reviewer
@@ -52,8 +75,8 @@ jobs:
         id: run_review
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          GITHUB_BASE_REF: ${{ github.event.pull_request.base.ref || github.event.issue.pull_request.base.ref }}
         run: |
           python scripts/review.py $PR_NUMBER > review_output.txt
 
