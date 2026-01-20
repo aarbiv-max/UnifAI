@@ -1,14 +1,18 @@
 """
 Embedding Service Client
 
-This module provides a client for interacting with the external embedding service API.
-It replaces the internal SentenceTransformer library usage with HTTP calls to the service.
+This module provides a client for interacting with external embedding service APIs.
+It supports OpenAI-compatible embedding endpoints (like Text Embeddings Inference).
+
+This client is placed in global_utils for cross-project reusability.
 """
 
+import logging
 import requests
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
-from shared.logger import logger
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingResponse(BaseModel):
@@ -38,10 +42,18 @@ class EmbeddingServiceError(Exception):
 
 class EmbeddingServiceClient:
     """
-    Client for interacting with the external embedding service.
+    Client for interacting with external embedding services.
     
-    This client handles embedding generation by making HTTP requests to the embedding service
-    instead of using the internal SentenceTransformer library.
+    This client handles embedding generation by making HTTP requests to an
+    OpenAI-compatible embedding service API instead of using local models.
+    
+    Example:
+        client = EmbeddingServiceClient(
+            base_url="http://embedding-service:5002",
+            timeout=60,
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+        embeddings = client.generate_embeddings(["Hello world", "Test text"])
     """
     
     def __init__(
@@ -80,6 +92,7 @@ class EmbeddingServiceClient:
             List of embedding vectors (each vector is a list of floats)
         
         Raises:
+            ValueError: If texts list is empty
             EmbeddingServiceError: If the embedding generation fails
         """
         if not texts:

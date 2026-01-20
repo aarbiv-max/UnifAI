@@ -442,7 +442,7 @@ def embedding_generator():
             "model_name": config.embedding_service_model,
         })
     else:
-        return EmbeddingGeneratorFactory.create({"type": "sentence_transformer"})
+        return EmbeddingGeneratorFactory.create({"type": "local"})
 
 
 # ══════════════════════════════════════════════════════════════════════════════

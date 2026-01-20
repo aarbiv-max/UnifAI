@@ -5,7 +5,6 @@ import torch
 from typing import Dict, Any, Optional
 
 from infrastructure.embedding.sentence_transformer_embedder import SentenceTransformerEmbedding
-from infrastructure.embedding.remote_sentence_transformer_embedder import RemoteSentenceTransformerEmbedding
 from infrastructure.qdrant.qdrant_vector_repository import QdrantVectorRepository
 from infrastructure.connector.document_connector import DocumentConnector
 from infrastructure.connector.remote_document_connector import RemoteDocumentConnector
@@ -27,30 +26,37 @@ class EmbeddingGeneratorFactory:
         
         Args:
             config: Configuration for the embedding generator
-                - type: Generator type ("sentence_transformer" or "remote")
+                - type: Generator type ("local" or "remote")
                 - model_name: Model name for embedding generation
                 - batch_size: Number of items to process in a batch
-                - device: Device to use (for sentence_transformer)
-                - service_url: URL of remote service (for remote)
-                - timeout: Request timeout in seconds (for remote)
-                - embedding_dim: Dimension of embeddings (for remote)
+                - device: Device to use (for local mode)
+                - service_url: URL of remote service (for remote mode)
+                - timeout: Request timeout in seconds (for remote mode)
+                - embedding_dim: Dimension of embeddings (for remote mode)
             
         Returns:
             Initialized embedding generator
         """
-        generator_type = config.get("type", "sentence_transformer")
+        generator_type = config.get("type", "local")
         
-        if generator_type == "sentence_transformer":
+        if generator_type == "local":
+            # Local mode: use SentenceTransformer model directly
             return SentenceTransformerEmbedding(
                 model_name=config.get("model_name", "all-MiniLM-L6-v2"),
                 batch_size=config.get("batch_size", 32),
                 device=config.get("device", device)
             )
         elif generator_type == "remote":
-            return RemoteSentenceTransformerEmbedding(
-                service_url=config.get("service_url"),
+            # Remote mode: create client and inject into embedder
+            from global_utils.clients import EmbeddingServiceClient
+            
+            client = EmbeddingServiceClient(
+                base_url=config.get("service_url"),
                 timeout=config.get("timeout"),
                 model_name=config.get("model_name", "sentence-transformers/all-MiniLM-L6-v2"),
+            )
+            return SentenceTransformerEmbedding(
+                service_client=client,
                 batch_size=config.get("batch_size", 32),
                 embedding_dim=config.get("embedding_dim", 384),
             )
