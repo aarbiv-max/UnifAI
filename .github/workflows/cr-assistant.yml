@@ -31,11 +31,11 @@ jobs:
 
     steps:
       - name: Get PR Info
-        if: github.event_name == 'issue_comment'
+        if: github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment'
         id: pr_data
         run: |
-          # Use GitHub CLI to get the branch name for the PR
-          PR_JSON=$(gh pr view ${{ github.event.issue.number }} --json headRefName,baseRefName)
+          # Add --repo ${{ github.repository }} so gh knows where to look without a .git folder
+          PR_JSON=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json headRefName,baseRefName)
           echo "head_ref=$(echo $PR_JSON | jq -r .headRefName)" >> $GITHUB_OUTPUT
           echo "base_ref=$(echo $PR_JSON | jq -r .baseRefName)" >> $GITHUB_OUTPUT
         env:
