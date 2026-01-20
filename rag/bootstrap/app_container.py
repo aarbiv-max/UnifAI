@@ -613,9 +613,6 @@ def clear_all_caches():
     slack_event_dispatch_service.cache_clear()
     # Embedding
     embedding_generator.cache_clear()
-    # Reset remote adapter singletons (they use class-level singleton pattern)
-    from infrastructure.embedding.remote_embedding_generator import RemoteEmbeddingGenerator
-    RemoteEmbeddingGenerator.reset_instance()
     # Retrieval
     source_filter_resolver.cache_clear()
     retrieval_service.cache_clear()

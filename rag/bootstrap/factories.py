@@ -5,7 +5,7 @@ import torch
 from typing import Dict, Any, Optional
 
 from infrastructure.embedding.sentence_transformer_embedder import SentenceTransformerEmbedding
-from infrastructure.embedding.remote_embedding_generator import RemoteEmbeddingGenerator
+from infrastructure.embedding.remote_sentence_transformer_embedder import RemoteSentenceTransformerEmbedding
 from infrastructure.qdrant.qdrant_vector_repository import QdrantVectorRepository
 from infrastructure.connector.document_connector import DocumentConnector
 from infrastructure.connector.remote_document_connector import RemoteDocumentConnector
@@ -47,7 +47,7 @@ class EmbeddingGeneratorFactory:
                 device=config.get("device", device)
             )
         elif generator_type == "remote":
-            return RemoteEmbeddingGenerator(
+            return RemoteSentenceTransformerEmbedding(
                 service_url=config.get("service_url"),
                 timeout=config.get("timeout"),
                 model_name=config.get("model_name", "sentence-transformers/all-MiniLM-L6-v2"),

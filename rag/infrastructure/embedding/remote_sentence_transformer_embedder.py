@@ -1,5 +1,5 @@
 """
-Remote Embedding Generator
+Remote Sentence Transformer Embedder
 
 This module provides an embedding generator that uses the external embedding service
 instead of loading models locally.
@@ -13,7 +13,7 @@ from shared.logger import logger
 import numpy as np
 
 
-class RemoteEmbeddingGenerator(EmbeddingGenerator):
+class RemoteSentenceTransformerEmbedding(EmbeddingGenerator):
     """
     Embedding generator using the external embedding service.
     
@@ -21,21 +21,6 @@ class RemoteEmbeddingGenerator(EmbeddingGenerator):
     by making HTTP requests to the embedding service instead of loading
     models locally.
     """
-
-    _instance = None
-
-    def __new__(
-        cls, 
-        service_url: Optional[str] = None, 
-        timeout: Optional[int] = None, 
-        model_name: Optional[str] = None, 
-        batch_size: int = 32, 
-        embedding_dim: Optional[int] = None
-    ):
-        if cls._instance is None:
-            cls._instance = super(RemoteEmbeddingGenerator, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
 
     def __init__(
         self, 
@@ -55,11 +40,8 @@ class RemoteEmbeddingGenerator(EmbeddingGenerator):
             batch_size: Number of chunks to process in a single batch
             embedding_dim: Dimension of the generated embeddings (model specific, default: 384 for all-MiniLM-L6-v2)
         """
-        if self._initialized:
-            return
-
         if service_url is None:
-            raise ValueError("service_url is required for RemoteEmbeddingGenerator")
+            raise ValueError("service_url is required for RemoteSentenceTransformerEmbedding")
         
         self._service_client = EmbeddingServiceClient(
             base_url=service_url,
@@ -73,10 +55,9 @@ class RemoteEmbeddingGenerator(EmbeddingGenerator):
         super().__init__(batch_size, embedding_dim)
         
         logger.info(
-            f"RemoteEmbeddingGenerator initialized with dimension: {embedding_dim}, "
+            f"RemoteSentenceTransformerEmbedding initialized with dimension: {embedding_dim}, "
             f"batch_size: {batch_size}, service: {service_url}"
         )
-        self._initialized = True
 
     def generate_embeddings(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -151,9 +132,3 @@ class RemoteEmbeddingGenerator(EmbeddingGenerator):
             logger.error(f"Error generating query embedding: {str(e)}")
             raise ValueError(f"Failed to generate query embedding: {str(e)}")
     
-    @classmethod
-    def reset_instance(cls):
-        """
-        Reset the singleton instance. Useful for testing.
-        """
-        cls._instance = None

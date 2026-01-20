@@ -1,3 +1,10 @@
+"""
+Sentence Transformer Embedder
+
+This module provides an embedding generator that uses the local SentenceTransformers
+library to generate embeddings.
+"""
+
 import time
 from typing import Dict, List, Any, Optional
 from domain.vector.embedder import EmbeddingGenerator
@@ -7,19 +14,11 @@ from sentence_transformers import SentenceTransformer
 
 class SentenceTransformerEmbedding(EmbeddingGenerator):
     """
-    Singleton embedding generator using the SentenceTransformers library.
+    Embedding generator using the SentenceTransformers library.
     
     Implements efficient, high-quality embeddings for text chunks
     using state-of-the-art transformer models.
     """
-
-    _instance = None
-
-    def __new__(cls, model_name: str = "all-MiniLM-L6-v2", batch_size: int = 32, device: Optional[str] = None):
-        if cls._instance is None:
-            cls._instance = super(SentenceTransformerEmbedding, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
 
     def __init__(
         self, 
@@ -35,22 +34,16 @@ class SentenceTransformerEmbedding(EmbeddingGenerator):
             batch_size: Number of chunks to process in a single batch
             device: Device to run the model on (e.g., "cpu", "cuda"). None for auto.
         """
-        if self._initialized:
-            return
-
         self.model_name = model_name
         self.device = device
         
-        # Initialize the model
         logger.info(f"Loading SentenceTransformer model: {model_name}")
         self.model = SentenceTransformer(model_name, device=device)
         
-        # Set embedding dimension based on the loaded model
         embedding_dim = self.model.get_sentence_embedding_dimension()
         super().__init__(batch_size, embedding_dim)
 
         logger.info(f"Initialized embedding generator with dimension: {embedding_dim}")
-        self._initialized = True
 
     def generate_embeddings(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
