@@ -94,7 +94,8 @@ class DoclingServiceClient:
         client = DoclingServiceClient(
             base_url="http://docling-service:5001",
             timeout=300,
-            image_export_mode="placeholder"
+            image_export_mode="placeholder",
+            pdf_backend="pypdfium2"
         )
         result = client.convert_file("/path/to/document.pdf")
     """
@@ -103,7 +104,8 @@ class DoclingServiceClient:
         self, 
         base_url: str,
         timeout: Optional[int] = None, 
-        image_export_mode: Optional[str] = None
+        image_export_mode: Optional[str] = None,
+        pdf_backend: Optional[str] = None
     ):
         """
         Initialize the docling service client.
@@ -113,13 +115,16 @@ class DoclingServiceClient:
             timeout: Request timeout in seconds. Defaults to 300.
             image_export_mode: Default mode for image export. "placeholder" excludes images from conversion.
                               Can be overridden per request. Defaults to None (service default behavior).
+            pdf_backend: PDF parsing backend (e.g., "pypdfium2"). Defaults to None (service default).
         """
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout if timeout is not None else 300
         self.image_export_mode = image_export_mode
+        self.pdf_backend = pdf_backend
         logger.info(
             f"DoclingServiceClient initialized with base URL: {self.base_url}, "
-            f"timeout: {self.timeout}s, image_export_mode: {self.image_export_mode}"
+            f"timeout: {self.timeout}s, image_export_mode: {self.image_export_mode}, "
+            f"pdf_backend: {self.pdf_backend}"
         )
     
     def convert_file(
@@ -162,6 +167,9 @@ class DoclingServiceClient:
                 
                 if self.image_export_mode:
                     form_data.append(('image_export_mode', self.image_export_mode))
+                
+                if self.pdf_backend:
+                    form_data.append(('pdf_backend', self.pdf_backend))
                 
                 response = requests.post(
                     url,
@@ -232,6 +240,9 @@ class DoclingServiceClient:
             
             if self.image_export_mode:
                 payload["image_export_mode"] = self.image_export_mode
+            
+            if self.pdf_backend:
+                payload["pdf_backend"] = self.pdf_backend
             
             response = requests.post(
                 url,

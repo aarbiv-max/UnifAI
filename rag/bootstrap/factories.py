@@ -91,11 +91,11 @@ class DocumentConnectorFactory:
             # Remote mode: create client and inject into connector
             from global_utils.clients import DoclingServiceClient
             
-            image_export_mode = config_manager.get_config_value("image_export_mode")
             client = DoclingServiceClient(
                 base_url=config.get("service_url"),
                 timeout=config.get("timeout"),
-                image_export_mode=image_export_mode,
+                image_export_mode="placeholder",
+                pdf_backend="pypdfium2",
             )
             return DocumentConnector(
                 config_manager=config_manager,
