@@ -1,16 +1,20 @@
 """
 Docling Service Client
 
-This module provides a client for interacting with the external docling service API.
-It replaces the internal docling library usage with HTTP calls to the service.
+This module provides a client for interacting with external docling service APIs.
+It handles document conversion by making HTTP requests to the service.
+
+This client is placed in global_utils for cross-project reusability.
 """
 
+import logging
 import os
 import requests
 from typing import Dict, Any, Optional, List
 from pydantic import AliasChoices, AliasPath, BaseModel, Field
-from shared.logger import logger
 from global_utils.validators import CoercedStr
+
+logger = logging.getLogger(__name__)
 
 
 class DoclingProcessingError(Exception):
@@ -81,10 +85,18 @@ class DoclingResponse(BaseModel):
 
 class DoclingServiceClient:
     """
-    Client for interacting with the external docling service.
+    Client for interacting with external docling services.
     
-    This client handles document conversion by making HTTP requests to the docling service
-    instead of using the internal docling library.
+    This client handles document conversion by making HTTP requests to a
+    docling-compatible service API instead of using local docling library.
+    
+    Example:
+        client = DoclingServiceClient(
+            base_url="http://docling-service:5001",
+            timeout=300,
+            image_export_mode="placeholder"
+        )
+        result = client.convert_file("/path/to/document.pdf")
     """
     
     def __init__(

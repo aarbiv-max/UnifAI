@@ -7,7 +7,6 @@ from typing import Dict, Any, Optional
 from infrastructure.embedding.sentence_transformer_embedder import SentenceTransformerEmbedding
 from infrastructure.qdrant.qdrant_vector_repository import QdrantVectorRepository
 from infrastructure.connector.document_connector import DocumentConnector
-from infrastructure.connector.remote_document_connector import RemoteDocumentConnector
 from infrastructure.config.doc_config_manager import DocConfigManager
 from domain.vector.embedder import EmbeddingGenerator
 from domain.vector.repository import VectorRepository
@@ -76,8 +75,8 @@ class DocumentConnectorFactory:
             config: Configuration for the document connector
                 - type: Connector type ("local" or "remote")
                 - config_manager: Optional DocConfigManager instance
-                - service_url: URL of remote service (for remote)
-                - timeout: Request timeout in seconds (for remote)
+                - service_url: URL of remote service (for remote mode)
+                - timeout: Request timeout in seconds (for remote mode)
             
         Returns:
             Initialized document connector
@@ -86,12 +85,21 @@ class DocumentConnectorFactory:
         config_manager = config.get("config_manager") or DocConfigManager()
         
         if connector_type == "local":
+            # Local mode: use docling library directly
             return DocumentConnector(config_manager=config_manager)
         elif connector_type == "remote":
-            return RemoteDocumentConnector(
-                config_manager=config_manager,
-                service_url=config.get("service_url"),
+            # Remote mode: create client and inject into connector
+            from global_utils.clients import DoclingServiceClient
+            
+            image_export_mode = config_manager.get_config_value("image_export_mode")
+            client = DoclingServiceClient(
+                base_url=config.get("service_url"),
                 timeout=config.get("timeout"),
+                image_export_mode=image_export_mode,
+            )
+            return DocumentConnector(
+                config_manager=config_manager,
+                service_client=client,
             )
         else:
             raise ValueError(f"Unknown document connector type: {connector_type}")
