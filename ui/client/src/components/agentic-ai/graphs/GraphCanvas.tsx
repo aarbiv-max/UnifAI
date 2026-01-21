@@ -67,6 +67,27 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
 }) => {
   const [showYamlDebug, setShowYamlDebug] = useState(false);
 
+  const parallelOffsets = new Map<string, number>();
+  const parallelTotals = new Map<string, number>();
+  const groupedEdges = new Map<string, Edge[]>();
+
+  edges.forEach((edge) => {
+    const key = [edge.source, edge.target].sort().join("::");
+    const group = groupedEdges.get(key) || [];
+    group.push(edge);
+    groupedEdges.set(key, group);
+  });
+
+  groupedEdges.forEach((group) => {
+    const ordered = [...group].sort((a, b) => a.id.localeCompare(b.id));
+    const total = ordered.length;
+    ordered.forEach((edge, index) => {
+      const offset = index - (total - 1) / 2;
+      parallelOffsets.set(edge.id, offset);
+      parallelTotals.set(edge.id, total);
+    });
+  });
+
   return (
     <div className="flex-1 relative">
       <Card className="bg-background-card shadow-card border-gray-800 h-full">
@@ -108,13 +129,15 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
             <ReactFlowProvider>
               <ReactFlow
                 nodes={nodes}
-                edges={edges.map(edge => ({
+                edges={edges.map((edge) => ({
                   ...edge,
-                  type: edge.type || 'custom',
+                  type: edge.type || "custom",
                   data: {
                     ...edge.data,
                     onDelete: onDeleteEdge,
-                  }
+                    parallelOffset: parallelOffsets.get(edge.id) ?? 0,
+                    parallelTotal: parallelTotals.get(edge.id) ?? 1,
+                  },
                 }))}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}

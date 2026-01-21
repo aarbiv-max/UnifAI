@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { EdgeProps, getBezierPath } from 'reactflow';
+import { EdgeProps } from 'reactflow';
 import { X } from 'lucide-react';
 
 interface CustomEdgeProps extends EdgeProps {
@@ -20,14 +20,29 @@ const CustomEdge: React.FC<CustomEdgeProps> = ({
   data,
   onDelete,
 }) => {
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
+  const parallelOffset = Number(data?.parallelOffset ?? 0);
+  const edgeOffset = 28;
+
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const length = Math.hypot(dx, dy) || 1;
+  const normalX = -dy / length;
+  const normalY = dx / length;
+  const offsetX = normalX * parallelOffset * edgeOffset;
+  const offsetY = normalY * parallelOffset * edgeOffset;
+
+  const controlPoint1 = {
+    x: sourceX + dx * 0.25 + offsetX,
+    y: sourceY + dy * 0.25 + offsetY,
+  };
+  const controlPoint2 = {
+    x: sourceX + dx * 0.75 + offsetX,
+    y: sourceY + dy * 0.75 + offsetY,
+  };
+
+  const edgePath = `M ${sourceX},${sourceY} C ${controlPoint1.x},${controlPoint1.y} ${controlPoint2.x},${controlPoint2.y} ${targetX},${targetY}`;
+  const labelX = sourceX + dx * 0.5 + offsetX;
+  const labelY = sourceY + dy * 0.5 + offsetY;
 
   const handleDelete = (event: React.MouseEvent) => {
     event.stopPropagation();

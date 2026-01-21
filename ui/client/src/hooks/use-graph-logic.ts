@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Node,
   Edge,
@@ -131,6 +131,11 @@ export const useGraphLogic = () => {
   // Drag state to track what type of item is being dragged
   const [isDraggingCondition, setIsDraggingCondition] = useState(false);
 
+  const lastManualLayoutRef = useRef<Map<string, { x: number; y: number }>>(
+    new Map(),
+  );
+  const hasRearrangedRef = useRef(false);
+
   const { user } = useAuth();
   const USER_ID = user?.username || "default";
 
@@ -214,8 +219,53 @@ export const useGraphLogic = () => {
     };
   };
 
+  const captureLayoutSnapshot = useCallback(() => {
+    const snapshot = new Map<string, { x: number; y: number }>();
+    nodes.forEach((node) => {
+      snapshot.set(node.id, { ...node.position });
+    });
+    lastManualLayoutRef.current = snapshot;
+    hasRearrangedRef.current = true;
+  }, [nodes]);
+
+  const restoreLayoutIfRearranged = useCallback(() => {
+    if (!hasRearrangedRef.current) {
+      return;
+    }
+
+    const snapshot = lastManualLayoutRef.current;
+    hasRearrangedRef.current = false;
+
+    if (!snapshot || snapshot.size === 0) {
+      return;
+    }
+
+    setNodes((currentNodes) => {
+      const restoredNodes = currentNodes.map((node) => {
+        const restoredPosition = snapshot.get(node.id);
+        if (!restoredPosition) {
+          return node;
+        }
+        return { ...node, position: restoredPosition };
+      });
+
+      setCurrentGraph((prev) => ({
+        ...prev,
+        nodes: restoredNodes,
+        metadata: {
+          ...prev.metadata,
+          lastModified: new Date(),
+        },
+      }));
+
+      return restoredNodes;
+    });
+  }, [setCurrentGraph, setNodes]);
+
   const deleteNode = useCallback(
     (nodeId: string) => {
+      restoreLayoutIfRearranged();
+
       // Prevent deletion of required nodes
       if (nodeId === "user_input" || nodeId === "finalize") {
         toast({
@@ -285,11 +335,13 @@ export const useGraphLogic = () => {
         return updatedEdges;
       });
     },
-    [setNodes, setEdges, toast],
+    [restoreLayoutIfRearranged, setNodes, setEdges, toast],
   );
 
   const deleteEdge = useCallback(
     (edgeId: string) => {
+      restoreLayoutIfRearranged();
+
       setEdges((currentEdges) => {
         const edgeToDelete = currentEdges.find((edge) => edge.id === edgeId);
         if (!edgeToDelete) return currentEdges;
@@ -364,7 +416,7 @@ export const useGraphLogic = () => {
         return updatedEdges;
       });
     },
-    [setEdges],
+    [restoreLayoutIfRearranged, setEdges],
   );
 
   const attachConditionToNode = (nodeId: string, condition: any) => {
@@ -630,6 +682,8 @@ export const useGraphLogic = () => {
 
   const onConnect = useCallback(
     async (params: Connection) => {
+      restoreLayoutIfRearranged();
+
       // Comment out connection feasibility check for now
       // if (isConnectionFeasible(params)) {
 
@@ -723,7 +777,7 @@ export const useGraphLogic = () => {
 
       // }
     },
-    [setEdges, edges, nodes, setConditionalEdgeModal],
+    [edges, nodes, restoreLayoutIfRearranged, setConditionalEdgeModal, setEdges],
   );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -808,6 +862,8 @@ export const useGraphLogic = () => {
           return; // Exit early for condition nodes
         }
 
+        restoreLayoutIfRearranged();
+
         // Regular node creation logic for non-condition blocks
         const nodeUid = `${block.workspaceData?.name || block.label}-${block.workspaceData?.rid || block.id}-${nodeId}`;
         const newNode: Node = {
@@ -878,7 +934,16 @@ export const useGraphLogic = () => {
         }));
       }
     },
-    [nodeId, setNodes, nodes, deleteNode, allBlocksData, attachConditionToNode, toast],
+    [
+      nodeId,
+      setNodes,
+      nodes,
+      deleteNode,
+      allBlocksData,
+      attachConditionToNode,
+      toast,
+      restoreLayoutIfRearranged,
+    ],
   );
 
   const rearrangeGraph = useCallback(() => {
@@ -886,118 +951,250 @@ export const useGraphLogic = () => {
       return;
     }
 
+    captureLayoutSnapshot();
+
     const nodeIds = nodes.map((node) => node.id);
-    const predecessors = new Map<string, Set<string>>();
+    const nodeIdSet = new Set(nodeIds);
+    const currentX = new Map(nodes.map((node) => [node.id, node.position.x]));
 
-    const ensureNode = (nodeId: string) => {
-      if (!predecessors.has(nodeId)) {
-        predecessors.set(nodeId, new Set());
-      }
-    };
-
-    nodeIds.forEach(ensureNode);
-
-    const addPredecessor = (targetId: string, predecessorId: string) => {
-      if (!targetId || !predecessorId || targetId === predecessorId) {
-        return;
-      }
-      ensureNode(targetId);
-      predecessors.get(targetId)!.add(predecessorId);
-    };
-
+    const planEdges: Array<{ source: string; target: string }> = [];
     yamlFlow.plan.forEach((step) => {
-      ensureNode(step.uid);
       if (step.after) {
         const preds = Array.isArray(step.after) ? step.after : [step.after];
-        preds.forEach((predId) => addPredecessor(step.uid, predId));
+        preds.forEach((predId) => {
+          if (predId && nodeIdSet.has(predId) && nodeIdSet.has(step.uid)) {
+            planEdges.push({ source: predId, target: step.uid });
+          }
+        });
       }
 
       if (step.branches && typeof step.branches === "object") {
         Object.values(step.branches).forEach((targetId) => {
-          if (typeof targetId === "string") {
-            addPredecessor(targetId, step.uid);
+          if (
+            typeof targetId === "string" &&
+            nodeIdSet.has(step.uid) &&
+            nodeIdSet.has(targetId)
+          ) {
+            planEdges.push({ source: step.uid, target: targetId });
           }
         });
       }
     });
 
-    const levels: Record<string, number> = {};
-    const remaining = new Set(nodeIds);
+    const edgeList =
+      edges.length > 0
+        ? edges
+            .filter(
+              (edge) =>
+                nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target),
+            )
+            .map((edge) => ({ source: edge.source, target: edge.target }))
+        : planEdges;
 
-    const getMaxLevel = () =>
-      Object.keys(levels).length > 0 ? Math.max(...Object.values(levels)) : -1;
+    const outgoing = new Map<string, string[]>();
+    nodeIds.forEach((nodeId) => outgoing.set(nodeId, []));
+    edgeList.forEach((edge) => {
+      outgoing.get(edge.source)?.push(edge.target);
+    });
 
-    while (remaining.size > 0) {
-      let progressed = false;
-      for (const nodeId of Array.from(remaining)) {
-        const preds = Array.from(predecessors.get(nodeId) || []);
-        const allAssigned = preds.every((predId) => levels[predId] !== undefined);
-        if (preds.length === 0 || allAssigned) {
-          const level = preds.length
-            ? Math.max(...preds.map((predId) => levels[predId])) + 1
-            : 0;
-          levels[nodeId] = level;
-          remaining.delete(nodeId);
-          progressed = true;
+    const reversed = new Set<string>();
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+
+    const markReversed = (source: string, target: string) => {
+      reversed.add(`${source}::${target}`);
+    };
+
+    const dfs = (nodeId: string) => {
+      visiting.add(nodeId);
+      const targets = outgoing.get(nodeId) || [];
+      targets.forEach((targetId) => {
+        if (!nodeIdSet.has(targetId)) {
+          return;
         }
+        if (!visited.has(targetId)) {
+          if (visiting.has(targetId)) {
+            markReversed(nodeId, targetId);
+          } else {
+            dfs(targetId);
+          }
+        }
+      });
+      visiting.delete(nodeId);
+      visited.add(nodeId);
+    };
+
+    nodeIds.forEach((nodeId) => {
+      if (!visited.has(nodeId)) {
+        dfs(nodeId);
+      }
+    });
+
+    const layoutEdges: Array<{ source: string; target: string }> = edgeList.map(
+      (edge) => {
+        if (reversed.has(`${edge.source}::${edge.target}`)) {
+          return { source: edge.target, target: edge.source };
+        }
+        return edge;
+      },
+    );
+
+    const predecessors = new Map<string, Set<string>>();
+    const successors = new Map<string, Set<string>>();
+    const undirected = new Map<string, Set<string>>();
+    nodeIds.forEach((nodeId) => {
+      predecessors.set(nodeId, new Set());
+      successors.set(nodeId, new Set());
+      undirected.set(nodeId, new Set());
+    });
+    layoutEdges.forEach((edge) => {
+      predecessors.get(edge.target)?.add(edge.source);
+      successors.get(edge.source)?.add(edge.target);
+      undirected.get(edge.source)?.add(edge.target);
+      undirected.get(edge.target)?.add(edge.source);
+    });
+
+    const levels: Record<string, number> = {};
+    const assigned = new Set<string>();
+
+    const assignComponentLevels = (startId: string, baseLevel: number) => {
+      const queue: Array<{ id: string; level: number }> = [
+        { id: startId, level: baseLevel },
+      ];
+      assigned.add(startId);
+      levels[startId] = baseLevel;
+
+      while (queue.length > 0) {
+        const { id, level } = queue.shift()!;
+        const neighbors = undirected.get(id) || new Set();
+        neighbors.forEach((neighborId) => {
+          if (!assigned.has(neighborId)) {
+            assigned.add(neighborId);
+            levels[neighborId] = level + 1;
+            queue.push({ id: neighborId, level: level + 1 });
+          }
+        });
+      }
+    };
+
+    const userInputId = "user_input";
+    const finalizeId = "finalize";
+
+    if (nodeIdSet.has(userInputId)) {
+      assignComponentLevels(userInputId, 0);
+    }
+
+    const remaining = nodeIds.filter((nodeId) => !assigned.has(nodeId));
+    remaining.forEach((nodeId) => {
+      if (!assigned.has(nodeId)) {
+        assignComponentLevels(nodeId, 1);
+      }
+    });
+
+    if (nodeIdSet.has(userInputId)) {
+      levels[userInputId] = 0;
+      Object.keys(levels).forEach((nodeId) => {
+        if (nodeId !== userInputId && levels[nodeId] === 0) {
+          levels[nodeId] = 1;
+        }
+      });
+    }
+
+    if (nodeIdSet.has(finalizeId)) {
+      const nonFinalizeLevels = Object.entries(levels)
+        .filter(([nodeId]) => nodeId !== finalizeId)
+        .map(([, level]) => level);
+      const maxNonFinalize =
+        nonFinalizeLevels.length > 0 ? Math.max(...nonFinalizeLevels) : 0;
+      levels[finalizeId] = maxNonFinalize + 1;
+    }
+
+    const nodesByLevel = new Map<number, string[]>();
+    nodeIds.forEach((nodeId) => {
+      const level = levels[nodeId] ?? 0;
+      if (!nodesByLevel.has(level)) {
+        nodesByLevel.set(level, []);
+      }
+      nodesByLevel.get(level)!.push(nodeId);
+    });
+
+    const sortedLevels = Array.from(nodesByLevel.keys()).sort((a, b) => a - b);
+    const orderedByLevel = new Map<number, string[]>();
+    sortedLevels.forEach((level) => {
+      orderedByLevel.set(
+        level,
+        nodesByLevel
+          .get(level)!
+          .slice()
+          .sort(
+            (a, b) => (currentX.get(a) ?? 0) - (currentX.get(b) ?? 0),
+          ),
+      );
+    });
+
+    const reorderLevel = (
+      level: number,
+      neighborLevel: number,
+      getNeighbors: (nodeId: string) => string[],
+    ) => {
+      const ids = orderedByLevel.get(level);
+      const neighborIds = orderedByLevel.get(neighborLevel);
+      if (!ids || !neighborIds || neighborIds.length === 0) {
+        return;
       }
 
-      if (!progressed) {
-        const fallbackLevel = getMaxLevel() + 1;
-        remaining.forEach((nodeId) => {
-          levels[nodeId] = fallbackLevel;
-        });
-        remaining.clear();
+      const neighborIndex = new Map<string, number>();
+      neighborIds.forEach((id, index) => {
+        neighborIndex.set(id, index);
+      });
+
+      const withBary = ids.map((nodeId, index) => {
+        const neighbors = getNeighbors(nodeId).filter((id) =>
+          neighborIndex.has(id),
+        );
+        if (neighbors.length === 0) {
+          return { nodeId, bary: index };
+        }
+        const sum = neighbors.reduce(
+          (total, id) => total + (neighborIndex.get(id) ?? 0),
+          0,
+        );
+        return { nodeId, bary: sum / neighbors.length };
+      });
+
+      withBary.sort((a, b) => a.bary - b.bary);
+      orderedByLevel.set(
+        level,
+        withBary.map((entry) => entry.nodeId),
+      );
+    };
+
+    for (let sweep = 0; sweep < 4; sweep += 1) {
+      for (let i = 1; i < sortedLevels.length; i += 1) {
+        const level = sortedLevels[i];
+        const prevLevel = sortedLevels[i - 1];
+        reorderLevel(level, prevLevel, (nodeId) =>
+          Array.from(predecessors.get(nodeId) || []),
+        );
+      }
+      for (let i = sortedLevels.length - 2; i >= 0; i -= 1) {
+        const level = sortedLevels[i];
+        const nextLevel = sortedLevels[i + 1];
+        reorderLevel(level, nextLevel, (nodeId) =>
+          Array.from(successors.get(nodeId) || []),
+        );
       }
     }
 
-    const nodesByLevel: Record<number, string[]> = {};
-    nodeIds.forEach((nodeId) => {
-      const level = levels[nodeId] ?? 0;
-      if (!nodesByLevel[level]) {
-        nodesByLevel[level] = [];
-      }
-      nodesByLevel[level].push(nodeId);
-    });
-
-    const currentX = new Map(nodes.map((node) => [node.id, node.position.x]));
     const averageX =
       nodes.reduce((sum, node) => sum + node.position.x, 0) / nodes.length;
-
-    const barycenter = (nodeId: string) => {
-      const preds = Array.from(predecessors.get(nodeId) || []);
-      if (preds.length === 0) {
-        return currentX.get(nodeId) ?? 0;
-      }
-      const total = preds.reduce(
-        (sum, predId) => sum + (currentX.get(predId) ?? 0),
-        0,
-      );
-      return total / preds.length;
-    };
-
-    const sortedLevels = Object.keys(nodesByLevel)
-      .map((level) => Number(level))
-      .sort((a, b) => a - b);
-
-    const orderedByLevel: Record<number, string[]> = {};
-    sortedLevels.forEach((level) => {
-      orderedByLevel[level] = [...nodesByLevel[level]].sort((a, b) => {
-        const diff = barycenter(a) - barycenter(b);
-        if (diff !== 0) {
-          return diff;
-        }
-        return (currentX.get(a) ?? 0) - (currentX.get(b) ?? 0);
-      });
-    });
-
     const levelGapY = 180;
     const nodeGapX = 280;
     const startY = 100;
     const newPositions = new Map<string, { x: number; y: number }>();
 
     sortedLevels.forEach((level) => {
-      const ids = orderedByLevel[level];
+      const ids = orderedByLevel.get(level) || [];
       const width = (ids.length - 1) * nodeGapX;
       const startX = averageX - width / 2;
       ids.forEach((nodeId, index) => {
@@ -1025,10 +1222,24 @@ export const useGraphLogic = () => {
 
       return updatedNodes;
     });
-  }, [nodes, setNodes, setCurrentGraph, yamlFlow.plan]);
+  }, [
+    captureLayoutSnapshot,
+    edges,
+    nodes,
+    setNodes,
+    setCurrentGraph,
+    yamlFlow.plan,
+  ]);
 
   const handleNodesChange = useCallback(
     (changes: any[]) => {
+      const hasStructuralChange = changes.some(
+        (change) => change.type === "add" || change.type === "remove",
+      );
+      if (hasStructuralChange) {
+        restoreLayoutIfRearranged();
+      }
+
       onNodesChange(changes);
 
       const selected = nodes
@@ -1036,11 +1247,18 @@ export const useGraphLogic = () => {
         .map((node) => node.id);
       setSelectedNodes(selected);
     },
-    [onNodesChange, nodes],
+    [onNodesChange, nodes, restoreLayoutIfRearranged],
   );
 
   const handleEdgesChange = useCallback(
     (changes: any[]) => {
+      const hasStructuralChange = changes.some(
+        (change) => change.type === "add" || change.type === "remove",
+      );
+      if (hasStructuralChange) {
+        restoreLayoutIfRearranged();
+      }
+
       onEdgesChange(changes);
 
       const selected = edges
@@ -1048,7 +1266,7 @@ export const useGraphLogic = () => {
         .map((edge) => edge.id);
       setSelectedEdges(selected);
     },
-    [onEdgesChange, edges],
+    [onEdgesChange, edges, restoreLayoutIfRearranged],
   );
 
   const onDragStart = (event: React.DragEvent, block: BuildingBlock) => {
@@ -1221,6 +1439,8 @@ export const useGraphLogic = () => {
 
 
   const createConditionalEdge = (params: Connection, branchConfig: any) => {
+    restoreLayoutIfRearranged();
+
     const edgeStyle = {
       strokeDasharray: "5,5",
       stroke: "#10b981",
