@@ -146,8 +146,8 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                           key={condition.id}
                           className={`transition-colors ${
                             isUsed
-                              ? 'bg-orange-950 border-orange-800 opacity-50 cursor-not-allowed'
-                              : 'bg-orange-900 border-orange-700 hover:border-orange-600 cursor-grab active:cursor-grabbing'
+                              ? 'bg-primary/10 border-primary/20 opacity-50 cursor-not-allowed'
+                              : 'bg-primary/15 border-primary/30 hover:border-primary/40 cursor-grab active:cursor-grabbing'
                           }`}
                           draggable={!isUsed}
                           onDragStart={(event) => handleDragStart(event, condition)}
@@ -155,7 +155,7 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                         <CardContent className="p-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 flex-1">
-                              <div className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold text-white bg-orange-600">
+                              <div className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold text-white bg-primary">
                                 {getCategoryDisplay("conditions").icon}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -164,7 +164,7 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                                     {condition.label}
                                   </h4>
                                   {isUsed && (
-                                    <span className="text-xs bg-orange-800 text-orange-300 px-1.5 py-0.5 rounded">
+                                    <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">
                                       Used
                                     </span>
                                   )}

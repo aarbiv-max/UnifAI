@@ -1,14 +1,13 @@
 import React from 'react';
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, Save, ArrowLeft, Shuffle } from 'lucide-react';
+import { Trash2, Save, ArrowLeft } from 'lucide-react';
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
 
 interface GraphHeaderProps {
   onClearGraph: () => void;
   onSaveGraph: () => void;
-  onRearrangeGraph: () => void;
   onBack?: () => void;
   isGraphValid?: boolean;
 }
@@ -16,7 +15,6 @@ interface GraphHeaderProps {
 const GraphHeader: React.FC<GraphHeaderProps> = ({
   onClearGraph,
   onSaveGraph,
-  onRearrangeGraph,
   onBack,
   isGraphValid = false,
 }) => {
@@ -40,17 +38,6 @@ const GraphHeader: React.FC<GraphHeaderProps> = ({
           <CardTitle className="text-lg font-heading">Workflow Canvas</CardTitle>
         </div>
         <div className="flex gap-2">
-          <UmamiTrack event={UmamiEvents.AGENT_GRAPHS_REARRANGE_BUTTON} includeUserData={false}>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRearrangeGraph}
-              className="flex items-center gap-2"
-            >
-              <Shuffle className="w-4 h-4" />
-              Rearrange Graph
-            </Button>
-          </UmamiTrack>
           <UmamiTrack event={UmamiEvents.AGENT_GRAPHS_CLEAR_BUTTON} includeUserData={false}>
             <Button
               variant="outline"

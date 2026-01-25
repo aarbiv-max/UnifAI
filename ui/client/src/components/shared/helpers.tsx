@@ -20,14 +20,15 @@ export interface CategoryDisplay {
 }
 
 export const getCategoryDisplay = (category: string): CategoryDisplay => {
+  const primary = "hsl(var(--primary))";
   const categoryMap: { [key: string]: CategoryDisplay } = {
-    llms: { icon: <Brain className="w-4 h-4" />, color: "#8A2BE2" },
-    tools: { icon: <Wrench className="w-4 h-4" />, color: "#00B0FF" },
-    nodes: { icon: <Circle className="w-4 h-4" />, color: "#FFB300" },
-    providers: { icon: <Server className="w-4 h-4" />, color: "#FF5722" },
-    retrievers: { icon: <Search className="w-4 h-4" />, color: "#4CAF50" },
-    conditions: { icon: <GitBranch className="w-4 h-4" />, color: "#9C27B0" },
-    default: { icon: <Box className="w-4 h-4" />, color: "#607D8B" },
+    llms: { icon: <Brain className="w-4 h-4" />, color: primary },
+    tools: { icon: <Wrench className="w-4 h-4" />, color: "hsl(var(--primary) / 0.85)" },
+    nodes: { icon: <Circle className="w-4 h-4" />, color: "hsl(var(--primary) / 0.95)" },
+    providers: { icon: <Server className="w-4 h-4" />, color: "hsl(var(--primary) / 0.75)" },
+    retrievers: { icon: <Search className="w-4 h-4" />, color: "hsl(var(--primary) / 0.8)" },
+    conditions: { icon: <GitBranch className="w-4 h-4" />, color: "hsl(var(--primary) / 0.7)" },
+    default: { icon: <Box className="w-4 h-4" />, color: "hsl(var(--primary) / 0.6)" },
   };
   return categoryMap[category] || categoryMap.default;
 };

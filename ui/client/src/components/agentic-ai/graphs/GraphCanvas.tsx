@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ReactFlowProvider,
   ReactFlow,
@@ -17,8 +17,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import CustomNode from "./CustomNode";
 import CustomEdge from "./CustomEdge";
+import RoutedEdge from "./RoutedEdge";
 import GraphHeader from "./GraphHeader";
-import * as yaml from 'js-yaml';
+import * as yaml from "js-yaml";
+import { useTheme } from "@/contexts/ThemeContext";
+import { buildSmartEdges, DEFAULT_EDGE_WIDTH } from "./graphRouting";
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
@@ -26,6 +29,7 @@ const nodeTypes: NodeTypes = {
 
 const edgeTypes: EdgeTypes = {
   custom: CustomEdge,
+  routed: RoutedEdge,
 };
 
 interface GraphCanvasProps {
@@ -39,7 +43,6 @@ interface GraphCanvasProps {
   onDragOver: (event: React.DragEvent) => void;
   onClearGraph: () => void;
   onSaveGraph: () => void;
-  onRearrangeGraph: () => void;
   onDeleteEdge?: (edgeId: string) => void;
   onBack?: () => void;
   onAttachCondition?: (nodeId: string, condition: any) => void;
@@ -58,7 +61,6 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   onDragOver,
   onClearGraph,
   onSaveGraph,
-  onRearrangeGraph,
   onDeleteEdge,
   onBack,
   onAttachCondition,
@@ -66,6 +68,8 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   isGraphValid = false,
 }) => {
   const [showYamlDebug, setShowYamlDebug] = useState(false);
+  const { primaryHex } = useTheme();
+  const resolvedPrimary = primaryHex || "#7C3AED";
 
   const parallelOffsets = new Map<string, number>();
   const parallelTotals = new Map<string, number>();
@@ -88,13 +92,17 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
     });
   });
 
+  const smartEdges = useMemo(
+    () => buildSmartEdges(nodes, edges, resolvedPrimary),
+    [nodes, edges, resolvedPrimary],
+  );
+
   return (
     <div className="flex-1 relative">
       <Card className="bg-background-card shadow-card border-gray-800 h-full">
         <GraphHeader
           onClearGraph={onClearGraph}
           onSaveGraph={onSaveGraph}
-          onRearrangeGraph={onRearrangeGraph}
           onBack={onBack}
           isGraphValid={isGraphValid}
         />
@@ -103,7 +111,9 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
           {showYamlDebug && yamlFlow && (
             <div className="absolute top-4 right-4 z-50 bg-gray-900 border border-gray-700 rounded-lg p-4 max-w-md max-h-96 overflow-auto">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-sm font-medium text-white">YAML Flow State</h3>
+                <h3 className="text-sm font-medium text-white">
+                  YAML Flow State
+                </h3>
                 <button
                   onClick={() => setShowYamlDebug(false)}
                   className="text-gray-400 hover:text-white"
@@ -122,14 +132,14 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
             onClick={() => setShowYamlDebug(!showYamlDebug)}
             className="absolute top-4 right-4 z-40 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1 text-xs rounded border border-gray-600"
           >
-            {showYamlDebug ? 'Hide' : 'Show'} YAML
+            {showYamlDebug ? "Hide" : "Show"} YAML
           </button>
 
           <div className="h-full" style={{ height: "calc(100vh - 180px)" }}>
             <ReactFlowProvider>
               <ReactFlow
                 nodes={nodes}
-                edges={edges.map((edge) => ({
+                edges={smartEdges.map((edge) => ({
                   ...edge,
                   type: edge.type || "custom",
                   data: {
@@ -152,12 +162,15 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
                 defaultEdgeOptions={{
                   type: "custom",
                   animated: true,
-                  style: { stroke: "#8A2BE2", strokeWidth: 2 },
+                  style: {
+                    stroke: resolvedPrimary,
+                    strokeWidth: DEFAULT_EDGE_WIDTH,
+                  },
                   markerEnd: {
                     type: MarkerType.ArrowClosed,
                     width: 20,
                     height: 20,
-                    color: "#8A2BE2",
+                    color: resolvedPrimary,
                   },
                 }}
               >
