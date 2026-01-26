@@ -12,6 +12,84 @@ type NodeBox = {
 };
 type Anchor = "auto" | "top" | "bottom";
 
+type HeapItem = { key: string; score: number };
+
+// Min-heap for to avoid scanning the full open set each step.
+// This reduces pathfinding from O(n^2) to O(n log n) in practice.
+// We keep it local and minimal to avoid new dependencies.
+class MinHeap {
+  private items: HeapItem[] = [];
+
+  get size() {
+    return this.items.length;
+  }
+
+  push(item: HeapItem) {
+    this.items.push(item);
+    this.bubbleUp(this.items.length - 1);
+  }
+
+  pop(): HeapItem | undefined {
+    if (this.items.length === 0) return undefined;
+    const top = this.items[0];
+    const last = this.items.pop();
+    if (this.items.length > 0 && last) {
+      this.items[0] = last;
+      this.bubbleDown(0);
+    }
+    return top;
+  }
+
+  private bubbleUp(index: number) {
+    let currentIndex = index;
+    while (currentIndex > 0) {
+      const parentIndex = Math.floor((currentIndex - 1) / 2);
+      if (this.items[parentIndex].score <= this.items[currentIndex].score) {
+        break;
+      }
+      [this.items[parentIndex], this.items[currentIndex]] = [
+        this.items[currentIndex],
+        this.items[parentIndex],
+      ];
+      currentIndex = parentIndex;
+    }
+  }
+
+  private bubbleDown(index: number) {
+    let currentIndex = index;
+    const length = this.items.length;
+    while (true) {
+      const leftIndex = currentIndex * 2 + 1;
+      const rightIndex = currentIndex * 2 + 2;
+      let smallestIndex = currentIndex;
+
+      if (
+        leftIndex < length &&
+        this.items[leftIndex].score < this.items[smallestIndex].score
+      ) {
+        smallestIndex = leftIndex;
+      }
+
+      if (
+        rightIndex < length &&
+        this.items[rightIndex].score < this.items[smallestIndex].score
+      ) {
+        smallestIndex = rightIndex;
+      }
+
+      if (smallestIndex === currentIndex) {
+        break;
+      }
+
+      [this.items[currentIndex], this.items[smallestIndex]] = [
+        this.items[smallestIndex],
+        this.items[currentIndex],
+      ];
+      currentIndex = smallestIndex;
+    }
+  }
+}
+
 const GRID_SIZE = 20;
 const NODE_PADDING = 16;
 const ROUTE_MARGIN = 120;
@@ -157,6 +235,7 @@ export const buildSmartEdges = (
     const goalKey = pointKey(goalCell.gx, goalCell.gy);
 
     const openSet = new Set<string>([startKey]);
+    const openHeap = new MinHeap();
     const cameFrom = new Map<string, string>();
     const gScore = new Map<string, number>([[startKey, 0]]);
     const fScore = new Map<string, number>([
@@ -166,19 +245,7 @@ export const buildSmartEdges = (
           Math.abs(startCell.gy - goalCell.gy),
       ],
     ]);
-
-    const getLowestF = () => {
-      let lowestKey = "";
-      let lowestScore = Number.POSITIVE_INFINITY;
-      openSet.forEach((key) => {
-        const score = fScore.get(key) ?? Number.POSITIVE_INFINITY;
-        if (score < lowestScore) {
-          lowestScore = score;
-          lowestKey = key;
-        }
-      });
-      return lowestKey;
-    };
+    openHeap.push({ key: startKey, score: fScore.get(startKey) ?? 0 });
 
     const neighbors = [
       { dx: 1, dy: 0 },
@@ -195,9 +262,17 @@ export const buildSmartEdges = (
       return obstacles.has(key);
     };
 
-    while (openSet.size > 0) {
-      const currentKey = getLowestF();
-      if (!currentKey) break;
+    while (openSet.size > 0 && openHeap.size > 0) {
+      const current = openHeap.pop();
+      if (!current) break;
+      const currentKey = current.key;
+      if (!openSet.has(currentKey)) {
+        continue;
+      }
+      const currentScore = fScore.get(currentKey);
+      if (currentScore !== undefined && current.score !== currentScore) {
+        continue;
+      }
 
       if (currentKey === goalKey) {
         const path: Point[] = [];
@@ -238,8 +313,10 @@ export const buildSmartEdges = (
           const heuristic =
             Math.abs(neighborX - goalCell.gx) +
             Math.abs(neighborY - goalCell.gy);
-          fScore.set(neighborKey, tentativeG + heuristic);
+          const nextScore = tentativeG + heuristic;
+          fScore.set(neighborKey, nextScore);
           openSet.add(neighborKey);
+          openHeap.push({ key: neighborKey, score: nextScore });
         }
       });
     }

@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
-import { GraphFlow, FlowObject } from "./graphs/interfaces";
+import { FlowObject } from "./graphs/interfaces";
 import ReactFlowGraph from "./graphs/ReactFlowGraph";
 import { fetchActiveSessions } from "@/api/agentic";
 import { fetchBlueprints, fetchResolvedBlueprints, deleteBlueprint } from "@/api/blueprints";
@@ -112,9 +112,6 @@ export default function WorkflowsPanel({
       }
     } catch (error) {
       console.error("Error fetching available blueprints:", error);
-      throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -170,7 +167,7 @@ export default function WorkflowsPanel({
   const handleShareClick = (flow: FlowObject, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent flow selection when clicking share
     openShareForItem({
-      itemKind: 'blueprint',
+      itemKind: "blueprint",
       itemId: flow.id,
       itemName: flow.name,
     });
@@ -184,7 +181,9 @@ export default function WorkflowsPanel({
       await deleteBlueprint(flowToDelete.id);
       
       // Remove the deleted flow from the list
-      setGraphFlows(prevFlows => prevFlows.filter(flow => flow.id !== flowToDelete.id));
+      setGraphFlows((prevFlows) =>
+        prevFlows.filter((flow) => flow.id !== flowToDelete.id),
+      );
       
       // If the deleted flow was selected, clear the selection
       if (selectedFlow?.id === flowToDelete.id) {
@@ -199,7 +198,7 @@ export default function WorkflowsPanel({
       setShowDeleteModal(false);
       setFlowToDelete(null);
     } catch (error) {
-      console.error('Error deleting blueprint:', error);
+      console.error("Error deleting blueprint:", error);
       // Handle error (we can consider show a toast notification here)
     } finally {
       setIsDeleting(false);

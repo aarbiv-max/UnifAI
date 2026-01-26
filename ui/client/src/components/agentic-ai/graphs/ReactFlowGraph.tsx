@@ -20,9 +20,7 @@ import { motion } from "framer-motion";
 import {
   NodeData,
   GraphFlow,
-  FlowObject,
   NodeDefinition,
-  PlanItem,
 } from "./interfaces";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -496,7 +494,13 @@ const parseGraphFlow = (
 
   // Second pass: Determine node levels for all nodes except final_answer_node
   let allNodesAssigned = false;
-  while (!allNodesAssigned) {
+  const maxIterations = graphFlow.plan.length * 2;
+  let iterationCount = 0;
+  // Guard against cycles causing infinite level assignment.
+  // We cap iterations relative to plan size to keep layout responsive.
+  // Any leftover nodes are handled by a fallback in the next block.
+  while (!allNodesAssigned && iterationCount < maxIterations) {
+    iterationCount += 1;
     allNodesAssigned = true;
     graphFlow.plan.forEach((item) => {
       const nodeId = item.uid;
@@ -541,6 +545,29 @@ const parseGraphFlow = (
         nodesByLevel[level].push(nodeId);
       } else {
         allNodesAssigned = false;
+      }
+    });
+  }
+
+  // Fallback placement for nodes still unassigned after the cap.
+  // This keeps cyclic graphs renderable with deterministic positions.
+  // final_answer_node stays separate so it remains the last layer.
+  if (!allNodesAssigned) {
+    const assignedLevels = Object.values(nodeLevel);
+    const fallbackLevel =
+      assignedLevels.length > 0 ? Math.max(...assignedLevels) + 1 : 1;
+    graphFlow.plan.forEach((item) => {
+      const nodeDefinition = nodeMap[item.node];
+      const nodeType = nodeDefinition?.type || "custom_agent_node";
+      if (nodeType === "final_answer_node") {
+        return;
+      }
+      if (nodeLevel[item.uid] === undefined) {
+        nodeLevel[item.uid] = fallbackLevel;
+        if (!nodesByLevel[fallbackLevel]) {
+          nodesByLevel[fallbackLevel] = [];
+        }
+        nodesByLevel[fallbackLevel].push(item.uid);
       }
     });
   }
@@ -862,6 +889,10 @@ export default function ReactFlowGraph({
 
   const { fitView, zoomOut } = useReactFlow();
   const initializedRef = useRef(false);
+  // Track async load order to avoid stale updates.
+  // New requests bump the id; only the latest can set state.
+  // This prevents older fetches from overwriting newer selections.
+  const loadRequestIdRef = useRef(0);
   const streamingContext = isLiveRequest ? useStreamingData() : null;
   const prevNodeListRef = useRef<Map<string, any>>(new Map());
   const { user } = useAuth();
@@ -948,12 +979,16 @@ export default function ReactFlowGraph({
   }, [isLiveRequest, setNodes]);
 
   // Function to convert graph flow JSON to ReactFlow format
-  const convertGraphFlowToReactFlow = async (graphId: string) => {
+  const convertGraphFlowToReactFlow = useCallback(async (graphId: string) => {
+    const requestId = (loadRequestIdRef.current += 1);
     try {
       setIsLoading(true);
       const response = await axios.get(
         `/blueprints/available.blueprints.resolved.get?userId=${user?.username || "default"}`,
       );
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
       const blueprintObjects = response.data;
 
       // Find the specific graph flow by blueprint_id
@@ -994,9 +1029,15 @@ export default function ReactFlowGraph({
 
         // Auto-fit and zoom after loading
         setTimeout(() => {
+          if (requestId !== loadRequestIdRef.current) {
+            return;
+          }
           fitView({ padding: 0.2 });
           if (autoZoomOut) {
             setTimeout(() => {
+              if (requestId !== loadRequestIdRef.current) {
+                return;
+              }
               zoomOut();
             }, 200);
           }
@@ -1007,16 +1048,18 @@ export default function ReactFlowGraph({
     } catch (error) {
       console.error("Error loading graph flow:", error);
     } finally {
-      setIsLoading(false);
+      if (requestId === loadRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [autoZoomOut, fetchResourceById, fitView, user?.username, zoomOut, handleShowValidationDetails]);
 
   // Load graph when blueprintId changes
   useEffect(() => {
     if (blueprintId) {
       convertGraphFlowToReactFlow(blueprintId);
     }
-  }, [blueprintId]);
+  }, [blueprintId, convertGraphFlowToReactFlow]);
 
   // Auto-fit view when nodes/edges are loaded
   useEffect(() => {
