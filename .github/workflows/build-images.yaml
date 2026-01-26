@@ -89,12 +89,12 @@ jobs:
           - image_name: ui:github
             context: ./ui
             dockerfile: ./ui/deployment/Dockerfile
-          - image_name: dataflow-backend:github
-            context: ./backend
-            dockerfile: ./backend/Dockerfile
-          - image_name: multiagent-backend:github
-            context: ./multi-agent
-            dockerfile: ./multi-agent/Dockerfile
+          # - image_name: dataflow-backend:github
+          #   context: ./backend
+          #   dockerfile: ./backend/Dockerfile
+          # - image_name: multiagent-backend:github
+          #   context: ./multi-agent
+          #   dockerfile: ./multi-agent/Dockerfile
     env:
       VERSION: 'test' #${{ github.sha }}
     steps:
@@ -143,3 +143,18 @@ jobs:
           registry: ${{ vars.IMAGE_REGISTRY_URL }}
           username: ${{ vars.IMAGE_REGISTRY_USERNAME }}
           password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
+
+  analyze:
+            needs: build_images
+            if: failure()
+            runs-on: ubuntu-latest
+            permissions:
+              contents: read
+              pull-requests: write
+            steps:
+              - uses: calebevans/gha-failure-analysis@v1
+                with:
+                  llm-provider: gemini
+                  llm-model: gemini-3-pro-preview
+                  llm-api-key: ${{ secrets.GEMINI_API_KEY }}
+                  post-pr-comment: false
