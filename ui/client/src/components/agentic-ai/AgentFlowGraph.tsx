@@ -12,12 +12,25 @@ type AgentFlowGraphProps = {
   selectedFlow: FlowObject | null;
   setSelectedFlow: (flow: FlowObject | null) => void;
   onValidationChange?: (isValid: boolean, validationResult: BlueprintValidationResult | null, isValidating: boolean) => void;
+  graphProps?: {
+    showControls?: boolean;
+    showMiniMap?: boolean;
+    showBackground?: boolean;
+    interactive?: boolean;
+    isLiveRequest?: boolean;
+    useSmartEdges?: boolean;
+    autoZoomOut?: boolean;
+    showLegend?: boolean;
+    legendClassName?: string;
+    legendMarkerIdPrefix?: string;
+  };
 };
 
 export default function AgentFlowGraph({
   selectedFlow,
   setSelectedFlow,
   onValidationChange,
+  graphProps,
 }: AgentFlowGraphProps): React.ReactElement {
   
   const handleFlowSelect = (flow: FlowObject | null): void => {
@@ -29,6 +42,19 @@ export default function AgentFlowGraph({
     if (selectedFlow?.id === flow.id) {
       setSelectedFlow(null);
     }
+  };
+
+  const defaultGraphProps = {
+    showControls: true,
+    showMiniMap: false,
+    showBackground: true,
+    interactive: true,
+    isLiveRequest: false,
+    useSmartEdges: true,
+    autoZoomOut: false,
+    showLegend: true,
+    legendClassName: "absolute bottom-3 right-3 z-40",
+    legendMarkerIdPrefix: "agentic-workflows-legend",
   };
 
   return (
@@ -50,13 +76,7 @@ export default function AgentFlowGraph({
               showDeleteButton={true}
               useResolvedEndpoint={true}
               height="100%"
-              graphProps={{
-                showControls: true,
-                showMiniMap: false,
-                showBackground: true,
-                interactive: true,
-                isLiveRequest: false,
-              }}
+              graphProps={{ ...defaultGraphProps, ...(graphProps || {}) }}
             />
           </ReactFlowProvider>
         </StreamingDataProvider>
