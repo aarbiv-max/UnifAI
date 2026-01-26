@@ -889,10 +889,6 @@ export default function ReactFlowGraph({
 
   const { fitView, zoomOut } = useReactFlow();
   const initializedRef = useRef(false);
-  // Track async load order to avoid stale updates.
-  // New requests bump the id; only the latest can set state.
-  // This prevents older fetches from overwriting newer selections.
-  const loadRequestIdRef = useRef(0);
   const streamingContext = isLiveRequest ? useStreamingData() : null;
   const prevNodeListRef = useRef<Map<string, any>>(new Map());
   const { user } = useAuth();
@@ -979,16 +975,12 @@ export default function ReactFlowGraph({
   }, [isLiveRequest, setNodes]);
 
   // Function to convert graph flow JSON to ReactFlow format
-  const convertGraphFlowToReactFlow = useCallback(async (graphId: string) => {
-    const requestId = (loadRequestIdRef.current += 1);
+  const convertGraphFlowToReactFlow = async (graphId: string) => {
     try {
       setIsLoading(true);
       const response = await axios.get(
         `/blueprints/available.blueprints.resolved.get?userId=${user?.username || "default"}`,
       );
-      if (requestId !== loadRequestIdRef.current) {
-        return;
-      }
       const blueprintObjects = response.data;
 
       // Find the specific graph flow by blueprint_id
@@ -1029,15 +1021,9 @@ export default function ReactFlowGraph({
 
         // Auto-fit and zoom after loading
         setTimeout(() => {
-          if (requestId !== loadRequestIdRef.current) {
-            return;
-          }
           fitView({ padding: 0.2 });
           if (autoZoomOut) {
             setTimeout(() => {
-              if (requestId !== loadRequestIdRef.current) {
-                return;
-              }
               zoomOut();
             }, 200);
           }
@@ -1048,18 +1034,16 @@ export default function ReactFlowGraph({
     } catch (error) {
       console.error("Error loading graph flow:", error);
     } finally {
-      if (requestId === loadRequestIdRef.current) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
-  }, [autoZoomOut, fetchResourceById, fitView, user?.username, zoomOut, handleShowValidationDetails]);
+  };
 
   // Load graph when blueprintId changes
   useEffect(() => {
     if (blueprintId) {
       convertGraphFlowToReactFlow(blueprintId);
     }
-  }, [blueprintId, convertGraphFlowToReactFlow]);
+  }, [blueprintId]);
 
   // Auto-fit view when nodes/edges are loaded
   useEffect(() => {
