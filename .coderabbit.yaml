@@ -7,10 +7,9 @@ reviews:
   high_level_summary: true
 
   path_filters:
-    include:
-      - "multi-agents/**"
-      - "backend/**"
-      - "ui/**"
+    - "multi-agents/**"
+    - "backend/**"
+    - "ui/**"
 
   instructions: |
     This repository represents an agentic AI system with a modular, layered architecture.
