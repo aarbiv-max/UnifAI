@@ -109,3 +109,8 @@ To make gitlab "accessible" to this runner, we need to set a deploy token at the
 In the case if the Unifai team the lab structure is a bit "special" the code resides in a public GitHub repo whereas all the deployment resources reside inside the company intra-net. to overcome this we have a self-hosted runner with access to both domains so the code is downloaded from github (for example in order to run a workflow) and then all actions are being run against the intra resources.
 
 
+### Failure analyzer
+
+In the workflows we implemented a failure analyzer that can check analyze the failure using a llm and provide the user with extensive report. information about this workflow can be found [here](https://github.com/marketplace/actions/github-actions-failure-analysis)
+
+

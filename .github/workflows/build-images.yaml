@@ -145,16 +145,17 @@ jobs:
           password: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
 
   analyze:
-            needs: build_images
-            if: failure()
-            runs-on: ubuntu-latest
-            permissions:
-              contents: read
-              pull-requests: write
-            steps:
-              - uses: calebevans/gha-failure-analysis@v1
-                with:
-                  llm-provider: gemini
-                  llm-model: gemini-3-pro-preview
-                  llm-api-key: ${{ secrets.GEMINI_API_KEY }}
-                  post-pr-comment: false
+    needs: build_images
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: GitHub Actions Failure Analysis
+        uses: calebevans/gha-failure-analysis@v0.1.8
+        with:
+          llm-provider: gemini
+          llm-model: gemini-3-pro-preview
+          llm-api-key: ${{ secrets.GEMINI_API_KEY }}
+          post-pr-comment: false
