@@ -151,7 +151,7 @@ export default function AgenticWorkflows() {
                                 ? 'bg-gray-600 text-gray-400 border-gray-600' 
                                 : isValidatingFlow
                                 ? 'bg-gray-600 text-gray-300 border-gray-600'
-                                : 'bg-primary hover:bg-[#7525c9] text-white'
+                                : 'bg-primary hover:bg-primary/80 text-white'
                             } flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             {isValidatingFlow ? (

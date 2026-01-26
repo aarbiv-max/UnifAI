@@ -274,6 +274,8 @@ export const buildSmartEdges = (
   const isBidirectionalPrimary = (edge: Edge) =>
     isBidirectional(edge) && edge.source.localeCompare(edge.target) <= 0;
 
+  // Use the smart routing anchors for all edges.
+
   const defaultStroke = primaryHex;
   const bidirectionalStroke = getPaletteColor(primaryHex, 1, 4);
   const pairKey = (source: string, target: string) =>
@@ -312,12 +314,8 @@ export const buildSmartEdges = (
     }
 
     const bidirectional = isBidirectional(edge);
-    const startPoint = bidirectional
-      ? getConnectionPoint(sourceNode, targetNode, "auto")
-      : getConnectionPoint(sourceNode, targetNode, "bottom");
-    const endPoint = bidirectional
-      ? getConnectionPoint(targetNode, sourceNode, "auto")
-      : getConnectionPoint(targetNode, sourceNode, "top");
+    const startPoint = getConnectionPoint(sourceNode, targetNode, "auto");
+    const endPoint = getConnectionPoint(targetNode, sourceNode, "auto");
     const { gx: startGX, gy: startGY } = toGrid(startPoint);
     const { gx: goalGX, gy: goalGY } = toGrid(endPoint);
     const startKey = pointKey(startGX, startGY);
@@ -332,25 +330,31 @@ export const buildSmartEdges = (
     blockPath(points);
   });
 
-  return edges.map((edge) => {
+  const output: Edge[] = [];
+  edges.forEach((edge) => {
+    const bidirectional = isBidirectional(edge);
+    if (bidirectional && !isBidirectionalPrimary(edge)) {
+      return;
+    }
+
     const routedPoints = routedPointsByEdge.get(edge.id);
     if (!routedPoints) {
-      return edge;
+      output.push(edge);
+      return;
     }
-    const bidirectional = isBidirectional(edge);
+
     const stroke = bidirectional ? bidirectionalStroke : defaultStroke;
     const strokeWidth = bidirectional
       ? BIDIRECTIONAL_EDGE_WIDTH
       : DEFAULT_EDGE_WIDTH;
     const label = bidirectional
-      ? isBidirectionalPrimary(edge)
-        ? edge.data?.label ?? "Bidirectional edge"
-        : undefined
+      ? edge.data?.label ?? "Bidirectional edge"
       : edge.data?.label;
     const pairIds = bidirectional
       ? bidirectionalPairs.get(pairKey(edge.source, edge.target))
       : undefined;
-    return {
+
+    output.push({
       ...edge,
       type: "routed",
       style: {
@@ -365,6 +369,15 @@ export const buildSmartEdges = (
         ...(edge.markerEnd || {}),
         color: stroke,
       },
+      markerStart: bidirectional
+        ? {
+            type: MarkerType.ArrowClosed,
+            width: 16,
+            height: 16,
+            ...(edge.markerStart || {}),
+            color: stroke,
+          }
+        : edge.markerStart,
       data: {
         ...edge.data,
         routedPoints,
@@ -372,6 +385,8 @@ export const buildSmartEdges = (
         isBidirectional: bidirectional,
         bidirectionalEdgeIds: pairIds && pairIds.length > 1 ? pairIds : undefined,
       },
-    };
+    });
   });
+
+  return output;
 };

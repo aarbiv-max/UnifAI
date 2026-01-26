@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactFlow, {
   Node,
   Edge,
@@ -13,6 +13,7 @@ import ReactFlow, {
   NodeProps,
   Handle,
   useReactFlow,
+  EdgeTypes,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { motion } from "framer-motion";
@@ -24,6 +25,7 @@ import {
   PlanItem,
 } from "./interfaces";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { useStreamingData } from "../StreamingDataContext";
 import { BuildingBlock } from "../../../types/graph";
@@ -32,6 +34,8 @@ import NodeValidationIndicator from "./NodeValidationIndicator";
 import { ValidationResultModal } from "../workspace/ValidationResultModal";
 import { ElementValidationResult } from "@/types/validation";
 import axios from "../../../http/axiosAgentConfig";
+import { buildSmartEdges } from "./graphRouting";
+import RoutedEdge from "./RoutedEdge";
 
 // Node status enum
 type NodeStatus = "IDLE" | "PROGRESS" | "DONE";
@@ -323,6 +327,10 @@ const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({
 
 const nodeTypes: NodeTypes = {
   agent: AgentNode,
+};
+
+const edgeTypes: EdgeTypes = {
+  routed: RoutedEdge,
 };
 
 // Helper function to extract UID from $ref: format
@@ -728,6 +736,7 @@ type ReactFlowGraphProps = {
   isLiveRequest?: boolean; // Optional parameter for live tracking
   validationResults?: Record<string, ElementValidationResult>;
   isValidating?: boolean;
+  useSmartEdges?: boolean;
 };
 
 export default function ReactFlowGraph({
@@ -741,6 +750,7 @@ export default function ReactFlowGraph({
   isLiveRequest = false,
   validationResults,
   isValidating = false,
+  useSmartEdges = false,
 }: ReactFlowGraphProps): React.ReactElement {
   const [nodes, setNodes, onNodesChange] = useNodesState<EnhancedNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -776,6 +786,7 @@ export default function ReactFlowGraph({
   const streamingContext = isLiveRequest ? useStreamingData() : null;
   const prevNodeListRef = useRef<Map<string, any>>(new Map());
   const { user } = useAuth();
+  const { primaryHex } = useTheme();
   const { fetchResourceById } = useWorkspaceData();
 
   // Function to update node status based on streaming data
@@ -985,6 +996,14 @@ export default function ReactFlowGraph({
     });
   }, [validationResults, isValidating, handleShowValidationDetails, setNodes]);
 
+  const displayEdges = useMemo(
+    () =>
+      useSmartEdges
+        ? buildSmartEdges(nodes, edges, primaryHex || "#7C3AED")
+        : edges,
+    [edges, nodes, primaryHex, useSmartEdges],
+  );
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
@@ -1060,10 +1079,11 @@ export default function ReactFlowGraph({
 
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={displayEdges}
         onNodesChange={interactive ? onNodesChange : undefined}
         onEdgesChange={interactive ? onEdgesChange : undefined}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         elementsSelectable={interactive}
         nodesConnectable={interactive}
