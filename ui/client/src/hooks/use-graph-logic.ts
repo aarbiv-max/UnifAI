@@ -723,7 +723,7 @@ export const useGraphLogic = () => {
 
       // }
     },
-    [edges, nodes, setConditionalEdgeModal, setEdges],
+    [setEdges, edges, nodes, setConditionalEdgeModal],
   );
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -843,11 +843,11 @@ export const useGraphLogic = () => {
             (node) => node.rid === nodeRid,
           );
 
-        const newYamlNode = {
-          rid: nodeRid,
-          name: block.workspaceData?.name || block.label,
-          config: block.workspaceData?.config || {},
-        };
+          const newYamlNode = {
+            rid: nodeRid,
+            name: block.workspaceData?.name || block.label,
+            config: block.workspaceData?.config || {},
+          };
 
           const newPlanStep = {
             uid: nodeUid,
