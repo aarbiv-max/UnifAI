@@ -35,6 +35,7 @@ import { ValidationResultModal } from "../workspace/ValidationResultModal";
 import { ElementValidationResult } from "@/types/validation";
 import axios from "../../../http/axiosAgentConfig";
 import { buildSmartEdges } from "./graphRouting";
+import EdgeLegend from "./EdgeLegend";
 import RoutedEdge from "./RoutedEdge";
 
 // Node status enum
@@ -564,6 +565,76 @@ const parseGraphFlow = (
     }
   });
 
+  const sortedNodesByLevel: Record<number, string[]> = {};
+  const levels = Object.keys(nodesByLevel)
+    .map((level) => parseInt(level, 10))
+    .sort((a, b) => a - b);
+
+  const initializeOrder = () => {
+    levels.forEach((level) => {
+      sortedNodesByLevel[level] = [...(nodesByLevel[level] || [])].sort(
+        (a, b) => a.localeCompare(b),
+      );
+    });
+  };
+
+  const buildIndexByLevel = () => {
+    const indexByLevel = new Map<number, Map<string, number>>();
+    levels.forEach((level) => {
+      const indexMap = new Map<string, number>();
+      (sortedNodesByLevel[level] || []).forEach((nodeId, index) => {
+        indexMap.set(nodeId, index);
+      });
+      indexByLevel.set(level, indexMap);
+    });
+    return indexByLevel;
+  };
+
+  const sortLevelByBarycenter = (
+    level: number,
+    neighborMap: Record<string, string[]>,
+    neighborIndex: Map<string, number>,
+  ) => {
+    const nodes = sortedNodesByLevel[level] || [];
+    if (nodes.length <= 1) return;
+    const ordered = [...nodes].sort((a, b) => {
+      const neighborsA = neighborMap[a] || [];
+      const neighborsB = neighborMap[b] || [];
+      const avgA =
+        neighborsA.length === 0
+          ? Number.POSITIVE_INFINITY
+          : neighborsA.reduce((sum, id) => sum + (neighborIndex.get(id) ?? 0), 0) /
+            neighborsA.length;
+      const avgB =
+        neighborsB.length === 0
+          ? Number.POSITIVE_INFINITY
+          : neighborsB.reduce((sum, id) => sum + (neighborIndex.get(id) ?? 0), 0) /
+            neighborsB.length;
+      return avgA - avgB;
+    });
+    sortedNodesByLevel[level] = ordered;
+  };
+
+  initializeOrder();
+
+  for (let iteration = 0; iteration < 3; iteration += 1) {
+    let indexByLevel = buildIndexByLevel();
+    for (let i = 1; i < levels.length; i += 1) {
+      const level = levels[i];
+      const prevLevel = levels[i - 1];
+      const prevIndex = indexByLevel.get(prevLevel) || new Map();
+      sortLevelByBarycenter(level, nodePredecessors, prevIndex);
+    }
+
+    indexByLevel = buildIndexByLevel();
+    for (let i = levels.length - 2; i >= 0; i -= 1) {
+      const level = levels[i];
+      const nextLevel = levels[i + 1];
+      const nextIndex = indexByLevel.get(nextLevel) || new Map();
+      sortLevelByBarycenter(level, nodeSuccessors, nextIndex);
+    }
+  }
+
   // Create nodes with the calculated positions
   const nodes: Node<EnhancedNodeData>[] = graphFlow.plan.map((item) => {
     const nodeId = item.uid;
@@ -576,16 +647,16 @@ const parseGraphFlow = (
 
     // Get level information
     const level = nodeLevel[nodeId];
-    const nodesInSameLevel = nodesByLevel[level] || [];
+    const nodesInSameLevel = sortedNodesByLevel[level] || [];
     const indexInLevel = nodesInSameLevel.indexOf(nodeId);
     const totalInLevel = nodesInSameLevel.length;
 
     // Calculate position
-    // Horizontal spacing increases with the number of nodes in the level
-    const levelWidth = Math.max(totalInLevel * 600, 800);
-    const xSpacing = levelWidth / totalInLevel;
-    const xOffset = xSpacing / 2 + indexInLevel * xSpacing;
-    const yOffset = level * 150;
+    const horizontalSpacing = 360;
+    const levelWidth = Math.max((totalInLevel - 1) * horizontalSpacing, 0);
+    const xStart = -levelWidth / 2;
+    const xOffset = xStart + indexInLevel * horizontalSpacing;
+    const yOffset = level * 220;
 
     // Determine node style and icon
     const style = getNodeStyle(nodeType);
@@ -737,6 +808,10 @@ type ReactFlowGraphProps = {
   validationResults?: Record<string, ElementValidationResult>;
   isValidating?: boolean;
   useSmartEdges?: boolean;
+  autoZoomOut?: boolean;
+  showLegend?: boolean;
+  legendClassName?: string;
+  legendMarkerIdPrefix?: string;
 };
 
 export default function ReactFlowGraph({
@@ -751,6 +826,10 @@ export default function ReactFlowGraph({
   validationResults,
   isValidating = false,
   useSmartEdges = false,
+  autoZoomOut = true,
+  showLegend = true,
+  legendClassName = "absolute bottom-3 right-3 z-40",
+  legendMarkerIdPrefix = "edge-legend",
 }: ReactFlowGraphProps): React.ReactElement {
   const [nodes, setNodes, onNodesChange] = useNodesState<EnhancedNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -916,9 +995,11 @@ export default function ReactFlowGraph({
         // Auto-fit and zoom after loading
         setTimeout(() => {
           fitView({ padding: 0.2 });
-          setTimeout(() => {
-            zoomOut();
-          }, 200);
+          if (autoZoomOut) {
+            setTimeout(() => {
+              zoomOut();
+            }, 200);
+          }
         }, 100);
       } else {
         console.warn(`Graph flow with ID ${graphId} not found`);
@@ -949,9 +1030,11 @@ export default function ReactFlowGraph({
 
       setTimeout(() => {
         fitView({ padding: 0.2 });
-        setTimeout(() => {
-          zoomOut();
-        }, 200);
+        if (autoZoomOut) {
+          setTimeout(() => {
+            zoomOut();
+          }, 200);
+        }
       }, 100);
     }
   }, [nodes, edges, isLoading, fitView, zoomOut]);
@@ -1106,6 +1189,14 @@ export default function ReactFlowGraph({
         {showMiniMap && <MiniMap />}
         {showBackground && <Background color="#aaa" gap={16} />}
       </ReactFlow>
+
+      {showLegend && (
+        <EdgeLegend
+          primaryColor={primaryHex || "#7C3AED"}
+          markerIdPrefix={legendMarkerIdPrefix}
+          className={legendClassName}
+        />
+      )}
 
       {/* Validation Result Modal */}
       <ValidationResultModal

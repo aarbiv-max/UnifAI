@@ -19,8 +19,9 @@ export const DEFAULT_EDGE_WIDTH = 2;
 const BIDIRECTIONAL_EDGE_WIDTH = 3.5;
 
 const getNodeBox = (node: Node): NodeBox => {
-  const width = node.width ?? node.measured?.width ?? 180;
-  const height = node.height ?? node.measured?.height ?? 80;
+  const measured = (node as { measured?: { width?: number; height?: number } }).measured;
+  const width = node.width ?? measured?.width ?? 180;
+  const height = node.height ?? measured?.height ?? 80;
   const center = {
     x: node.position.x + width / 2,
     y: node.position.y + height / 2,
@@ -313,7 +314,6 @@ export const buildSmartEdges = (
       return;
     }
 
-    const bidirectional = isBidirectional(edge);
     const startPoint = getConnectionPoint(sourceNode, targetNode, "auto");
     const endPoint = getConnectionPoint(targetNode, sourceNode, "auto");
     const { gx: startGX, gy: startGY } = toGrid(startPoint);
@@ -347,12 +347,19 @@ export const buildSmartEdges = (
     const strokeWidth = bidirectional
       ? BIDIRECTIONAL_EDGE_WIDTH
       : DEFAULT_EDGE_WIDTH;
-    const label = bidirectional
-      ? edge.data?.label ?? "Bidirectional edge"
-      : edge.data?.label;
+    const label = edge.data?.label;
     const pairIds = bidirectional
       ? bidirectionalPairs.get(pairKey(edge.source, edge.target))
       : undefined;
+
+    const markerEnd =
+      edge.markerEnd && typeof edge.markerEnd === "object"
+        ? edge.markerEnd
+        : undefined;
+    const markerStart =
+      edge.markerStart && typeof edge.markerStart === "object"
+        ? edge.markerStart
+        : undefined;
 
     output.push({
       ...edge,
@@ -366,7 +373,7 @@ export const buildSmartEdges = (
         type: MarkerType.ArrowClosed,
         width: 16,
         height: 16,
-        ...(edge.markerEnd || {}),
+        ...(markerEnd || {}),
         color: stroke,
       },
       markerStart: bidirectional
@@ -374,10 +381,10 @@ export const buildSmartEdges = (
             type: MarkerType.ArrowClosed,
             width: 16,
             height: 16,
-            ...(edge.markerStart || {}),
+            ...(markerStart || {}),
             color: stroke,
           }
-        : edge.markerStart,
+        : markerStart,
       data: {
         ...edge.data,
         routedPoints,

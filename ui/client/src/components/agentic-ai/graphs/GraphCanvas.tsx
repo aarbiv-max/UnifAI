@@ -22,6 +22,7 @@ import GraphHeader from "./GraphHeader";
 import * as yaml from "js-yaml";
 import { useTheme } from "@/contexts/ThemeContext";
 import { buildSmartEdges, DEFAULT_EDGE_WIDTH } from "./graphRouting";
+import EdgeLegend from "./EdgeLegend";
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
@@ -178,6 +179,12 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
                 <Controls />
               </ReactFlow>
             </ReactFlowProvider>
+
+            <EdgeLegend
+              primaryColor={resolvedPrimary}
+              markerIdPrefix="graphcanvas-legend"
+              className="absolute bottom-[5.5rem] left-[3.25rem] z-40"
+            />
 
             {/* Drop zone overlay when empty */}
             {nodes.length === 0 && (
