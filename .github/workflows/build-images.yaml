@@ -87,8 +87,8 @@ jobs:
             context: shared-resources/sso-backend
             dockerfile: shared-resources/sso-backend/Dockerfile
           - image_name: ui:github
-            context: ui
-            dockerfile: ui/deployment/Dockerfile
+            context: ./ui
+            dockerfile: ./ui/deployment/Dockerfile
           - image_name: dataflow-backend:github
             context: ./backend
             dockerfile: ./backend/Dockerfile
@@ -102,11 +102,6 @@ jobs:
       - name: check deps
         run: |
           echo "Checking dependencies"
-          command -v buildah
-          if [ $? -ne 0 ]; then
-            echo "Installing buildah"
-            sudo dnf install -y buildah
-          fi
           command -v buildah
           if [ $? -ne 0 ]; then
             echo "Installing buildah"
