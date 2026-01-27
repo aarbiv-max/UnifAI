@@ -149,12 +149,14 @@ jobs:
     if: failure()
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       pull-requests: write
     steps:
       - name: GitHub Actions Failure Analysis
         uses: calebevans/gha-failure-analysis@v0.1.8
         with:
+          run-id: ${{ github.event.workflow_run.id }}
           llm-provider: gemini
           llm-model: gemini-3-pro-preview
           llm-api-key: ${{ secrets.GEMINI_API_KEY }}
