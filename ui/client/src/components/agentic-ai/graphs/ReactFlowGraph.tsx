@@ -35,6 +35,7 @@ import axios from "../../../http/axiosAgentConfig";
 import { buildSmartEdges } from "./graphRouting";
 import EdgeLegend from "./EdgeLegend";
 import RoutedEdge from "./RoutedEdge";
+import { computeOptimizedLayout } from "./graphLayoutOptimizer";
 
 // Node status enum
 type NodeStatus = "IDLE" | "PROGRESS" | "DONE";
@@ -443,224 +444,53 @@ const parseGraphFlow = (
   // Create a map to store node types for edge styling
   const nodeTypeMap: Record<string, string> = {};
 
-  // Create maps to build the layout
-  const nodesByLevel: Record<number, string[]> = {}; // Level -> Node UIDs
-  const nodeLevel: Record<string, number> = {}; // Node UID -> Level
-  const nodePredecessors: Record<string, string[]> = {}; // Node UID -> Predecessor UIDs
-  const nodeSuccessors: Record<string, string[]> = {}; // Node UID -> Successor UIDs
-
-  // First pass: Identify predecessors and successors
+  // Populate nodeTypeMap for edge styling
   graphFlow.plan.forEach((item) => {
-    const nodeId = item.uid;
     const nodeDefinition = nodeMap[item.node];
     const nodeType = nodeDefinition?.type || "custom_agent_node";
-    nodeTypeMap[nodeId] = nodeType;
-
-    if (item.after) {
-      // Handle both string and array 'after' properties
-      const predecessors = Array.isArray(item.after)
-        ? item.after
-        : [item.after];
-      nodePredecessors[nodeId] = predecessors;
-
-      // Record this node as a successor to each predecessor
-      predecessors.forEach((predecessorId) => {
-        if (!nodeSuccessors[predecessorId]) {
-          nodeSuccessors[predecessorId] = [];
-        }
-        nodeSuccessors[predecessorId].push(nodeId);
-      });
-    } else {
-      // No predecessors, this is a root node
-      nodePredecessors[nodeId] = [];
-    }
+    nodeTypeMap[item.uid] = nodeType;
   });
 
-  // Force user_question_node to level 0 (first layer)
-  graphFlow.plan.forEach((item) => {
-    const nodeId = item.uid;
-    const nodeDefinition = nodeMap[item.node];
-    const nodeType = nodeDefinition?.type || "custom_agent_node";
-    
-    if (nodeType === "user_question_node") {
-      nodeLevel[nodeId] = 0;
-      if (!nodesByLevel[0]) {
-        nodesByLevel[0] = [];
-      }
-      nodesByLevel[0].push(nodeId);
-    }
+  // Use the optimized layout algorithm for position calculation
+  // This algorithm handles:
+  // - Cycle detection (bidirectional edges, multi-step cycles)
+  // - Orchestrator-centric layouts (hub nodes at center)
+  // - Edge crossing minimization via barycenter heuristics
+  // - HARD INVARIANTS: Entry node at TOP (min Y), Exit node at BOTTOM (max Y)
+  //
+  // Coordinate System:
+  // - Y axis (vertical) = semantic flow: input → processing → output
+  // - X axis (horizontal) = structural spread for cycles and agents
+  const layoutResult = computeOptimizedLayout(graphFlow.plan, nodeMap, {
+    layerSpacing: 200,      // Vertical spacing between layers (semantic flow)
+    nodeSpacing: 300,       // Horizontal spacing within layers (structural spread)
+    gridSize: 16,
+    orchestratorCentric: true,
+    cycleVisualization: "auto",
   });
 
-
-  // Second pass: Determine node levels for all nodes except final_answer_node
-  let allNodesAssigned = false;
-  const maxIterations = graphFlow.plan.length * 2;
-  let iterationCount = 0;
-  // Guard against cycles causing infinite level assignment.
-  // We cap iterations relative to plan size to keep layout responsive.
-  // Any leftover nodes are handled by a fallback in the next block.
-  while (!allNodesAssigned && iterationCount < maxIterations) {
-    iterationCount += 1;
-    allNodesAssigned = true;
-    graphFlow.plan.forEach((item) => {
-      const nodeId = item.uid;
-      const nodeDefinition = nodeMap[item.node];
-      const nodeType = nodeDefinition?.type || "custom_agent_node";
-
-      // Skip nodes that already have a level assigned
-      if (nodeLevel[nodeId] !== undefined) {
-        return;
-      }
-
-      // Skip final_answer_node for now - we'll handle it separately
-      if (nodeType === "final_answer_node") {
-        return;
-      }
-
-      const predecessors = nodePredecessors[nodeId] || [];
-
-      // Check if all predecessors have levels assigned
-      const allPredecessorsHaveLevels = predecessors.every(
-        (predId) => nodeLevel[predId] !== undefined,
-      );
-
-      if (allPredecessorsHaveLevels) {
-        let level;
-        if (predecessors.length === 0) {
-          // Node has no predecessors - assign to level 1 (not level 0, which is reserved for user_question_node)
-          level = 1;
-        } else {
-          // Find the maximum level among predecessors
-          const maxPredLevel = Math.max(
-            ...predecessors.map((predId) => nodeLevel[predId]),
-          );
-          level = maxPredLevel + 1;
-        }
-
-        // Assign this node to the calculated level
-        nodeLevel[nodeId] = level;
-        if (!nodesByLevel[level]) {
-          nodesByLevel[level] = [];
-        }
-        nodesByLevel[level].push(nodeId);
-      } else {
-        allNodesAssigned = false;
-      }
-    });
-  }
-
-  // Fallback placement for nodes still unassigned after the cap.
-  // This keeps cyclic graphs renderable with deterministic positions.
-  // final_answer_node stays separate so it remains the last layer.
-  if (!allNodesAssigned) {
-    const assignedLevels = Object.values(nodeLevel);
-    const fallbackLevel =
-      assignedLevels.length > 0 ? Math.max(...assignedLevels) + 1 : 1;
-    graphFlow.plan.forEach((item) => {
-      const nodeDefinition = nodeMap[item.node];
-      const nodeType = nodeDefinition?.type || "custom_agent_node";
-      if (nodeType === "final_answer_node") {
-        return;
-      }
-      if (nodeLevel[item.uid] === undefined) {
-        nodeLevel[item.uid] = fallbackLevel;
-        if (!nodesByLevel[fallbackLevel]) {
-          nodesByLevel[fallbackLevel] = [];
-        }
-        nodesByLevel[fallbackLevel].push(item.uid);
-      }
-    });
-  }
-
-  // Third pass: Force final_answer_node to the highest level + 1 (last layer)
-  graphFlow.plan.forEach((item) => {
-    const nodeId = item.uid;
-    const nodeDefinition = nodeMap[item.node];
-    const nodeType = nodeDefinition?.type || "custom_agent_node";
-    
-    if (nodeType === "final_answer_node") {
-      // Find the current highest level
-      const existingLevels = Object.keys(nodesByLevel).map(level => parseInt(level));
-      const maxLevel = existingLevels.length > 0 ? Math.max(...existingLevels) : -1;
-      const finalLevel = maxLevel + 1;
-      
-      nodeLevel[nodeId] = finalLevel;
-      if (!nodesByLevel[finalLevel]) {
-        nodesByLevel[finalLevel] = [];
-      }
-      nodesByLevel[finalLevel].push(nodeId);
-    }
+  // Extract positions from layout result
+  const nodeXById = new Map<string, number>();
+  const nodeYById = new Map<string, number>();
+  
+  layoutResult.positions.forEach((pos, nodeId) => {
+    nodeXById.set(nodeId, pos.x);
+    nodeYById.set(nodeId, pos.y);
   });
 
+  // Build layer information for fallback positioning
+  const nodeLevel: Record<string, number> = {};
   const sortedNodesByLevel: Record<number, string[]> = {};
-  const levels = Object.keys(nodesByLevel)
-    .map((level) => parseInt(level, 10))
-    .sort((a, b) => a - b);
-
-  const initializeOrder = () => {
-    levels.forEach((level) => {
-      sortedNodesByLevel[level] = [...(nodesByLevel[level] || [])].sort(
-        (a, b) => a.localeCompare(b),
-      );
+  
+  layoutResult.layers.forEach((nodes, level) => {
+    sortedNodesByLevel[level] = nodes;
+    nodes.forEach((nodeId) => {
+      nodeLevel[nodeId] = level;
     });
-  };
+  });
 
-  const buildIndexByLevel = () => {
-    const indexByLevel = new Map<number, Map<string, number>>();
-    levels.forEach((level) => {
-      const indexMap = new Map<string, number>();
-      (sortedNodesByLevel[level] || []).forEach((nodeId, index) => {
-        indexMap.set(nodeId, index);
-      });
-      indexByLevel.set(level, indexMap);
-    });
-    return indexByLevel;
-  };
-
-  const sortLevelByBarycenter = (
-    level: number,
-    neighborMap: Record<string, string[]>,
-    neighborIndex: Map<string, number>,
-  ) => {
-    const nodes = sortedNodesByLevel[level] || [];
-    if (nodes.length <= 1) return;
-    const ordered = [...nodes].sort((a, b) => {
-      const neighborsA = neighborMap[a] || [];
-      const neighborsB = neighborMap[b] || [];
-      const avgA =
-        neighborsA.length === 0
-          ? Number.POSITIVE_INFINITY
-          : neighborsA.reduce((sum, id) => sum + (neighborIndex.get(id) ?? 0), 0) /
-            neighborsA.length;
-      const avgB =
-        neighborsB.length === 0
-          ? Number.POSITIVE_INFINITY
-          : neighborsB.reduce((sum, id) => sum + (neighborIndex.get(id) ?? 0), 0) /
-            neighborsB.length;
-      return avgA - avgB;
-    });
-    sortedNodesByLevel[level] = ordered;
-  };
-
-  initializeOrder();
-
-  for (let iteration = 0; iteration < 3; iteration += 1) {
-    let indexByLevel = buildIndexByLevel();
-    for (let i = 1; i < levels.length; i += 1) {
-      const level = levels[i];
-      const prevLevel = levels[i - 1];
-      const prevIndex = indexByLevel.get(prevLevel) || new Map();
-      sortLevelByBarycenter(level, nodePredecessors, prevIndex);
-    }
-
-    indexByLevel = buildIndexByLevel();
-    for (let i = levels.length - 2; i >= 0; i -= 1) {
-      const level = levels[i];
-      const nextLevel = levels[i + 1];
-      const nextIndex = indexByLevel.get(nextLevel) || new Map();
-      sortLevelByBarycenter(level, nodeSuccessors, nextIndex);
-    }
-  }
+  // Layout configuration for fallback calculations
+  const LAYER_SPACING = 200;
 
   // Create nodes with the calculated positions
   const nodes: Node<EnhancedNodeData>[] = graphFlow.plan.map((item) => {
@@ -679,11 +509,12 @@ const parseGraphFlow = (
     const totalInLevel = nodesInSameLevel.length;
 
     // Calculate position
-    const horizontalSpacing = 360;
-    const levelWidth = Math.max((totalInLevel - 1) * horizontalSpacing, 0);
+    const fallbackSpacing = 360;
+    const levelWidth = Math.max((totalInLevel - 1) * fallbackSpacing, 0);
     const xStart = -levelWidth / 2;
-    const xOffset = xStart + indexInLevel * horizontalSpacing;
-    const yOffset = level * 220;
+    const fallbackX = xStart + indexInLevel * fallbackSpacing;
+    const xOffset = nodeXById.get(nodeId) ?? fallbackX;
+    const yOffset = nodeYById.get(nodeId) ?? level * LAYER_SPACING;
 
     // Determine node style and icon
     const style = getNodeStyle(nodeType);

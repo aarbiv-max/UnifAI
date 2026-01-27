@@ -90,9 +90,12 @@ class MinHeap {
   }
 }
 
-const GRID_SIZE = 20;
+const GRID_SIZE = 16;
 const NODE_PADDING = 16;
 const ROUTE_MARGIN = 120;
+const EDGE_BLOCK_RADIUS = 2;
+const PORT_SPACING = 12;
+const PORT_INSET = 10;
 export const DEFAULT_EDGE_WIDTH = 2;
 const BIDIRECTIONAL_EDGE_WIDTH = 3.5;
 
@@ -216,8 +219,19 @@ export const buildSmartEdges = (
         const t = step / steps;
         const point = { x: start.x + dx * t, y: start.y + dy * t };
         const { gx, gy } = toGrid(point);
-        if (gx >= 0 && gx < cols && gy >= 0 && gy < rows) {
-          obstacles.add(pointKey(gx, gy));
+        for (let dx = -EDGE_BLOCK_RADIUS; dx <= EDGE_BLOCK_RADIUS; dx += 1) {
+          for (let dy = -EDGE_BLOCK_RADIUS; dy <= EDGE_BLOCK_RADIUS; dy += 1) {
+            const nextGX = gx + dx;
+            const nextGY = gy + dy;
+            if (
+              nextGX >= 0 &&
+              nextGX < cols &&
+              nextGY >= 0 &&
+              nextGY < rows
+            ) {
+              obstacles.add(pointKey(nextGX, nextGY));
+            }
+          }
         }
       }
     }
@@ -384,6 +398,54 @@ export const buildSmartEdges = (
     return distB - distA;
   });
 
+  const outgoingBySource = new Map<string, Edge[]>();
+  const incomingByTarget = new Map<string, Edge[]>();
+  sortedEdges.forEach((edge) => {
+    const sourceList = outgoingBySource.get(edge.source) || [];
+    sourceList.push(edge);
+    outgoingBySource.set(edge.source, sourceList);
+    const targetList = incomingByTarget.get(edge.target) || [];
+    targetList.push(edge);
+    incomingByTarget.set(edge.target, targetList);
+  });
+
+  const sortEdgesByPosition = (edgesToSort: Edge[], useTarget: boolean) => {
+    edgesToSort.sort((a, b) => {
+      const nodeA = nodeBoxMap.get(useTarget ? a.target : a.source);
+      const nodeB = nodeBoxMap.get(useTarget ? b.target : b.source);
+      if (!nodeA || !nodeB) return 0;
+      return nodeA.center.x - nodeB.center.x;
+    });
+  };
+
+  outgoingBySource.forEach((edgeList) => sortEdgesByPosition(edgeList, true));
+  incomingByTarget.forEach((edgeList) => sortEdgesByPosition(edgeList, false));
+
+  const getPortOffset = (
+    node: NodeBox,
+    edge: Edge,
+    anchor: Anchor,
+    isSource: boolean,
+  ): Point => {
+    const list = isSource
+      ? outgoingBySource.get(node.id) || []
+      : incomingByTarget.get(node.id) || [];
+    const total = list.length;
+    if (total <= 1) {
+      return { x: 0, y: 0 };
+    }
+    const index = Math.max(0, list.findIndex((item) => item.id === edge.id));
+    const mid = (total - 1) / 2;
+    const offset = (index - mid) * PORT_SPACING;
+
+    if (anchor === "top" || anchor === "bottom") {
+      const maxOffset = Math.max(0, node.width / 2 - PORT_INSET);
+      return { x: Math.max(-maxOffset, Math.min(maxOffset, offset)), y: 0 };
+    }
+    const maxOffset = Math.max(0, node.height / 2 - PORT_INSET);
+    return { x: 0, y: Math.max(-maxOffset, Math.min(maxOffset, offset)) };
+  };
+
   sortedEdges.forEach((edge) => {
     const sourceNode = nodeBoxMap.get(edge.source);
     const targetNode = nodeBoxMap.get(edge.target);
@@ -391,8 +453,31 @@ export const buildSmartEdges = (
       return;
     }
 
-    const startPoint = getConnectionPoint(sourceNode, targetNode, "auto");
-    const endPoint = getConnectionPoint(targetNode, sourceNode, "auto");
+    const verticalGap = targetNode.center.y - sourceNode.center.y;
+    const horizontalGap = targetNode.center.x - sourceNode.center.x;
+    let sourceAnchor: Anchor = "auto";
+    let targetAnchor: Anchor = "auto";
+    if (Math.abs(verticalGap) >= Math.abs(horizontalGap)) {
+      if (verticalGap >= 0) {
+        sourceAnchor = "bottom";
+        targetAnchor = "top";
+      } else {
+        sourceAnchor = "top";
+        targetAnchor = "bottom";
+      }
+    }
+    const baseStart = getConnectionPoint(sourceNode, targetNode, sourceAnchor);
+    const baseEnd = getConnectionPoint(targetNode, sourceNode, targetAnchor);
+    const startOffset = getPortOffset(sourceNode, edge, sourceAnchor, true);
+    const endOffset = getPortOffset(targetNode, edge, targetAnchor, false);
+    const startPoint = {
+      x: baseStart.x + startOffset.x,
+      y: baseStart.y + startOffset.y,
+    };
+    const endPoint = {
+      x: baseEnd.x + endOffset.x,
+      y: baseEnd.y + endOffset.y,
+    };
     const { gx: startGX, gy: startGY } = toGrid(startPoint);
     const { gx: goalGX, gy: goalGY } = toGrid(endPoint);
     const startKey = pointKey(startGX, startGY);
