@@ -72,27 +72,6 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const { primaryHex } = useTheme();
   const resolvedPrimary = primaryHex || "#7C3AED";
 
-  const parallelOffsets = new Map<string, number>();
-  const parallelTotals = new Map<string, number>();
-  const groupedEdges = new Map<string, Edge[]>();
-
-  edges.forEach((edge) => {
-    const key = [edge.source, edge.target].sort().join("::");
-    const group = groupedEdges.get(key) || [];
-    group.push(edge);
-    groupedEdges.set(key, group);
-  });
-
-  groupedEdges.forEach((group) => {
-    const ordered = [...group].sort((a, b) => a.id.localeCompare(b.id));
-    const total = ordered.length;
-    ordered.forEach((edge, index) => {
-      const offset = index - (total - 1) / 2;
-      parallelOffsets.set(edge.id, offset);
-      parallelTotals.set(edge.id, total);
-    });
-  });
-
   const smartEdges = useMemo(
     () => buildSmartEdges(nodes, edges, resolvedPrimary),
     [nodes, edges, resolvedPrimary],
@@ -146,8 +125,6 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
                   data: {
                     ...edge.data,
                     onDelete: onDeleteEdge,
-                    parallelOffset: parallelOffsets.get(edge.id) ?? 0,
-                    parallelTotal: parallelTotals.get(edge.id) ?? 1,
                   },
                 }))}
                 onNodesChange={onNodesChange}
