@@ -24,4 +24,7 @@ export type {
   Position,
   NodeRole,
   GraphStructure,
+  DepthGroup,
+  DepthAnalysis,
+  NodeDepthInfo,
 } from "./layout/types";

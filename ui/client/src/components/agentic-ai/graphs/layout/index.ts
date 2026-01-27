@@ -21,10 +21,10 @@
 export * from "./types";
 
 // Import modules
-import { analyzeGraph, findNodesByRole } from "./graphAnalysis";
+import { analyzeGraph, findNodesByRole, computeDepthAnalysis } from "./graphAnalysis";
 import { createConstraints, createLayoutBounds } from "./constraints";
-import { assignLayers, compactLayers } from "./layering";
-import { minimizeCrossings, centerOrchestrators } from "./ordering";
+import { assignLayers, compactLayers, assignLayersWithDepth } from "./layering";
+import { minimizeCrossings, centerOrchestrators, applyStarGroupOrdering, applyFullOrdering } from "./ordering";
 import { computePositions, toReactFlowPosition } from "./positioning";
 
 import {
@@ -34,6 +34,8 @@ import {
   LayoutResult,
   LayoutMetadata,
   DEFAULT_LAYOUT_CONFIG,
+  DepthGroup,
+  DepthAnalysis,
 } from "./types";
 
 // ============================================================================
@@ -57,16 +59,34 @@ export function computeOptimizedLayout(
 
   // Handle empty input
   if (!plan || plan.length === 0) {
+    const emptyDepthAnalysis: DepthAnalysis = {
+      nodeDepths: new Map(),
+      groupedNodes: new Map(),
+      hubNodes: [],
+      isMultiHub: false,
+    };
     return {
       positions: new Map(),
       layers: new Map(),
       cycleGroups: new Map(),
+      starGroups: [],
+      depthAnalysis: emptyDepthAnalysis,
       metadata: {
         entryNodes: [],
         exitNodes: [],
         orchestratorNodes: [],
         cycleCount: 0,
         crossingCount: 0,
+        starGroupCount: 0,
+        depthGroupCounts: {
+          UPSTREAM: 0,
+          DOWNSTREAM: 0,
+          CYCLIC: 0,
+          ISOLATED: 0,
+          HUB: 0,
+          PINNED_TOP: 0,
+          PINNED_BOTTOM: 0,
+        },
       },
     };
   }
@@ -75,7 +95,7 @@ export function computeOptimizedLayout(
   // Step 1: Graph Analysis
   // ========================================
   const graphStructure = analyzeGraph(plan, nodeMap);
-  const { nodes, edges, bidirectionalPairs, cycles, roles } = graphStructure;
+  const { nodes, edges, bidirectionalPairs, cycles, roles, starGroups, depthAnalysis } = graphStructure;
 
   // ========================================
   // Step 2: Create Constraints
@@ -84,14 +104,17 @@ export function computeOptimizedLayout(
   const bounds = createLayoutBounds(constraints);
 
   // ========================================
-  // Step 3: Layer Assignment
+  // Step 3: Layer Assignment (Depth-Aware)
   // ========================================
-  const layerAssignment = assignLayers(
+  // Use depth-aware layer assignment for better vertical stratification
+  // This ensures UPSTREAM nodes are above the hub, DOWNSTREAM below
+  const layerAssignment = assignLayersWithDepth(
     nodes,
     edges,
     roles,
     constraints,
-    cycles
+    cycles,
+    depthAnalysis
   );
   
   // Compact layers to remove gaps
@@ -118,16 +141,32 @@ export function computeOptimizedLayout(
   }
 
   // ========================================
-  // Step 5: Position Computation
+  // Step 4.5: Full Ordering (Star Groups + Depth Groups)
+  // ========================================
+  // Apply comprehensive ordering that considers:
+  // 1. Star group symmetry (spokes distributed around hub)
+  // 2. Depth group clustering (same semantic band nodes together)
+  // 3. Cross-group distribution (prevent clumping)
+  finalOrdering = applyFullOrdering(
+    finalOrdering,
+    starGroups,
+    compactedLayers.nodeToLayer,
+    depthAnalysis
+  );
+
+  // ========================================
+  // Step 5: Position Computation (Depth-Aware)
   // ========================================
   const positions = computePositions(
     finalOrdering,
     edges,
     bidirectionalPairs,
     cycles,
+    starGroups,
     roles,
     constraints,
-    fullConfig
+    fullConfig,
+    depthAnalysis
   );
 
   // ========================================
@@ -140,6 +179,21 @@ export function computeOptimizedLayout(
     cycleGroups.set(`cycle-${index}`, cycle);
   });
 
+  // Build depth group counts
+  const depthGroupCounts: Record<DepthGroup, number> = {
+    UPSTREAM: 0,
+    DOWNSTREAM: 0,
+    CYCLIC: 0,
+    ISOLATED: 0,
+    HUB: 0,
+    PINNED_TOP: 0,
+    PINNED_BOTTOM: 0,
+  };
+  
+  depthAnalysis.groupedNodes.forEach((nodes, group) => {
+    depthGroupCounts[group] = nodes.length;
+  });
+
   // Build metadata
   const metadata: LayoutMetadata = {
     entryNodes: findNodesByRole(roles, "entry"),
@@ -147,12 +201,16 @@ export function computeOptimizedLayout(
     orchestratorNodes: findNodesByRole(roles, "orchestrator"),
     cycleCount: cycles.length,
     crossingCount: orderingResult.crossingCount,
+    starGroupCount: starGroups.length,
+    depthGroupCounts,
   };
 
   return {
     positions,
     layers: finalOrdering,
     cycleGroups,
+    starGroups,
+    depthAnalysis,
     metadata,
   };
 }
@@ -171,8 +229,36 @@ export function getReactFlowPositions(
 }
 
 // Re-export individual modules for advanced usage
-export { analyzeGraph, findNodesByRole } from "./graphAnalysis";
-export { createConstraints, createLayoutBounds, validatePositions } from "./constraints";
-export { assignLayers, compactLayers } from "./layering";
-export { minimizeCrossings, centerOrchestrators } from "./ordering";
-export { computePositions, toReactFlowPosition, snapToGrid } from "./positioning";
+export { 
+  analyzeGraph, 
+  findNodesByRole, 
+  detectStarGroups, 
+  isInStarGroup, 
+  isStarHub, 
+  isStarSpoke,
+  computeDepthAnalysis,
+  getNodeDepthGroup,
+  getSemanticDepth,
+  areDepthGroupsCompatible,
+} from "./graphAnalysis";
+export { 
+  createConstraints, 
+  createLayoutBounds, 
+  validatePositions,
+  DEPTH_GROUP_BANDS,
+  getDepthGroupBand,
+  compareDepthGroups,
+  wouldViolateDepthStratification,
+  computeIdealLayers,
+} from "./constraints";
+export { assignLayers, compactLayers, assignLayersWithDepth, validateDepthStratification } from "./layering";
+export { minimizeCrossings, centerOrchestrators, applyStarGroupOrdering, applyFullOrdering, applyDepthGroupOrdering } from "./ordering";
+export { 
+  computePositions, 
+  toReactFlowPosition, 
+  snapToGrid, 
+  applyStarGroupPositioning,
+  applyDepthGroupSpacing,
+  balanceEdgeLengths,
+  preventHorizontalOutliers,
+} from "./positioning";

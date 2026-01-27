@@ -18,6 +18,9 @@ import {
   ConstraintType,
   LayoutBounds,
   Position,
+  DepthGroup,
+  DepthAnalysis,
+  NodeDepthInfo,
 } from "./types";
 
 // ============================================================================
@@ -386,4 +389,203 @@ export function wouldViolateConstraint(
   }
 
   return false;
+}
+
+// ============================================================================
+// Depth Group Stratification Constraints
+// ============================================================================
+
+/**
+ * Vertical band assignments for depth groups
+ * These define the relative Y ordering of depth groups
+ * 
+ * Band values:
+ * - Lower bands appear higher (smaller Y)
+ * - Higher bands appear lower (larger Y)
+ */
+export const DEPTH_GROUP_BANDS: Record<DepthGroup, number> = {
+  PINNED_TOP: 0,      // Absolute top
+  UPSTREAM: 1,        // Above orchestrator
+  HUB: 2,             // Orchestrator level
+  CYCLIC: 2,          // Same level as hub (bidirectional)
+  DOWNSTREAM: 3,      // Below orchestrator
+  ISOLATED: 2,        // Flexible, defaults to hub level
+  PINNED_BOTTOM: 4,   // Absolute bottom
+};
+
+/**
+ * Gets the vertical band for a depth group
+ */
+export function getDepthGroupBand(depthGroup: DepthGroup): number {
+  return DEPTH_GROUP_BANDS[depthGroup];
+}
+
+/**
+ * Compares two nodes' depth groups for vertical ordering
+ * Returns:
+ *  - Negative if nodeA should be above nodeB
+ *  - Positive if nodeA should be below nodeB
+ *  - Zero if they can be at the same level
+ */
+export function compareDepthGroups(
+  nodeADepthGroup: DepthGroup,
+  nodeBDepthGroup: DepthGroup
+): number {
+  const bandA = DEPTH_GROUP_BANDS[nodeADepthGroup];
+  const bandB = DEPTH_GROUP_BANDS[nodeBDepthGroup];
+  return bandA - bandB;
+}
+
+/**
+ * Checks if moving a node to a layer would violate depth group stratification
+ * This is a SOFT constraint - it can be overridden but should be avoided
+ * 
+ * @param nodeId - The node to check
+ * @param proposedLayer - The layer to move to
+ * @param depthAnalysis - Depth analysis for the graph
+ * @param nodeToLayer - Current layer assignments
+ * @returns true if the move would violate stratification
+ */
+export function wouldViolateDepthStratification(
+  nodeId: string,
+  proposedLayer: number,
+  depthAnalysis: DepthAnalysis,
+  nodeToLayer: Map<string, number>
+): boolean {
+  const nodeDepth = depthAnalysis.nodeDepths.get(nodeId);
+  if (!nodeDepth) return false;
+  
+  const nodeGroup = nodeDepth.depthGroup;
+  const nodeBand = DEPTH_GROUP_BANDS[nodeGroup];
+  
+  // Check against all other nodes in the proposed layer
+  for (const [otherId, otherLayer] of nodeToLayer.entries()) {
+    if (otherId === nodeId) continue;
+    if (otherLayer !== proposedLayer) continue;
+    
+    const otherDepth = depthAnalysis.nodeDepths.get(otherId);
+    if (!otherDepth) continue;
+    
+    const otherBand = DEPTH_GROUP_BANDS[otherDepth.depthGroup];
+    
+    // If bands are different and not compatible, it's a violation
+    if (nodeBand !== otherBand) {
+      // CYCLIC and HUB can share layers
+      if ((nodeGroup === "CYCLIC" && otherDepth.depthGroup === "HUB") ||
+          (nodeGroup === "HUB" && otherDepth.depthGroup === "CYCLIC")) {
+        continue;
+      }
+      // ISOLATED is flexible
+      if (nodeGroup === "ISOLATED" || otherDepth.depthGroup === "ISOLATED") {
+        continue;
+      }
+      // Different bands in same layer = violation
+      return true;
+    }
+  }
+  
+  // Also check vertical ordering with nodes in other layers
+  for (const [otherId, otherLayer] of nodeToLayer.entries()) {
+    if (otherId === nodeId) continue;
+    
+    const otherDepth = depthAnalysis.nodeDepths.get(otherId);
+    if (!otherDepth) continue;
+    
+    const otherBand = DEPTH_GROUP_BANDS[otherDepth.depthGroup];
+    
+    // Check if proposed layer would invert the expected band ordering
+    // (lower bands should have lower layer numbers)
+    if (nodeBand < otherBand && proposedLayer > otherLayer) {
+      // Node should be above other, but proposed layer is below
+      // Only flag if they're not in compatible groups
+      if (!(nodeGroup === "ISOLATED" || otherDepth.depthGroup === "ISOLATED")) {
+        return true;
+      }
+    }
+    if (nodeBand > otherBand && proposedLayer < otherLayer) {
+      // Node should be below other, but proposed layer is above
+      if (!(nodeGroup === "ISOLATED" || otherDepth.depthGroup === "ISOLATED")) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Computes the ideal layer offset for a node based on its depth group
+ * relative to the hub layer
+ * 
+ * @param depthInfo - Depth info for the node
+ * @param hubLayer - The layer of the hub/orchestrator
+ * @returns Ideal layer number for this node
+ */
+export function computeIdealLayer(
+  depthInfo: NodeDepthInfo,
+  hubLayer: number
+): number {
+  const { depthGroup, semanticDepth, distanceToOrchestrator, distanceFromOrchestrator } = depthInfo;
+  
+  switch (depthGroup) {
+    case "PINNED_TOP":
+      return 0; // Always at top
+    case "PINNED_BOTTOM":
+      return Infinity; // Will be set to max + 1 later
+    case "HUB":
+      return hubLayer;
+    case "UPSTREAM":
+      // Place above hub, distance determines how far above
+      return Math.max(1, hubLayer - distanceToOrchestrator);
+    case "DOWNSTREAM":
+      // Place below hub, distance determines how far below
+      return hubLayer + distanceFromOrchestrator;
+    case "CYCLIC":
+      // Place at hub level, but may be offset slightly based on average distance
+      const avgDistance = (distanceToOrchestrator + distanceFromOrchestrator) / 2;
+      // Small offset based on average distance (keeps cyclic nodes near hub)
+      if (avgDistance <= 1) {
+        return hubLayer;
+      }
+      return hubLayer + Math.sign(distanceFromOrchestrator - distanceToOrchestrator);
+    case "ISOLATED":
+      // Default to hub level
+      return hubLayer;
+    default:
+      return hubLayer;
+  }
+}
+
+/**
+ * Generates soft layer recommendations based on depth analysis
+ * Returns a map of node IDs to their ideal layers
+ */
+export function computeIdealLayers(
+  depthAnalysis: DepthAnalysis,
+  constraints: NodeConstraint[]
+): Map<string, number> {
+  const idealLayers = new Map<string, number>();
+  
+  // Determine the hub layer (middle of the graph)
+  // Start with a base layer for the hub
+  const hubNodes = depthAnalysis.hubNodes;
+  
+  // Calculate the range needed for upstream nodes
+  let maxUpstreamDistance = 0;
+  depthAnalysis.nodeDepths.forEach((info) => {
+    if (info.depthGroup === "UPSTREAM") {
+      maxUpstreamDistance = Math.max(maxUpstreamDistance, info.distanceToOrchestrator);
+    }
+  });
+  
+  // Hub layer = 1 (after entry layer 0) + max upstream distance
+  const hubLayer = 1 + maxUpstreamDistance;
+  
+  // Compute ideal layer for each node
+  depthAnalysis.nodeDepths.forEach((info, nodeId) => {
+    const idealLayer = computeIdealLayer(info, hubLayer);
+    idealLayers.set(nodeId, idealLayer);
+  });
+  
+  return idealLayers;
 }

@@ -22,8 +22,12 @@ import {
   NodeRole,
   NodeConstraint,
   LayoutEdge,
+  StarGroup,
+  SpokePlacement,
+  DepthAnalysis,
+  DepthGroup,
 } from "./types";
-import { isPinnedTop, isPinnedBottom, enforcePositionConstraints, validatePositions } from "./constraints";
+import { isPinnedTop, isPinnedBottom, enforcePositionConstraints, validatePositions, DEPTH_GROUP_BANDS } from "./constraints";
 
 // ============================================================================
 // Grid Snapping
@@ -74,6 +78,8 @@ export function calculateInitialPositions(
  * Adjusts positions for nodes with bidirectional edges
  * Nodes with bidirectional connections should be vertically aligned
  * to reduce visual clutter
+ * 
+ * @param skipNodes - Optional set of node IDs to skip (e.g., star group nodes)
  */
 export function adjustForBidirectionalEdges(
   positions: Map<string, Position>,
@@ -81,9 +87,10 @@ export function adjustForBidirectionalEdges(
   bidirectionalPairs: Set<string>,
   roles: Map<string, NodeRole>,
   constraints: NodeConstraint[],
-  config: LayoutConfig
+  config: LayoutConfig,
+  skipNodes: Set<string> = new Set()
 ): void {
-  const { nodeSpacing, gridSize } = config;
+  const { gridSize } = config;
 
   // Find all bidirectional partners
   const partners = new Map<string, string[]>();
@@ -104,6 +111,9 @@ export function adjustForBidirectionalEdges(
 
   // Adjust X positions to align bidirectional pairs
   partners.forEach((partnerList, nodeId) => {
+    // Skip nodes in star groups (they've been positioned radially)
+    if (skipNodes.has(nodeId)) return;
+
     // Skip pinned nodes
     if (isPinnedTop(nodeId, constraints) || isPinnedBottom(nodeId, constraints)) {
       return;
@@ -113,6 +123,9 @@ export function adjustForBidirectionalEdges(
     if (!nodePos) return;
 
     partnerList.forEach((partnerId) => {
+      // Skip if partner is in star group
+      if (skipNodes.has(partnerId)) return;
+
       const partnerPos = positions.get(partnerId);
       if (!partnerPos) return;
 
@@ -180,6 +193,171 @@ export function adjustForCycles(
       
       pos.x = snapToGrid(centerPos.x + offsetX, gridSize);
     });
+  });
+}
+
+// ============================================================================
+// Star / Hub-and-Spoke Layout
+// ============================================================================
+
+/**
+ * Calculates spoke placements for a star group
+ * 
+ * Spokes are distributed in a balanced pattern:
+ * - Split evenly between left and right of hub
+ * - Alternating quadrants: upper-left, upper-right, lower-left, lower-right
+ * - Equal horizontal distance from hub
+ * - Slight vertical offsets for visual separation
+ */
+export function calculateSpokePlacements(
+  starGroup: StarGroup,
+  hubPosition: Position,
+  config: LayoutConfig
+): SpokePlacement[] {
+  const { spokeIds } = starGroup;
+  const { nodeSpacing, layerSpacing, gridSize } = config;
+  
+  const placements: SpokePlacement[] = [];
+  const spokeCount = spokeIds.length;
+  
+  if (spokeCount === 0) return placements;
+
+  // Calculate base horizontal offset (distance from hub)
+  const baseOffsetX = nodeSpacing * 0.7;
+  
+  // Calculate vertical offset (slight stagger for visual separation)
+  const verticalStagger = layerSpacing * 0.15;
+
+  // Distribute spokes in quadrants
+  // Pattern: alternate left/right, then upper/lower
+  spokeIds.forEach((spokeId, index) => {
+    // Determine quadrant: 0=upper-left, 1=upper-right, 2=lower-left, 3=lower-right
+    const isRight = index % 2 === 1;
+    const isLower = Math.floor(index / 2) % 2 === 1;
+    const quadrant = (isLower ? 2 : 0) + (isRight ? 1 : 0);
+
+    // Calculate offsets
+    const pairIndex = Math.floor(index / 2);
+    const horizontalMultiplier = isRight ? 1 : -1;
+    const verticalMultiplier = isLower ? 1 : -1;
+
+    // Stagger horizontally for nodes in same side
+    const horizontalStagger = pairIndex * nodeSpacing * 0.3;
+    
+    const offsetX = snapToGrid(
+      horizontalMultiplier * (baseOffsetX + horizontalStagger),
+      gridSize
+    );
+    const offsetY = snapToGrid(
+      verticalMultiplier * verticalStagger * (pairIndex + 1),
+      gridSize
+    );
+
+    placements.push({
+      nodeId: spokeId,
+      quadrant,
+      offsetX,
+      offsetY,
+    });
+  });
+
+  return placements;
+}
+
+/**
+ * Applies star group positioning to distribute spokes radially around hubs
+ * 
+ * This function:
+ * - Finds the hub position for each star group
+ * - Distributes spokes symmetrically around the hub
+ * - Maintains roughly equal edge lengths
+ * - Prevents spoke overlap
+ */
+export function applyStarGroupPositioning(
+  positions: Map<string, Position>,
+  starGroups: StarGroup[],
+  constraints: NodeConstraint[],
+  config: LayoutConfig
+): void {
+  const { gridSize } = config;
+
+  starGroups.forEach((starGroup) => {
+    const { hubId, spokeIds } = starGroup;
+    
+    const hubPos = positions.get(hubId);
+    if (!hubPos) return;
+
+    // Calculate spoke placements
+    const placements = calculateSpokePlacements(starGroup, hubPos, config);
+
+    // Apply placements
+    placements.forEach((placement) => {
+      const { nodeId, offsetX, offsetY } = placement;
+      
+      // Skip if node is pinned
+      if (isPinnedTop(nodeId, constraints) || isPinnedBottom(nodeId, constraints)) {
+        return;
+      }
+
+      const spokePos = positions.get(nodeId);
+      if (!spokePos) return;
+
+      // Apply offset from hub position
+      // Keep Y based on layer, only adjust X for radial distribution
+      spokePos.x = snapToGrid(hubPos.x + offsetX, gridSize);
+      
+      // Add slight Y adjustment if spoke is in same layer as hub
+      if (Math.abs(spokePos.y - hubPos.y) < config.layerSpacing / 2) {
+        spokePos.y = snapToGrid(spokePos.y + offsetY, gridSize);
+      }
+    });
+  });
+}
+
+/**
+ * Fine-tunes star layout to ensure spokes don't overlap
+ */
+export function preventSpokeOverlap(
+  positions: Map<string, Position>,
+  starGroups: StarGroup[],
+  constraints: NodeConstraint[],
+  config: LayoutConfig
+): void {
+  const { nodeSpacing, gridSize } = config;
+  const minDistance = nodeSpacing * 0.8;
+
+  starGroups.forEach((starGroup) => {
+    const { spokeIds } = starGroup;
+
+    // Check each pair of spokes
+    for (let i = 0; i < spokeIds.length; i++) {
+      for (let j = i + 1; j < spokeIds.length; j++) {
+        const spokeA = spokeIds[i];
+        const spokeB = spokeIds[j];
+
+        // Skip pinned nodes
+        if (isPinnedTop(spokeA, constraints) || isPinnedBottom(spokeA, constraints)) continue;
+        if (isPinnedTop(spokeB, constraints) || isPinnedBottom(spokeB, constraints)) continue;
+
+        const posA = positions.get(spokeA);
+        const posB = positions.get(spokeB);
+        if (!posA || !posB) continue;
+
+        // Check if they're too close
+        const dx = posB.x - posA.x;
+        const dy = posB.y - posA.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < minDistance && distance > 0) {
+          // Push them apart
+          const pushDistance = (minDistance - distance) / 2;
+          const angle = Math.atan2(dy, dx);
+
+          posA.x = snapToGrid(posA.x - Math.cos(angle) * pushDistance, gridSize);
+          posB.x = snapToGrid(posB.x + Math.cos(angle) * pushDistance, gridSize);
+        }
+      }
+    }
   });
 }
 
@@ -305,6 +483,238 @@ export function avoidEdgeOverlaps(
 }
 
 // ============================================================================
+// Depth Group-Aware Positioning
+// ============================================================================
+
+/**
+ * Adjusts horizontal positions based on depth groups to prevent clumping
+ * 
+ * Nodes in the same depth group within a layer are spread evenly,
+ * while nodes in different depth groups are given additional separation.
+ * 
+ * @param positions - Current positions
+ * @param orderedLayers - Layer ordering
+ * @param depthAnalysis - Depth analysis results
+ * @param config - Layout configuration
+ */
+export function applyDepthGroupSpacing(
+  positions: Map<string, Position>,
+  orderedLayers: Map<number, string[]>,
+  depthAnalysis: DepthAnalysis,
+  config: LayoutConfig
+): void {
+  const { nodeSpacing, gridSize } = config;
+  const groupSeparation = nodeSpacing * 0.3; // Extra space between groups
+
+  orderedLayers.forEach((nodes, layer) => {
+    if (nodes.length <= 1) return;
+
+    // Group nodes by depth group
+    const groupedNodes = new Map<DepthGroup, string[]>();
+    nodes.forEach((nodeId) => {
+      const depthInfo = depthAnalysis.nodeDepths.get(nodeId);
+      const group = depthInfo?.depthGroup || "ISOLATED";
+      
+      if (!groupedNodes.has(group)) {
+        groupedNodes.set(group, []);
+      }
+      groupedNodes.get(group)!.push(nodeId);
+    });
+
+    // If only one group, no extra spacing needed
+    if (groupedNodes.size <= 1) return;
+
+    // Calculate the center X of the layer
+    let sumX = 0;
+    let count = 0;
+    nodes.forEach((nodeId) => {
+      const pos = positions.get(nodeId);
+      if (pos) {
+        sumX += pos.x;
+        count++;
+      }
+    });
+    const centerX = count > 0 ? sumX / count : 0;
+
+    // Sort groups by band
+    const sortedGroups = Array.from(groupedNodes.keys()).sort((a, b) => {
+      return DEPTH_GROUP_BANDS[a] - DEPTH_GROUP_BANDS[b];
+    });
+
+    // Redistribute: earlier bands on left, later bands on right
+    let currentX = centerX - (sortedGroups.length - 1) * groupSeparation / 2;
+    
+    sortedGroups.forEach((group, groupIndex) => {
+      const groupNodes = groupedNodes.get(group) || [];
+      const groupWidth = (groupNodes.length - 1) * nodeSpacing;
+      const groupStartX = currentX - groupWidth / 2;
+
+      groupNodes.forEach((nodeId, nodeIndex) => {
+        const pos = positions.get(nodeId);
+        if (pos) {
+          // Position within group
+          pos.x = snapToGrid(groupStartX + nodeIndex * nodeSpacing, gridSize);
+        }
+      });
+
+      currentX += groupWidth + groupSeparation;
+    });
+  });
+}
+
+/**
+ * Balances edge lengths within depth groups to minimize variance
+ * 
+ * This is a secondary optimization that runs after basic positioning.
+ * It adjusts node positions to make edge lengths more uniform,
+ * which improves visual clarity.
+ * 
+ * @param positions - Current positions
+ * @param edges - All edges
+ * @param depthAnalysis - Depth analysis results
+ * @param constraints - Layout constraints
+ * @param config - Layout configuration
+ */
+export function balanceEdgeLengths(
+  positions: Map<string, Position>,
+  edges: LayoutEdge[],
+  depthAnalysis: DepthAnalysis,
+  constraints: NodeConstraint[],
+  config: LayoutConfig,
+  maxIterations: number = 5
+): void {
+  const { nodeSpacing, gridSize } = config;
+  const minMove = gridSize;
+  const maxMove = nodeSpacing * 0.3;
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let totalMoved = 0;
+
+    // For each node, calculate the "ideal" position based on edge lengths
+    positions.forEach((pos, nodeId) => {
+      // Skip pinned nodes
+      if (isPinnedTop(nodeId, constraints) || isPinnedBottom(nodeId, constraints)) {
+        return;
+      }
+
+      const depthInfo = depthAnalysis.nodeDepths.get(nodeId);
+      if (!depthInfo) return;
+
+      // Collect all edges connected to this node
+      const connectedEdges = edges.filter(
+        (e) => e.source === nodeId || e.target === nodeId
+      );
+
+      if (connectedEdges.length === 0) return;
+
+      // Calculate edge lengths and their "pull" on the node
+      let pullX = 0;
+      let pullCount = 0;
+
+      connectedEdges.forEach((edge) => {
+        const otherId = edge.source === nodeId ? edge.target : edge.source;
+        const otherPos = positions.get(otherId);
+        if (!otherPos) return;
+
+        const otherDepth = depthAnalysis.nodeDepths.get(otherId);
+        if (!otherDepth) return;
+
+        // Calculate current edge length
+        const dx = otherPos.x - pos.x;
+        const dy = otherPos.y - pos.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+
+        // Target length based on layer distance
+        const targetLength = Math.abs(dy) + nodeSpacing * 0.3;
+
+        // If edge is too long, pull toward other node
+        // If too short, push away
+        if (length > 0) {
+          const lengthDiff = targetLength - length;
+          const normalizedPull = (dx / length) * lengthDiff * 0.3;
+
+          // Weight by depth group compatibility
+          const sameGroup = depthInfo.depthGroup === otherDepth.depthGroup;
+          const weight = sameGroup ? 1.0 : 0.5;
+
+          pullX += normalizedPull * weight;
+          pullCount++;
+        }
+      });
+
+      // Apply averaged pull
+      if (pullCount > 0) {
+        const avgPull = pullX / pullCount;
+        const clampedPull = Math.max(-maxMove, Math.min(maxMove, avgPull));
+
+        if (Math.abs(clampedPull) >= minMove) {
+          pos.x = snapToGrid(pos.x + clampedPull, gridSize);
+          totalMoved += Math.abs(clampedPull);
+        }
+      }
+    });
+
+    // Stop if no significant movement
+    if (totalMoved < minMove * 2) break;
+  }
+}
+
+/**
+ * Prevents nodes from being pushed too far horizontally
+ * 
+ * This addresses the "randomly far away" failure mode by detecting
+ * nodes that are outliers and pulling them back toward the center.
+ * 
+ * @param positions - Current positions
+ * @param orderedLayers - Layer ordering
+ * @param constraints - Layout constraints
+ * @param config - Layout configuration
+ */
+export function preventHorizontalOutliers(
+  positions: Map<string, Position>,
+  orderedLayers: Map<number, string[]>,
+  constraints: NodeConstraint[],
+  config: LayoutConfig
+): void {
+  const { nodeSpacing, gridSize } = config;
+  const maxDeviation = nodeSpacing * 2; // Maximum deviation from layer median
+
+  orderedLayers.forEach((nodes, layer) => {
+    if (nodes.length <= 2) return;
+
+    // Calculate median X for this layer
+    const xPositions = nodes
+      .map((nodeId) => positions.get(nodeId)?.x)
+      .filter((x): x is number => x !== undefined)
+      .sort((a, b) => a - b);
+
+    if (xPositions.length === 0) return;
+
+    const medianX = xPositions[Math.floor(xPositions.length / 2)];
+
+    // Check each node for outlier status
+    nodes.forEach((nodeId) => {
+      // Skip pinned nodes
+      if (isPinnedTop(nodeId, constraints) || isPinnedBottom(nodeId, constraints)) {
+        return;
+      }
+
+      const pos = positions.get(nodeId);
+      if (!pos) return;
+
+      const deviation = Math.abs(pos.x - medianX);
+
+      if (deviation > maxDeviation) {
+        // Pull back toward median, but not all the way
+        const pullBack = (deviation - maxDeviation) * 0.7;
+        const direction = pos.x > medianX ? -1 : 1;
+        pos.x = snapToGrid(pos.x + direction * pullBack, gridSize);
+      }
+    });
+  });
+}
+
+// ============================================================================
 // Final Position Computation
 // ============================================================================
 
@@ -317,30 +727,67 @@ export function computePositions(
   edges: LayoutEdge[],
   bidirectionalPairs: Set<string>,
   cycles: string[][],
+  starGroups: StarGroup[],
   roles: Map<string, NodeRole>,
   constraints: NodeConstraint[],
-  config: LayoutConfig
+  config: LayoutConfig,
+  depthAnalysis?: DepthAnalysis
 ): Map<string, Position> {
   // Step 1: Calculate initial positions based on layers
   const positions = calculateInitialPositions(orderedLayers, config);
 
-  // Step 2: Adjust for bidirectional edges
+  // Step 2: Apply depth group spacing (if depth analysis available)
+  // This ensures nodes in different depth groups are properly separated
+  if (depthAnalysis) {
+    applyDepthGroupSpacing(positions, orderedLayers, depthAnalysis, config);
+  }
+
+  // Step 3: Apply star group positioning (BEFORE other adjustments)
+  // This ensures spokes are distributed symmetrically around their hubs
+  if (starGroups.length > 0) {
+    applyStarGroupPositioning(positions, starGroups, constraints, config);
+    preventSpokeOverlap(positions, starGroups, constraints, config);
+  }
+
+  // Step 4: Adjust for bidirectional edges (skip nodes in star groups)
+  // Star group nodes have already been positioned radially
+  const starNodeSet = new Set<string>();
+  starGroups.forEach((group) => {
+    starNodeSet.add(group.hubId);
+    group.spokeIds.forEach((s) => starNodeSet.add(s));
+  });
+
   adjustForBidirectionalEdges(
     positions,
     edges,
     bidirectionalPairs,
     roles,
     constraints,
-    config
+    config,
+    starNodeSet
   );
 
-  // Step 3: Adjust for cycles
-  adjustForCycles(positions, cycles, roles, constraints, config);
+  // Step 5: Adjust for cycles (skip star group cycles)
+  // Only apply to non-star cycles
+  const nonStarCycles = cycles.filter((cycle) => {
+    return !cycle.some((nodeId) => starNodeSet.has(nodeId));
+  });
+  adjustForCycles(positions, nonStarCycles, roles, constraints, config);
 
-  // Step 4: Avoid edge overlaps
+  // Step 6: Avoid edge overlaps
   avoidEdgeOverlaps(positions, edges, constraints, config);
 
-  // Step 5: Enforce constraints (INVARIANTS)
+  // Step 7: Balance edge lengths (if depth analysis available)
+  // This minimizes variance in edge lengths within semantic groups
+  if (depthAnalysis) {
+    balanceEdgeLengths(positions, edges, depthAnalysis, constraints, config);
+  }
+
+  // Step 8: Prevent horizontal outliers
+  // This addresses the "randomly far away" node problem
+  preventHorizontalOutliers(positions, orderedLayers, constraints, config);
+
+  // Step 9: Enforce constraints (INVARIANTS)
   // This is the final guarantee that entry is at top and exit is at bottom
   const constrainedPositions = enforcePositionConstraints(
     positions,
@@ -348,13 +795,13 @@ export function computePositions(
     config.layerSpacing
   );
 
-  // Step 6: Validate (for debugging)
+  // Step 10: Validate (for debugging)
   const validation = validatePositions(constrainedPositions, constraints);
   if (!validation.valid) {
     console.warn("Layout constraint violations:", validation.violations);
   }
 
-  // Step 7: Center the graph around origin
+  // Step 11: Center the graph around origin
   return centerGraph(constrainedPositions, config.gridSize);
 }
 

@@ -16,8 +16,11 @@ import {
   NodeConstraint,
   LayerAssignment,
   OrderingResult,
+  StarGroup,
+  DepthAnalysis,
+  DepthGroup,
 } from "./types";
-import { isPinnedTop, isPinnedBottom } from "./constraints";
+import { isPinnedTop, isPinnedBottom, getDepthGroupBand, DEPTH_GROUP_BANDS } from "./constraints";
 
 // ============================================================================
 // Adjacency Building
@@ -422,6 +425,451 @@ export function centerOrchestrators(
 
     result.set(layer, reordered);
   });
+
+  return result;
+}
+
+// ============================================================================
+// Star Group Ordering
+// ============================================================================
+
+/**
+ * Applies symmetric ordering for star group spokes
+ * 
+ * This function distributes star spokes evenly around their hub,
+ * preventing barycenter optimization from collapsing symmetric siblings.
+ * 
+ * The ordering strategy:
+ * - Spokes are split evenly left/right around the hub
+ * - Alternating placement: upper-left, upper-right, lower-left, lower-right
+ * - This maintains visual balance and roughly equal edge lengths
+ * 
+ * @param orderedLayers - Current layer ordering
+ * @param starGroups - Detected star groups
+ * @param nodeToLayer - Layer assignment for each node
+ * @returns Updated layer ordering with symmetric spoke distribution
+ */
+export function applyStarGroupOrdering(
+  orderedLayers: Map<number, string[]>,
+  starGroups: StarGroup[],
+  nodeToLayer: Map<string, number>
+): Map<number, string[]> {
+  if (starGroups.length === 0) {
+    return orderedLayers;
+  }
+
+  const result = new Map<number, string[]>();
+  orderedLayers.forEach((nodes, layer) => {
+    result.set(layer, [...nodes]);
+  });
+
+  // Process each star group
+  starGroups.forEach((starGroup) => {
+    const { hubId, spokeIds } = starGroup;
+    const hubLayer = nodeToLayer.get(hubId);
+    
+    if (hubLayer === undefined) return;
+
+    // Group spokes by their layer
+    const spokesByLayer = new Map<number, string[]>();
+    spokeIds.forEach((spokeId) => {
+      const spokeLayer = nodeToLayer.get(spokeId);
+      if (spokeLayer === undefined) return;
+      
+      if (!spokesByLayer.has(spokeLayer)) {
+        spokesByLayer.set(spokeLayer, []);
+      }
+      spokesByLayer.get(spokeLayer)!.push(spokeId);
+    });
+
+    // For each layer with spokes, distribute them symmetrically
+    spokesByLayer.forEach((layerSpokes, layer) => {
+      const currentOrder = result.get(layer);
+      if (!currentOrder) return;
+
+      // Find non-spoke nodes in this layer
+      const spokeSet = new Set(layerSpokes);
+      const nonSpokes = currentOrder.filter((n) => !spokeSet.has(n));
+      
+      // If there are no non-spokes, just distribute the spokes evenly
+      if (nonSpokes.length === 0) {
+        // Distribute spokes in alternating left/right pattern
+        const distributed = distributeSpokesSymmetrically(layerSpokes);
+        result.set(layer, distributed);
+        return;
+      }
+
+      // Find the hub's position in its layer to align spokes
+      const hubLayerNodes = result.get(hubLayer) || [];
+      const hubIndex = hubLayerNodes.indexOf(hubId);
+      const hubPosition = hubIndex >= 0 ? hubIndex / Math.max(1, hubLayerNodes.length - 1) : 0.5;
+
+      // Distribute spokes around the hub's relative position
+      const distributed = distributeSpokesAroundCenter(
+        layerSpokes,
+        nonSpokes,
+        hubPosition
+      );
+      result.set(layer, distributed);
+    });
+  });
+
+  return result;
+}
+
+/**
+ * Distributes spokes symmetrically when they are alone in a layer
+ */
+function distributeSpokesSymmetrically(spokes: string[]): string[] {
+  if (spokes.length <= 1) return spokes;
+
+  const result: string[] = [];
+  const leftSpokes: string[] = [];
+  const rightSpokes: string[] = [];
+
+  // Alternate between left and right
+  spokes.forEach((spoke, index) => {
+    if (index % 2 === 0) {
+      leftSpokes.push(spoke);
+    } else {
+      rightSpokes.push(spoke);
+    }
+  });
+
+  // Combine: left spokes (in order) + right spokes (in order)
+  result.push(...leftSpokes, ...rightSpokes);
+
+  return result;
+}
+
+/**
+ * Distributes spokes around a center position with non-spoke nodes
+ */
+function distributeSpokesAroundCenter(
+  spokes: string[],
+  nonSpokes: string[],
+  centerPosition: number
+): string[] {
+  if (spokes.length === 0) return nonSpokes;
+  if (spokes.length === 1) {
+    // Single spoke: place at center position
+    const insertIndex = Math.round(centerPosition * nonSpokes.length);
+    const result = [...nonSpokes];
+    result.splice(insertIndex, 0, spokes[0]);
+    return result;
+  }
+
+  // Split spokes into left and right groups
+  const leftSpokes: string[] = [];
+  const rightSpokes: string[] = [];
+
+  spokes.forEach((spoke, index) => {
+    if (index % 2 === 0) {
+      leftSpokes.push(spoke);
+    } else {
+      rightSpokes.push(spoke);
+    }
+  });
+
+  // Calculate insertion points for balanced distribution
+  const totalNodes = nonSpokes.length + spokes.length;
+  const leftInsertPoint = Math.floor(totalNodes * 0.25);
+  const rightInsertPoint = Math.ceil(totalNodes * 0.75);
+
+  // Build result with spokes distributed symmetrically
+  const result: string[] = [];
+  let spokeLeftIdx = 0;
+  let spokeRightIdx = 0;
+  let nonSpokeIdx = 0;
+  
+  for (let i = 0; i < totalNodes; i++) {
+    // Determine if this position should be a left spoke, right spoke, or non-spoke
+    const isLeftRegion = i < totalNodes / 2;
+    const isRightRegion = i >= totalNodes / 2;
+
+    if (isLeftRegion && spokeLeftIdx < leftSpokes.length) {
+      // Place left spokes in the left region
+      const spokePositionInRegion = (spokeLeftIdx + 1) / (leftSpokes.length + 1);
+      const expectedPosition = Math.floor(spokePositionInRegion * (totalNodes / 2));
+      
+      if (i >= expectedPosition) {
+        result.push(leftSpokes[spokeLeftIdx]);
+        spokeLeftIdx++;
+        continue;
+      }
+    }
+
+    if (isRightRegion && spokeRightIdx < rightSpokes.length) {
+      // Place right spokes in the right region
+      const regionStart = totalNodes / 2;
+      const positionInRegion = i - regionStart;
+      const spokePositionInRegion = (spokeRightIdx + 1) / (rightSpokes.length + 1);
+      const expectedPosition = Math.floor(spokePositionInRegion * (totalNodes / 2));
+      
+      if (positionInRegion >= expectedPosition) {
+        result.push(rightSpokes[spokeRightIdx]);
+        spokeRightIdx++;
+        continue;
+      }
+    }
+
+    // Fill with non-spokes
+    if (nonSpokeIdx < nonSpokes.length) {
+      result.push(nonSpokes[nonSpokeIdx]);
+      nonSpokeIdx++;
+    }
+  }
+
+  // Add any remaining nodes
+  while (spokeLeftIdx < leftSpokes.length) {
+    result.push(leftSpokes[spokeLeftIdx++]);
+  }
+  while (spokeRightIdx < rightSpokes.length) {
+    result.push(rightSpokes[spokeRightIdx++]);
+  }
+  while (nonSpokeIdx < nonSpokes.length) {
+    result.push(nonSpokes[nonSpokeIdx++]);
+  }
+
+  return result;
+}
+
+/**
+ * Checks if any nodes in a layer are part of a star group
+ */
+export function hasStarNodesInLayer(
+  layer: number,
+  orderedLayers: Map<number, string[]>,
+  starGroups: StarGroup[]
+): boolean {
+  const nodes = orderedLayers.get(layer) || [];
+  const allStarNodes = new Set<string>();
+
+  starGroups.forEach((group) => {
+    allStarNodes.add(group.hubId);
+    group.spokeIds.forEach((s) => allStarNodes.add(s));
+  });
+
+  return nodes.some((n) => allStarNodes.has(n));
+}
+
+// ============================================================================
+// Depth Group-Aware Ordering
+// ============================================================================
+
+/**
+ * Applies depth group-aware ordering within layers
+ * 
+ * This function ensures that nodes in the same layer are ordered by their
+ * depth group, with nodes from the same depth group clustered together.
+ * This prevents visual confusion where nodes with different semantic roles
+ * appear intermixed.
+ * 
+ * Ordering priority within a layer:
+ * 1. Depth group band (UPSTREAM < HUB/CYCLIC < DOWNSTREAM)
+ * 2. Semantic depth within group (closer to hub = more central)
+ * 3. Original order (stability)
+ * 
+ * @param orderedLayers - Current layer ordering
+ * @param depthAnalysis - Depth analysis for the graph
+ * @returns Updated layer ordering with depth group clustering
+ */
+export function applyDepthGroupOrdering(
+  orderedLayers: Map<number, string[]>,
+  depthAnalysis: DepthAnalysis
+): Map<number, string[]> {
+  const result = new Map<number, string[]>();
+
+  orderedLayers.forEach((nodes, layer) => {
+    if (nodes.length <= 1) {
+      result.set(layer, [...nodes]);
+      return;
+    }
+
+    // Sort nodes within layer by depth group and semantic depth
+    const sortedNodes = [...nodes].sort((a, b) => {
+      const depthA = depthAnalysis.nodeDepths.get(a);
+      const depthB = depthAnalysis.nodeDepths.get(b);
+
+      if (!depthA || !depthB) return 0;
+
+      // First, sort by depth group band
+      const bandA = DEPTH_GROUP_BANDS[depthA.depthGroup];
+      const bandB = DEPTH_GROUP_BANDS[depthB.depthGroup];
+
+      if (bandA !== bandB) {
+        return bandA - bandB;
+      }
+
+      // Within the same band, sort by semantic depth
+      // (closer to hub = lower absolute value = more central)
+      const absDepthA = Math.abs(depthA.semanticDepth);
+      const absDepthB = Math.abs(depthB.semanticDepth);
+
+      if (absDepthA !== absDepthB) {
+        return absDepthA - absDepthB;
+      }
+
+      // Stable sort by original position
+      return nodes.indexOf(a) - nodes.indexOf(b);
+    });
+
+    result.set(layer, sortedNodes);
+  });
+
+  return result;
+}
+
+/**
+ * Distributes nodes within a layer to prevent cross-depth-group clustering
+ * 
+ * When nodes from different depth groups are in the same layer (which can
+ * happen with complex graphs), this ensures they are spread out horizontally
+ * rather than clustered together.
+ * 
+ * @param orderedLayers - Current layer ordering
+ * @param depthAnalysis - Depth analysis for the graph
+ * @returns Updated layer ordering with better distribution
+ */
+export function distributeDepthGroupsInLayer(
+  orderedLayers: Map<number, string[]>,
+  depthAnalysis: DepthAnalysis
+): Map<number, string[]> {
+  const result = new Map<number, string[]>();
+
+  orderedLayers.forEach((nodes, layer) => {
+    if (nodes.length <= 2) {
+      result.set(layer, [...nodes]);
+      return;
+    }
+
+    // Group nodes by their depth group
+    const groupedByDepth = new Map<DepthGroup, string[]>();
+    
+    nodes.forEach((nodeId) => {
+      const depthInfo = depthAnalysis.nodeDepths.get(nodeId);
+      const group = depthInfo?.depthGroup || "ISOLATED";
+      
+      if (!groupedByDepth.has(group)) {
+        groupedByDepth.set(group, []);
+      }
+      groupedByDepth.get(group)!.push(nodeId);
+    });
+
+    // If all nodes are in the same group, no need to redistribute
+    if (groupedByDepth.size === 1) {
+      result.set(layer, [...nodes]);
+      return;
+    }
+
+    // Interleave nodes from different groups for better distribution
+    // This prevents "clumping" of same-group nodes on one side
+    const distributed = interleaveDepthGroups(groupedByDepth, depthAnalysis);
+    result.set(layer, distributed);
+  });
+
+  return result;
+}
+
+/**
+ * Interleaves nodes from different depth groups for balanced horizontal distribution
+ */
+function interleaveDepthGroups(
+  groupedByDepth: Map<DepthGroup, string[]>,
+  depthAnalysis: DepthAnalysis
+): string[] {
+  const result: string[] = [];
+  
+  // Sort groups by band (UPSTREAM groups first, then HUB/CYCLIC, then DOWNSTREAM)
+  const sortedGroups = Array.from(groupedByDepth.keys()).sort((a, b) => {
+    return DEPTH_GROUP_BANDS[a] - DEPTH_GROUP_BANDS[b];
+  });
+
+  // Collect nodes with their semantic depths for fine-grained ordering
+  const allNodes: Array<{ nodeId: string; group: DepthGroup; semanticDepth: number }> = [];
+  
+  sortedGroups.forEach((group) => {
+    const nodes = groupedByDepth.get(group) || [];
+    nodes.forEach((nodeId) => {
+      const depthInfo = depthAnalysis.nodeDepths.get(nodeId);
+      allNodes.push({
+        nodeId,
+        group,
+        semanticDepth: depthInfo?.semanticDepth || 0,
+      });
+    });
+  });
+
+  // Sort by semantic depth (maintaining group clustering but with depth ordering)
+  allNodes.sort((a, b) => {
+    // Primary: group band
+    const bandA = DEPTH_GROUP_BANDS[a.group];
+    const bandB = DEPTH_GROUP_BANDS[b.group];
+    if (bandA !== bandB) return bandA - bandB;
+    
+    // Secondary: semantic depth
+    return a.semanticDepth - b.semanticDepth;
+  });
+
+  // Build result with balanced left/right distribution within groups
+  const leftSide: string[] = [];
+  const center: string[] = [];
+  const rightSide: string[] = [];
+
+  // Distribute: UPSTREAM to left, HUB/CYCLIC to center, DOWNSTREAM to right
+  allNodes.forEach((item, index) => {
+    const band = DEPTH_GROUP_BANDS[item.group];
+    
+    if (band < DEPTH_GROUP_BANDS["HUB"]) {
+      // UPSTREAM - distribute between left and center-left
+      if (index % 2 === 0) {
+        leftSide.push(item.nodeId);
+      } else {
+        leftSide.unshift(item.nodeId);
+      }
+    } else if (band > DEPTH_GROUP_BANDS["HUB"]) {
+      // DOWNSTREAM - distribute between center-right and right
+      if (index % 2 === 0) {
+        rightSide.push(item.nodeId);
+      } else {
+        rightSide.unshift(item.nodeId);
+      }
+    } else {
+      // HUB/CYCLIC/ISOLATED - keep in center
+      center.push(item.nodeId);
+    }
+  });
+
+  // Combine: left + center + right
+  result.push(...leftSide, ...center, ...rightSide);
+
+  return result;
+}
+
+/**
+ * Combined ordering that applies both star group and depth group optimizations
+ * 
+ * Order of operations:
+ * 1. Apply depth group ordering (cluster by semantic band)
+ * 2. Apply star group ordering (symmetric spoke distribution)
+ * 3. Distribute mixed groups (prevent clumping)
+ */
+export function applyFullOrdering(
+  orderedLayers: Map<number, string[]>,
+  starGroups: StarGroup[],
+  nodeToLayer: Map<string, number>,
+  depthAnalysis: DepthAnalysis
+): Map<number, string[]> {
+  // Step 1: Apply depth group ordering
+  let result = applyDepthGroupOrdering(orderedLayers, depthAnalysis);
+
+  // Step 2: Apply star group ordering (if any star groups exist)
+  if (starGroups.length > 0) {
+    result = applyStarGroupOrdering(result, starGroups, nodeToLayer);
+  }
+
+  // Step 3: Distribute mixed depth groups within layers
+  result = distributeDepthGroupsInLayer(result, depthAnalysis);
 
   return result;
 }

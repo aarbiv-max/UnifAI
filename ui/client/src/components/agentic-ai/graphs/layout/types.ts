@@ -21,6 +21,61 @@ import { PlanItem, NodeDefinition } from "../interfaces";
 export type NodeRole = "entry" | "exit" | "orchestrator" | "agent" | "control";
 
 // ============================================================================
+// Depth Group Types (Relative Position to Orchestrator)
+// ============================================================================
+
+/**
+ * Semantic depth group of a node relative to the orchestrator/hub
+ * 
+ * This classifies nodes based on their directed relationship to the orchestrator:
+ * - UPSTREAM: Can reach orchestrator but orchestrator cannot reach this node
+ * - DOWNSTREAM: Orchestrator can reach this node but this node cannot reach orchestrator
+ * - CYCLIC: Both directions exist (bidirectional relationship with orchestrator)
+ * - ISOLATED: Neither direction exists (no path to/from orchestrator)
+ * - HUB: The orchestrator/hub node itself
+ * - PINNED_TOP: Entry nodes (special handling, always at top)
+ * - PINNED_BOTTOM: Exit nodes (special handling, always at bottom)
+ */
+export type DepthGroup = 
+  | "UPSTREAM" 
+  | "DOWNSTREAM" 
+  | "CYCLIC" 
+  | "ISOLATED" 
+  | "HUB"
+  | "PINNED_TOP"
+  | "PINNED_BOTTOM";
+
+/**
+ * Depth analysis result for a single node
+ */
+export interface NodeDepthInfo {
+  /** The node ID */
+  nodeId: string;
+  /** Depth group classification */
+  depthGroup: DepthGroup;
+  /** Shortest directed distance TO the orchestrator (-1 if unreachable) */
+  distanceToOrchestrator: number;
+  /** Shortest directed distance FROM the orchestrator (-1 if unreachable) */
+  distanceFromOrchestrator: number;
+  /** Combined semantic depth (used for fine-grained ordering within groups) */
+  semanticDepth: number;
+}
+
+/**
+ * Complete depth analysis for the graph
+ */
+export interface DepthAnalysis {
+  /** Map of node ID to depth info */
+  nodeDepths: Map<string, NodeDepthInfo>;
+  /** Nodes grouped by their depth group */
+  groupedNodes: Map<DepthGroup, string[]>;
+  /** The orchestrator/hub node ID(s) used for analysis */
+  hubNodes: string[];
+  /** Whether the graph has multiple hubs */
+  isMultiHub: boolean;
+}
+
+// ============================================================================
 // Graph Structure Types
 // ============================================================================
 
@@ -51,6 +106,51 @@ export interface GraphStructure {
   bidirectionalPairs: Set<string>;
   cycles: string[][];
   roles: Map<string, NodeRole>;
+  /** Detected star/hub-and-spoke patterns */
+  starGroups: StarGroup[];
+  /** Depth analysis relative to orchestrator/hub nodes */
+  depthAnalysis: DepthAnalysis;
+}
+
+// ============================================================================
+// Star / Hub-and-Spoke Types
+// ============================================================================
+
+/**
+ * Represents a star (hub-and-spoke) pattern in the graph
+ * 
+ * A star is detected when:
+ * - A hub node has ≥3 bidirectional neighbors (spokes)
+ * - All spokes are in the semantic middle band (not entry/exit)
+ * - No strong ordering constraints between spokes
+ * 
+ * Star patterns require special layout treatment:
+ * - Spokes are distributed radially around the hub
+ * - Symmetry is preserved (barycenter doesn't collapse siblings)
+ * - Edge lengths are kept roughly equal
+ */
+export interface StarGroup {
+  /** Unique identifier for this star group */
+  id: string;
+  /** The central hub node (usually orchestrator) */
+  hubId: string;
+  /** Spoke nodes connected bidirectionally to the hub */
+  spokeIds: string[];
+  /** Number of spokes */
+  spokeCount: number;
+}
+
+/**
+ * Spoke placement in a star layout
+ */
+export interface SpokePlacement {
+  nodeId: string;
+  /** Quadrant: 0=upper-left, 1=upper-right, 2=lower-left, 3=lower-right */
+  quadrant: number;
+  /** Horizontal offset from hub center */
+  offsetX: number;
+  /** Vertical offset from hub center */
+  offsetY: number;
 }
 
 // ============================================================================
@@ -126,6 +226,8 @@ export interface LayoutResult {
   positions: Map<string, Position>;
   layers: Map<number, string[]>;
   cycleGroups: Map<string, string[]>;
+  starGroups: StarGroup[];
+  depthAnalysis: DepthAnalysis;
   metadata: LayoutMetadata;
 }
 
@@ -138,6 +240,9 @@ export interface LayoutMetadata {
   orchestratorNodes: string[];
   cycleCount: number;
   crossingCount: number;
+  starGroupCount: number;
+  /** Count of nodes in each depth group */
+  depthGroupCounts: Record<DepthGroup, number>;
 }
 
 // ============================================================================
