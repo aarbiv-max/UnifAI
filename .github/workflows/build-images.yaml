@@ -164,8 +164,8 @@ jobs:
       - name: GitHub Actions Failure Analysis
         uses: calebevans/gha-failure-analysis@v0.1.8
         env:
-          HOME: /tmp
-          #USER: root
+          #HOME: /tmp
+          USER: root
         with:
           run-id: ${{ github.event.workflow_run.id }}
           llm-provider: gemini
