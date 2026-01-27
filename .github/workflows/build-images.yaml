@@ -158,4 +158,5 @@ jobs:
           llm-provider: gemini
           llm-model: gemini-3-pro-preview
           llm-api-key: ${{ secrets.GEMINI_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           post-pr-comment: false
