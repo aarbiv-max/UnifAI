@@ -155,10 +155,13 @@ jobs:
     steps:
       - name: GitHub Actions Failure Analysis
         uses: calebevans/gha-failure-analysis@v0.1.8
+        ENV:
+          HOME: /tmp
+          USER: root
         with:
           run-id: ${{ github.event.workflow_run.id }}
           llm-provider: gemini
           llm-model: gemini-3-pro-preview
           llm-api-key: ${{ secrets.GEMINI_API_KEY }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GIT_ACTION_TOKEN }}
           post-pr-comment: false
