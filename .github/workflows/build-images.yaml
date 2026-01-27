@@ -155,7 +155,7 @@ jobs:
     steps:
       - name: GitHub Actions Failure Analysis
         uses: calebevans/gha-failure-analysis@v0.1.8
-        ENV:
+        env:
           HOME: /tmp
           USER: root
         with:
