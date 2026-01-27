@@ -328,6 +328,24 @@ export function enforcePositionConstraints(
     }
   });
 
+  // Fallback: if no unpinned nodes, compute bounds from all positions
+  if (minUnpinnedY === Infinity || maxUnpinnedY === -Infinity) {
+    let fallbackMinY = Infinity;
+    let fallbackMaxY = -Infinity;
+    result.forEach((pos) => {
+      fallbackMinY = Math.min(fallbackMinY, pos.y);
+      fallbackMaxY = Math.max(fallbackMaxY, pos.y);
+    });
+    // Use overall bounds if we found any positions, otherwise default to 0
+    if (fallbackMinY !== Infinity) {
+      minUnpinnedY = fallbackMinY;
+      maxUnpinnedY = fallbackMaxY;
+    } else {
+      minUnpinnedY = 0;
+      maxUnpinnedY = 0;
+    }
+  }
+
   // Calculate entry Y (above all unpinned nodes)
   const entryY = minUnpinnedY - layerSpacing;
 
@@ -540,7 +558,7 @@ export function computeIdealLayer(
     case "DOWNSTREAM":
       // Place below hub, distance determines how far below
       return hubLayer + distanceFromOrchestrator;
-    case "CYCLIC":
+    case "CYCLIC": {
       // Place at hub level, but may be offset slightly based on average distance
       const avgDistance = (distanceToOrchestrator + distanceFromOrchestrator) / 2;
       // Small offset based on average distance (keeps cyclic nodes near hub)
@@ -548,6 +566,7 @@ export function computeIdealLayer(
         return hubLayer;
       }
       return hubLayer + Math.sign(distanceFromOrchestrator - distanceToOrchestrator);
+    }
     case "ISOLATED":
       // Default to hub level
       return hubLayer;

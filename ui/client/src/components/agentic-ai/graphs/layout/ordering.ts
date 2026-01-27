@@ -571,12 +571,15 @@ function distributeSpokesAroundCenter(
     }
   });
 
-  // Calculate insertion points for balanced distribution
+  // Calculate insertion points biased by centerPosition
   const totalNodes = nonSpokes.length + spokes.length;
-  const leftInsertPoint = Math.floor(totalNodes * 0.25);
-  const rightInsertPoint = Math.ceil(totalNodes * 0.75);
+  const centerIndex = Math.round(centerPosition * totalNodes);
+  
+  // Compute region boundaries relative to the center position
+  const leftRegionEnd = centerIndex;
+  const rightRegionStart = centerIndex;
 
-  // Build result with spokes distributed symmetrically
+  // Build result with spokes distributed symmetrically around centerPosition
   const result: string[] = [];
   let spokeLeftIdx = 0;
   let spokeRightIdx = 0;
@@ -584,13 +587,15 @@ function distributeSpokesAroundCenter(
   
   for (let i = 0; i < totalNodes; i++) {
     // Determine if this position should be a left spoke, right spoke, or non-spoke
-    const isLeftRegion = i < totalNodes / 2;
-    const isRightRegion = i >= totalNodes / 2;
+    // Left region is indices < centerIndex, right region is >= centerIndex
+    const isLeftRegion = i < leftRegionEnd;
+    const isRightRegion = i >= rightRegionStart;
 
     if (isLeftRegion && spokeLeftIdx < leftSpokes.length) {
-      // Place left spokes in the left region
+      // Place left spokes in the left region, biased by centerPosition
+      const leftRegionSize = Math.max(1, leftRegionEnd);
       const spokePositionInRegion = (spokeLeftIdx + 1) / (leftSpokes.length + 1);
-      const expectedPosition = Math.floor(spokePositionInRegion * (totalNodes / 2));
+      const expectedPosition = Math.floor(spokePositionInRegion * leftRegionSize);
       
       if (i >= expectedPosition) {
         result.push(leftSpokes[spokeLeftIdx]);
@@ -600,11 +605,11 @@ function distributeSpokesAroundCenter(
     }
 
     if (isRightRegion && spokeRightIdx < rightSpokes.length) {
-      // Place right spokes in the right region
-      const regionStart = totalNodes / 2;
-      const positionInRegion = i - regionStart;
+      // Place right spokes in the right region, biased by centerPosition
+      const rightRegionSize = Math.max(1, totalNodes - rightRegionStart);
+      const positionInRegion = i - rightRegionStart;
       const spokePositionInRegion = (spokeRightIdx + 1) / (rightSpokes.length + 1);
-      const expectedPosition = Math.floor(spokePositionInRegion * (totalNodes / 2));
+      const expectedPosition = Math.floor(spokePositionInRegion * rightRegionSize);
       
       if (positionInRegion >= expectedPosition) {
         result.push(rightSpokes[spokeRightIdx]);

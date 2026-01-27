@@ -392,7 +392,7 @@ export function assignLayersWithDepth(
         // Place below hub, distance determines how far below
         layer = hubLayer + distanceFromOrchestrator;
         break;
-      case "CYCLIC":
+      case "CYCLIC": {
         // Place at hub level, with slight offset based on asymmetry
         const diff = distanceFromOrchestrator - distanceToOrchestrator;
         if (Math.abs(diff) <= 1) {
@@ -402,6 +402,7 @@ export function assignLayersWithDepth(
           layer = hubLayer + Math.sign(diff);
         }
         break;
+      }
       case "ISOLATED":
         // Default to hub level
         layer = hubLayer;
