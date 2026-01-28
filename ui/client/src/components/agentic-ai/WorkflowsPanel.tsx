@@ -62,6 +62,11 @@ export default function WorkflowsPanel({
     showBackground: true,
     interactive: true,
     isLiveRequest: false,
+    useSmartEdges: false,
+    autoZoomOut: true,
+    showLegend: true,
+    legendClassName: "absolute bottom-3 right-3 z-40",
+    legendMarkerIdPrefix: "workflows-panel-legend",
   },
 }: WorkflowsPanelProps): React.ReactElement {
   // State for available graph flows

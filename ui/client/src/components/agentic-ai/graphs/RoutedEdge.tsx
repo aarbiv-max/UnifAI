@@ -2,7 +2,21 @@ import React from "react";
 import { EdgeProps } from "reactflow";
 import { X } from "lucide-react";
 
-interface RoutedEdgeProps extends EdgeProps {
+/** Data payload for routed edges with smart routing information */
+interface RoutedEdgeData {
+  /** Points along the routed path */
+  routedPoints?: { x: number; y: number }[];
+  /** Optional label to display on the edge */
+  label?: string;
+  /** Whether this edge is part of a bidirectional pair */
+  isBidirectional?: boolean;
+  /** IDs of both edges in a bidirectional pair (for deletion) */
+  bidirectionalEdgeIds?: string[];
+  /** Delete handler passed via data */
+  onDelete?: (edgeId: string) => void;
+}
+
+interface RoutedEdgeProps extends EdgeProps<RoutedEdgeData> {
   onDelete?: (edgeId: string) => void;
 }
 
@@ -98,14 +112,17 @@ const RoutedEdge: React.FC<RoutedEdgeProps> = ({
       </foreignObject>
       {data?.label && (
         <foreignObject
-          width={60}
-          height={20}
-          x={labelX - 30}
+          width={100}
+          height={24}
+          x={labelX - 50}
           y={labelY + 15}
-          className="edge-label-foreignobject"
+          className="edge-label-foreignobject overflow-visible"
           requiredExtensions="http://www.w3.org/1999/xhtml"
         >
-          <div className="text-xs bg-gray-800 text-white px-2 py-1 rounded border border-gray-600 text-center">
+          <div 
+            className="text-xs bg-gray-800 text-white px-2 py-1 rounded border border-gray-600 text-center truncate max-w-full"
+            title={data.label}
+          >
             {data.label}
           </div>
         </foreignObject>

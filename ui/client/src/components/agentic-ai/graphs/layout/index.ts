@@ -101,7 +101,6 @@ export function computeOptimizedLayout(
   // Step 2: Create Constraints
   // ========================================
   const constraints = createConstraints(roles);
-  const bounds = createLayoutBounds(constraints);
 
   // ========================================
   // Step 3: Layer Assignment (Depth-Aware)

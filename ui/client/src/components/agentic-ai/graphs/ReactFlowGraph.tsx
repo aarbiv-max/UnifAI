@@ -35,7 +35,7 @@ import axios from "../../../http/axiosAgentConfig";
 import { buildSmartEdges } from "./graphRouting";
 import EdgeLegend from "./EdgeLegend";
 import RoutedEdge from "./RoutedEdge";
-import { computeOptimizedLayout } from "./graphLayoutOptimizer";
+import { computeOptimizedLayout } from "./layout";
 
 // Node status enum
 type NodeStatus = "IDLE" | "PROGRESS" | "DONE";
@@ -870,6 +870,7 @@ export default function ReactFlowGraph({
   };
 
   // Load graph when blueprintId changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (blueprintId) {
       convertGraphFlowToReactFlow(blueprintId);

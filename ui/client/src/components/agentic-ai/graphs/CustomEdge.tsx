@@ -3,6 +3,10 @@ import React from 'react';
 import { EdgeProps } from 'reactflow';
 import { X } from 'lucide-react';
 
+// Spacing in pixels between parallel edges connecting the same node pair.
+// This value provides enough visual separation without excessive spread.
+const PARALLEL_EDGE_SPACING_PX = 28;
+
 interface CustomEdgeProps extends EdgeProps {
   onDelete?: (edgeId: string) => void;
 }
@@ -19,7 +23,7 @@ const CustomEdge: React.FC<CustomEdgeProps> = ({
   onDelete,
 }) => {
   const parallelOffset = Number(data?.parallelOffset ?? 0);
-  const edgeOffset = 28;
+  const edgeOffset = PARALLEL_EDGE_SPACING_PX;
 
   const dx = targetX - sourceX;
   const dy = targetY - sourceY;

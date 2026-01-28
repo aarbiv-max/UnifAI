@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StreamingDataProvider } from "@/components/agentic-ai/StreamingDataContext";
 import { FlowObject } from "./graphs/interfaces";
@@ -7,6 +7,19 @@ import { BlueprintValidationResult } from "@/types/validation";
 
 // Create a ReactFlow provider wrapper
 import { ReactFlowProvider } from "reactflow";
+
+const DEFAULT_GRAPH_PROPS = {
+  showControls: true,
+  showMiniMap: false,
+  showBackground: true,
+  interactive: true,
+  isLiveRequest: false,
+  useSmartEdges: true,
+  autoZoomOut: false,
+  showLegend: true,
+  legendClassName: "absolute bottom-3 right-3 z-40",
+  legendMarkerIdPrefix: "agentic-workflows-legend",
+} as const;
 
 type AgentFlowGraphProps = {
   selectedFlow: FlowObject | null;
@@ -44,18 +57,11 @@ export default function AgentFlowGraph({
     }
   };
 
-  const defaultGraphProps = {
-    showControls: true,
-    showMiniMap: false,
-    showBackground: true,
-    interactive: true,
-    isLiveRequest: false,
-    useSmartEdges: true,
-    autoZoomOut: false,
-    showLegend: true,
-    legendClassName: "absolute bottom-3 right-3 z-40",
-    legendMarkerIdPrefix: "agentic-workflows-legend",
-  };
+  // Memoize merged props to ensure referential stability
+  const mergedGraphProps = useMemo(
+    () => ({ ...DEFAULT_GRAPH_PROPS, ...(graphProps || {}) }),
+    [graphProps]
+  );
 
   return (
     <Card className="bg-background-card shadow-card border-gray-800">
@@ -76,7 +82,7 @@ export default function AgentFlowGraph({
               showDeleteButton={true}
               useResolvedEndpoint={true}
               height="100%"
-              graphProps={{ ...defaultGraphProps, ...(graphProps || {}) }}
+              graphProps={mergedGraphProps}
             />
           </ReactFlowProvider>
         </StreamingDataProvider>

@@ -211,18 +211,18 @@ export const buildSmartEdges = (
     for (let i = 0; i < points.length - 1; i += 1) {
       const start = points[i];
       const end = points[i + 1];
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
-      const length = Math.hypot(dx, dy);
+      const segmentDx = end.x - start.x;
+      const segmentDy = end.y - start.y;
+      const length = Math.hypot(segmentDx, segmentDy);
       const steps = Math.max(1, Math.ceil(length / (GRID_SIZE / 2)));
       for (let step = 0; step <= steps; step += 1) {
         const t = step / steps;
-        const point = { x: start.x + dx * t, y: start.y + dy * t };
+        const point = { x: start.x + segmentDx * t, y: start.y + segmentDy * t };
         const { gx, gy } = toGrid(point);
-        for (let dx = -EDGE_BLOCK_RADIUS; dx <= EDGE_BLOCK_RADIUS; dx += 1) {
-          for (let dy = -EDGE_BLOCK_RADIUS; dy <= EDGE_BLOCK_RADIUS; dy += 1) {
-            const nextGX = gx + dx;
-            const nextGY = gy + dy;
+        for (let offsetX = -EDGE_BLOCK_RADIUS; offsetX <= EDGE_BLOCK_RADIUS; offsetX += 1) {
+          for (let offsetY = -EDGE_BLOCK_RADIUS; offsetY <= EDGE_BLOCK_RADIUS; offsetY += 1) {
+            const nextGX = gx + offsetX;
+            const nextGY = gy + offsetY;
             if (
               nextGX >= 0 &&
               nextGX < cols &&
