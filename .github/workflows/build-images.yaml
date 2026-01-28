@@ -162,10 +162,10 @@ jobs:
           private_key: ${{ secrets.LOG_ANALYZER_PRIVATE_KEY }}
 
       - name: GitHub Actions Failure Analysis
-        uses: calebevans/gha-failure-analysis@v0.1.8
-        env:
-          #HOME: /tmp
-          USER: root
+        uses: calebevans/gha-failure-analysis@v0.1.9
+        # env:
+        #   #HOME: /tmp
+        #   USER: root
         with:
           run-id: ${{ github.event.workflow_run.id }}
           llm-provider: gemini
