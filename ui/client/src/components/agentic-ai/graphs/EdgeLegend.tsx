@@ -21,10 +21,8 @@ export default function EdgeLegend({
   const bidirArrowId = `${markerIdPrefix}-arrow-bidir`;
 
   return (
-    <div
-      className={`min-w-[150px] rounded-lg border border-gray-700 bg-black/70 px-3 py-2 text-xs text-gray-200 backdrop-blur ${className}`}
-    >
-      <div className="mb-2 font-medium text-gray-100">Edge Legend</div>
+    <div className={`min-w-[150px] rounded-lg border border-border bg-card/95 px-3 py-2 text-xs text-card-foreground backdrop-blur supports-[backdrop-filter]:bg-card/80 ${className}`}>
+      <div className="mb-2 font-medium text-foreground">Edge Legend</div>
 
       {/* Unidirectional */}
       <div className="flex items-center gap-2">

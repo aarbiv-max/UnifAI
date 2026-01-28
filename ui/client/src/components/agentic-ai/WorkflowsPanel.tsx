@@ -117,6 +117,8 @@ export default function WorkflowsPanel({
       }
     } catch (error) {
       console.error("Error fetching available blueprints:", error);
+      // Ensure loading state is reset so user isn't stuck in loading state
+      setGraphFlows([]);
     }
   };
 
