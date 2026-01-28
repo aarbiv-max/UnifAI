@@ -896,7 +896,7 @@ export default function ReactFlowGraph({
         }
       }, 100);
     }
-  }, [nodes, edges, isLoading, fitView, zoomOut]);
+  }, [nodes, edges, isLoading, fitView, zoomOut, autoZoomOut]);
 
   // Update nodes with validation data when validation state changes
   // This handles the case where validation completes AFTER nodes are already loaded

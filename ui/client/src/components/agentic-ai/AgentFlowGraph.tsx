@@ -1,14 +1,14 @@
 import React, { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StreamingDataProvider } from "@/components/agentic-ai/StreamingDataContext";
-import { FlowObject } from "./graphs/interfaces";
+import { FlowObject, GraphDisplayProps } from "./graphs/interfaces";
 import WorkflowsPanel from "./WorkflowsPanel";
 import { BlueprintValidationResult } from "@/types/validation";
 
 // Create a ReactFlow provider wrapper
 import { ReactFlowProvider } from "reactflow";
 
-const DEFAULT_GRAPH_PROPS = {
+const DEFAULT_GRAPH_PROPS: GraphDisplayProps = {
   showControls: true,
   showMiniMap: false,
   showBackground: true,
@@ -19,24 +19,13 @@ const DEFAULT_GRAPH_PROPS = {
   showLegend: true,
   legendClassName: "absolute bottom-3 right-3 z-40",
   legendMarkerIdPrefix: "agentic-workflows-legend",
-} as const;
+};
 
 type AgentFlowGraphProps = {
   selectedFlow: FlowObject | null;
   setSelectedFlow: (flow: FlowObject | null) => void;
   onValidationChange?: (isValid: boolean, validationResult: BlueprintValidationResult | null, isValidating: boolean) => void;
-  graphProps?: {
-    showControls?: boolean;
-    showMiniMap?: boolean;
-    showBackground?: boolean;
-    interactive?: boolean;
-    isLiveRequest?: boolean;
-    useSmartEdges?: boolean;
-    autoZoomOut?: boolean;
-    showLegend?: boolean;
-    legendClassName?: string;
-    legendMarkerIdPrefix?: string;
-  };
+  graphProps?: GraphDisplayProps;
 };
 
 export default function AgentFlowGraph({

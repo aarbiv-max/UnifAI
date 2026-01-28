@@ -124,3 +124,20 @@ export interface EnhancedNodeData extends NodeData {
   timestamp?: string;
   execution_data?: any;
 }
+
+/**
+ * Shared graph display properties used by AgentFlowGraph, WorkflowsPanel, and ReactFlowGraph.
+ * Centralizing this type improves maintainability and ensures consistency.
+ */
+export interface GraphDisplayProps {
+  showControls?: boolean;
+  showMiniMap?: boolean;
+  showBackground?: boolean;
+  interactive?: boolean;
+  isLiveRequest?: boolean;
+  useSmartEdges?: boolean;
+  autoZoomOut?: boolean;
+  showLegend?: boolean;
+  legendClassName?: string;
+  legendMarkerIdPrefix?: string;
+}

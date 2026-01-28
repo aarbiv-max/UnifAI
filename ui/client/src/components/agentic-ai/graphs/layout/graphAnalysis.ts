@@ -60,13 +60,13 @@ export function extractEdges(
     // Handle 'branches' (outgoing conditional edges)
     if (item.branches) {
       Object.entries(item.branches).forEach(([, targetNodeId]) => {
-        if (targetNodeId && nodeIds.has(targetNodeId as string)) {
+        if (typeof targetNodeId === "string" && nodeIds.has(targetNodeId)) {
           const edgeKey = `${item.uid}::${targetNodeId}`;
           if (!edgeSet.has(edgeKey)) {
             edgeSet.add(edgeKey);
             edges.push({
               source: item.uid,
-              target: targetNodeId as string,
+              target: targetNodeId,
               isBidirectional: false,
               isBranch: true,
             });

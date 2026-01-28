@@ -22,7 +22,8 @@ const CustomEdge: React.FC<CustomEdgeProps> = ({
   data,
   onDelete,
 }) => {
-  const parallelOffset = Number(data?.parallelOffset ?? 0);
+  const rawParallelOffset = Number(data?.parallelOffset ?? 0);
+  const parallelOffset = Number.isFinite(rawParallelOffset) ? rawParallelOffset : 0;
   const edgeOffset = PARALLEL_EDGE_SPACING_PX;
 
   const dx = targetX - sourceX;

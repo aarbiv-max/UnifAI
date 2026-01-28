@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
-import { FlowObject } from "./graphs/interfaces";
+import { FlowObject, GraphDisplayProps } from "./graphs/interfaces";
 import ReactFlowGraph from "./graphs/ReactFlowGraph";
 import { fetchActiveSessions } from "@/api/agentic";
 import { fetchBlueprints, fetchResolvedBlueprints, deleteBlueprint } from "@/api/blueprints";
@@ -32,18 +32,7 @@ export interface WorkflowsPanelProps {
   className?: string;
   height?: string;
   useResolvedEndpoint?: boolean; // If true, uses resolved endpoint, otherwise uses regular get endpoint
-  graphProps?: {
-    showControls?: boolean;
-    showMiniMap?: boolean;
-    showBackground?: boolean;
-    interactive?: boolean;
-    isLiveRequest?: boolean;
-    useSmartEdges?: boolean;
-    autoZoomOut?: boolean;
-    showLegend?: boolean;
-    legendClassName?: string;
-    legendMarkerIdPrefix?: string;
-  };
+  graphProps?: GraphDisplayProps;
 }
 
 export default function WorkflowsPanel({
@@ -217,13 +206,6 @@ export default function WorkflowsPanel({
     setFlowToDelete(null);
   };
 
-  // Expose flows data for parent components
-  useEffect(() => {
-    // This allows parent components to access the flows data if needed
-    if (typeof onFlowSelect === 'function' && graphFlows.length > 0 && !selectedFlow) {
-      onFlowSelect(graphFlows[0]);
-    }
-  }, [graphFlows, selectedFlow, onFlowSelect]);
 
   if (isLoading) {
     return (

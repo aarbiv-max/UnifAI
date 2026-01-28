@@ -447,6 +447,13 @@ export const buildSmartEdges = (
   };
 
   sortedEdges.forEach((edge) => {
+    // Skip non-primary bidirectional edges to avoid phantom obstacles.
+    // These paths are later dropped, but would still block the grid and add extra work.
+    // Routing only the primary edge keeps the grid cleaner and speeds up routing.
+    if (isBidirectional(edge) && !isBidirectionalPrimary(edge)) {
+      return;
+    }
+
     const sourceNode = nodeBoxMap.get(edge.source);
     const targetNode = nodeBoxMap.get(edge.target);
     if (!sourceNode || !targetNode) {

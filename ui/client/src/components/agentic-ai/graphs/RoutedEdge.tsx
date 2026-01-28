@@ -85,6 +85,7 @@ const RoutedEdge: React.FC<RoutedEdgeProps> = ({
         style={style}
         className="react-flow__edge-path"
         d={pathD}
+        fill="none"
         markerEnd={markerEnd}
         markerStart={markerStart}
       />
@@ -98,9 +99,10 @@ const RoutedEdge: React.FC<RoutedEdgeProps> = ({
       >
         <div className="flex items-center justify-center">
           <button
-            className="group opacity-0 hover:opacity-100 transition-opacity duration-200 bg-red-600 hover:bg-red-700 text-white rounded-full w-5 h-5 flex items-center justify-center border border-red-500 shadow-sm"
+            className="group opacity-0 hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-red-600 hover:bg-red-700 focus:bg-red-700 text-white rounded-full w-5 h-5 flex items-center justify-center border border-red-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 focus:ring-offset-gray-800"
             onClick={handleDelete}
             title="Delete edge"
+            aria-label="Delete edge"
             style={{
               fontSize: "10px",
               lineHeight: "1",

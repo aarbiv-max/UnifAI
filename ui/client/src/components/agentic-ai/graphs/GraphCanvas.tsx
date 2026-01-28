@@ -49,6 +49,7 @@ interface GraphCanvasProps {
   onAttachCondition?: (nodeId: string, condition: any) => void;
   onRemoveCondition?: (nodeId: string, conditionRid: string) => void;
   isGraphValid?: boolean;
+  showLegend?: boolean;
 }
 
 const GraphCanvas: React.FC<GraphCanvasProps> = ({
@@ -67,6 +68,7 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   onAttachCondition,
   onRemoveCondition,
   isGraphValid = false,
+  showLegend = true,
 }) => {
   const [showYamlDebug, setShowYamlDebug] = useState(false);
   const { primaryHex } = useTheme();
@@ -157,11 +159,13 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
               </ReactFlow>
             </ReactFlowProvider>
 
-            <EdgeLegend
-              primaryColor={resolvedPrimary}
-              markerIdPrefix="graphcanvas-legend"
-              className="absolute bottom-[5.5rem] left-[3.25rem] z-40"
-            />
+            {showLegend && (
+              <EdgeLegend
+                primaryColor={resolvedPrimary}
+                markerIdPrefix="graphcanvas-legend"
+                className="absolute bottom-[5.5rem] left-[3.25rem] z-40"
+              />
+            )}
 
             {/* Drop zone overlay when empty */}
             {nodes.length === 0 && (
