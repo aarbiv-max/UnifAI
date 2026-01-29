@@ -665,6 +665,13 @@ export const useGraphLogic = () => {
       }
 
       // Regular edge creation for nodes without conditions
+      // Check if edge already exists between source and target to prevent duplicates
+      const edgeExists = edges.some((edge) => edge.source === params.source && edge.target === params.target);
+      if (edgeExists) {
+        // Edge already exists, don't create duplicate
+        return;
+      }
+
       const newEdge = addEdge(params, edges);
 
       setEdges(newEdge);
@@ -1075,6 +1082,19 @@ export const useGraphLogic = () => {
 
 
   const createConditionalEdge = (params: Connection, branchConfig: any) => {
+    // Check if edge already exists between source and target with the same branch to prevent duplicates
+    const edgeExists = edges.some(
+      (edge) => 
+        edge.source === params.source && 
+        edge.target === params.target &&
+        edge.data?.branch === branchConfig.branch
+    );
+
+    if (edgeExists) {
+      // Edge already exists, don't create duplicate
+      return;
+    }
+
     const edgeStyle = {
       strokeDasharray: "5,5",
       stroke: "#10b981",

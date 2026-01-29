@@ -76,7 +76,7 @@ const RoutedEdge: React.FC<RoutedEdgeProps> = ({
       const edgeIds = Array.isArray(data?.bidirectionalEdgeIds)
         ? data.bidirectionalEdgeIds
         : [id];
-      edgeIds.forEach((edgeId: string) => deleteFunction(edgeId));
+      edgeIds.forEach((edgeId: string) => { deleteFunction(edgeId); });
     }
   };
 

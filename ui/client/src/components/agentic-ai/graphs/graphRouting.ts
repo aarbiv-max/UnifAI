@@ -203,6 +203,20 @@ export const buildSmartEdges = (
     const startKey = pointKey(startCell.gx, startCell.gy);
     const goalKey = pointKey(goalCell.gx, goalCell.gy);
 
+    // Build a set of allowed keys (start, goal, and their 1-cell radius neighbors)
+    // This prevents A* from getting trapped when start/goal is in a heavily padded region
+    const allowedKeys = new Set<string>();
+    allowedKeys.add(startKey);
+    allowedKeys.add(goalKey);
+    
+    // Add 1-cell radius neighbors around start and goal
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        allowedKeys.add(pointKey(startCell.gx + dx, startCell.gy + dy));
+        allowedKeys.add(pointKey(goalCell.gx + dx, goalCell.gy + dy));
+      }
+    }
+
     const openSet = new Set<string>([startKey]);
     const openHeap = new MinHeap();
     const cameFrom = new Map<string, string>();
@@ -221,7 +235,8 @@ export const buildSmartEdges = (
 
     const isBlocked = (gx: number, gy: number) => {
       const key = pointKey(gx, gy);
-      if (key === allowStartKey || key === allowGoalKey) return false;
+      // Allow cells in the allowedKeys set (start, goal, and their neighbors)
+      if (allowedKeys.has(key)) return false;
       return obstacles.has(key);
     };
 
@@ -344,8 +359,8 @@ export const buildSmartEdges = (
     });
   };
 
-  outgoingBySource.forEach((edgeList) => sortEdgesByPosition(edgeList, true));
-  incomingByTarget.forEach((edgeList) => sortEdgesByPosition(edgeList, false));
+  outgoingBySource.forEach((edgeList) => { sortEdgesByPosition(edgeList, true); });
+  incomingByTarget.forEach((edgeList) => { sortEdgesByPosition(edgeList, false); });
 
   /** Calculates horizontal offset for ports when multiple edges connect to same node side. */
   const getPortOffset = (node: NodeBox, edge: Edge, anchor: Anchor, isSource: boolean): Point => {

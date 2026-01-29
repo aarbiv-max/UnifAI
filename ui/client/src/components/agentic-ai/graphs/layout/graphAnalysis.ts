@@ -328,7 +328,7 @@ export function detectStarGroups(
       starGroups.push(starGroup);
 
       // Mark spokes as used
-      availableSpokes.forEach((spokeId) => usedAsSpoke.add(spokeId));
+      availableSpokes.forEach((spokeId) => { usedAsSpoke.add(spokeId); });
     }
   });
 

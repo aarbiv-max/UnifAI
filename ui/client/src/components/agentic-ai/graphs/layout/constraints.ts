@@ -211,6 +211,20 @@ export function enforceLayerConstraints(
     }
   });
 
+  // Guard against maxLayer being -Infinity (happens when all nodes are pinned-bottom)
+  // Use minLayer as a baseline, or 0 if no valid layers exist
+  if (maxLayer === -Infinity) {
+    // Find any layer from non-pinned-bottom nodes, or use 0
+    let fallbackLayer = 0;
+    result.forEach((layer, nodeId) => {
+      if (!pinnedBottom.includes(nodeId)) {
+        fallbackLayer = Math.max(fallbackLayer, layer);
+      }
+    });
+    // If still no valid layer found, use minLayer or 0
+    maxLayer = minLayer !== Infinity ? minLayer : fallbackLayer;
+  }
+
   // INVARIANT 2: Force all exit nodes to max layer + 1
   const exitLayer = maxLayer + 1;
   pinnedBottom.forEach((nodeId) => {

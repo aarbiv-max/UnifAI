@@ -111,14 +111,19 @@ export function computeOptimizedLayout(
   // ========================================
   // Use depth-aware layer assignment for better vertical stratification
   // This ensures UPSTREAM nodes are above the hub, DOWNSTREAM below
-  const layerAssignment = assignLayersWithDepth(
-    nodes,
-    edges,
-    roles,
-    constraints,
-    cycles,
-    depthAnalysis
-  );
+  // However, if depth analysis is disabled or nodeDepths is empty, fall back to regular assignLayers
+  const useDepthAwareLayers = depthAnalysis.nodeDepths.size > 0;
+  
+  const layerAssignment = useDepthAwareLayers
+    ? assignLayersWithDepth(
+        nodes,
+        edges,
+        roles,
+        constraints,
+        cycles,
+        depthAnalysis
+      )
+    : assignLayers(nodes, edges, roles, constraints, cycles);
   
   // Compact layers to remove gaps
   const compactedLayers = compactLayers(layerAssignment, constraints);

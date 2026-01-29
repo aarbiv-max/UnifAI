@@ -254,11 +254,15 @@ export function compactLayers(
 
   const newLayers = Array.from(newNodeToLayer.values());
   
+  // Guard against empty newLayers to avoid Infinity/-Infinity
+  const newMinLayer = newLayers.length > 0 ? Math.min(...newLayers) : 0;
+  const newMaxLayer = newLayers.length > 0 ? Math.max(...newLayers) : 0;
+  
   return {
     nodeToLayer: newNodeToLayer,
     layerToNodes: newLayerToNodes,
-    minLayer: Math.min(...newLayers),
-    maxLayer: Math.max(...newLayers),
+    minLayer: newMinLayer,
+    maxLayer: newMaxLayer,
   };
 }
 

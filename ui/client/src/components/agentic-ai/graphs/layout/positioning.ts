@@ -325,6 +325,7 @@ export function preventSpokeOverlap(
 ): void {
   const { nodeSpacing, gridSize } = config;
   const minDistance = nodeSpacing * 0.8;
+  const EPS = 1e-6; // Epsilon for near-zero comparisons
 
   starGroups.forEach((starGroup) => {
     const { spokeIds } = starGroup;
@@ -353,8 +354,19 @@ export function preventSpokeOverlap(
           const pushDistance = (minDistance - distance) / 2;
           const angle = Math.atan2(dy, dx);
 
-          posA.x = snapToGrid(posA.x - Math.cos(angle) * pushDistance, gridSize);
-          posB.x = snapToGrid(posB.x + Math.cos(angle) * pushDistance, gridSize);
+          // Handle near-vertical alignment (dx === 0 or cos(angle) ~= 0)
+          // In this case, use a horizontal fallback push
+          if (dx === 0 || Math.abs(Math.cos(angle)) < EPS) {
+            // Vertically aligned - push horizontally in opposite directions
+            posA.x = snapToGrid(posA.x - pushDistance, gridSize);
+            posB.x = snapToGrid(posB.x + pushDistance, gridSize);
+          } else {
+            // General case: use angle-based push
+            posA.x = snapToGrid(posA.x - Math.cos(angle) * pushDistance, gridSize);
+            posA.y = snapToGrid(posA.y - Math.sin(angle) * pushDistance, gridSize);
+            posB.x = snapToGrid(posB.x + Math.cos(angle) * pushDistance, gridSize);
+            posB.y = snapToGrid(posB.y + Math.sin(angle) * pushDistance, gridSize);
+          }
         }
       }
     }
