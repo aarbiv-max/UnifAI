@@ -663,13 +663,52 @@ export function areDepthGroupsCompatible(
 // ============================================================================
 
 /**
+ * Options for graph analysis
+ */
+export interface AnalyzeGraphOptions {
+  /** 
+   * Whether to compute depth analysis for semantic grouping.
+   * Set to false for simple graphs or when performance is critical.
+   * @default true
+   */
+  enableDepthAnalysis?: boolean;
+}
+
+/**
+ * Creates an empty depth analysis result (used when depth analysis is skipped)
+ */
+function createEmptyDepthAnalysis(): DepthAnalysis {
+  return {
+    nodeDepths: new Map(),
+    groupedNodes: new Map([
+      ["UPSTREAM", []],
+      ["DOWNSTREAM", []],
+      ["CYCLIC", []],
+      ["ISOLATED", []],
+      ["HUB", []],
+      ["PINNED_TOP", []],
+      ["PINNED_BOTTOM", []],
+    ]),
+    hubNodes: [],
+    isMultiHub: false,
+  };
+}
+
+/**
  * Analyzes the complete graph structure from plan items and node definitions
  * This is the main entry point for graph analysis
+ * 
+ * @param plan - Array of plan items defining the graph
+ * @param nodeMap - Map of node RIDs to definitions
+ * @param options - Analysis options (e.g., enable/disable depth analysis)
  */
 export function analyzeGraph(
   plan: PlanItem[],
-  nodeMap: Record<string, NodeDefinition>
+  nodeMap: Record<string, NodeDefinition>,
+  options: AnalyzeGraphOptions = {}
 ): GraphStructure {
+  const { enableDepthAnalysis = true } = options;
+
   // Build nodes map
   const nodes = new Map<string, NodeInfo>();
   const nodeIds = new Set<string>();
@@ -695,8 +734,11 @@ export function analyzeGraph(
   // Detect star/hub-and-spoke patterns
   const starGroups = detectStarGroups(nodes, edges, bidirectionalPairs, roles);
 
-  // Compute depth analysis relative to orchestrator/hub
-  const depthAnalysis = computeDepthAnalysis(nodes, edges, roles);
+  // Compute depth analysis relative to orchestrator/hub (optional)
+  // This is skipped for simple graphs or when performance is critical
+  const depthAnalysis = enableDepthAnalysis 
+    ? computeDepthAnalysis(nodes, edges, roles)
+    : createEmptyDepthAnalysis();
 
   return {
     nodes,

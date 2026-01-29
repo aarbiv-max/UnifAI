@@ -263,6 +263,14 @@ export interface LayoutConfig {
   orchestratorCentric: boolean;
   /** Cycle visualization style */
   cycleVisualization: "vertical" | "ushape" | "auto";
+  /** 
+   * Whether to compute depth analysis for semantic grouping.
+   * Depth analysis provides better layout for orchestrator-centric graphs
+   * but adds computational overhead. Set to false for simple graphs or
+   * when performance is critical.
+   * @default true
+   */
+  enableDepthAnalysis: boolean;
 }
 
 /**
@@ -274,6 +282,7 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   gridSize: 16,
   orchestratorCentric: true,
   cycleVisualization: "auto",
+  enableDepthAnalysis: true,
 };
 
 // ============================================================================

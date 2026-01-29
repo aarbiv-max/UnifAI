@@ -94,7 +94,11 @@ export function computeOptimizedLayout(
   // ========================================
   // Step 1: Graph Analysis
   // ========================================
-  const graphStructure = analyzeGraph(plan, nodeMap);
+  // Depth analysis is optional and can be disabled for simple graphs
+  // or when performance is critical (saves BFS traversals)
+  const graphStructure = analyzeGraph(plan, nodeMap, {
+    enableDepthAnalysis: fullConfig.enableDepthAnalysis,
+  });
   const { nodes, edges, bidirectionalPairs, cycles, roles, starGroups, depthAnalysis } = graphStructure;
 
   // ========================================

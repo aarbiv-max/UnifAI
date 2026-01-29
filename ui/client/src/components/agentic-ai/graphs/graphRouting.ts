@@ -8,6 +8,7 @@
 
 import { Edge, MarkerType, Node } from "reactflow";
 import { getPaletteColor } from "@/lib/colorUtils";
+import { MinHeap } from "@/lib/dataStructures";
 
 // ============================================================================
 // Types
@@ -26,8 +27,6 @@ type NodeBox = {
 
 type Anchor = "auto" | "top" | "bottom";
 
-type HeapItem = { key: string; score: number };
-
 // ============================================================================
 // Constants
 // ============================================================================
@@ -40,87 +39,6 @@ const PORT_SPACING = 12;        // Spacing between multiple ports on same side
 const PORT_INSET = 10;          // Minimum distance from node corner for ports
 export const DEFAULT_EDGE_WIDTH = 2;
 const BIDIRECTIONAL_EDGE_WIDTH = 3.5;
-
-// ============================================================================
-// MinHeap - Priority queue for A* pathfinding
-// ============================================================================
-
-/**
- * Min-heap implementation for efficient A* pathfinding.
- * Reduces pathfinding complexity from O(n²) to O(n log n).
- */
-class MinHeap {
-  private items: HeapItem[] = [];
-
-  get size() {
-    return this.items.length;
-  }
-
-  push(item: HeapItem) {
-    this.items.push(item);
-    this.bubbleUp(this.items.length - 1);
-  }
-
-  pop(): HeapItem | undefined {
-    if (this.items.length === 0) return undefined;
-    const top = this.items[0];
-    const last = this.items.pop();
-    if (this.items.length > 0 && last) {
-      this.items[0] = last;
-      this.bubbleDown(0);
-    }
-    return top;
-  }
-
-  private bubbleUp(index: number) {
-    let currentIndex = index;
-    while (currentIndex > 0) {
-      const parentIndex = Math.floor((currentIndex - 1) / 2);
-      if (this.items[parentIndex].score <= this.items[currentIndex].score) {
-        break;
-      }
-      [this.items[parentIndex], this.items[currentIndex]] = [
-        this.items[currentIndex],
-        this.items[parentIndex],
-      ];
-      currentIndex = parentIndex;
-    }
-  }
-
-  private bubbleDown(index: number) {
-    let currentIndex = index;
-    const length = this.items.length;
-    while (true) {
-      const leftIndex = currentIndex * 2 + 1;
-      const rightIndex = currentIndex * 2 + 2;
-      let smallestIndex = currentIndex;
-
-      if (
-        leftIndex < length &&
-        this.items[leftIndex].score < this.items[smallestIndex].score
-      ) {
-        smallestIndex = leftIndex;
-      }
-
-      if (
-        rightIndex < length &&
-        this.items[rightIndex].score < this.items[smallestIndex].score
-      ) {
-        smallestIndex = rightIndex;
-      }
-
-      if (smallestIndex === currentIndex) {
-        break;
-      }
-
-      [this.items[currentIndex], this.items[smallestIndex]] = [
-        this.items[smallestIndex],
-        this.items[currentIndex],
-      ];
-      currentIndex = smallestIndex;
-    }
-  }
-}
 
 // ============================================================================
 // Node & Connection Helpers
