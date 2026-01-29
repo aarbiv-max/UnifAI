@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import ReactFlow, {
   Node,
   Edge,
@@ -32,7 +32,7 @@ import NodeValidationIndicator from "./NodeValidationIndicator";
 import { ValidationResultModal } from "../workspace/ValidationResultModal";
 import { ElementValidationResult } from "@/types/validation";
 import axios from "../../../http/axiosAgentConfig";
-import { buildSmartEdges } from "./graphRouting";
+import { useSmartEdges } from "@/hooks/use-smart-edges";
 import EdgeLegend from "./EdgeLegend";
 import RoutedEdge from "./RoutedEdge";
 import { computeOptimizedLayout } from "./layout";
@@ -864,7 +864,6 @@ export default function ReactFlowGraph({
   };
 
   // Load graph when blueprintId changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (blueprintId) {
       convertGraphFlowToReactFlow(blueprintId);
@@ -931,10 +930,8 @@ export default function ReactFlowGraph({
   }, [validationResults, isValidating, handleShowValidationDetails, setNodes]);
 
   // Always use smart edges for orthogonal routing and bidirectional edge handling
-  const displayEdges = useMemo(
-    () => buildSmartEdges(nodes, edges, primaryHex || "#7C3AED"),
-    [edges, nodes, primaryHex],
-  );
+  // Hook uses theme color by default, no need to pass it explicitly
+  const displayEdges = useSmartEdges(nodes, edges);
 
   if (isLoading) {
     return (

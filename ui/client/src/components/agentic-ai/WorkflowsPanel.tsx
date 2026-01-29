@@ -175,7 +175,7 @@ export default function WorkflowsPanel({
       await deleteBlueprint(flowToDelete.id);
       
       // Remove the deleted flow from the list
-      setGraphFlows((prevFlows) => prevFlows.filter((flow) => flow.id !== flowToDelete.id));
+      setGraphFlows(prevFlows => prevFlows.filter((flow) => flow.id !== flowToDelete.id));
       
       // If the deleted flow was selected, clear the selection
       if (selectedFlow?.id === flowToDelete.id) {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ReactFlowProvider,
   ReactFlow,
@@ -21,7 +21,8 @@ import RoutedEdge from "./RoutedEdge";
 import GraphHeader from "./GraphHeader";
 import * as yaml from "js-yaml";
 import { useTheme } from "@/contexts/ThemeContext";
-import { buildSmartEdges, DEFAULT_EDGE_WIDTH } from "./graphRouting";
+import { DEFAULT_EDGE_WIDTH } from "./graphRouting";
+import { useSmartEdges } from "@/hooks/use-smart-edges";
 import EdgeLegend from "./EdgeLegend";
 
 const nodeTypes: NodeTypes = {
@@ -74,10 +75,8 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const { primaryHex } = useTheme();
   const resolvedPrimary = primaryHex || "#7C3AED";
 
-  const smartEdges = useMemo(
-    () => buildSmartEdges(nodes, edges, resolvedPrimary),
-    [nodes, edges, resolvedPrimary],
-  );
+  // Hook uses theme color by default, no need to pass it explicitly
+  const smartEdges = useSmartEdges(nodes, edges);
 
   return (
     <div className="flex-1 relative">
