@@ -51,10 +51,8 @@ export default function WorkflowsPanel({
     showBackground: true,
     interactive: true,
     isLiveRequest: false,
-    useSmartEdges: false,
-    autoZoomOut: true,
     showLegend: true,
-    legendClassName: "absolute bottom-3 right-3 z-40",
+    legendClassName: "absolute bottom-3 left-14 z-40",
     legendMarkerIdPrefix: "workflows-panel-legend",
   },
 }: WorkflowsPanelProps): React.ReactElement {
@@ -163,7 +161,7 @@ export default function WorkflowsPanel({
   const handleShareClick = (flow: FlowObject, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent flow selection when clicking share
     openShareForItem({
-      itemKind: "blueprint",
+      itemKind: 'blueprint',
       itemId: flow.id,
       itemName: flow.name,
     });
@@ -177,9 +175,7 @@ export default function WorkflowsPanel({
       await deleteBlueprint(flowToDelete.id);
       
       // Remove the deleted flow from the list
-      setGraphFlows((prevFlows) =>
-        prevFlows.filter((flow) => flow.id !== flowToDelete.id),
-      );
+      setGraphFlows((prevFlows) => prevFlows.filter((flow) => flow.id !== flowToDelete.id));
       
       // If the deleted flow was selected, clear the selection
       if (selectedFlow?.id === flowToDelete.id) {
@@ -194,7 +190,7 @@ export default function WorkflowsPanel({
       setShowDeleteModal(false);
       setFlowToDelete(null);
     } catch (error) {
-      console.error("Error deleting blueprint:", error);
+      console.error('Error deleting blueprint:', error);
       // Handle error (we can consider show a toast notification here)
     } finally {
       setIsDeleting(false);

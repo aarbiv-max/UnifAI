@@ -250,20 +250,21 @@ export default function AgenticOverview() {
               {selectedWorkflow?.spec_dict?.name || selectedWorkflow?.blueprint_id || "Workflow View"}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden p-6 min-h-0">
+          {/* Graph container - flex-1 takes remaining space, min-h-0 allows shrinking */}
+          <div className="flex-1 min-h-0 overflow-hidden">
             {selectedWorkflow && (
-              <ReactFlowProvider>
-                <div className="h-full w-full">
-                  <ReactFlowGraph
-                    blueprintId={selectedWorkflow.blueprint_id}
-                    height="100%"
-                    showControls={true}
-                    showMiniMap={true}
-                    showBackground={true}
-                    interactive={false}
-                    isLiveRequest={false}
-                  />
-                </div>
+              <ReactFlowProvider key={`modal-graph-${selectedWorkflow.blueprint_id}`}>
+                <ReactFlowGraph
+                  blueprintId={selectedWorkflow.blueprint_id}
+                  height="100%"
+                  showControls={true}
+                  showMiniMap={true}
+                  showBackground={true}
+                  interactive={true}
+                  isLiveRequest={false}
+                  showLegend={true}
+                  legendClassName="absolute bottom-3 left-3 z-40"
+                />
               </ReactFlowProvider>
             )}
           </div>

@@ -67,9 +67,11 @@ const RoutedEdge: React.FC<RoutedEdgeProps> = ({
     walked += length;
   }
 
+  // Compute delete handler once before render to conditionally show delete button
+  const deleteFunction = data?.onDelete || onDelete;
+
   const handleDelete = (event: React.MouseEvent) => {
     event.stopPropagation();
-    const deleteFunction = data?.onDelete || onDelete;
     if (deleteFunction) {
       const edgeIds = Array.isArray(data?.bidirectionalEdgeIds)
         ? data.bidirectionalEdgeIds
@@ -89,29 +91,31 @@ const RoutedEdge: React.FC<RoutedEdgeProps> = ({
         markerEnd={markerEnd}
         markerStart={markerStart}
       />
-      <foreignObject
-        width={20}
-        height={20}
-        x={labelX - 10}
-        y={labelY - 10}
-        className="edgebutton-foreignobject"
-        requiredExtensions="http://www.w3.org/1999/xhtml"
-      >
-        <div className="flex items-center justify-center">
-          <button
-            className="group opacity-0 hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-red-600 hover:bg-red-700 focus:bg-red-700 text-white rounded-full w-5 h-5 flex items-center justify-center border border-red-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 focus:ring-offset-gray-800"
-            onClick={handleDelete}
-            title="Delete edge"
-            aria-label="Delete edge"
-            style={{
-              fontSize: "10px",
-              lineHeight: "1",
-            }}
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      </foreignObject>
+      {deleteFunction && (
+        <foreignObject
+          width={20}
+          height={20}
+          x={labelX - 10}
+          y={labelY - 10}
+          className="edgebutton-foreignobject"
+          requiredExtensions="http://www.w3.org/1999/xhtml"
+        >
+          <div className="flex items-center justify-center">
+            <button
+              className="group opacity-0 hover:opacity-100 focus:opacity-100 transition-opacity duration-200 bg-red-600 hover:bg-red-700 focus:bg-red-700 text-white rounded-full w-5 h-5 flex items-center justify-center border border-red-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 focus:ring-offset-gray-800"
+              onClick={handleDelete}
+              title="Delete edge"
+              aria-label="Delete edge"
+              style={{
+                fontSize: "10px",
+                lineHeight: "1",
+              }}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </foreignObject>
+      )}
       {data?.label && (
         <foreignObject
           width={100}

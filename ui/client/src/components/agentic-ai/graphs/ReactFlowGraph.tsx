@@ -665,8 +665,6 @@ type ReactFlowGraphProps = {
   isLiveRequest?: boolean; // Optional parameter for live tracking
   validationResults?: Record<string, ElementValidationResult>;
   isValidating?: boolean;
-  useSmartEdges?: boolean;
-  autoZoomOut?: boolean;
   showLegend?: boolean;
   legendClassName?: string;
   legendMarkerIdPrefix?: string;
@@ -683,10 +681,8 @@ export default function ReactFlowGraph({
   isLiveRequest = false,
   validationResults,
   isValidating = false,
-  useSmartEdges = false,
-  autoZoomOut = true,
   showLegend = true,
-  legendClassName = "absolute bottom-3 right-3 z-40",
+  legendClassName = "absolute bottom-3 left-14 z-40",
   legendMarkerIdPrefix = "edge-legend",
 }: ReactFlowGraphProps): React.ReactElement {
   const [nodes, setNodes, onNodesChange] = useNodesState<EnhancedNodeData>([]);
@@ -853,11 +849,9 @@ export default function ReactFlowGraph({
         // Auto-fit and zoom after loading
         setTimeout(() => {
           fitView({ padding: 0.2 });
-          if (autoZoomOut) {
-            setTimeout(() => {
-              zoomOut();
-            }, 200);
-          }
+          setTimeout(() => {
+            zoomOut();
+          }, 200);
         }, 100);
       } else {
         console.warn(`Graph flow with ID ${graphId} not found`);
@@ -889,14 +883,12 @@ export default function ReactFlowGraph({
 
       setTimeout(() => {
         fitView({ padding: 0.2 });
-        if (autoZoomOut) {
-          setTimeout(() => {
-            zoomOut();
-          }, 200);
-        }
+        setTimeout(() => {
+          zoomOut();
+        }, 200);
       }, 100);
     }
-  }, [nodes, edges, isLoading, fitView, zoomOut, autoZoomOut]);
+  }, [nodes, edges, isLoading, fitView, zoomOut]);
 
   // Update nodes with validation data when validation state changes
   // This handles the case where validation completes AFTER nodes are already loaded
@@ -938,12 +930,10 @@ export default function ReactFlowGraph({
     });
   }, [validationResults, isValidating, handleShowValidationDetails, setNodes]);
 
+  // Always use smart edges for orthogonal routing and bidirectional edge handling
   const displayEdges = useMemo(
-    () =>
-      useSmartEdges
-        ? buildSmartEdges(nodes, edges, primaryHex || "#7C3AED")
-        : edges,
-    [edges, nodes, primaryHex, useSmartEdges],
+    () => buildSmartEdges(nodes, edges, primaryHex || "#7C3AED"),
+    [edges, nodes, primaryHex],
   );
 
   if (isLoading) {

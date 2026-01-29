@@ -30,13 +30,13 @@ export default function EdgeLegend({
           <defs>
             <marker
               id={arrowId}
-              markerWidth="4"
-              markerHeight="4"
-              refX="3.5"
-              refY="2"
+              markerWidth="5"
+              markerHeight="5"
+              refX="4"
+              refY="2.5"
               orient="auto"
             >
-              <path d="M0,0 L4,2 L0,4 Z" fill={primaryColor} />
+              <path d="M0,0 L5,2.5 L0,5 Z" fill={primaryColor} />
             </marker>
           </defs>
           <line

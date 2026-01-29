@@ -135,8 +135,6 @@ export interface GraphDisplayProps {
   showBackground?: boolean;
   interactive?: boolean;
   isLiveRequest?: boolean;
-  useSmartEdges?: boolean;
-  autoZoomOut?: boolean;
   showLegend?: boolean;
   legendClassName?: string;
   legendMarkerIdPrefix?: string;

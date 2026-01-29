@@ -521,14 +521,8 @@ export const buildSmartEdges = (
       ? bidirectionalPairs.get(pairKey(edge.source, edge.target))
       : undefined;
 
-    const markerEnd =
-      edge.markerEnd && typeof edge.markerEnd === "object"
-        ? edge.markerEnd
-        : undefined;
-    const markerStart =
-      edge.markerStart && typeof edge.markerStart === "object"
-        ? edge.markerStart
-        : undefined;
+    // Use consistent arrow sizes for all edges (both unidirectional and bidirectional)
+    const arrowSize = bidirectional ? 18 : 16;
 
     output.push({
       ...edge,
@@ -540,20 +534,18 @@ export const buildSmartEdges = (
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        width: 16,
-        height: 16,
-        ...(markerEnd || {}),
+        width: arrowSize,
+        height: arrowSize,
         color: stroke,
       },
       markerStart: bidirectional
         ? {
             type: MarkerType.ArrowClosed,
-            width: 16,
-            height: 16,
-            ...(markerStart || {}),
+            width: arrowSize,
+            height: arrowSize,
             color: stroke,
           }
-        : markerStart,
+        : undefined,
       data: {
         ...edge.data,
         routedPoints,

@@ -1,38 +1,21 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StreamingDataProvider } from "@/components/agentic-ai/StreamingDataContext";
-import { FlowObject, GraphDisplayProps } from "./graphs/interfaces";
+import { FlowObject } from "./graphs/interfaces";
 import WorkflowsPanel from "./WorkflowsPanel";
 import { BlueprintValidationResult } from "@/types/validation";
-
-// Create a ReactFlow provider wrapper
 import { ReactFlowProvider } from "reactflow";
-
-const DEFAULT_GRAPH_PROPS: GraphDisplayProps = {
-  showControls: true,
-  showMiniMap: false,
-  showBackground: true,
-  interactive: true,
-  isLiveRequest: false,
-  useSmartEdges: true,
-  autoZoomOut: false,
-  showLegend: true,
-  legendClassName: "absolute bottom-3 right-3 z-40",
-  legendMarkerIdPrefix: "agentic-workflows-legend",
-};
 
 type AgentFlowGraphProps = {
   selectedFlow: FlowObject | null;
   setSelectedFlow: (flow: FlowObject | null) => void;
   onValidationChange?: (isValid: boolean, validationResult: BlueprintValidationResult | null, isValidating: boolean) => void;
-  graphProps?: GraphDisplayProps;
 };
 
 export default function AgentFlowGraph({
   selectedFlow,
   setSelectedFlow,
   onValidationChange,
-  graphProps,
 }: AgentFlowGraphProps): React.ReactElement {
   
   const handleFlowSelect = (flow: FlowObject | null): void => {
@@ -45,12 +28,6 @@ export default function AgentFlowGraph({
       setSelectedFlow(null);
     }
   };
-
-  // Memoize merged props to ensure referential stability
-  const mergedGraphProps = useMemo(
-    () => ({ ...DEFAULT_GRAPH_PROPS, ...(graphProps || {}) }),
-    [graphProps]
-  );
 
   return (
     <Card className="bg-background-card shadow-card border-gray-800">
@@ -71,7 +48,6 @@ export default function AgentFlowGraph({
               showDeleteButton={true}
               useResolvedEndpoint={true}
               height="100%"
-              graphProps={mergedGraphProps}
             />
           </ReactFlowProvider>
         </StreamingDataProvider>
