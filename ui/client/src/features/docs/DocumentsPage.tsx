@@ -16,10 +16,12 @@ import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
 import { isEmbeddingActivelyProcessing } from "@/features/helpers";
 import { BulkDeleteButton } from "@/components/shared/BulkDeleteButton";
-import { useBulkDelete } from "@/hooks/use-bulk-delete";
+import { useBulkDelete, useRowSelection } from "@/hooks/use-bulk-delete";
 import { Pagination } from "@/components/shared/Pagination";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
+import { SelectionCheckbox } from "@/components/shared/SelectionCheckbox";
+import SimpleTooltip from "@/components/shared/SimpleTooltip";
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,9 +32,18 @@ export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [expandedDocDetails, setExpandedDocDetails] = useState<Document | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  // Row selection using reusable hook
+  const {
+    rowSelection,
+    setRowSelection,
+    handleSelectAll,
+    isAllSelected,
+    selectedCount,
+    clearSelection,
+  } = useRowSelection();
   
   // Grid pagination state
   const [gridPageIndex, setGridPageIndex] = useState(0);
@@ -51,7 +62,7 @@ export default function Documents() {
     deleteFunction: deleteDocs,
     queryKeys: ['documents'],
     itemName: 'document',
-    onSuccess: () => setRowSelection({}),
+    onSuccess: clearSelection,
   });
 
   const hasActiveOperations = (docs: Document[] | undefined) => {
@@ -107,10 +118,30 @@ export default function Documents() {
     />
   );
 
-  const selectedCount = Object.keys(rowSelection).length;
+  // Get all filtered document IDs for selection
+  const filteredDocIds = filteredDocuments.map(doc => doc.source_id);
+  const allSelected = isAllSelected(filteredDocIds);
 
   const viewButtons = (
     <div className="flex items-center space-x-4">
+        {selectedCount > 0 && (
+          <BulkDeleteButton
+            selectedCount={selectedCount}
+            onClick={() => setBulkDeleteConfirm({ open: true, count: selectedCount })}
+            itemName="document"
+          />
+        )}
+        {filteredDocuments.length > 0 && (
+          <SimpleTooltip content={<p>{allSelected ? 'Unselect all' : 'Select all'}</p>}>
+            <div className="flex items-center justify-center w-9 h-9 rounded-md border border-gray-700 hover:bg-background-dark">
+              <SelectionCheckbox
+                checked={allSelected}
+                onCheckedChange={(checked) => handleSelectAll(checked, filteredDocIds)}
+                ariaLabel={allSelected ? 'Unselect all documents' : 'Select all documents'}
+              />
+            </div>
+          </SimpleTooltip>
+        )}
         <UmamiTrack 
           event={UmamiEvents.UPLOAD_DOCUMENT_BUTTON}
         >

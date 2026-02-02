@@ -22,6 +22,7 @@ import { ElementValidationResult } from '../../../types/validation';
 import { ElementData } from './ElementData';
 import { ValidationResultModal } from './ValidationResultModal';
 import { formatConfigValue } from '../../../utils/maskSecretFields';
+import { SelectionCheckbox } from '@/components/shared/SelectionCheckbox';
 
 interface ElementGridProps {
   elements: ElementInstance[];
@@ -30,6 +31,10 @@ interface ElementGridProps {
   onEditElement: (element: ElementInstance) => void;
   onDeleteElement: (rid: string) => void;
   elementSchema?: ElementSchema | null;
+  // Multi-select support
+  selectedIds?: Set<string>;
+  onSelectionChange?: (rid: string, isSelected: boolean) => void;
+  selectionEnabled?: boolean;
 }
 
 export const ElementGrid: React.FC<ElementGridProps> = ({
@@ -38,7 +43,10 @@ export const ElementGrid: React.FC<ElementGridProps> = ({
   isLoading,
   onEditElement,
   onDeleteElement,
-  elementSchema
+  elementSchema,
+  selectedIds = new Set(),
+  onSelectionChange,
+  selectionEnabled = false,
 }) => {
   const [selectedElement, setSelectedElement] = useState<ElementInstance | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -157,6 +165,15 @@ export const ElementGrid: React.FC<ElementGridProps> = ({
             <CardHeader className="py-4 px-6 border-b border-gray-800">
               <div className="flex justify-between items-start">
                 <div className="flex items-center">
+                  {selectionEnabled && onSelectionChange && (
+                    <div className="mr-2">
+                      <SelectionCheckbox
+                        checked={selectedIds.has(element.rid)}
+                        onCheckedChange={(checked) => onSelectionChange(element.rid, checked)}
+                        ariaLabel={`Select ${element.name || elementType.name}`}
+                      />
+                    </div>
+                  )}
                   <FileText className="h-5 w-5 mr-2 text-primary" />
                   <CardTitle className="text-lg font-heading">
                     {element.name || `${elementType.name} Instance`}

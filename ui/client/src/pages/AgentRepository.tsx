@@ -11,6 +11,11 @@ import { ElementForm } from '../components/agentic-ai/workspace/ElementForm';
 import { ElementType, ElementInstance } from '../types/workspace';
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
+import { SelectionCheckbox } from '@/components/shared/SelectionCheckbox';
+import { BulkDeleteButton } from '@/components/shared/BulkDeleteButton';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { useSimpleBulkDelete, useSetSelection } from '@/hooks/use-bulk-delete';
+import SimpleTooltip from '@/components/shared/SimpleTooltip';
 
 export default function UserWorkspace() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -21,6 +26,7 @@ export default function UserWorkspace() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [elementToDelete, setElementToDelete] = useState<ElementInstance | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
   const {
     categories,
     elementInstances,
@@ -34,6 +40,47 @@ export default function UserWorkspace() {
     saveElement,
     deleteElement
   } = useWorkspaceData();
+
+  // Multi-select state using the reusable hook
+  const {
+    selectedIds,
+    handleSelectionChange,
+    clearSelection,
+    isAllSelected,
+    selectedCount,
+  } = useSetSelection<string>();
+
+  // Bulk delete using the reusable hook
+  const {
+    bulkDeleteConfirm,
+    bulkDeleteLoading,
+    openBulkDeleteConfirm,
+    closeBulkDeleteConfirm,
+    executeBulkDelete,
+  } = useSimpleBulkDelete({
+    deleteItem: deleteElement,
+    itemName: selectedElementType?.name?.toLowerCase() || 'element',
+    onSuccess: () => {
+      clearSelection();
+      if (selectedElementType) {
+        fetchElementInstances(selectedElementType.category, selectedElementType.type);
+      }
+    },
+  });
+
+  // Clear selection when element type changes
+  useEffect(() => {
+    clearSelection();
+  }, [selectedElementType, clearSelection]);
+
+  // Handle select all
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      elementInstances.forEach(el => handleSelectionChange(el.rid, true));
+    } else {
+      clearSelection();
+    }
+  };
 
   // Fetch element instances when element type is selected
   useEffect(() => {
@@ -128,15 +175,24 @@ export default function UserWorkspace() {
                 {/* Header with Create Button */}
                 {selectedElementType && (
                   <div className="flex justify-between items-center mb-6">
-                    <div>
-                      <h2 className="text-2xl font-heading font-bold">
-                        {selectedElementType.name} Instances
-                      </h2>
-                      <p className="text-gray-400 text-sm">
-                        Manage your {selectedElementType.name.toLowerCase()} configurations
-                      </p>
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <h2 className="text-2xl font-heading font-bold">
+                          {selectedElementType.name} Instances
+                        </h2>
+                        <p className="text-gray-400 text-sm">
+                          Manage your {selectedElementType.name.toLowerCase()} configurations
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                      {selectedCount > 0 && (
+                        <BulkDeleteButton
+                          selectedCount={selectedCount}
+                          onClick={() => openBulkDeleteConfirm(selectedIds)}
+                          itemName={selectedElementType?.name?.toLowerCase() || 'element'}
+                        />
+                      )}
                       <Button
                         variant="outline"
                         onClick={() => {
@@ -148,6 +204,18 @@ export default function UserWorkspace() {
                       >
                         <Info className="h-4 w-4" />
                       </Button>
+
+                      {elementInstances.length > 0 && (
+                        <SimpleTooltip content={<p>{isAllSelected(elementInstances.map(el => el.rid)) ? 'Unselect all' : 'Select all'}</p>}>
+                          <div className="flex items-center justify-center w-9 h-9 rounded-md border border-gray-700 hover:bg-background-dark">
+                            <SelectionCheckbox
+                              checked={isAllSelected(elementInstances.map(el => el.rid))}
+                              onCheckedChange={handleSelectAll}
+                              ariaLabel={isAllSelected(elementInstances.map(el => el.rid)) ? 'Unselect all elements' : 'Select all elements'}
+                            />
+                          </div>
+                        </SimpleTooltip>
+                      )}
 
                       <UmamiTrack 
                         event={UmamiEvents.AGENT_REPOSITORY_CREATE_NEW_BUTTON}
@@ -176,6 +244,9 @@ export default function UserWorkspace() {
                       onEditElement={handleEditElement}
                       onDeleteElement={handleDeleteElement}
                       elementSchema={elementSchema}
+                      selectedIds={selectedIds}
+                      onSelectionChange={handleSelectionChange}
+                      selectionEnabled={true}
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full">
@@ -232,6 +303,18 @@ export default function UserWorkspace() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={bulkDeleteConfirm.open}
+        title={`Delete ${bulkDeleteConfirm.count} ${selectedElementType?.name || 'Element'}(s)`}
+        message={`Are you sure you want to delete ${bulkDeleteConfirm.count} selected ${selectedElementType?.name?.toLowerCase() || 'element'}(s)? This action cannot be undone.`}
+        confirmLabel="Yes, Delete"
+        cancelLabel="Cancel"
+        loading={bulkDeleteLoading}
+        onCancel={closeBulkDeleteConfirm}
+        onConfirm={executeBulkDelete}
+      />
     </div>
   );
 }

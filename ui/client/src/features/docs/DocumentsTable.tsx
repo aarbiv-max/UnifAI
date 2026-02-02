@@ -169,35 +169,8 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       header: ({ table }) => {
         if (!onRowSelectionChange || !rowSelection) return "";
         
-        // Calculate if all filtered rows are selected
-        const filteredRows = table.getFilteredRowModel().rows;
-        const isAllFilteredSelected = filteredRows.length > 0 && filteredRows.every(row => {
-          return rowSelection[row.original.source_id];
-        });
         
-        // Handle select all toggle for filtered rows
-        const handleSelectAllChange = (checked: boolean) => {
-          const newSelection = { ...rowSelection };
-          if (checked) {
-            filteredRows.forEach(row => {
-              newSelection[row.original.source_id] = true;
-            });
-          } else {
-            filteredRows.forEach(row => {
-              delete newSelection[row.original.source_id];
-            });
-          }
-          onRowSelectionChange(newSelection);
-        };
-        
-        return (
-          <SelectionCheckbox
-            checked={isAllFilteredSelected}
-            onCheckedChange={handleSelectAllChange}
-            ariaLabel="Select all filtered rows"
-            align="right"
-          />
-        );
+      
       },
       cell: ({ row }) => {
         const doc = row.original;

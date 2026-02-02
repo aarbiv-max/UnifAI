@@ -382,8 +382,9 @@ export const useWorkspaceData = () => {
   );
 
   // Delete element using Resources API
+  // Set silent=true to suppress toasts (useful for bulk operations)
   const deleteElement = useCallback(
-    async (rid: string) => {
+    async (rid: string, silent: boolean = false) => {
       try {
         setIsLoading(true);
         setError(null);
@@ -392,22 +393,27 @@ export const useWorkspaceData = () => {
         
         removeResource(rid);
         
-        toast({
-          title: "Success",
-          description: "Element deleted successfully",
-        });
+        if (!silent) {
+          toast({
+            title: "Success",
+            description: "Element deleted successfully",
+          });
+        }
         return true;
       } catch (err: any) {
         const errorMessage =
           err.response?.data?.error || "Failed to delete element";
         setError(errorMessage);
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
+        if (!silent) {
+          toast({
+            title: "Error",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        }
         console.error("Error deleting element:", err);
-        return false;
+        // Throw the error so Promise.allSettled can catch it
+        throw err;
       } finally {
         setIsLoading(false);
       }
