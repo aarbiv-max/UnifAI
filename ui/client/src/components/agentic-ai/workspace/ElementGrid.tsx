@@ -23,6 +23,7 @@ import { ElementData } from './ElementData';
 import { ValidationResultModal } from './ValidationResultModal';
 import { formatConfigValue } from '../../../utils/maskSecretFields';
 import { SelectionCheckbox } from '@/components/shared/SelectionCheckbox';
+import { getDisplayValueFromItem } from '../../../utils/displayUtils';
 
 interface ElementGridProps {
   elements: ElementInstance[];
@@ -241,8 +242,8 @@ export const ElementGrid: React.FC<ElementGridProps> = ({
                         const fieldSchema = elementSchema?.config_schema?.properties?.[key];
                         const rawValue = element.config[key];
                         const displayValue = Array.isArray(rawValue)
-                          ? rawValue.map((item: any) => getResourceName(item)).join(', ')
-                          : getResourceName(rawValue);
+                          ? rawValue.map((item: any) => getDisplayValueFromItem(item, getResourceName)).join(', ')
+                          : getDisplayValueFromItem(rawValue, getResourceName);
                         return (
                           <div key={key} className="flex justify-between">
                             <span className="truncate">{key}:</span>
