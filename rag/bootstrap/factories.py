@@ -7,11 +7,11 @@ from typing import Dict, Any, Optional
 from config.app_config import AppConfig
 from infrastructure.embedding.sentence_transformer_embedder import SentenceTransformerEmbedding
 from infrastructure.qdrant.qdrant_vector_repository import QdrantVectorRepository
-from infrastructure.connector.document_connector import DocumentConnector
-from infrastructure.config.doc_config_manager import DocConfigManager
+from infrastructure.sources.document.connector import DocumentConnector
+from infrastructure.sources.document.config import DocConfigManager
 from core.vector.domain.embedder import EmbeddingGenerator
 from core.vector.domain.repository import VectorRepository
-from domain.connector.data_connector import DataConnector
+from core.connector.domain.base import DataConnector
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 app_config = AppConfig.get_instance()
