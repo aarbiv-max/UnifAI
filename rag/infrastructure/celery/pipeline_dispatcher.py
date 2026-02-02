@@ -2,7 +2,7 @@
 import uuid
 from typing import Dict, Any, List
 
-from domain.pipeline.dispatcher import PipelineTaskDispatcher, TaskResult
+from core.pipeline.domain.dispatcher import PipelineTaskDispatcher, TaskResult
 from global_utils.celery_app.helpers import send_task
 from shared.logger import logger
 

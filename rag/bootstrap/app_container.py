@@ -108,7 +108,7 @@ def vector_repository(collection_name: str):
 @lru_cache(maxsize=1)
 def slack_channel_repository():
     """Slack channel repository (Mongo adapter)."""
-    from infrastructure.mongo.slack_channel_repository import MongoSlackChannelRepository
+    from infrastructure.mongo.data_sources.slack_channel_repository import MongoSlackChannelRepository
     return MongoSlackChannelRepository(data_sources_db()["slack_channels"])
 
 
@@ -126,14 +126,14 @@ def terms_approval_repository():
 @lru_cache(maxsize=1)
 def slack_processor():
     """Slack message processor."""
-    from domain.processor.slack_processor import SlackProcessor
+    from core.data_sources.types.slack.domain.processor import SlackProcessor
     return SlackProcessor()
 
 
 @lru_cache(maxsize=1)
 def document_processor():
     """Document (PDF/Markdown) processor."""
-    from domain.processor.document_processor import DocumentProcessor
+    from core.data_sources.types.document.domain.processor import DocumentProcessor
     return DocumentProcessor()
 
 
@@ -144,7 +144,7 @@ def document_processor():
 @lru_cache(maxsize=1)
 def slack_config_manager():
     """Slack configuration manager with tokens from AppConfig."""
-    from infrastructure.config.slack_config_manager import SlackConfigManager
+    from infrastructure.sources.slack.config import SlackConfigManager
     from config.app_config import AppConfig
     
     config = AppConfig.get_instance()
@@ -190,7 +190,7 @@ def celery_slack_event_dispatcher():
 @lru_cache(maxsize=None)
 def slack_connector(project_id: str):
     """Slack connector for a specific project."""
-    from infrastructure.connector.slack_connector import SlackConnector
+    from infrastructure.sources.slack.connector import SlackConnector
     return SlackConnector(
         config_manager=slack_config_manager(),
         channel_repo=slack_channel_repository(),
@@ -227,7 +227,7 @@ def document_connector():
 @lru_cache(maxsize=1)
 def slack_chunker():
     """Slack conversation chunker with default settings."""
-    from infrastructure.chunking.slack_chunker import SlackChunkerStrategy
+    from infrastructure.sources.slack.chunker import SlackChunkerStrategy
     return SlackChunkerStrategy(
         max_tokens_per_chunk=500,
         overlap_tokens=50,
@@ -238,7 +238,7 @@ def slack_chunker():
 @lru_cache(maxsize=1)
 def pdf_chunker():
     """PDF/Document chunker with default settings."""
-    from infrastructure.chunking.pdf_chunker import PDFChunkerStrategy
+    from infrastructure.sources.document.chunker import PDFChunkerStrategy
     return PDFChunkerStrategy(
         max_tokens_per_chunk=500,
         overlap_tokens=50,
@@ -252,14 +252,14 @@ def pdf_chunker():
 @lru_cache(maxsize=1)
 def pipeline_service():
     """Pipeline application service."""
-    from application.pipeline_service import PipelineService
+    from core.pipeline.service import PipelineService
     return PipelineService(pipeline_repo=pipeline_repository())
 
 
 @lru_cache(maxsize=1)
 def monitoring_service():
     """Monitoring application service."""
-    from application.monitoring_service import MonitoringService
+    from core.monitoring.service import MonitoringService
     return MonitoringService(
         monitoring_repo=monitoring_repository(),
         pipeline_repo=pipeline_repository(),
@@ -269,7 +269,7 @@ def monitoring_service():
 @lru_cache(maxsize=1)
 def data_source_service():
     """Data source application service."""
-    from application.data_source_service import DataSourceService
+    from core.data_sources.service import DataSourceService
     return DataSourceService(
         source_repo=data_source_repository(),
         pipeline_repo=pipeline_repository(),
@@ -278,16 +278,26 @@ def data_source_service():
 
 
 @lru_cache(maxsize=1)
+def document_service():
+    """Document-specific application service."""
+    from core.data_sources.types.document.document_service import DocumentService
+    return DocumentService(
+        data_source_service=data_source_service(),
+        source_repo=data_source_repository(),
+    )
+
+
+@lru_cache(maxsize=1)
 def doc_validators():
     """Document validators pipeline factory."""
-    from application.validation.validators.document.factory import DocValidators
-    from application.validation.validators.document.duplicate_validator import DuplicateValidator
-    from application.validation.validators.document.extension_validator import ExtensionValidator
-    from application.validation.validators.document.size_validator import SizeValidator
-    from application.validation.validators.document.name_duplicate_validator import NameDuplicateValidator
-    from infrastructure.config.doc_config_manager import DocConfigManager
-    from infrastructure.validation.document_duplicate_checker import DocumentDuplicateCheckerAdapter
-    from infrastructure.validation.name_duplicate_checker import NameDuplicateCheckerAdapter
+    from core.data_sources.types.document.validators.factory import DocValidators
+    from core.data_sources.types.document.validators.duplicate_validator import DuplicateValidator
+    from core.data_sources.types.document.validators.extension_validator import ExtensionValidator
+    from core.data_sources.types.document.validators.size_validator import SizeValidator
+    from core.data_sources.types.document.validators.name_duplicate_validator import NameDuplicateValidator
+    from infrastructure.sources.document.config import DocConfigManager
+    from infrastructure.sources.document.validator.duplicate_checker import DocumentDuplicateCheckerAdapter
+    from infrastructure.sources.document.validator.name_duplicate_checker import NameDuplicateCheckerAdapter
     
     config = DocConfigManager()
     
@@ -316,9 +326,9 @@ def doc_validators():
 @lru_cache(maxsize=1)
 def slack_validators():
     """Slack validators pipeline factory."""
-    from application.validation.validators.slack.factory import SlackValidators
-    from application.validation.validators.slack.channel_bot_installation_validator import ChannelBotInstallationValidator
-    from infrastructure.validation.bot_installation_checker import BotInstallationCheckerAdapter, MembershipUpdaterAdapter
+    from core.data_sources.types.slack.validators.factory import SlackValidators
+    from core.data_sources.types.slack.validators.channel_bot_installation_validator import ChannelBotInstallationValidator
+    from infrastructure.sources.slack.validator.bot_installation_checker import BotInstallationCheckerAdapter, MembershipUpdaterAdapter
     
     # TODO: Inject proper Slack connector based on project (None for now - graceful fallback)
     bot_checker = BotInstallationCheckerAdapter(slack_connector=None)
@@ -338,9 +348,9 @@ def file_validation_service(username: str):
     
     Note: Not cached because it's user-specific (different username each time).
     """
-    from application.file_validation_service import FileValidationService
-    from infrastructure.config.doc_config_manager import DocConfigManager
-    from infrastructure.validation.name_duplicate_checker import NameDuplicateCheckerAdapter
+    from core.data_sources.types.document.file_validation_service import FileValidationService
+    from infrastructure.sources.document.config import DocConfigManager
+    from infrastructure.sources.document.validator.name_duplicate_checker import NameDuplicateCheckerAdapter
     
     return FileValidationService(
         username=username,
@@ -352,7 +362,7 @@ def file_validation_service(username: str):
 @lru_cache(maxsize=1)
 def registration_factory():
     """Registration factory for creating source-specific registrations."""
-    from application.registration.factory import RegistrationFactory
+    from core.registration.factory import RegistrationFactory
     from config.app_config import AppConfig
     return RegistrationFactory(
         data_source_repository=data_source_repository(),
@@ -365,14 +375,14 @@ def registration_factory():
 @lru_cache(maxsize=1)
 def registration_service():
     """Registration service for source registration flows."""
-    from application.registration.registration_service import RegistrationService
+    from core.registration.service import RegistrationService
     return RegistrationService(factory=registration_factory())
 
 
 @lru_cache(maxsize=1)
 def pipeline_dispatch_service():
     """Pipeline dispatch service - orchestrates registration and task dispatch."""
-    from application.pipeline_dispatch_service import PipelineDispatchService
+    from core.pipeline.dispatch_service import PipelineDispatchService
     return PipelineDispatchService(
         registration_svc=registration_service(),
         task_dispatcher=celery_pipeline_dispatcher(),
@@ -382,7 +392,7 @@ def pipeline_dispatch_service():
 @lru_cache(maxsize=1)
 def slack_event_dispatch_service():
     """Slack event dispatch service - handles Slack Events API webhooks."""
-    from application.slack_event_dispatch_service import SlackEventDispatchService
+    from core.data_sources.types.slack.event.dispatch_service import SlackEventDispatchService
     return SlackEventDispatchService(
         dispatcher=celery_slack_event_dispatcher(),
     )
@@ -391,7 +401,7 @@ def slack_event_dispatch_service():
 @lru_cache(maxsize=1)
 def terms_approval_service():
     """Terms approval application service."""
-    from application.terms_approval_service import TermsApprovalService
+    from core.user.terms_approval.service import TermsApprovalService
     return TermsApprovalService(approval_repo=terms_approval_repository())
 
 
@@ -402,7 +412,7 @@ def terms_approval_service():
 @lru_cache(maxsize=1)
 def channel_created_handler():
     """Handler for Slack channel_created events."""
-    from application.slack_events.handlers.channel_created import ChannelCreatedEventHandler
+    from core.data_sources.types.slack.event.handlers.channel_created import ChannelCreatedEventHandler
     return ChannelCreatedEventHandler(
         channel_repo=slack_channel_repository(),
         project_id="example-project",  # TODO: Get from config
@@ -412,7 +422,7 @@ def channel_created_handler():
 @lru_cache(maxsize=1)
 def slack_event_service():
     """Slack event dispatch service with registered handlers."""
-    from application.slack_events.service import SlackEventService
+    from core.data_sources.types.slack.event.service import SlackEventService
     service = SlackEventService()
     service.register_factory("channel_created", channel_created_handler)
     return service
@@ -467,7 +477,7 @@ def retrieval_service(source_type: str):
     Returns:
         RetrievalService configured for the specified source type
     """
-    from application.retrieval_service import RetrievalService
+    from core.retrieval.service import RetrievalService
     return RetrievalService(
         embedder=embedding_generator(),
         vector_repo=vector_repository(f"{source_type.lower()}_data"),
@@ -483,14 +493,14 @@ def retrieval_service(source_type: str):
 @lru_cache(maxsize=1)
 def vector_stats_service():
     """Vector storage statistics service."""
-    from application.stats.vector_stats_service import VectorStatsService
+    from core.vector.stats_service import VectorStatsService
     return VectorStatsService(vector_repo_factory=vector_repository)
 
 
 @lru_cache(maxsize=1)
 def slack_stats_service():
     """Slack statistics aggregation service."""
-    from application.stats.slack_stats_service import SlackStatsService
+    from core.data_sources.types.slack.stats_service import SlackStatsService
     return SlackStatsService(data_source_service=data_source_service())
 
 
@@ -501,7 +511,7 @@ def slack_stats_service():
 @lru_cache(maxsize=1)
 def slack_pipeline_handler():
     """Slack pipeline handler with injected dependencies."""
-    from application.pipeline.slack_handler import SlackPipelineHandler
+    from core.data_sources.types.slack.pipeline_handler import SlackPipelineHandler
     return SlackPipelineHandler(
         connector=slack_connector("default"),
         processor=slack_processor(),
@@ -513,7 +523,7 @@ def slack_pipeline_handler():
 @lru_cache(maxsize=1)
 def document_pipeline_handler():
     """Document pipeline handler with injected dependencies."""
-    from application.pipeline.document_handler import DocumentPipelineHandler
+    from core.data_sources.types.document.pipeline_handler import DocumentPipelineHandler
     return DocumentPipelineHandler(
         connector=document_connector(),
         processor=document_processor(),
@@ -550,7 +560,7 @@ def get_pipeline_handler(source_type: str):
 @lru_cache(maxsize=1)
 def pipeline_executor():
     """Pipeline executor use case with all dependencies."""
-    from application.pipeline.executor import PipelineExecutor
+    from core.pipeline.executor import PipelineExecutor
     return PipelineExecutor(
         pipeline_service=pipeline_service(),
         monitoring_service=monitoring_service(),

@@ -10,11 +10,8 @@ data_sources_bp = Blueprint("data_sources", __name__)
 
 
 @data_sources_bp.route("/data.sources.get", methods=["GET"])
-@from_query({
-    "source_type": fields.Str(required=True),
-    "filter_query": fields.Str(required=False, load_default=None)
-})
-def get_sources(source_type, filter_query):
+@from_query({"source_type": fields.Str(required=True)})
+def get_sources(source_type):
     """Get all data sources with pipeline stats for a given type."""
     try:
         sources = data_source_service().list_with_stats(source_type)

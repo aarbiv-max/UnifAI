@@ -68,7 +68,7 @@ if __name__ == "__main__":
     config = AppConfig.get_instance()
     application = create_app()
     application.run(
-        host="0.0.0.0",
+        host=config.hostname_local,
         port=config.port,
         debug=True,
     )

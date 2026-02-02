@@ -1,6 +1,6 @@
 # RAG Flow Diagrams
 
-> Visual guides showing how data flows through the hexagonal architecture.
+> Visual guides showing how data flows through the feature-sliced architecture.
 
 ## Table of Contents
 
@@ -36,12 +36,12 @@ Complete flow from file upload to vector storage.
      └───────────┬────────────┘
                  │
  ════════════════╪══════════════════════════════════════════════════════════════════════════════
-                 │                         APPLICATION LAYER
+                 │                              CORE LAYER
  ════════════════╪══════════════════════════════════════════════════════════════════════════════
                  ▼
      ┌───────────────────────────────────┐
      │   PipelineDispatchService         │
-     │   application/pipeline_dispatch   │
+     │   core/pipeline/dispatch_service  │
      └───────────┬───────────────────────┘
                  │
         ┌────────┴────────┐
@@ -58,10 +58,11 @@ Complete flow from file upload to vector storage.
         ▼                     │
  ┌──────────────────┐         │   ┌──────────────────────────────────────┐
  │ DocValidators    │         │   │  CeleryPipelineDispatcher            │
- │  • Extension     │         │   │  infrastructure/celery/dispatcher    │
- │  • Size          │         └──▶│                                      │
- │  • Duplicates    │             │  send_task("execute_pipeline_task")  │
- └──────────────────┘             └──────────────────┬───────────────────┘
+ │  • Extension     │         │   │  infrastructure/celery/              │
+ │  • Size          │         └──▶│      pipeline_dispatcher.py          │
+ │  • Duplicates    │             │                                      │
+ └──────────────────┘             │  send_task("execute_pipeline_task")  │
+                                  └──────────────────┬───────────────────┘
                                                      │
  ════════════════════════════════════════════════════╪══════════════════════════════════════════
                                                      │     CELERY WORKER (async)
@@ -81,7 +82,7 @@ Complete flow from file upload to vector storage.
                                                 ▼
                               ┌───────────────────────────────────────────┐
                               │         PipelineExecutor                  │
-                              │   application/pipeline/executor.py        │
+                              │   core/pipeline/executor.py               │
                               └─────────────────┬─────────────────────────┘
                                                 │
                ┌────────────────────────────────┼────────────────────────────────┐
@@ -99,7 +100,8 @@ Complete flow from file upload to vector storage.
                                                 ▼
                               ┌───────────────────────────────────────────┐
                               │      DocumentPipelineHandler              │
-                              │  application/pipeline/document_handler    │
+                              │  core/data_sources/types/document/        │
+                              │      pipeline_handler.py                  │
                               │  (implements SourcePipelinePort)          │
                               └─────────────────┬─────────────────────────┘
                                                 │
@@ -109,8 +111,8 @@ Complete flow from file upload to vector storage.
  ┌──────────────────┐              ┌──────────────────────┐              ┌──────────────────┐
  │  1. COLLECT      │              │   2. PROCESS         │              │  3. CHUNK &      │
  │                  │              │                      │              │     EMBED        │
- │  DocumentConnector──────────────▶ DocumentProcessor  ──────────────────▶ PDFChunker +    │
- │  (load PDF/MD)   │              │  (extract text)      │              │  SentenceTransf  │
+ │  DocumentConnector──────────────▶ DocumentProcessor  ──────────────────▶ DocumentChunker │
+ │  (load PDF/MD)   │              │  (extract text)      │              │  + Embedder      │
  └──────────────────┘              └──────────────────────┘              └────────┬─────────┘
                                                                                   │
                                                                                   ▼
@@ -154,12 +156,12 @@ Shows the deletion cascade through vector storage and MongoDB with transaction-l
      └─────────┘      /{source_id}   └───────────┬────────────┘
                                                  │
  ════════════════════════════════════════════════╪══════════════════════════════════════════════
-                                                 │            APPLICATION LAYER
+                                                 │                 CORE LAYER
  ════════════════════════════════════════════════╪══════════════════════════════════════════════
                                                  ▼
                               ┌───────────────────────────────────────────┐
                               │         DataSourceService                 │
-                              │   application/data_source_service.py      │
+                              │   core/data_sources/service.py            │
                               │                                           │
                               │   def delete(source_id) -> DeleteResult   │
                               └─────────────────┬─────────────────────────┘
@@ -294,12 +296,12 @@ Semantic search from query to results.
                    &tags=[]                      │
                                                  │
  ════════════════════════════════════════════════╪══════════════════════════════════════════════
-                                                 │            APPLICATION LAYER
+                                                 │                 CORE LAYER
  ════════════════════════════════════════════════╪══════════════════════════════════════════════
                                                  ▼
                               ┌───────────────────────────────────────────┐
                               │         RetrievalService                  │
-                              │   application/retrieval_service.py        │
+                              │   core/retrieval/service.py               │
                               │                                           │
                               │   def search(query, limit, filters)       │
                               └─────────────────┬─────────────────────────┘
@@ -358,8 +360,81 @@ Semantic search from query to results.
 
 ---
 
+## Slack Pipeline Execution
+
+Flow for indexing Slack channel messages.
+
+```
+═══════════════════════════════════════════════════════════════════════════════════════════════
+                              SLACK PIPELINE EXECUTION FLOW
+═══════════════════════════════════════════════════════════════════════════════════════════════
+
+     ┌─────────┐                     ┌────────────────────────┐
+     │   UI    │ POST /slack/channels│ infrastructure/http/   │
+     │ Client  │────────────────────▶│     slack.py           │
+     └─────────┘                     └───────────┬────────────┘
+                                                 │
+ ════════════════════════════════════════════════╪══════════════════════════════════════════════
+                                                 │                 CORE LAYER
+ ════════════════════════════════════════════════╪══════════════════════════════════════════════
+                                                 ▼
+                              ┌───────────────────────────────────────────┐
+                              │   PipelineDispatchService                 │
+                              │   core/pipeline/dispatch_service.py       │
+                              └───────────┬───────────────────────────────┘
+                                          │
+                      ┌───────────────────┴───────────────────┐
+                      │                                       │
+                      ▼                                       ▼
+               ┌──────────────────┐               ┌─────────────────────────┐
+               │ SlackRegistration│               │ SlackValidators         │
+               │ core/data_sources│               │ core/data_sources/types/│
+               │ /types/slack/    │               │ slack/validators/       │
+               │ registration.py  │               │ • bot installation      │
+               └────────┬─────────┘               └─────────────────────────┘
+                        │
+                        │  Save channel to MongoDB
+                        ▼
+               ┌──────────────────────────┐
+               │ MongoSlackChannelRepo    │
+               │ infrastructure/mongo/    │
+               │ data_sources/            │
+               │ slack_channel_repository │
+               └──────────────────────────┘
+                        │
+                        │  Dispatch async task
+                        ▼
+ ════════════════════════════════════════════════════════════════════════════════════════════════
+                                    CELERY WORKER (async)
+ ════════════════════════════════════════════════════════════════════════════════════════════════
+                                          │
+                                          ▼
+                       ┌───────────────────────────────────────────┐
+                       │      SlackPipelineHandler                 │
+                       │  core/data_sources/types/slack/           │
+                       │      pipeline_handler.py                  │
+                       │  (implements SourcePipelinePort)          │
+                       └─────────────────┬─────────────────────────┘
+                                         │
+          ┌──────────────────────────────┼──────────────────────────────┐
+          │                              │                              │
+          ▼                              ▼                              ▼
+ ┌──────────────────┐       ┌──────────────────────┐       ┌──────────────────┐
+ │  1. COLLECT      │       │   2. PROCESS         │       │  3. CHUNK &      │
+ │                  │       │                      │       │     EMBED        │
+ │  SlackConnector  │──────▶│  SlackProcessor     │──────▶│  SlackChunker    │
+ │  + ThreadRetriever       │  (extract messages)  │       │  + Embedder      │
+ └──────────────────┘       └──────────────────────┘       └────────┬─────────┘
+                                                                    │
+                                                                    ▼
+                                                     ╔═══════════════════════════╗
+                                                     ║  4. STORE → QDRANT        ║
+                                                     ║  vector_repo.store()      ║
+                                                     ╚═══════════════════════════╝
+```
+
+---
+
 ## Related Documentation
 
 - [README.md](./README.md) — Main module documentation
-- [rag.md](./rag.md) — Class diagrams and architecture overview
-

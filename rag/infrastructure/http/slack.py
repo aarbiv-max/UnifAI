@@ -55,7 +55,7 @@ def get_available_channels(types, cursor, limit, search_regex):
             limit=limit,
             search_regex=search_regex,
         )
-        return jsonify(result.to_dict(data_key="channels")), 200
+        return jsonify(result), 200
         
     except Exception as e:
         logger.error(f"Failed to get available Slack channels: {str(e)}")

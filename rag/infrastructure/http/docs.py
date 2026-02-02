@@ -4,12 +4,13 @@ from webargs import fields
 
 from bootstrap.app_container import (
     data_source_service,
+    document_service,
     file_storage,
     file_validation_service,
     retrieval_service,
 )
 from global_utils.helpers.apiargs import from_query, from_body
-from infrastructure.config.doc_config_manager import DocConfigManager
+from infrastructure.sources.document.config import DocConfigManager
 from shared.logger import logger
 
 docs_bp = Blueprint("docs", __name__)
@@ -106,20 +107,20 @@ def get_supported_extensions():
 
 @docs_bp.route("/available.docs.get", methods=["GET"])
 @from_query({
-    "cursor": fields.Str(required=False, load_default=None),
+    "cursor": fields.Str(required=False, load_default=""),
     "limit": fields.Int(required=False, load_default=50),
-    "search": fields.Str(required=False, load_default=None),
+    "search_regex": fields.Str(required=False, load_default=None),
 })
-def get_available_docs(cursor, limit, search):
+def get_available_docs(cursor="", limit=50, search_regex=None):
     """
     Get paginated list of available documents (DONE status only).
     Used for dropdown selection in the UI.
     """
     try:
-        result = data_source_service().list_available_docs(
+        result = document_service().list_available_docs(
             cursor=cursor,
             limit=limit,
-            search=search,
+            search=search_regex,
         )
         return jsonify(result.to_dict(data_key="documents")), 200
         
@@ -134,7 +135,7 @@ def get_available_docs(cursor, limit, search):
     "limit": fields.Int(required=False, load_default=50),
     "search_regex": fields.Str(required=False, load_default=None),
 })
-def get_available_tags(cursor, limit, search_regex):
+def get_available_tags(cursor="", limit=50, search_regex=None):
     """
     Get paginated list of available tags from DONE documents.
     Used for tag dropdown selection in the UI.
@@ -142,8 +143,8 @@ def get_available_tags(cursor, limit, search_regex):
     Response format matches backend: options array with label/value pairs.
     """
     try:
-        result = data_source_service().get_available_tags(
-            cursor=cursor if cursor else None,
+        result = document_service().get_available_tags(
+            cursor=cursor,
             limit=limit,
             search=search_regex,
         )
@@ -164,7 +165,7 @@ def get_available_tags(cursor, limit, search_regex):
 @docs_bp.route("/query.match", methods=["GET"])
 @from_query({
     "query": fields.Str(required=True),
-    "top_k_results": fields.Int(required=False, load_default=5),
+    "top_k_results": fields.Int(required=False, load_default=15),
     "scope": fields.Str(required=False, load_default="public"),
     "logged_in_user": fields.Str(required=False, load_default="default", data_key="loggedInUser"),
     "doc_ids": fields.List(fields.Str(), required=False, load_default=None, data_key="docIds"),

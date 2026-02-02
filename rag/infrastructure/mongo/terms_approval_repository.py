@@ -4,8 +4,8 @@ from datetime import datetime
 
 from pymongo.collection import Collection
 
-from domain.user.terms_approval.model import TermsApproval
-from domain.user.terms_approval.repository import TermsApprovalRepository
+from core.user.terms_approval.domain.model import TermsApproval
+from core.user.terms_approval.domain.repository import TermsApprovalRepository
 from shared.logger import logger
 
 

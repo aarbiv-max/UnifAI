@@ -3,9 +3,9 @@ from typing import Optional, List, Dict, Any
 
 from pymongo.collection import Collection
 
-from domain.data_source.model import DataSource
-from domain.data_source.repository import DataSourceRepository
-from domain.pagination import PaginatedResult
+from core.data_sources.domain.model import DataSource
+from core.data_sources.domain.repository import DataSourceRepository
+from core.pagination.domain.model import PaginatedResult
 from infrastructure.mongo.pagination_builder import PaginatedQueryBuilder
 
 

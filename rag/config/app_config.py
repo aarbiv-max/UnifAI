@@ -18,7 +18,7 @@ class AppConfig(SharedConfig):
 
     # Server Configuration
     hostname_local: str = "0.0.0.0"
-    port: str = "13457"
+    port: str = "13456"
 
     # Qdrant Configuration
     qdrant_ip: str = "0.0.0.0"

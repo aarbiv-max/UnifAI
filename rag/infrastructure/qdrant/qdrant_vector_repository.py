@@ -7,8 +7,8 @@ from typing import Optional, List, Dict, Any
 import qdrant_client
 from qdrant_client.http import models as qmodels
 
-from domain.vector.model import VectorChunk, SearchResult
-from domain.vector.repository import VectorRepository
+from core.vector.domain.model import VectorChunk, SearchResult
+from core.vector.domain.repository import VectorRepository
 from shared.logger import logger
 
 

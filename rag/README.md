@@ -1,10 +1,10 @@
 # RAG Module
 
-> **Data Pipeline Hub** — Hexagonal architecture implementation for document and Slack data ingestion with vector search capabilities.
+> **Data Pipeline Hub** — Feature-sliced architecture implementation for document and Slack data ingestion with vector search capabilities.
 
 ## Overview
 
-The RAG (Retrieval-Augmented Generation) module handles data ingestion pipelines for multiple source types, processing content into vector embeddings for semantic search. Built with **Hexagonal Architecture** (Ports & Adapters) for maximum testability, maintainability, and flexibility.
+The RAG (Retrieval-Augmented Generation) module handles data ingestion pipelines for multiple source types, processing content into vector embeddings for semantic search. Built with a **Feature-Sliced Architecture** combining hexagonal principles with vertical organization for maximum cohesion and maintainability.
 
 ### Key Features
 
@@ -20,34 +20,32 @@ The RAG (Retrieval-Augmented Generation) module handles data ingestion pipelines
 
 ```
 rag/
-├── domain/          # 🎯 Core business logic (pure Python, no external deps)
-├── application/     # 📦 Use cases & orchestration services  
-├── infrastructure/  # 🔌 Adapters (Mongo, Qdrant, Celery, HTTP)
+├── core/            # 🎯 Business logic + services (domain + use cases)
+├── infrastructure/  # 🔌 Adapters (Mongo, Qdrant, Celery, HTTP, Sources)
 ├── bootstrap/       # ⚡ Dependency injection & app setup
 ├── config/          # ⚙️ Configuration management
-├── shared/          # 🔧 Cross-cutting utilities (logging)x
+├── shared/          # 🔧 Cross-cutting utilities (logging)
 ```
 
 ### Layer Responsibilities
 
 | Layer | Purpose | Dependencies |
 |-------|---------|--------------|
-| **Domain** | Business rules, entities, port interfaces | None (pure Python) |
-| **Application** | Use cases, service orchestration | Domain only |
-| **Infrastructure** | External system adapters | Domain + external libs |
+| **Core** | Business rules, domain models, ports, services | None (pure Python) |
+| **Infrastructure** | External system adapters | Core + external libs |
 | **Bootstrap** | Wiring, DI container, app factory | All layers |
 
 ### Dependency Flow
 
 ```
-Infrastructure ───────▶ Domain ◀──────── Application
-   (Adapters)            (Ports)          (Services)
+Infrastructure ───────▶ Core ◀──────── Bootstrap
+   (Adapters)       (Domain + Services)    (Wiring)
 
-              Both depend on abstractions,
-                 not on each other!
+         Adapters depend on Core abstractions,
+              Core has no dependencies!
 ```
 
-📖 **See [rag.md](./rag.md) for detailed architecture diagrams and class relationships.**
+📖 **See [DIAGRAMS.md](./DIAGRAMS.md) for detailed flow diagrams.**
 
 ---
 
@@ -98,79 +96,135 @@ celery -A infrastructure.celery.app worker -Q slack_events -l info
 
 ---
 
-## Core Components
+## Core Modules
 
-### Domain Layer
+The `core/` directory contains feature-sliced modules, each with its own domain models, ports, and services.
 
-The domain layer contains pure business logic with no external dependencies.
+### Data Sources (`core/data_sources/`)
 
-#### Ports (Interfaces)
+Central module for managing data source lifecycle.
 
-| Port | Purpose |
-|------|---------|
-| `VectorRepository` | Vector storage operations (store, search, delete) |
-| `PipelineRepository` | Pipeline state management |
-| `DataSourceRepository` | Data source metadata storage |
-| `ContentChunker` | Text chunking strategies |
-| `EmbeddingGenerator` | Vector embedding generation |
-| `SourcePipelinePort` | Source-specific pipeline operations |
+| Component | Path | Purpose |
+|-----------|------|---------|
+| `DataSource` model | `domain/model.py` | Data source entity |
+| `DataSourceRepository` port | `domain/repository.py` | Storage interface |
+| `DataSourceService` | `service.py` | CRUD operations |
 
-#### Models (Entities)
+#### Source Types (`core/data_sources/types/`)
 
-| Model | Description |
-|-------|-------------|
-| `PipelineRecord` | Pipeline execution state and stats |
-| `DataSource` | Registered data source metadata |
-| `VectorChunk` | Text chunk with embedding vector |
-| `SearchResult` | Vector similarity search result |
+Source-specific processing logic organized by type:
 
-### Application Layer
-
-Use cases that orchestrate domain objects to fulfill business requirements.
-
-| Service | Responsibility |
-|---------|----------------|
-| `PipelineService` | Pipeline lifecycle management |
-| `PipelineDispatchService` | Registration + async task dispatch |
-| `DataSourceService` | Data source CRUD operations |
-| `RetrievalService` | Vector search orchestration |
-| `MonitoringService` | Pipeline metrics and logging |
-| `RegistrationService` | Source registration with validation |
+**Document** (`types/document/`)
+| Component | Purpose |
+|-----------|---------|
+| `DocumentProcessor` | Text extraction from PDF/Markdown |
+| `DocumentPipelineHandler` | Pipeline execution for documents |
+| `DocumentRegistration` | Document registration strategy |
 | `FileValidationService` | Pre-upload file validation |
+| Validators | Extension, size, duplicate checks |
 
-#### Pipeline Handlers
+**Slack** (`types/slack/`)
+| Component | Purpose |
+|-----------|---------|
+| `SlackProcessor` | Message/thread processing |
+| `SlackPipelineHandler` | Pipeline execution for channels |
+| `SlackRegistration` | Channel registration strategy |
+| `SlackChannel` model | Channel entity (`domain/channel/`) |
+| `SlackEvent` model | Event entity (`domain/event/`) |
+| Event handlers | Channel created, message events |
+| Validators | Bot installation checks |
 
-| Handler | Source Type |
-|---------|-------------|
-| `DocumentPipelineHandler` | PDF, Markdown files |
-| `SlackPipelineHandler` | Slack channels and threads |
+### Pipeline (`core/pipeline/`)
 
-### Infrastructure Layer
+Pipeline lifecycle and execution.
 
-Concrete implementations of domain ports using external technologies.
+| Component | Path | Purpose |
+|-----------|------|---------|
+| `PipelineRecord` model | `domain/model.py` | Pipeline state entity |
+| `PipelineRepository` port | `domain/repository.py` | State storage interface |
+| `PipelineDispatcher` port | `domain/dispatcher.py` | Async dispatch interface |
+| `PipelineService` | `service.py` | Lifecycle management |
+| `PipelineDispatchService` | `dispatch_service.py` | Registration + dispatch |
+| `PipelineExecutor` | `executor.py` | Pipeline step execution |
 
-#### Storage Adapters
+### Vector (`core/vector/`)
 
-| Adapter | Technology | Implements |
-|---------|------------|------------|
-| `MongoPipelineRepository` | MongoDB | `PipelineRepository` |
-| `MongoDataSourceRepository` | MongoDB | `DataSourceRepository` |
-| `QdrantVectorRepository` | Qdrant | `VectorRepository` |
+Vector storage and embedding.
 
-#### Processing Adapters
+| Component | Path | Purpose |
+|-----------|------|---------|
+| `VectorChunk` model | `domain/model.py` | Chunk with embedding |
+| `VectorRepository` port | `domain/repository.py` | Vector storage interface |
+| `ContentChunker` port | `domain/chunker.py` | Chunking interface |
+| `EmbeddingGenerator` port | `domain/embedder.py` | Embedding interface |
+| `VectorStatsService` | `stats_service.py` | Storage statistics |
+
+### Other Core Modules
+
+| Module | Purpose |
+|--------|---------|
+| `core/retrieval/` | Vector search orchestration |
+| `core/registration/` | Source registration factory & service |
+| `core/validation/` | Validation pipeline framework |
+| `core/monitoring/` | Pipeline metrics and logging |
+| `core/pagination/` | Pagination model |
+| `core/connector/` | Base connector interface |
+| `core/processing/` | Base processor interface |
+| `core/user/terms_approval/` | User terms acceptance |
+
+---
+
+## Infrastructure Layer
+
+Concrete implementations of core ports using external technologies.
+
+### Storage Adapters (`infrastructure/mongo/`)
+
+| Adapter | Implements |
+|---------|------------|
+| `MongoPipelineRepository` | `PipelineRepository` |
+| `MongoDataSourceRepository` | `DataSourceRepository` |
+| `MongoMonitoringRepository` | `MonitoringRepository` |
+| `MongoTermsApprovalRepository` | `TermsApprovalRepository` |
+| `MongoSlackChannelRepository` | `SlackChannelRepository` (in `data_sources/`) |
+
+### Vector Storage (`infrastructure/qdrant/`)
+
+| Adapter | Implements |
+|---------|------------|
+| `QdrantVectorRepository` | `VectorRepository` |
+
+### Source Adapters (`infrastructure/sources/`)
+
+Source-specific infrastructure organized by type:
+
+**Document** (`sources/document/`)
+| Adapter | Purpose |
+|---------|---------|
+| `DocumentChunker` | PDF/Markdown chunking strategy |
+| `DocumentConnector` | File loading |
+| `DocumentConfig` | Document-specific settings |
+| Validators | Duplicate checking adapters |
+
+**Slack** (`sources/slack/`)
+| Adapter | Purpose |
+|---------|---------|
+| `SlackChunker` | Conversation-aware chunking |
+| `SlackConnector` | Slack API integration |
+| `SlackConfig` | Slack-specific settings |
+| `ThreadRetriever` | Thread message fetching |
+| Validators | Bot installation checking |
+
+### Processing Adapters (`infrastructure/embedding/`)
 
 | Adapter | Purpose |
 |---------|---------|
-| `SentenceTransformerEmbedder` | Text → vector embeddings |
-| `PDFChunkerStrategy` | PDF text chunking |
-| `SlackChunkerStrategy` | Conversation-aware chunking |
-| `DocumentConnector` | PDF/Markdown file loading |
-| `SlackConnector` | Slack API integration |
+| `SentenceTransformerEmbedder` | Text → 384-dim vector embeddings |
 
-#### HTTP Adapters (Blueprints)
+### HTTP Adapters (`infrastructure/http/`)
 
-| Endpoint | Path Prefix |
-|----------|-------------|
+| Blueprint | Path Prefix |
+|-----------|-------------|
 | `/health` | Health checks |
 | `/docs` | Document operations |
 | `/slack` | Slack operations |
@@ -178,13 +232,15 @@ Concrete implementations of domain ports using external technologies.
 | `/data-sources` | Data source management |
 | `/vector` | Vector statistics |
 | `/settings` | Configuration |
+| `/terms-approval` | User terms |
 
-#### Async Adapters
+### Async Adapters (`infrastructure/celery/`)
 
 | Adapter | Purpose |
 |---------|---------|
 | `CeleryPipelineDispatcher` | Dispatch pipeline tasks |
 | `CelerySlackEventDispatcher` | Dispatch Slack event handlers |
+| `pipeline_tasks.py` | Celery worker tasks |
 
 ---
 
@@ -229,8 +285,8 @@ retrieval_service(type)     # Vector search
 
 # Pipeline Components
 embedding_generator()       # Sentence transformer
-pdf_chunker()              # Document chunking
-slack_chunker()            # Conversation chunking
+document_chunker()          # Document chunking
+slack_chunker()             # Conversation chunking
 document_connector()        # File loading
 slack_connector(project)    # Slack API client
 ```
@@ -304,11 +360,11 @@ Configuration is managed via `config/app_config.py` with environment variable ov
 │   Upload    │────▶│  Validate &  │────▶│   Celery    │────▶│   Execute    │
 │   Request   │     │   Register   │     │   Queue     │     │   Pipeline   │
 └─────────────┘     └──────────────┘     └─────────────┘     └──────┬───────┘
-                                                                     │
-                    ┌──────────────┐     ┌─────────────┐     ┌───────▼───────┐
-                    │    Store     │◀────│   Embed     │◀────│    Chunk      │
-                    │   (Qdrant)   │     │   (384-dim) │     │   (500 tok)   │
-                    └──────────────┘     └─────────────┘     └───────────────┘
+                                                                    │
+                   ┌──────────────┐     ┌─────────────┐     ┌───────▼───────┐
+                   │    Store     │◀────│   Embed     │◀────│    Chunk      │
+                   │   (Qdrant)   │     │   (384-dim) │     │   (500 tok)   │
+                   └──────────────┘     └─────────────┘     └───────────────┘
 ```
 
 ### Search Flow
@@ -326,78 +382,153 @@ Configuration is managed via `config/app_config.py` with environment variable ov
 
 ### Adding a New Data Source
 
-1. **Domain Model**: Create `domain/<source>/model.py`
-2. **Repository Port**: Define interface in `domain/<source>/repository.py`
-3. **Pipeline Handler**: Implement `SourcePipelinePort` in `application/pipeline/<source>_handler.py`
-4. **Infrastructure Adapters**: Add connectors, chunkers in `infrastructure/`
+1. **Core Domain**: Create `core/data_sources/types/<source>/domain/` with models
+2. **Core Handler**: Implement `SourcePipelinePort` in `core/data_sources/types/<source>/pipeline_handler.py`
+3. **Core Registration**: Add registration strategy in `core/data_sources/types/<source>/registration.py`
+4. **Infrastructure Adapters**: Add connector, chunker in `infrastructure/sources/<source>/`
 5. **Wire Dependencies**: Add factories to `bootstrap/app_container.py`
 6. **HTTP Endpoints**: Create blueprint in `infrastructure/http/<source>.py`
 
 ### Swapping an Adapter
 
-To replace Qdrant with Pinecone: "Example"
+To replace Qdrant with Pinecone:
 
 1. Create `infrastructure/pinecone/pinecone_vector_repository.py`
-2. Implement `VectorRepository` interface
+2. Implement `VectorRepository` interface from `core/vector/domain/repository.py`
 3. Update `bootstrap/factories.py` to use new adapter
-4. No changes needed in domain or application layers ✅
+4. No changes needed in core layer ✅
 
 ---
 
-## Project Structure Details
+## Project Structure
 
 ```
 rag/
-├── domain/
-│   ├── connector/          # Data source connector interface
-│   ├── data_source/        # Data source model & repository
-│   ├── monitoring/         # Metrics model & repository
-│   ├── pagination/         # Pagination model
-│   ├── pipeline/           # Pipeline model, repository, port, dispatcher
-│   ├── processor/          # Data processors (document, slack)
-│   ├── registration/       # Registration model & port
-│   ├── slack_channel/      # Slack channel model & repository
-│   ├── slack_event/        # Slack event model, port, dispatcher
-│   ├── validation/         # Validation model & port
-│   └── vector/             # Vector model, repository, chunker, embedder
-│
-├── application/
-│   ├── common/parsing/     # Log parsing utilities
-│   ├── pipeline/           # Pipeline handlers & executor
-│   ├── registration/       # Registration service & strategies
-│   ├── slack_events/       # Slack event handlers
-│   ├── stats/              # Statistics services
-│   ├── validation/         # Validator pipeline
-│   └── *.py                # Application services
+├── core/
+│   ├── connector/domain/              # Base connector interface
+│   ├── data_sources/
+│   │   ├── domain/                    # DataSource model & repository port
+│   │   ├── service.py                 # Data source CRUD
+│   │   └── types/
+│   │       ├── document/
+│   │       │   ├── domain/            # Document processor
+│   │       │   ├── validators/        # Extension, size, duplicate validators
+│   │       │   ├── document_service.py
+│   │       │   ├── file_validation_service.py
+│   │       │   ├── log_parser.py
+│   │       │   ├── pipeline_handler.py
+│   │       │   └── registration.py
+│   │       └── slack/
+│   │           ├── domain/
+│   │           │   ├── channel/       # SlackChannel model & repository port
+│   │           │   ├── event/         # SlackEvent model & dispatcher port
+│   │           │   └── processor.py
+│   │           ├── event/
+│   │           │   ├── handlers/      # Event handlers (channel_created, etc.)
+│   │           │   ├── dispatch_service.py
+│   │           │   └── service.py
+│   │           ├── validators/        # Bot installation validator
+│   │           ├── log_parser.py
+│   │           ├── pipeline_handler.py
+│   │           ├── registration.py
+│   │           └── stats_service.py
+│   ├── monitoring/
+│   │   ├── domain/                    # Monitoring model & repository port
+│   │   ├── parsing/                   # Log parsing utilities
+│   │   └── service.py
+│   ├── pagination/domain/             # Pagination model
+│   ├── pipeline/
+│   │   ├── domain/                    # Pipeline model, repository, dispatcher ports
+│   │   ├── dispatch_service.py
+│   │   ├── executor.py
+│   │   └── service.py
+│   ├── processing/domain/             # Base processor interface
+│   ├── registration/
+│   │   ├── domain/                    # Registration model & port
+│   │   ├── base_registration.py
+│   │   ├── factory.py
+│   │   └── service.py
+│   ├── retrieval/
+│   │   └── service.py                 # Vector search orchestration
+│   ├── user/terms_approval/
+│   │   ├── domain/                    # Terms model & repository port
+│   │   └── service.py
+│   ├── validation/
+│   │   ├── domain/                    # Validation model & port
+│   │   └── validator.py
+│   └── vector/
+│       ├── domain/                    # Vector model, repository, chunker, embedder ports
+│       └── stats_service.py
 │
 ├── infrastructure/
-│   ├── celery/             # Celery app, dispatchers, workers
-│   ├── chunking/           # Chunking strategies (PDF, Slack)
-│   ├── config/             # Config managers
-│   ├── connector/          # Data connectors (Document, Slack)
-│   ├── embedding/          # Embedding generators
-│   ├── http/               # Flask blueprints
-│   ├── mongo/              # MongoDB repositories
-│   ├── qdrant/             # Qdrant vector repository
-│   ├── retrieval/          # Search filter resolvers
-│   ├── storage/            # File storage
-│   ├── umami/              # Analytics client
-│   └── validation/         # Validation adapters
+│   ├── celery/
+│   │   ├── app.py                     # Celery application
+│   │   ├── pipeline_dispatcher.py     # Pipeline task dispatcher
+│   │   ├── slack_event_dispatcher.py  # Slack event dispatcher
+│   │   └── workers/
+│   │       └── pipeline_tasks.py      # Worker task definitions
+│   ├── config/
+│   │   └── base_config_manager.py
+│   ├── embedding/
+│   │   └── sentence_transformer_embedder.py
+│   ├── http/                          # Flask blueprints
+│   │   ├── blueprints.py
+│   │   ├── data_sources.py
+│   │   ├── docs.py
+│   │   ├── health.py
+│   │   ├── pipelines.py
+│   │   ├── settings.py
+│   │   ├── slack.py
+│   │   ├── terms_approval.py
+│   │   └── vector.py
+│   ├── mongo/
+│   │   ├── data_sources/
+│   │   │   └── slack_channel_repository.py
+│   │   ├── data_source_repository.py
+│   │   ├── monitoring_repository.py
+│   │   ├── pagination_builder.py
+│   │   ├── pipeline_repository.py
+│   │   └── terms_approval_repository.py
+│   ├── qdrant/
+│   │   └── qdrant_vector_repository.py
+│   ├── retrieval/
+│   │   └── source_filter_resolver.py
+│   ├── sources/
+│   │   ├── document/
+│   │   │   ├── chunker.py
+│   │   │   ├── config.py
+│   │   │   ├── connector.py
+│   │   │   └── validator/
+│   │   │       ├── duplicate_checker.py
+│   │   │       └── name_duplicate_checker.py
+│   │   └── slack/
+│   │       ├── chunker.py
+│   │       ├── config.py
+│   │       ├── connector.py
+│   │       ├── thread_retriever.py
+│   │       ├── thread_retriever_worker.py
+│   │       └── validator/
+│   │           └── bot_installation_checker.py
+│   ├── storage/
+│   │   └── local_file_storage.py
+│   └── umami/
+│       └── umami_client.py
 │
 ├── bootstrap/
-│   ├── app_container.py    # Dependency injection container
-│   ├── factories.py        # Component factories
-│   └── flask_app.py        # Flask application factory
+│   ├── app_container.py               # Dependency injection container
+│   ├── factories.py                   # Component factories
+│   └── flask_app.py                   # Flask application factory
 │
 ├── config/
-│   └── app_config.py       # Application configuration
+│   └── app_config.py                  # Application configuration
 │
 ├── shared/
-│   └── logger.py           # Logging utilities
+│   └── logger.py                      # Logging utilities
 │
-├── requirements.txt        # Python dependencies
-├── setup.py               # Package setup
-└── rag.md                 # Architecture diagrams
+├── requirements.txt                   # Python dependencies
+├── setup.py                           # Package setup
+├── DIAGRAMS.md                        # Flow diagrams
+└── README.md                          # This file
 ```
 
 ---
@@ -415,5 +546,3 @@ rag/
 | `pymongo` | MongoDB driver |
 
 ---
-
-

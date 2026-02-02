@@ -7,6 +7,7 @@ from infrastructure.http.pipelines import pipelines_bp
 from infrastructure.http.data_sources import data_sources_bp
 from infrastructure.http.docs import docs_bp
 from infrastructure.http.slack import slack_bp
+from infrastructure.http.terms_approval import terms_approval_bp
 
 __all__ = [
     "register_blueprints",
@@ -17,5 +18,6 @@ __all__ = [
     "data_sources_bp",
     "docs_bp",
     "slack_bp",
+    "terms_approval_bp",
 ]
 

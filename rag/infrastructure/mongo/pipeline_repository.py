@@ -4,8 +4,8 @@ from typing import Optional, List, Dict, Any
 
 from pymongo.collection import Collection
 
-from domain.pipeline.model import PipelineRecord, PipelineStatus
-from domain.pipeline.repository import PipelineRepository
+from core.pipeline.domain.model import PipelineRecord, PipelineStatus
+from core.pipeline.domain.repository import PipelineRepository
 from shared.logger import logger
 
 

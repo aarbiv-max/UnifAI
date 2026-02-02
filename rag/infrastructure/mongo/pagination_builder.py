@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 
 from pymongo.collection import Collection
 
-from domain.pagination import PaginatedResult
+from core.pagination.domain.model import PaginatedResult
 from shared.logger import logger
 
 
@@ -212,7 +212,7 @@ class PaginatedQueryBuilder:
             else:
                 # Filter out null/empty values
                 pipeline.append({"$match": {
-                    distinct_field: {"$exists": True, "$ne": None, "$ne": ""}
+                    distinct_field: {"$exists": True, "$nin": [None, ""]}
                 }})
             
             pipeline.append({"$group": {"_id": f"${distinct_field}"}})

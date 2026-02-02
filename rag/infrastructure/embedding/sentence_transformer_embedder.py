@@ -10,8 +10,8 @@ This decision is made in the bootstrap layer (factory/app_container), not here.
 """
 
 import time
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
-from domain.vector.embedder import EmbeddingGenerator
+from typing import Dict, List, Any, Optional
+from core.vector.domain.embedder import EmbeddingGenerator
 from shared.logger import logger
 import numpy as np
 

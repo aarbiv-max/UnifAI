@@ -4,8 +4,8 @@ from typing import List, Dict, Any
 
 from pymongo.database import Database
 
-from domain.monitoring.model import MetricsEntry, ErrorEntry, LogEntry
-from domain.monitoring.repository import MonitoringRepository
+from core.monitoring.domain.model import MetricsEntry, ErrorEntry, LogEntry
+from core.monitoring.domain.repository import MonitoringRepository
 
 
 class MongoMonitoringRepository(MonitoringRepository):

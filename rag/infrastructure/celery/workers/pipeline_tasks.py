@@ -11,7 +11,7 @@ but uses hexagonal architecture components.
 """
 from global_utils.celery_app import CeleryApp
 from bootstrap.app_container import pipeline_executor, get_pipeline_handler
-from domain.pipeline.port import PipelineContext
+from core.pipeline.domain.port import PipelineContext
 from shared.logger import logger
 
 
