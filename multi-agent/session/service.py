@@ -98,28 +98,21 @@ class SessionService:
     def get_user_sessions_chat_history(self, user_id: str) -> list:
         """
         Get chat history for all sessions created by a user.
+        Includes blueprint usageScope for determining sharing status.
         """
         docs = self._manager.list_docs(user_id)
         chat_items = []
 
         for doc in docs:
             blueprint_id = doc.get("blueprint_id", "")
-            # Check if blueprint still exists
             blueprint_exists = self._manager.blueprint_exists(blueprint_id) if blueprint_id else False
+            blueprint_usage_scope = self._manager.get_blueprint_usage_scope(blueprint_id) if blueprint_exists else None
 
-            public_usage_scope = False
-            if blueprint_exists and blueprint_id:
-                source = doc.get("metadata", {}).get("source", "")
-                if source == "public_link":
-                    try:
-                        blueprint_doc = self._manager._bp_service.get_blueprint_draft_doc(blueprint_id)
-                        bp_metadata = blueprint_doc.get("metadata", {})
-                        public_usage_scope = bp_metadata.get("usageScope") == "public"
-                    except (KeyError, Exception):
-                        public_usage_scope = False
-
-            chat_item = ChatHistoryItem.from_doc(doc, blueprint_exists=blueprint_exists, public_usage_scope=public_usage_scope)
-
+            chat_item = ChatHistoryItem.from_doc(
+                doc, 
+                blueprint_exists=blueprint_exists,
+                blueprint_usage_scope=blueprint_usage_scope
+            )
             chat_items.append(chat_item)
 
         return chat_items

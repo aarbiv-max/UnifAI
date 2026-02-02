@@ -39,7 +39,6 @@ import { useBlueprintValidation } from "@/hooks/use-blueprint-validation";
 
 import { ChatSession, ChatMessage, ChatSessionData, SessionStateData } from "@/types/session";
 import {transformSessionData, sortSessionsByTimestamp} from "@/utils/sessionHelpers";
-import { checkSessionSharingStatus } from "@/hooks/use-sharing-status";
 import { useSessionManagement } from "@/hooks/use-session-management";
 
 
@@ -227,28 +226,9 @@ export default function ExecutionTab({
     setGlobalScope(prevScope => prevScope === 'public' ? 'private' : 'public');
   };
 
-  const transformApiDataToSessions = async (apiData: ChatSessionData[]): Promise<ChatSession[]> => {
-    // Transform sessions and fetch fresh public_usage_scope status for shared link sessions
-    const sessions = await Promise.all(
-      apiData.map(async (sessionData, index) => {
-        const baseSession = transformSessionData(sessionData, index);
-
-        // Fetch fresh public_usage_scope status for shared link sessions to ensure accuracy
-        const isSharingDisabled = await checkSessionSharingStatus(
-          baseSession.blueprintId,
-          baseSession.fromSharedLink ?? false,
-          baseSession.blueprintExists,
-          sessionData.metadata?.public_usage_scope
-        );
-
-        return {
-          ...baseSession,
-          isSharingDisabled,
-        };
-      })
-    );
-
-    return sessions;
+  const transformApiDataToSessions = (apiData: ChatSessionData[]): ChatSession[] => {
+    // Transform sessions - sharing status is now included in the API response (blueprint_usage_scope)
+    return apiData.map((sessionData, index) => transformSessionData(sessionData, index));
   };
 
   // Fetch chat sessions from API
@@ -259,7 +239,7 @@ export default function ExecutionTab({
 
       const userId = user?.username || "default";
       const response = await axios.get(`/sessions/session.user.chat.get?userId=${userId}`);
-      const transformedSessions = await transformApiDataToSessions(response.data);
+      const transformedSessions = transformApiDataToSessions(response.data);
 
       // Sort chat sessions based on the latest date
       const sortedSessions = sortSessionsByTimestamp(transformedSessions);
@@ -432,11 +412,11 @@ export default function ExecutionTab({
       const userId = user?.username || "default";
       const response = await axios.get(`/sessions/session.user.chat.get?userId=${userId}`);
       const transformedSessions = transformApiDataToSessions(response.data);
-      const sortedSessions = transformedSessions.sort((firstSession, secondSession) => secondSession.timestamp.getTime() - firstSession.timestamp.getTime());
+      const sortedSessions = transformedSessions.sort((firstSession: ChatSession, secondSession: ChatSession) => secondSession.timestamp.getTime() - firstSession.timestamp.getTime());
       setChatSessions(sortedSessions);
 
       // Auto-select the newly created session
-      const newestSession = sortedSessions.find(session => session.blueprintId === graphId);
+      const newestSession = sortedSessions.find((session: ChatSession) => session.blueprintId === graphId);
       if (newestSession) {
         await handleSessionSelect(newestSession);
       }

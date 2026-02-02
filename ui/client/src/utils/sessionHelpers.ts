@@ -34,12 +34,12 @@ export const generateRandomId = (): string => {
 
 /**
  * Transform API session data to ChatSession format
- * This is a base transformer that doesn't include sharing status checks
+ * Includes sharing status based on blueprint_usage_scope from API
  */
 export const transformSessionData = (
   sessionData: ChatSessionData,
   index: number
-): Omit<ChatSession, 'isSharingDisabled'> => {
+): ChatSession => {
   const title = sessionData.metadata?.title || generateRandomTitle(index);
   const id = sessionData.session_id || generateRandomId();
   const blueprintId = sessionData.blueprint_id;
@@ -48,6 +48,10 @@ export const transformSessionData = (
   const timestamp = new Date(sessionData.started_at);
   const lastActive = formatRelativeTimestamp(sessionData.started_at);
   const preview = fromSharedLink ? 'From chat experience' : 'Click to load messages...';
+  
+  // Determine if sharing is disabled based on blueprint_usage_scope
+  // For shared link sessions, check if usageScope is NOT 'public'
+  const isSharingDisabled = fromSharedLink && blueprintExists && sessionData.blueprint_usage_scope !== 'public';
 
   return {
     id,
@@ -59,6 +63,7 @@ export const transformSessionData = (
     messages: [], // Messages will be loaded separately when session is selected
     blueprintExists,
     fromSharedLink,
+    isSharingDisabled,
   };
 };
 

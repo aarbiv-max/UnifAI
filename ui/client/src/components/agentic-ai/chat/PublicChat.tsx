@@ -347,9 +347,9 @@ export default function PublicChat() {
               <div className="flex items-center justify-center h-full bg-background-dark">
                 <div className="max-w-md">
                   <WorkflowStatusBanner
-                    variant={WorkflowBannerMessages.validationFailed.variant}
-                    title={WorkflowBannerMessages.validationFailed.title}
-                    message={WorkflowBannerMessages.validationFailed.message}
+                    variant={WorkflowBannerMessages.validationFailedShared.variant}
+                    title={WorkflowBannerMessages.validationFailedShared.title}
+                    message={WorkflowBannerMessages.validationFailedShared.message}
                   />
                 </div>
               </div>

@@ -31,6 +31,14 @@ class UserSessionManager:
         """Check if blueprint exists without loading it."""
         return self._bp_service.exists(blueprint_id)
 
+    def get_blueprint_usage_scope(self, blueprint_id: str) -> str | None:
+        """Get blueprint's usageScope from metadata. Returns None if not found."""
+        try:
+            doc = self._bp_service.get_blueprint_draft_doc(blueprint_id)
+            return doc.get("metadata", {}).get("usageScope")
+        except Exception:
+            return None
+
     def create_session(
             self,
             user_id: str,

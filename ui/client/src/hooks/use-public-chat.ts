@@ -3,7 +3,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import axios from '@/http/axiosAgentConfig';
 import { ChatSession, ChatMessage, ChatSessionData } from '@/types/session';
-import { checkSessionSharingStatus } from '@/hooks/use-sharing-status';
 import {transformSessionData, sortSessionsByTimestamp,} from '@/utils/sessionHelpers';
 import { useSessionManagement } from '@/hooks/use-session-management';
 import { getBlueprintInfo } from '@/api/blueprints';
@@ -45,29 +44,10 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
     useSessionManagement();
 
   // Transform API data to ChatSession format
+  // Sharing status is now included in the API response (blueprint_usage_scope)
   const transformApiDataToSessions = useCallback(
-    async (apiData: ChatSessionData[]): Promise<ChatSession[]> => {
-      // Transform sessions and fetch fresh public_usage_scope status for shared link sessions
-      const transformedSessions = await Promise.all(
-        apiData.map(async (sessionData, index) => {
-          const baseSession = transformSessionData(sessionData, index);
-
-          // Fetch fresh public_usage_scope status for shared link sessions to ensure accuracy
-          const isSharingDisabled = await checkSessionSharingStatus(
-            baseSession.blueprintId,
-            baseSession.fromSharedLink ?? false,
-            baseSession.blueprintExists,
-            sessionData.metadata?.public_usage_scope
-          );
-
-          return {
-            ...baseSession,
-            isSharingDisabled,
-          };
-        })
-      );
-
-      return transformedSessions;
+    (apiData: ChatSessionData[]): ChatSession[] => {
+      return apiData.map((sessionData, index) => transformSessionData(sessionData, index));
     },
     []
   );
@@ -89,7 +69,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
       );
 
       // Transform to ChatSession format
-      const transformedSessions = await transformApiDataToSessions(blueprintSessions);
+      const transformedSessions = transformApiDataToSessions(blueprintSessions);
 
       // Sort by timestamp (most recent first)
       const sortedSessions = sortSessionsByTimestamp(transformedSessions);
@@ -141,7 +121,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
               const refreshBlueprintSessions = refreshSessions.filter(
                 (session) => session.blueprint_id === blueprintId && session.blueprint_exists
               );
-              const refreshTransformedSessions = await transformApiDataToSessions(refreshBlueprintSessions);
+              const refreshTransformedSessions = transformApiDataToSessions(refreshBlueprintSessions);
               const refreshSortedSessions = sortSessionsByTimestamp(refreshTransformedSessions);
 
               setSessions(refreshSortedSessions);
@@ -286,7 +266,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
       const blueprintSessions = allSessions.filter(
         (session) => session.blueprint_id === blueprintId && session.blueprint_exists
       );
-      const transformedSessions = await transformApiDataToSessions(blueprintSessions);
+      const transformedSessions = transformApiDataToSessions(blueprintSessions);
       const sortedSessions = sortSessionsByTimestamp(transformedSessions);
 
       // Update sessions list, but keep the selected session if it matches

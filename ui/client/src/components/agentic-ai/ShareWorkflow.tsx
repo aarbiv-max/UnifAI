@@ -40,7 +40,7 @@ export default function ShareWorkflow({
   // Show warning if sharing is enabled but blueprint is invalid
   const showInvalidWarning = enabled && !isValid && !isValidating;
 
-  // Fetch current public_usage_scope status from blueprint metadata
+  // Fetch current usageScope status from blueprint metadata
   useEffect(() => {
     if (!blueprintId) return;
     

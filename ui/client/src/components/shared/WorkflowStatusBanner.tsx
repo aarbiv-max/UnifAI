@@ -83,10 +83,17 @@ export const WorkflowBannerMessages = {
     title: "Workflow Unavailable",
     message: "Chat sharing has been disabled for this workflow.",
   },
-  validationFailed: {
+  // For shared link sessions - contact the owner
+  validationFailedShared: {
     variant: "error" as BannerVariant,
     title: "Workflow Unavailable",
     message: "This workflow failed validation and cannot be used. Please contact the workflow owner.",
+  },
+  // For user's own workflows - prompt to fix errors
+  validationFailedOwn: {
+    variant: "error" as BannerVariant,
+    title: "Workflow Unavailable",
+    message: "This workflow failed validation. Please fix the workflow errors to continue chatting.",
   },
   validating: {
     variant: "loading" as BannerVariant,

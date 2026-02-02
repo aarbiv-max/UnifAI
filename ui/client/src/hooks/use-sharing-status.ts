@@ -14,7 +14,7 @@ interface UseSharingStatusReturn {
 
 /**
  * Hook to manage sharing status for a blueprint
- * Handles fetching and caching the public_usage_scope status
+ * Handles fetching and caching the usageScope status from blueprint metadata
  */
 export const useSharingStatus = (): UseSharingStatusReturn => {
   const [isSharingDisabled, setIsSharingDisabled] = useState<boolean>(false);
@@ -54,14 +54,13 @@ export const useSharingStatus = (): UseSharingStatusReturn => {
 };
 
 /**
- * Check sharing status for a session (with fallback)
- * Returns the sharing disabled status, using API response as fallback
+ * Check sharing status for a session by fetching usageScope from blueprint
+ * Returns true if sharing is disabled, false if sharing is enabled
  */
 export const checkSessionSharingStatus = async (
   blueprintId: string | undefined,
   fromSharedLink: boolean,
-  blueprintExists: boolean,
-  fallbackValue?: boolean
+  blueprintExists: boolean
 ): Promise<boolean> => {
   if (!fromSharedLink || !blueprintExists || !blueprintId) {
     return false;
@@ -72,8 +71,9 @@ export const checkSessionSharingStatus = async (
     const isPublic = blueprintInfo.metadata?.usageScope === "public";
     return !isPublic;
   } catch (error) {
-    // If status check fails, use the fallback value from API response
-    return !(fallbackValue ?? false);
+    // If status check fails, assume sharing is disabled for safety
+    console.error('Error checking session sharing status:', error);
+    return true;
   }
 };
 

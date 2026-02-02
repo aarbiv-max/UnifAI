@@ -916,7 +916,7 @@ export default function ChatInterface({
             <WorkflowStatusBanner {...WorkflowBannerMessages.sharingDisabled} />
           )}
           {blueprintExists && !isSharingDisabled && !blueprintValid && !isValidatingBlueprint && (
-            <WorkflowStatusBanner {...WorkflowBannerMessages.validationFailed} />
+            <WorkflowStatusBanner {...(isChatOnlyMode ? WorkflowBannerMessages.validationFailedShared : WorkflowBannerMessages.validationFailedOwn)} />
           )}
           {blueprintExists && !isSharingDisabled && isValidatingBlueprint && (
             <WorkflowStatusBanner {...WorkflowBannerMessages.validating} />
