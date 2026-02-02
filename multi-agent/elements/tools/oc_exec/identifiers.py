@@ -16,7 +16,7 @@ class Meta:
 
 
 META = Meta(
-    name="OpenShift OC Exec",
+    name="OpenShift Command (OC) Exec",
     description="Execute oc commands on an OpenShift cluster",
     tags=["tool", "openshift", "oc", "kubernetes", "cluster", "exec"],
 )
