@@ -10,11 +10,24 @@ data_sources_bp = Blueprint("data_sources", __name__)
 
 
 @data_sources_bp.route("/data.sources.get", methods=["GET"])
-@from_query({"source_type": fields.Str(required=True)})
-def get_sources(source_type):
-    """Get all data sources with pipeline stats for a given type."""
+@from_query({
+    "source_type": fields.Str(required=True),
+    "include_full_details": fields.Bool(required=False, load_default=False),
+})
+def get_sources(source_type, include_full_details):
+    """Get all data sources with pipeline stats for a given type.
+    
+    Args:
+        source_type: Type of data source (e.g., "DOCUMENT", "SLACK")
+        include_full_details: If False (default), excludes heavy fields like 
+                              full_text for better list performance. If True,
+                              returns complete data.
+    """
     try:
-        sources = data_source_service().list_with_stats(source_type)
+        sources = data_source_service().list_with_stats(
+            source_type,
+            include_full_details=include_full_details,
+        )
         return jsonify({"sources": sources}), 200
     except Exception as e:
         logger.error(f"Failed to get available data sources list: {str(e)}")

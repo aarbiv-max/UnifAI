@@ -5,12 +5,18 @@ from pymongo.collection import Collection
 
 from core.data_sources.domain.model import DataSource
 from core.data_sources.domain.repository import DataSourceRepository
+from core.data_sources.domain.view import DataSourceView
 from core.pagination.domain.model import PaginatedResult
 from infrastructure.mongo.pagination_builder import PaginatedQueryBuilder
 
 
 class MongoDataSourceRepository(DataSourceRepository):
     """MongoDB implementation of the DataSourceRepository port."""
+
+    _SUMMARY_EXCLUSIONS: Dict[str, Dict[str, int]] = {
+        "DOCUMENT": {"type_data.full_text": 0},
+        # Future: "SLACK": {"type_data.raw_messages": 0},
+    }
 
     def __init__(self, collection: Collection):
         self._col = collection
@@ -25,10 +31,25 @@ class MongoDataSourceRepository(DataSourceRepository):
         doc = self._col.find_one({"pipeline_id": pipeline_id})
         return self._to_model(doc) if doc else None
 
-    def find_all(self, source_type: Optional[str] = None) -> List[DataSource]:
-        """Get all sources, optionally filtered by type."""
+    def find_all(
+        self,
+        source_type: Optional[str] = None,
+        view: DataSourceView = DataSourceView.SUMMARY,
+    ) -> List[DataSource]:
+        """Get all sources, optionally filtered by type.
+        
+        Args:
+            source_type: Filter by source type
+            view: SUMMARY excludes heavy fields, FULL returns everything
+        """
         query = {"source_type": source_type.upper()} if source_type else {}
-        docs = self._col.find(query)
+        
+        # Determine projection based on view
+        projection = None
+        if view == DataSourceView.SUMMARY and source_type:
+            projection = self._SUMMARY_EXCLUSIONS.get(source_type.upper())
+        
+        docs = self._col.find(query, projection)
         return [self._to_model(doc) for doc in docs]
 
     def find_paginated(

@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 
 from core.data_sources.domain.model import DataSource
+from core.data_sources.domain.view import DataSourceView
 from core.pagination.domain.model import PaginatedResult
 
 
@@ -20,8 +21,18 @@ class DataSourceRepository(ABC):
         ...
 
     @abstractmethod
-    def find_all(self, source_type: Optional[str] = None) -> List[DataSource]:
-        """Get all sources, optionally filtered by type."""
+    def find_all(
+        self,
+        source_type: Optional[str] = None,
+        view: DataSourceView = DataSourceView.SUMMARY,
+    ) -> List[DataSource]:
+        """Get all sources, optionally filtered by type.
+        
+        Args:
+            source_type: Filter by source type (e.g., "DOCUMENT", "SLACK")
+            view: SUMMARY for list views (excludes heavy fields like full_text),
+                  FULL for complete data including all content fields
+        """
         ...
 
     @abstractmethod

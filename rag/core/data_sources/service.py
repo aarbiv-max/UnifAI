@@ -1,12 +1,11 @@
 """DataSource application service - CRUD and business logic."""
 from dataclasses import dataclass, asdict
 from datetime import datetime
-from typing import Optional, List, Dict, Any
-
-from typing import Callable
+from typing import Optional, List, Dict, Any, Callable
 
 from core.data_sources.domain.model import DataSource
 from core.data_sources.domain.repository import DataSourceRepository
+from core.data_sources.domain.view import DataSourceView
 from core.pagination.domain.model import PaginatedResult
 from core.pipeline.domain.repository import PipelineRepository
 from core.vector.domain.repository import VectorRepository
@@ -225,9 +224,21 @@ class DataSourceService:
             )
             self._source_repo.save(source)
 
-    def list_with_stats(self, source_type: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get all sources enriched with pipeline stats."""
-        sources = self._source_repo.find_all(source_type)
+    def list_with_stats(
+        self,
+        source_type: Optional[str] = None,
+        include_full_details: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Get all sources enriched with pipeline stats.
+        
+        Args:
+            source_type: Filter by source type
+            include_full_details: If False (default), uses SUMMARY view which 
+                                  excludes heavy fields for better performance.
+                                  If True, uses FULL view with all data.
+        """
+        view = DataSourceView.FULL if include_full_details else DataSourceView.SUMMARY
+        sources = self._source_repo.find_all(source_type, view=view)
         result = self.enrich_with_pipeline_stats(sources)
         return sorted(result, key=lambda x: x.get("created_at") or 0, reverse=True)
 
