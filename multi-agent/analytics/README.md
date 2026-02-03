@@ -142,10 +142,9 @@ ui/client/src/
 │  │  │          ├── _repo.count_runs()                                   │ │     │
 │  │  │          ├── _repo.get_distinct_users()                           │ │     │
 │  │  │          ├── _repo.group_by(["status"])                           │ │     │
-│  │  │          ├── _repo.get_active_users_faceted()  # OPTIMIZED: 1 query│ │     │
-│  │  │          │   └── Returns today, week, month in single $facet call │ │     │
-│  │  │          ├── _get_top_users(limit=10)                             │ │     │
-│  │  │          ├── _get_top_blueprints(limit=10)                        │ │     │
+│  │  │          ├── _repo.get_all_analytics_faceted()                    │ │     │
+│  │  │          ├── _process_user_data()                                 │ │     │
+│  │  │          ├── _process_blueprint_data()                            │ │     │
 │  │  │          └── _repo.get_time_series()                              │ │     │
 │  │  └───────────────────────────────────────────────────────────────────┘ │     │
 │  └────────────────────────────────────────────────────────────────────────┘     │
@@ -159,10 +158,10 @@ ui/client/src/
 │  │  │      def get_distinct_users(filter, time_range)                   │ │     │
 │  │  │      def group_by(group_by, filter, time_range)                   │ │     │
 │  │  │      def get_time_series(time_range)                              │ │     │
-│  │  │      def get_active_users_faceted()  # OPTIMIZED                  │ │     │
+│  │  │      def get_all_analytics_faceted(time_range)                    │ │     │
 │  │  │                                                                   │ │     │
 │  │  │  Uses MongoDB Aggregation Framework:                              │ │     │
-│  │  │      - $facet (parallel multi-period aggregations)                │ │     │
+│  │  │      - $facet (parallel aggregations)                             │ │     │
 │  │  │      - $match (time filtering)                                    │ │     │
 │  │  │      - $group (aggregations)                                      │ │     │
 │  │  │      - $dateToString (time series)                                │ │     │
@@ -684,109 +683,68 @@ admin_allowed_users: list = []  # Returns 403 FEATURE_DISABLED
 3. **Aggregation Limits**: Time series limited to 1000 data points
 4. **Client-side Caching**: React Query caches results for 60 seconds (`staleTime`)
 5. **Auto-refresh**: Dashboard auto-refreshes every 60 seconds (`refetchInterval`)
-6. **$facet Optimization**: Active users data uses MongoDB's `$facet` for parallel aggregations
 
 ---
 
-## $facet Optimization (Active Users)
+## $facet Aggregation
 
-The `get_active_users_faceted()` method is a key performance optimization that reduces 6 separate MongoDB queries into a single aggregation pipeline.
+The `get_all_analytics_faceted()` method uses MongoDB's `$facet` stage to execute multiple aggregations in parallel within a single query.
 
-### The Problem (Before)
+### Facet Structure
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  OLD APPROACH: 6 separate queries for active users data                 │
+│  get_all_analytics_faceted(time_range)                                   │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  _get_active_users_data(1)  ──▶  group_by(user_id, status)   ──▶ Query 1│
-│                             ──▶  group_by(user_id, blueprint) ──▶ Query 2│
-│                                                                          │
-│  _get_active_users_data(7)  ──▶  group_by(user_id, status)   ──▶ Query 3│
-│                             ──▶  group_by(user_id, blueprint) ──▶ Query 4│
-│                                                                          │
-│  _get_active_users_data(30) ──▶  group_by(user_id, status)   ──▶ Query 5│
-│                             ──▶  group_by(user_id, blueprint) ──▶ Query 6│
-│                                                                          │
-│  Total: 6 network round-trips to MongoDB                                 │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │                         $facet Stage                               │  │
+│  │                                                                    │  │
+│  │  Active Users (6 facets):                                          │  │
+│  │  ├── today_status, week_status, month_status                      │  │
+│  │  └── today_blueprints, week_blueprints, month_blueprints          │  │
+│  │                                                                    │  │
+│  │  Top Users (2 facets):                                             │  │
+│  │  └── all_time_user_status, all_time_user_blueprints               │  │
+│  │                                                                    │  │
+│  │  Top Blueprints (1 facet):                                         │  │
+│  │  └── top_blueprints_data                                           │  │
+│  │                                                                    │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### The Solution (After)
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  NEW APPROACH: Single query with $facet                                  │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                          │
-│  get_active_users_faceted() ─────────────────────────────────────────▶  │
-│       │                                                                  │
-│       │              ONE MongoDB Query                                   │
-│       │                    │                                             │
-│       │                    ▼                                             │
-│       │  ┌───────────────────────────────────────────────────────────┐  │
-│       │  │                    $facet Stage                            │  │
-│       │  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐       │  │
-│       │  │  │ today_status │ │ week_status  │ │ month_status │       │  │
-│       │  │  │              │ │              │ │              │       │  │
-│       │  │  │ $match: 1d   │ │ $match: 7d   │ │ $match: 30d  │       │  │
-│       │  │  │ $group: u+s  │ │ $group: u+s  │ │ $group: u+s  │       │  │
-│       │  │  └──────────────┘ └──────────────┘ └──────────────┘       │  │
-│       │  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐       │  │
-│       │  │  │today_blueprints││week_blueprints││month_blueprints│    │  │
-│       │  │  │              │ │              │ │              │       │  │
-│       │  │  │ $match: 1d   │ │ $match: 7d   │ │ $match: 30d  │       │  │
-│       │  │  │ $group: u+bp │ │ $group: u+bp │ │ $group: u+bp │       │  │
-│       │  │  └──────────────┘ └──────────────┘ └──────────────┘       │  │
-│       │  └───────────────────────────────────────────────────────────┘  │
-│       │                    │                                             │
-│       │                    ▼                                             │
-│       │            Single Response                                       │
-│       │                                                                  │
-│  Total: 1 network round-trip to MongoDB                                  │
-│                                                                          │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Benefits
-
-| Metric                  | Before (6 queries) | After ($facet)   | Improvement |
-|-------------------------|-------------------|------------------|-------------|
-| **Network round-trips** | 6                 | 1                | 6x fewer    |
-| **MongoDB operations**  | 6 separate scans  | 1 scan, 6 facets | Parallel    |
-| **Code complexity**     | 3x method calls   | 1 method call    | Simpler     |
-| **Latency**             | ~6x query time    | ~1x query time   | Faster      |
-
-### Code Example
+### Code Structure
 
 ```python
 # In MongoAnalyticsRepository
-def get_active_users_faceted(self) -> Dict[str, List[GroupedCount]]:
+def get_all_analytics_faceted(self, time_range: str) -> Dict[str, List[GroupedCount]]:
     pipeline = [
         {"$facet": {
-            "today_status": [
-                {"$match": {"run_context.started_at": {"$gte": today_iso}}},
-                {"$group": {"_id": {"user_id": "$user_id", "status": "$status"}, "count": {"$sum": 1}}}
-            ],
-            "week_status": [...],
-            "month_status": [...],
-            "today_blueprints": [...],
-            "week_blueprints": [...],
-            "month_blueprints": [...]
+            "today_status": [...], "week_status": [...], "month_status": [...],
+            "today_blueprints": [...], "week_blueprints": [...], "month_blueprints": [...],
+            "all_time_user_status": [...], "all_time_user_blueprints": [...],
+            "top_blueprints_data": [...]
         }}
     ]
     return self._col.aggregate(pipeline)
 
 # In AnalyticsService
 def get_analytics(self, time_range: str) -> OverviewStatisticsResponse:
-    # Single call fetches all active users data
-    faceted_data = self._repo.get_active_users_faceted()
+    faceted_data = self._repo.get_all_analytics_faceted(time_range)
     
-    active_today = self._process_faceted_user_data(
-        faceted_data["today_status"],
-        faceted_data["today_blueprints"],
-        days=1
-    )
-    # ... process week and month similarly
+    active_today = self._process_user_data(faceted_data["today_status"], ...)
+    top_users = self._process_user_data(faceted_data["all_time_user_status"], ...)
+    top_blueprints = self._process_blueprint_data(faceted_data["top_blueprints_data"], ...)
+
+# Helper methods
+def _process_user_data(status_counts, blueprint_counts, ...) -> List[Dict]:
+    """Process user data from faceted results."""
+
+def _add_blueprint_counts(user_data, blueprint_counts) -> None:
+    """Add unique blueprint counts to user data."""
+
+def _batch_get_blueprint_names(blueprint_ids) -> Dict[str, str]:
+    """Get blueprint names for a list of IDs."""
 ```

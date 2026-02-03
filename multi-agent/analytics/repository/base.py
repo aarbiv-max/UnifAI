@@ -78,16 +78,17 @@ class AnalyticsRepository(ABC):
         pass
 
     @abstractmethod
-    def get_active_users_faceted(self) -> Dict[str, List[GroupedCount]]:
+    def get_all_analytics_faceted(self, time_range: str = "all") -> Dict[str, List[GroupedCount]]:
         """
-        Get active users data for multiple time periods in a single query using $facet.
+        Get all analytics data using MongoDB $facet aggregation.
         
-        This is an optimized method that fetches user activity data for today, 7 days,
-        and 30 days in a single MongoDB aggregation pipeline, avoiding multiple round-trips.
+        Executes multiple aggregations in parallel:
+        - Active users data (today, 7 days, 30 days) with status and blueprint groupings
+        - All-time user data for top users
+        - Blueprint data for top blueprints (filtered by time_range)
         
-        Uses MongoDB's $facet stage to execute six aggregations in parallel:
-        - today_status, week_status, month_status: users grouped by user_id and status
-        - today_blueprints, week_blueprints, month_blueprints: users grouped by user_id and blueprint_id
+        Args:
+            time_range: Time filter for top_blueprints - 'today', '7days', '30days', or 'all'
         
         Returns:
             Dictionary with keys for each facet, containing lists of GroupedCount DTOs.

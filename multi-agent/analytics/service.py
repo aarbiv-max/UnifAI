@@ -4,7 +4,7 @@ Analytics service for system-wide workflow statistics.
 This service provides comprehensive analytics for the admin dashboard,
 following the ShareService pattern with dedicated repository.
 """
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Set
 from datetime import datetime, timezone
 
 from blueprints.service import BlueprintService
@@ -17,7 +17,7 @@ class AnalyticsService:
     """
     Service for system-wide analytics statistics.
     
-    Provides comprehensive workflow analytics for the admin dashboard:
+    Provides workflow analytics for the admin dashboard:
     - Total runs, unique users, average runs per user
     - Status breakdown (COMPLETED, FAILED, RUNNING, etc.)
     - Active users by time period (today, 7 days, 30 days)
@@ -27,8 +27,7 @@ class AnalyticsService:
     
     Architecture:
         - Uses AnalyticsRepository for data access (separation of concerns)
-        - Uses BlueprintService only for blueprint name lookups
-        - No caching - queries are executed directly (read-only, simple)
+        - Uses BlueprintService for blueprint name lookups
     """
 
     def __init__(
@@ -48,18 +47,13 @@ class AnalyticsService:
 
     def get_analytics(self, time_range: str = "all") -> OverviewStatisticsResponse:
         """
-        Get comprehensive system-wide analytics statistics.
-        
-        Returns all key metrics in a single response for the Analytics dashboard.
-        
-        Uses optimized $facet query to fetch active users data for all time periods
-        (today, 7 days, 30 days) in a single MongoDB round-trip.
+        Get system-wide analytics statistics.
         
         Args:
             time_range: Time filter - 'today', '7days', '30days', or 'all' (default: 'all')
         
         Returns:
-            OverviewStatisticsResponse: Pydantic model containing all analytics statistics
+            OverviewStatisticsResponse containing all analytics data
         """
         # Calculate total statistics
         total_runs = self._repo.count_runs(time_range=time_range)
@@ -82,32 +76,41 @@ class AnalyticsService:
             for item in status_counts
         }
         
-        # Get active users for all time periods in a single optimized query
-        faceted_data = self._repo.get_active_users_faceted()
+        # Get analytics data via faceted query
+        faceted_data = self._repo.get_all_analytics_faceted(time_range=time_range)
         
-        active_today = self._process_faceted_user_data(
+        # Process active users from faceted data
+        active_today = self._process_user_data(
             faceted_data["today_status"],
             faceted_data["today_blueprints"],
-            days=1
+            run_count_field="runs_today"
         )
-        active_7days = self._process_faceted_user_data(
+        active_7days = self._process_user_data(
             faceted_data["week_status"],
             faceted_data["week_blueprints"],
-            days=7
+            run_count_field="recent_runs"
         )
-        active_30days = self._process_faceted_user_data(
+        active_30days = self._process_user_data(
             faceted_data["month_status"],
             faceted_data["month_blueprints"],
-            days=30
+            run_count_field="recent_runs"
         )
         
-        # Get top users (all time, limit 10)
-        top_users = self._get_top_users(limit=10)
+        # Process top users from faceted data
+        top_users = self._process_user_data(
+            faceted_data["all_time_user_status"],
+            faceted_data["all_time_user_blueprints"],
+            run_count_field="total_runs",
+            limit=10
+        )
         
-        # Get top blueprints (filtered by time_range, limit 10)
-        top_blueprints = self._get_top_blueprints(limit=10, time_range=time_range)
+        # Process top blueprints from faceted data
+        top_blueprints = self._process_blueprint_data(
+            faceted_data["top_blueprints_data"],
+            limit=10
+        )
         
-        # Get time series activity
+        # Get time series activity (separate query - different structure)
         time_series = self._repo.get_time_series(time_range=time_range)
         
         return OverviewStatisticsResponse(
@@ -122,51 +125,40 @@ class AnalyticsService:
             generated_at=datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         )
 
-    def _process_faceted_user_data(
+    def _process_user_data(
         self,
         status_counts: List[GroupedCount],
         blueprint_counts: List[GroupedCount],
-        days: int
+        run_count_field: str = "recent_runs",
+        limit: int = None
     ) -> List[Dict[str, Any]]:
         """
-        Process pre-fetched faceted data into user activity dicts.
+        Process user data from faceted query results.
         
-        This method works with data already fetched by get_active_users_faceted(),
-        avoiding additional database queries.
+        Combines status counts and blueprint counts into user activity dicts.
+        This is a reusable helper that works for active users and top users.
         
         Args:
             status_counts: User+status groupings from faceted query
             blueprint_counts: User+blueprint groupings from faceted query
-            days: Number of days (for field naming)
+            run_count_field: Field name for run count (e.g., "recent_runs", "total_runs")
+            limit: Optional limit on number of results
         
         Returns:
             List of user activity dicts sorted by run count
         """
         # Aggregate by user from status counts
-        user_data = self._aggregate_user_counts(status_counts, run_count_field="recent_runs")
+        user_data = self._aggregate_user_counts(status_counts, run_count_field=run_count_field)
         
-        # Add unique blueprint counts from blueprint data
-        for item in blueprint_counts:
-            user_id = item.get("user_id")
-            if user_id in user_data:
-                if "unique_blueprints" not in user_data[user_id]:
-                    user_data[user_id]["unique_blueprints"] = set()
-                user_data[user_id]["unique_blueprints"].add(item.get("blueprint_id"))
+        # Add unique blueprint counts
+        self._add_blueprint_counts(user_data, blueprint_counts)
         
-        # Convert sets to counts
-        for user_id in user_data:
-            if "unique_blueprints" in user_data[user_id]:
-                user_data[user_id]["unique_blueprints"] = len(user_data[user_id]["unique_blueprints"])
-            else:
-                user_data[user_id]["unique_blueprints"] = 0
+        # Sort by run count descending
+        result = sorted(user_data.values(), key=lambda x: x[run_count_field], reverse=True)
         
-        # Sort by recent_runs descending
-        result = sorted(user_data.values(), key=lambda x: x["recent_runs"], reverse=True)
-        
-        # Add days-specific field name for "today"
-        if days == 1:
-            for item in result:
-                item["runs_today"] = item.pop("recent_runs")
+        # Apply limit if specified
+        if limit:
+            result = result[:limit]
         
         return result
 
@@ -180,7 +172,7 @@ class AnalyticsService:
         
         Args:
             user_counts: List of GroupedCount DTOs grouped by user_id and status
-            run_count_field: Field name for the run count (e.g., "recent_runs", "total_runs")
+            run_count_field: Field name for the run count
         
         Returns:
             Dictionary mapping user_id to user data dict
@@ -206,85 +198,48 @@ class AnalyticsService:
         
         return user_data
 
-
-    def _get_top_users(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def _add_blueprint_counts(
+        self,
+        user_data: Dict[str, Dict[str, Any]],
+        blueprint_counts: List[GroupedCount]
+    ) -> None:
         """
-        Get top users by total runs (all time).
+        Add unique blueprint counts to user data dict (in-place).
         
         Args:
-            limit: Number of top users to return
-        
-        Returns:
-            List of user activity dicts
+            user_data: Dictionary mapping user_id to user data (modified in place)
+            blueprint_counts: User+blueprint groupings from faceted query
         """
-        # Group by user_id and status (all time)
-        user_counts = self._repo.group_by(
-            group_by=["user_id", "status"]
-        )
-        
-        # Aggregate by user
-        user_data = self._aggregate_user_counts(user_counts, run_count_field="total_runs")
-        
-        # Get unique blueprints per user
-        blueprint_counts = self._repo.group_by(
-            group_by=["user_id", "blueprint_id"]
-        )
+        # Collect unique blueprints per user
+        user_blueprints: Dict[str, Set[str]] = {}
         for item in blueprint_counts:
             user_id = item.get("user_id")
-            if user_id in user_data:
-                if "unique_blueprints" not in user_data[user_id]:
-                    user_data[user_id]["unique_blueprints"] = set()
-                user_data[user_id]["unique_blueprints"].add(item.get("blueprint_id"))
+            blueprint_id = item.get("blueprint_id")
+            if user_id:
+                if user_id not in user_blueprints:
+                    user_blueprints[user_id] = set()
+                if blueprint_id:
+                    user_blueprints[user_id].add(blueprint_id)
         
-        # Convert sets to counts
+        # Add counts to user_data
         for user_id in user_data:
-            if "unique_blueprints" in user_data[user_id]:
-                user_data[user_id]["unique_blueprints"] = len(user_data[user_id]["unique_blueprints"])
-            else:
-                user_data[user_id]["unique_blueprints"] = 0
-        
-        # Sort by total_runs descending and limit
-        result = sorted(user_data.values(), key=lambda x: x["total_runs"], reverse=True)[:limit]
-        return result
+            user_data[user_id]["unique_blueprints"] = len(user_blueprints.get(user_id, set()))
 
-    def _get_blueprint_name(self, blueprint_id: str) -> str:
+    def _process_blueprint_data(
+        self,
+        blueprint_counts: List[GroupedCount],
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
         """
-        Get blueprint display name, falling back to blueprint_id if not found.
+        Process blueprint data from faceted query results.
         
         Args:
-            blueprint_id: The blueprint ID to look up
+            blueprint_counts: Blueprint+user groupings from faceted query
+            limit: Maximum number of blueprints to return
         
         Returns:
-            Blueprint name or blueprint_id if not found
+            List of blueprint usage dicts with names
         """
-        try:
-            if self._blueprint_service.exists(blueprint_id):
-                bp_doc = self._blueprint_service.get_blueprint_draft_doc(blueprint_id)
-                spec_dict = bp_doc.get("spec_dict", {})
-                if isinstance(spec_dict, dict):
-                    return spec_dict.get("name", blueprint_id)
-        except Exception:
-            pass
-        
-        return blueprint_id
-
-    def _get_top_blueprints(self, limit: int = 10, time_range: str = "all") -> List[Dict[str, Any]]:
-        """
-        Get most used blueprints.
-        
-        Args:
-            limit: Number of top blueprints to return
-            time_range: Time filter - 'today', '7days', '30days', or 'all'
-        
-        Returns:
-            List of blueprint usage dicts
-        """
-        # Group by blueprint_id and user_id
-        blueprint_counts = self._repo.group_by(
-            group_by=["blueprint_id", "user_id"],
-            time_range=time_range
-        )
-        
         # Aggregate by blueprint
         blueprint_data: Dict[str, Dict] = {}
         for item in blueprint_counts:
@@ -303,13 +258,52 @@ class AnalyticsService:
             if user_id:
                 blueprint_data[blueprint_id]["unique_users"].add(user_id)
         
-        # Convert sets to counts and get blueprint names
-        result = []
-        for blueprint_id, data in blueprint_data.items():
-            data["unique_users"] = len(data["unique_users"])
-            data["blueprint_name"] = self._get_blueprint_name(blueprint_id)
-            result.append(data)
+        # Sort by run_count to get top blueprints first
+        sorted_blueprints = sorted(
+            blueprint_data.items(),
+            key=lambda x: x[1]["run_count"],
+            reverse=True
+        )[:limit]
         
-        # Sort by run_count descending and limit
-        result = sorted(result, key=lambda x: x["run_count"], reverse=True)[:limit]
+        # Batch lookup blueprint names (only for top N)
+        blueprint_ids = [bp_id for bp_id, _ in sorted_blueprints]
+        blueprint_names = self._batch_get_blueprint_names(blueprint_ids)
+        
+        # Build result
+        result = []
+        for blueprint_id, data in sorted_blueprints:
+            result.append({
+                "blueprint_id": blueprint_id,
+                "blueprint_name": blueprint_names.get(blueprint_id, blueprint_id),
+                "run_count": data["run_count"],
+                "unique_users": len(data["unique_users"])
+            })
+        
         return result
+
+    def _batch_get_blueprint_names(self, blueprint_ids: List[str]) -> Dict[str, str]:
+        """
+        Get blueprint names for multiple blueprints in batch.
+        
+        Args:
+            blueprint_ids: List of blueprint IDs to look up
+        
+        Returns:
+            Dictionary mapping blueprint_id to blueprint_name
+        """
+        names = {}
+        for blueprint_id in blueprint_ids:
+            try:
+                if self._blueprint_service.exists(blueprint_id):
+                    bp_doc = self._blueprint_service.get_blueprint_draft_doc(blueprint_id)
+                    spec_dict = bp_doc.get("spec_dict", {})
+                    if isinstance(spec_dict, dict):
+                        names[blueprint_id] = spec_dict.get("name", blueprint_id)
+                    else:
+                        names[blueprint_id] = blueprint_id
+                else:
+                    names[blueprint_id] = blueprint_id
+            except Exception:
+                names[blueprint_id] = blueprint_id
+        
+        return names

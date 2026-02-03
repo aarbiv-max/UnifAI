@@ -156,39 +156,43 @@ class MongoAnalyticsRepository(AnalyticsRepository):
         except Exception:
             return []
 
-    def get_active_users_faceted(self) -> Dict[str, List[GroupedCount]]:
+    def get_all_analytics_faceted(self, time_range: str = "all") -> Dict[str, List[GroupedCount]]:
         """
-        Get active users data for multiple time periods in a single query using $facet.
+        Get all analytics data using MongoDB $facet aggregation.
         
-        Uses MongoDB's $facet stage to execute six aggregations in parallel:
-        - today_status: users grouped by user_id and status (today)
-        - week_status: users grouped by user_id and status (7 days)
-        - month_status: users grouped by user_id and status (30 days)
-        - today_blueprints: users grouped by user_id and blueprint_id (today)
-        - week_blueprints: users grouped by user_id and blueprint_id (7 days)
-        - month_blueprints: users grouped by user_id and blueprint_id (30 days)
+        Executes multiple aggregations in parallel:
+        - Active users data (today, 7 days, 30 days) with status and blueprint groupings
+        - All-time user data for top users
+        - Blueprint data for top blueprints (filtered by time_range)
         
-        This reduces 6 separate MongoDB queries to a single query with 6 parallel facets.
+        Args:
+            time_range: Time filter for top_blueprints - 'today', '7days', '30days', or 'all'
         
         Returns:
             Dictionary with keys for each facet, containing lists of GroupedCount DTOs.
         """
         now = datetime.now(timezone.utc)
         
-        # Calculate cutoff dates
+        # Calculate cutoff dates using utility function pattern
         today_cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_cutoff = now - timedelta(days=7)
         month_cutoff = now - timedelta(days=30)
+        all_time_cutoff = now - timedelta(days=90)  # "all" is capped at 90 days
+        
+        # Get time_range cutoff for top blueprints
+        time_range_cutoff = analytics_utils.get_cutoff_date(time_range)
         
         # Convert to ISO strings
         today_iso = today_cutoff.isoformat().replace('+00:00', 'Z')
         week_iso = week_cutoff.isoformat().replace('+00:00', 'Z')
         month_iso = month_cutoff.isoformat().replace('+00:00', 'Z')
+        all_time_iso = all_time_cutoff.isoformat().replace('+00:00', 'Z')
+        time_range_iso = time_range_cutoff.isoformat().replace('+00:00', 'Z')
         
-        # Build faceted pipeline - all six aggregations in one query
+        # Build faceted pipeline
         pipeline = [
             {"$facet": {
-                # User + Status groupings (for run counts and status breakdown)
+                # Active Users: User + Status groupings
                 "today_status": [
                     {"$match": {"run_context.started_at": {"$gte": today_iso}}},
                     {"$group": {
@@ -210,7 +214,7 @@ class MongoAnalyticsRepository(AnalyticsRepository):
                         "count": {"$sum": 1}
                     }}
                 ],
-                # User + Blueprint groupings (for unique blueprints count)
+                # Active Users: User + Blueprint groupings
                 "today_blueprints": [
                     {"$match": {"run_context.started_at": {"$gte": today_iso}}},
                     {"$group": {
@@ -231,17 +235,44 @@ class MongoAnalyticsRepository(AnalyticsRepository):
                         "_id": {"user_id": "$user_id", "blueprint_id": "$blueprint_id"},
                         "count": {"$sum": 1}
                     }}
+                ],
+                # Top Users: All-time user data
+                "all_time_user_status": [
+                    {"$match": {"run_context.started_at": {"$gte": all_time_iso}}},
+                    {"$group": {
+                        "_id": {"user_id": "$user_id", "status": "$status"},
+                        "count": {"$sum": 1}
+                    }}
+                ],
+                "all_time_user_blueprints": [
+                    {"$match": {"run_context.started_at": {"$gte": all_time_iso}}},
+                    {"$group": {
+                        "_id": {"user_id": "$user_id", "blueprint_id": "$blueprint_id"},
+                        "count": {"$sum": 1}
+                    }}
+                ],
+                # Top Blueprints: Blueprint + User groupings (time_range filtered)
+                "top_blueprints_data": [
+                    {"$match": {"run_context.started_at": {"$gte": time_range_iso}}},
+                    {"$group": {
+                        "_id": {"blueprint_id": "$blueprint_id", "user_id": "$user_id"},
+                        "count": {"$sum": 1}
+                    }}
                 ]
             }}
         ]
         
+        empty_result = {
+            "today_status": [], "week_status": [], "month_status": [],
+            "today_blueprints": [], "week_blueprints": [], "month_blueprints": [],
+            "all_time_user_status": [], "all_time_user_blueprints": [],
+            "top_blueprints_data": []
+        }
+        
         try:
             results = list(self._col.aggregate(pipeline))
             if not results:
-                return {
-                    "today_status": [], "week_status": [], "month_status": [],
-                    "today_blueprints": [], "week_blueprints": [], "month_blueprints": []
-                }
+                return empty_result
             
             facet_result = results[0]
             
@@ -258,10 +289,10 @@ class MongoAnalyticsRepository(AnalyticsRepository):
                 "month_status": to_grouped_counts(facet_result.get("month_status", [])),
                 "today_blueprints": to_grouped_counts(facet_result.get("today_blueprints", [])),
                 "week_blueprints": to_grouped_counts(facet_result.get("week_blueprints", [])),
-                "month_blueprints": to_grouped_counts(facet_result.get("month_blueprints", []))
+                "month_blueprints": to_grouped_counts(facet_result.get("month_blueprints", [])),
+                "all_time_user_status": to_grouped_counts(facet_result.get("all_time_user_status", [])),
+                "all_time_user_blueprints": to_grouped_counts(facet_result.get("all_time_user_blueprints", [])),
+                "top_blueprints_data": to_grouped_counts(facet_result.get("top_blueprints_data", []))
             }
         except Exception:
-            return {
-                "today_status": [], "week_status": [], "month_status": [],
-                "today_blueprints": [], "week_blueprints": [], "month_blueprints": []
-            }
+            return empty_result

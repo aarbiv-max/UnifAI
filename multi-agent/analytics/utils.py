@@ -11,7 +11,6 @@ This module provides reusable utilities for:
 import copy
 from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime, timedelta, timezone
-from pymongo.collection import Collection
 
 
 def apply_time_range_filter(
