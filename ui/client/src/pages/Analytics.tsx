@@ -34,7 +34,7 @@ type TimeRange = 'today' | '7days' | '30days' | 'all';
 export default function Analytics() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-  const [timeRange, setTimeRange] = useState<TimeRange>('all');
+  const [timeRange, setTimeRange] = useState<TimeRange>('today');
   const [activeTodayPage, setActiveTodayPage] = useState(0);
   const [allUsersPage, setAllUsersPage] = useState(0);
   const itemsPerPage = 10;

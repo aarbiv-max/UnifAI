@@ -30,7 +30,7 @@ def get_all(user_id):
         return jsonify({"error": str(e)}), 500
 
 
-@statistics_bp.route("/analytics", methods=["GET"])
+@statistics_bp.route("/analytics.overview.get", methods=["GET"])
 @from_query({
     "time_range": fields.Str(
         data_key="time_range",
@@ -54,9 +54,9 @@ def get_analytics(time_range, user_id):
     """
     try:
         container = current_app.container
-        statistics_service = container.statistics_service
+        analytics_service = container.analytics_service
         
-        analytics = statistics_service.get_analytics(time_range=time_range)
+        analytics = analytics_service.get_analytics(time_range=time_range)
         
         return jsonify(analytics.model_dump(mode="json")), 200
     except Exception as e:

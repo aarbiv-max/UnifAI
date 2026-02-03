@@ -62,11 +62,7 @@ def get_cutoff_date(time_range: str) -> datetime:
         return now - timedelta(days=90)
 
 
-def get_time_range_params(
-    time_range: str, 
-    now: datetime,
-    earliest_date: Optional[datetime] = None
-) -> Tuple[datetime, str]:
+def get_time_range_params(time_range: str, now: datetime) -> Tuple[datetime, str]:
     """
     Get cutoff date and date format based on time_range.
     For 'all', limits to max 365 days to prevent excessive MongoDB load.
@@ -74,7 +70,6 @@ def get_time_range_params(
     Args:
         time_range: One of "today", "7days", "30days", or "all"
         now: Current datetime (usually datetime.now(timezone.utc))
-        earliest_date: Optional earliest date from data (used for "all" time range)
     
     Returns:
         Tuple of (cutoff_date, date_format_string)
@@ -89,15 +84,8 @@ def get_time_range_params(
         cutoff_date = now - timedelta(days=30)
         date_format = "%Y-%m-%d"
     else:
-        max_lookback = now - timedelta(days=365)
-        
-        if earliest_date:
-            cutoff_date = max(earliest_date, max_lookback)
-        else:
-            cutoff_date = max_lookback
-            
-        if cutoff_date.tzinfo is None:
-            cutoff_date = cutoff_date.replace(tzinfo=timezone.utc)
+        # For "all", limit to 365 days to prevent excessive MongoDB load
+        cutoff_date = now - timedelta(days=365)
         date_format = "%Y-%m-%d"
     
     return cutoff_date, date_format
@@ -135,37 +123,3 @@ def build_time_series_pipeline(
         {"$sort": {"_id": 1}},
         {"$limit": 1000}
     ]
-
-
-def get_time_series_activity(
-    collection: Collection,
-    time_range: str = "all",
-    earliest_date_getter: Optional[callable] = None
-) -> List[Dict[str, Any]]:
-    """
-    Get time series activity data grouped by appropriate time intervals.
-    
-    Args:
-        collection: MongoDB collection to query
-        time_range: 'today', '7days', '30days', or 'all'
-        earliest_date_getter: Optional callable that returns earliest date (for optimization)
-    
-    Returns:
-        List of dicts with 'period' (time label) and 'count' (workflow executions)
-    """
-    now = datetime.now(timezone.utc)
-    
-    earliest_date = None
-    if time_range == "all" and earliest_date_getter:
-        earliest_date = earliest_date_getter(now)
-    
-    cutoff_date, date_format = get_time_range_params(time_range, now, earliest_date)
-    cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z')
-    
-    pipeline = build_time_series_pipeline(cutoff_iso, date_format)
-    
-    try:
-        results = list(collection.aggregate(pipeline))
-        return [{"period": doc["_id"], "count": doc["count"]} for doc in results]
-    except Exception:
-        return []

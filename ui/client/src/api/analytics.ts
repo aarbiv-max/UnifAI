@@ -21,7 +21,7 @@ export async function fetchAnalyticsOverview(timeRange: 'today' | '7days' | '30d
   if (userId) {
     params.userId = userId;
   }
-  const response = await axios.get<AnalyticsOverview>('/statistics/analytics', { params });
+  const response = await axios.get<AnalyticsOverview>('/statistics/analytics.overview.get', { params });
   return response.data;
 }
 
