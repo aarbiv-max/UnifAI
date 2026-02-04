@@ -1,7 +1,10 @@
+"""Backend application configuration defaults."""
+
 from global_utils.config.config import SharedConfig
 
 
 class AppConfig(SharedConfig):
+    """Runtime configuration values for the backend service."""
     rabbitmq_port: str = "5672"
     rabbitmq_ip: str = "0.0.0.0"
     broker_user_name: str = "guest"
@@ -11,7 +14,7 @@ class AppConfig(SharedConfig):
     mongodb_ip: str = "0.0.0.0"
 
     hostname_local: str = "0.0.0.0"
-    port: str = "13456"
+    port: str = "13457"
 
     qdrant_ip: str = "0.0.0.0"
     qdrant_port: str = "6333"
@@ -24,8 +27,8 @@ class AppConfig(SharedConfig):
     # Flask Configuration
     # secret_key=your-super-secret-key-change-this-in-production
 
-    frontend_url: str = "http://localhost:5000"
-    upload_folder: str = "/app/shared"
+    frontend_url: str = "http://127.0.0.1:5000/"
+    upload_folder: str = "/home/cloud-user/UnifAI/backend/data/pdfs"
     # session_cookie_secure=True
     backend_env: str = "development"
     version: str = "1.0.0"
