@@ -50,7 +50,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
   });
 
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastValidatedValueRef = useRef<any>(null);
+  const lastValidatedKeyRef = useRef<string | null>(null);
 
   // Determine if this is an ApiHint or ActionHint
   const useApiHint = isApiHint(validationHint);
@@ -59,6 +59,28 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
   const validationAction = !useApiHint 
     ? elementActions.find(action => action.uid === validationHint.action_uid)
     : null;
+
+  /**
+   * Creates a stable validation key that combines the field value and all dependency values.
+   * This key is used to determine if validation should be re-triggered.
+   * When either the field value or any dependency changes, this key will change.
+   */
+  const validationKey = React.useMemo(() => {
+    // Gather dependency values (excluding the current field)
+    const dependencyValues: Record<string, any> = {};
+    if (validationHint?.dependencies) {
+      Object.keys(validationHint.dependencies).forEach((configField) => {
+        if (configField !== fieldName) {
+          dependencyValues[configField] = configValues[configField];
+        }
+      });
+    }
+    
+    return JSON.stringify({
+      fieldValue,
+      dependencies: dependencyValues
+    });
+  }, [fieldValue, validationHint?.dependencies, fieldName, configValues]);
 
   /**
    * Builds the input data for validation by:
@@ -191,8 +213,8 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
       return;
     }
 
-    // Skip validation if value hasn't changed
-    if (lastValidatedValueRef.current === value) {
+    // Skip validation if neither the value nor dependencies have changed
+    if (lastValidatedKeyRef.current === validationKey) {
       return;
     }
 
@@ -230,7 +252,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
             : `${invalidCount} of ${itemResults.length} items invalid`
         });
 
-        lastValidatedValueRef.current = value;
+        lastValidatedKeyRef.current = validationKey;
         onValidationChange(fieldName, allValid, itemResults);
       } else {
         // Single item response (original behavior)
@@ -242,7 +264,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
           message: responseData.message || (isValid ? 'Valid' : 'Invalid')
         });
 
-        lastValidatedValueRef.current = value;
+        lastValidatedKeyRef.current = validationKey;
         onValidationChange(fieldName, isValid);
       }
 
@@ -260,7 +282,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
     }
   };
 
-  // Debounced validation on value change
+  // Debounced validation on field value change OR dependency value change
   useEffect(() => {
     if (validationTimeoutRef.current) {
       clearTimeout(validationTimeoutRef.current);
@@ -275,7 +297,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
         clearTimeout(validationTimeoutRef.current);
       }
     };
-  }, [fieldValue]);
+  }, [validationKey]); // Re-trigger when field value OR any dependency changes
 
   // Cleanup on unmount
   useEffect(() => {
