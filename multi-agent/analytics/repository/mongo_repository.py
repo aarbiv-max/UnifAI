@@ -11,7 +11,9 @@ from datetime import datetime, timezone, timedelta
 from .base import AnalyticsRepository
 from core.dto import GroupedCount
 from analytics import utils as analytics_utils
+import logging
 
+logger = logging.getLogger(__name__)
 
 class MongoAnalyticsRepository(AnalyticsRepository):
     """
@@ -153,7 +155,8 @@ class MongoAnalyticsRepository(AnalyticsRepository):
         try:
             results = list(self._col.aggregate(pipeline))
             return [{"period": doc["_id"], "count": doc["count"]} for doc in results]
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to get time series data: {e}")
             return []
 
     def get_all_analytics_faceted(self, time_range: str = "all") -> Dict[str, List[GroupedCount]]:
@@ -270,5 +273,6 @@ class MongoAnalyticsRepository(AnalyticsRepository):
                 "top_users_blueprints": to_grouped_counts(facet_result.get("top_users_blueprints", [])),
                 "top_blueprints_data": to_grouped_counts(facet_result.get("top_blueprints_data", []))
             }
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to get all analytics data: {e}")
             return empty_result

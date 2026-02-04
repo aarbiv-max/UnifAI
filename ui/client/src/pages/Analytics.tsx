@@ -58,6 +58,12 @@ export default function Analytics() {
     if (analytics) setLastUpdated(new Date());
   }, [analytics]);
 
+  // Reset pagination when time range changes
+  useEffect(() => {
+    setActiveTodayPage(0);
+    setAllUsersPage(0);
+  }, [timeRange]);
+
   // Color configuration
   const colors = {
     primary: primaryHex || "#8B5CF6",
