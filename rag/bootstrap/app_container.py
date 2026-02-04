@@ -450,6 +450,7 @@ def embedding_generator():
             "service_url": config.embedding_service_url,
             "timeout": config.embedding_service_timeout,
             "model_name": config.embedding_service_model,
+            "embedding_dim": 384,
         })
     else:
         return EmbeddingGeneratorFactory.create({"type": "local"})

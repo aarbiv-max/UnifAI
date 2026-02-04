@@ -1,72 +1,53 @@
 """Factory classes for creating adapter instances."""
 
-import os
+import logging
+from typing import Dict, Any
+
 import torch
-from typing import Dict, Any, Optional
 
 from config.app_config import AppConfig
-from infrastructure.embedding.sentence_transformer_embedder import SentenceTransformerEmbedding
-from infrastructure.qdrant.qdrant_vector_repository import QdrantVectorRepository
-from infrastructure.sources.document.connector import DocumentConnector
-from infrastructure.sources.document.config import DocConfigManager
 from core.vector.domain.embedder import EmbeddingGenerator
 from core.vector.domain.repository import VectorRepository
 from core.connector.domain.base import DataConnector
+from core.connector.domain.document_converter import DocumentConverterPort
+
+logger = logging.getLogger(__name__)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 app_config = AppConfig.get_instance()
 
 
-class EmbeddingGeneratorFactory:
-    """Factory for creating embedding generator instances based on configuration."""
+class DocumentConverterFactory:
+    """Factory for creating document converter port instances."""
     
     @staticmethod
-    def create(config: Dict[str, Any]) -> EmbeddingGenerator:
-        """
-        Create an embedding generator instance.
+    def create_local() -> DocumentConverterPort:
+        """Create a local docling adapter."""
+        from infrastructure.sources.document.adapters import LocalDoclingAdapter
+        return LocalDoclingAdapter()
+    
+    @staticmethod
+    def create_remote(
+        base_url: str,
+        timeout: int = 300,
+        image_export_mode: str = "placeholder",
+        pdf_backend: str = "pypdfium2",
+    ) -> DocumentConverterPort:
+        """Create a remote docling adapter."""
+        from global_utils.docling import DoclingClient, DoclingService
+        from infrastructure.sources.document.adapters import RemoteDoclingAdapter
         
-        Args:
-            config: Configuration for the embedding generator
-                - type: Generator type ("local" or "remote")
-                - model_name: Model name for embedding generation
-                - batch_size: Number of items to process in a batch
-                - device: Device to use (for local mode)
-                - service_url: URL of remote service (for remote mode)
-                - timeout: Request timeout in seconds (for remote mode)
-                - embedding_dim: Dimension of embeddings (for remote mode)
-            
-        Returns:
-            Initialized embedding generator
-        """
-        generator_type = config.get("type", "local")
-        
-        if generator_type == "local":
-            # Local mode: use SentenceTransformer model directly
-            return SentenceTransformerEmbedding(
-                model_name=config.get("model_name", "all-MiniLM-L6-v2"),
-                batch_size=config.get("batch_size", 32),
-                device=config.get("device", device)
-            )
-        elif generator_type == "remote":
-            # Remote mode: create client and inject into embedder
-            from global_utils.clients import EmbeddingServiceClient
-            
-            client = EmbeddingServiceClient(
-                base_url=config.get("service_url"),
-                timeout=config.get("timeout"),
-                model_name=config.get("model_name", "sentence-transformers/all-MiniLM-L6-v2"),
-            )
-            return SentenceTransformerEmbedding(
-                service_client=client,
-                batch_size=config.get("batch_size", 32),
-                embedding_dim=config.get("embedding_dim", 384),
-            )
-        else:
-            raise ValueError(f"Unknown embedding generator type: {generator_type}")
+        client = DoclingClient(base_url=base_url, timeout=timeout)
+        service = DoclingService(
+            client=client,
+            image_export_mode=image_export_mode,
+            pdf_backend=pdf_backend,
+        )
+        return RemoteDoclingAdapter(docling_service=service)
 
 
 class DocumentConnectorFactory:
-    """Factory for creating document connector instances based on configuration."""
+    """Factory for creating document connector instances."""
     
     @staticmethod
     def create(config: Dict[str, Any]) -> DataConnector:
@@ -74,61 +55,117 @@ class DocumentConnectorFactory:
         Create a document connector instance.
         
         Args:
-            config: Configuration for the document connector
-                - type: Connector type ("local" or "remote")
-                - config_manager: Optional DocConfigManager instance
-                - service_url: URL of remote service (for remote mode)
-                - timeout: Request timeout in seconds (for remote mode)
-            
-        Returns:
-            Initialized document connector
+            config: Configuration dict with keys:
+                - type: "local" or "remote"
+                - service_url: URL (for remote)
+                - timeout: Timeout in seconds (for remote)
+                - config_manager: Optional DocConfigManager
         """
+        from infrastructure.sources.document.connector import DocumentConnector
+        from infrastructure.sources.document.config import DocConfigManager
+        
         connector_type = config.get("type", "local")
         config_manager = config.get("config_manager") or DocConfigManager()
         
         if connector_type == "local":
-            # Local mode: use docling library directly
-            return DocumentConnector(config_manager=config_manager)
+            converter = DocumentConverterFactory.create_local()
         elif connector_type == "remote":
-            # Remote mode: create client and inject into connector
-            from global_utils.clients import DoclingServiceClient
-            
-            client = DoclingServiceClient(
+            converter = DocumentConverterFactory.create_remote(
                 base_url=config.get("service_url"),
-                timeout=config.get("timeout"),
-                image_export_mode="placeholder",
-                pdf_backend="pypdfium2",
-            )
-            return DocumentConnector(
-                config_manager=config_manager,
-                service_client=client,
+                timeout=config.get("timeout", 300),
             )
         else:
-            raise ValueError(f"Unknown document connector type: {connector_type}")
+            raise ValueError(f"Unknown connector type: {connector_type}")
+        
+        return DocumentConnector(
+            converter=converter,
+            config_manager=config_manager,
+        )
+
+
+class EmbeddingPortFactory:
+    """Factory for creating embedding port instances."""
+    
+    @staticmethod
+    def create_local(
+        model_name: str = "all-MiniLM-L6-v2",
+        device_name: str = None,
+    ):
+        """Create a local embedding adapter."""
+        from infrastructure.embedding.adapters import LocalEmbeddingAdapter
+        return LocalEmbeddingAdapter(
+            model_name=model_name,
+            device=device_name or device,
+        )
+    
+    @staticmethod
+    def create_remote(
+        base_url: str,
+        timeout: int = 60,
+        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_dim: int = 384,
+    ):
+        """Create a remote embedding adapter."""
+        from global_utils.embedding import EmbeddingClient, EmbeddingService
+        from infrastructure.embedding.adapters import RemoteEmbeddingAdapter
+        
+        client = EmbeddingClient(base_url=base_url, timeout=timeout)
+        service = EmbeddingService(client=client, model_name=model_name)
+        return RemoteEmbeddingAdapter(
+            embedding_service=service,
+            embedding_dim=embedding_dim,
+        )
+
+
+class EmbeddingGeneratorFactory:
+    """Factory for creating embedding generator instances."""
+    
+    @staticmethod
+    def create(config: Dict[str, Any]) -> EmbeddingGenerator:
+        """
+        Create an embedding generator instance.
+        
+        Args:
+            config: Configuration dict with keys:
+                - type: "local" or "remote"
+                - model_name: Model name
+                - batch_size: Batch size
+                - device: Device (for local)
+                - service_url: URL (for remote)
+                - timeout: Timeout (for remote)
+                - embedding_dim: Dimension (for remote)
+        """
+        from infrastructure.embedding.embedding_generator import DefaultEmbeddingGenerator
+        
+        generator_type = config.get("type", "local")
+        batch_size = config.get("batch_size", 32)
+        
+        if generator_type == "local":
+            port = EmbeddingPortFactory.create_local(
+                model_name=config.get("model_name", "all-MiniLM-L6-v2"),
+                device_name=config.get("device"),
+            )
+        elif generator_type == "remote":
+            port = EmbeddingPortFactory.create_remote(
+                base_url=config.get("service_url"),
+                timeout=config.get("timeout", 60),
+                model_name=config.get("model_name", "sentence-transformers/all-MiniLM-L6-v2"),
+                embedding_dim=config.get("embedding_dim", 384),
+            )
+        else:
+            raise ValueError(f"Unknown generator type: {generator_type}")
+        
+        return DefaultEmbeddingGenerator(port=port, batch_size=batch_size)
 
 
 class VectorRepositoryFactory:
-    """Factory for creating vector repository instances based on configuration."""
+    """Factory for creating vector repository instances."""
     
     @staticmethod
     def create(config: Dict[str, Any]) -> VectorRepository:
-        """
-        Create a vector repository instance.
+        """Create a vector repository instance."""
+        from infrastructure.qdrant.qdrant_vector_repository import QdrantVectorRepository
         
-        Args:
-            config: Configuration for the vector repository
-                - type: Storage type ("qdrant")
-                - collection_name: Name of the collection
-                - embedding_dim: Dimension of embeddings
-                - url: Server URL (optional, uses AppConfig.qdrant_ip)
-                - port: Server port (optional, uses AppConfig.qdrant_port)
-                - grpc_port: gRPC port (optional)
-                - api_key: API key (optional, uses env var QDRANT_API_KEY)
-                - on_disk: Store on disk vs memory (default: True)
-                
-        Returns:
-            Initialized vector repository
-        """
         storage_type = config.get("type", "qdrant")
         
         if storage_type == "qdrant":
@@ -144,5 +181,4 @@ class VectorRepositoryFactory:
                 write_consistency_factor=config.get("write_consistency_factor", 1),
             )
         else:
-            raise ValueError(f"Unknown vector storage type: {storage_type}")
-
+            raise ValueError(f"Unknown storage type: {storage_type}")
