@@ -39,7 +39,7 @@ def apply_time_range_filter(
     return result
 
 
-def get_cutoff_date(time_range: str) -> datetime:
+def get_cutoff_date(time_range: str) -> Optional[datetime]:
     """
     Get cutoff date based on time_range string.
     
@@ -47,7 +47,7 @@ def get_cutoff_date(time_range: str) -> datetime:
         time_range: One of "today", "7days", "30days", or "all"
     
     Returns:
-        Cutoff datetime in UTC
+        Cutoff datetime in UTC, or None for "all" (no time limit)
     """
     now = datetime.now(timezone.utc)
     
@@ -58,20 +58,20 @@ def get_cutoff_date(time_range: str) -> datetime:
     elif time_range == "30days":
         return now - timedelta(days=30)
     else:
-        return now - timedelta(days=90)
+        # "all" means no time limit - return None
+        return None
 
 
-def get_time_range_params(time_range: str, now: datetime) -> Tuple[datetime, str]:
+def get_time_range_params(time_range: str, now: datetime) -> Tuple[Optional[datetime], str]:
     """
     Get cutoff date and date format based on time_range.
-    For 'all', limits to max 365 days to prevent excessive MongoDB load.
     
     Args:
         time_range: One of "today", "7days", "30days", or "all"
         now: Current datetime (usually datetime.now(timezone.utc))
     
     Returns:
-        Tuple of (cutoff_date, date_format_string)
+        Tuple of (cutoff_date, date_format_string). cutoff_date is None for "all".
     """
     if time_range == "today":
         cutoff_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -83,15 +83,15 @@ def get_time_range_params(time_range: str, now: datetime) -> Tuple[datetime, str
         cutoff_date = now - timedelta(days=30)
         date_format = "%Y-%m-%d"
     else:
-        # For "all", limit to 365 days to prevent excessive MongoDB load
-        cutoff_date = now - timedelta(days=365)
-        date_format = "%Y-%m-%d"
+        # "all" means no time limit - use monthly granularity for readability
+        cutoff_date = None
+        date_format = "%Y-%m"  # Year-Month format for better grouping of all-time data
     
     return cutoff_date, date_format
 
 
 def build_time_series_pipeline(
-    cutoff_iso: str,
+    cutoff_iso: Optional[str],
     date_format: str,
     field_path: str = "run_context.started_at"
 ) -> List[Dict[str, Any]]:
@@ -99,17 +99,26 @@ def build_time_series_pipeline(
     Build MongoDB aggregation pipeline for time series data.
     
     Args:
-        cutoff_iso: ISO format cutoff date string
+        cutoff_iso: ISO format cutoff date string, or None for no time limit
         date_format: strftime format for grouping (e.g., "%Y-%m-%d")
         field_path: Field to use for time filtering
     
     Returns:
         MongoDB aggregation pipeline
     """
-    return [
-        {"$match": {
+    # Build match stage - only filter by time if cutoff is provided
+    if cutoff_iso:
+        match_stage = {"$match": {
             field_path: {"$gte": cutoff_iso, "$exists": True}
-        }},
+        }}
+    else:
+        # No time limit - just ensure the field exists
+        match_stage = {"$match": {
+            field_path: {"$exists": True}
+        }}
+    
+    return [
+        match_stage,
         {"$group": {
             "_id": {
                 "$dateToString": {

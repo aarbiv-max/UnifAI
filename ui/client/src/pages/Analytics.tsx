@@ -145,13 +145,10 @@ export default function Analytics() {
   }
 
   if (error) {
-    const errorMessage = (error as Error).message;
-    // Check for 403 status code or access denied/permission errors
-    const isAccessDenied = 
-      errorMessage.includes('403') || 
-      errorMessage.includes('Access denied') || 
-      errorMessage.includes('permission') ||
-      errorMessage.includes('Forbidden');
+    const axiosError = error as any;
+    const statusCode = axiosError?.response?.status;
+    const errorMessage = axiosError?.message || 'Unknown error';
+    const isAccessDenied = statusCode === 403;
     
     return (
       <div className="flex h-screen overflow-hidden">

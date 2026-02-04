@@ -54,6 +54,19 @@ export function WorkflowExecutionChart({ timeSeriesData, timeRange, colors }: Wo
             return `${displayHour}:00 ${ampm}`;
           }
         }
+      } else if (range === 'all') {
+        // Format: "2024-01" (year-month) -> "Jan 2024"
+        const parts = period.split('-');
+        if (parts.length === 2) {
+          const year = parts[0];
+          const month = parseInt(parts[1], 10);
+          if (!isNaN(month) && month >= 1 && month <= 12) {
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${monthNames[month - 1]} ${year}`;
+          }
+        }
+        return period;
       } else {
         // Format: "2024-01-15" -> "Jan 15"
         let date: Date | null = null;
@@ -82,6 +95,8 @@ export function WorkflowExecutionChart({ timeSeriesData, timeRange, colors }: Wo
         return 'Workflow Executions (Last 7 Days)';
       case '30days':
         return 'Workflow Executions (Last 30 Days)';
+      case 'all':
+        return 'Workflow Executions (All Time by Month)';
       default:
         return 'Workflow Executions Over Time';
     }

@@ -39,7 +39,7 @@ export function StatusBreakdownChart({ statusData, totalRuns, colors }: StatusBr
                   height={36}
                   formatter={(value: string, entry: any) => {
                     const count = entry.payload.value;
-                    const percent = ((count / totalRuns) * 100).toFixed(0);
+                    const percent = totalRuns > 0 ? ((count / totalRuns) * 100).toFixed(0) : "0";
                     return <span className="text-sm">{value}: {count} ({percent}%)</span>;
                   }}
                 />
@@ -47,7 +47,7 @@ export function StatusBreakdownChart({ statusData, totalRuns, colors }: StatusBr
                   contentStyle={{ backgroundColor: '#374151', border: '1px solid #6B7280', borderRadius: '0.375rem' }}
                   labelStyle={{ color: '#F9FAFB' }}
                   formatter={(value: number) => [
-                    `${value} runs (${((value / totalRuns) * 100).toFixed(1)}%)`,
+                    `${value} runs (${totalRuns > 0 ? ((value / totalRuns) * 100).toFixed(1) : "0.0"}%)`,
                     'Status'
                   ]}
                 />

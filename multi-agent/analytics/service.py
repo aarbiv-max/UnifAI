@@ -98,8 +98,8 @@ class AnalyticsService:
         
         # Process top users from faceted data
         top_users = self._process_user_data(
-            faceted_data["all_time_user_status"],
-            faceted_data["all_time_user_blueprints"],
+            faceted_data["top_users_status"],
+            faceted_data["top_users_blueprints"],
             run_count_field="total_runs",
             limit=10
         )

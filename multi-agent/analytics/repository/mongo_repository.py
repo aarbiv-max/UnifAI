@@ -146,7 +146,7 @@ class MongoAnalyticsRepository(AnalyticsRepository):
         """
         now = datetime.now(timezone.utc)
         cutoff_date, date_format = analytics_utils.get_time_range_params(time_range, now)
-        cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z')
+        cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z') if cutoff_date else None
         
         pipeline = analytics_utils.build_time_series_pipeline(cutoff_iso, date_format)
         
@@ -162,11 +162,11 @@ class MongoAnalyticsRepository(AnalyticsRepository):
         
         Executes multiple aggregations in parallel:
         - Active users data (today, 7 days, 30 days) with status and blueprint groupings
-        - All-time user data for top users
-        - Blueprint data for top blueprints (filtered by time_range)
+        - Top users data (filtered by time_range, or all data when time_range="all")
+        - Top blueprints data (filtered by time_range, or all data when time_range="all")
         
         Args:
-            time_range: Time filter for top_blueprints - 'today', '7days', '30days', or 'all'
+            time_range: Time filter - 'today', '7days', '30days', or 'all' (no time limit)
         
         Returns:
             Dictionary with keys for each facet, containing lists of GroupedCount DTOs.
@@ -177,95 +177,71 @@ class MongoAnalyticsRepository(AnalyticsRepository):
         today_cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_cutoff = now - timedelta(days=7)
         month_cutoff = now - timedelta(days=30)
-        all_time_cutoff = now - timedelta(days=90)  # "all" is capped at 90 days
         
-        # Get time_range cutoff for top blueprints
+        # Get time_range cutoff for top users and top blueprints (respects selected time_range)
+        # Returns None for "all" (no time limit)
         time_range_cutoff = analytics_utils.get_cutoff_date(time_range)
         
         # Convert to ISO strings
         today_iso = today_cutoff.isoformat().replace('+00:00', 'Z')
         week_iso = week_cutoff.isoformat().replace('+00:00', 'Z')
         month_iso = month_cutoff.isoformat().replace('+00:00', 'Z')
-        all_time_iso = all_time_cutoff.isoformat().replace('+00:00', 'Z')
-        time_range_iso = time_range_cutoff.isoformat().replace('+00:00', 'Z')
+        time_range_iso = time_range_cutoff.isoformat().replace('+00:00', 'Z') if time_range_cutoff else None
+        
+        # Helper to build pipeline stages with optional time filter
+        def build_user_status_stages(time_filter_iso: Optional[str]) -> List[Dict]:
+            stages = []
+            if time_filter_iso:
+                stages.append({"$match": {"run_context.started_at": {"$gte": time_filter_iso}}})
+            stages.append({"$group": {
+                "_id": {"user_id": "$user_id", "status": "$status"},
+                "count": {"$sum": 1}
+            }})
+            return stages
+        
+        def build_user_blueprints_stages(time_filter_iso: Optional[str]) -> List[Dict]:
+            stages = []
+            if time_filter_iso:
+                stages.append({"$match": {"run_context.started_at": {"$gte": time_filter_iso}}})
+            stages.append({"$group": {
+                "_id": {"user_id": "$user_id", "blueprint_id": "$blueprint_id"},
+                "count": {"$sum": 1}
+            }})
+            return stages
+        
+        def build_blueprint_data_stages(time_filter_iso: Optional[str]) -> List[Dict]:
+            stages = []
+            if time_filter_iso:
+                stages.append({"$match": {"run_context.started_at": {"$gte": time_filter_iso}}})
+            stages.append({"$group": {
+                "_id": {"blueprint_id": "$blueprint_id", "user_id": "$user_id"},
+                "count": {"$sum": 1}
+            }})
+            return stages
         
         # Build faceted pipeline
         pipeline = [
             {"$facet": {
                 # Active Users: User + Status groupings
-                "today_status": [
-                    {"$match": {"run_context.started_at": {"$gte": today_iso}}},
-                    {"$group": {
-                        "_id": {"user_id": "$user_id", "status": "$status"},
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                "week_status": [
-                    {"$match": {"run_context.started_at": {"$gte": week_iso}}},
-                    {"$group": {
-                        "_id": {"user_id": "$user_id", "status": "$status"},
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                "month_status": [
-                    {"$match": {"run_context.started_at": {"$gte": month_iso}}},
-                    {"$group": {
-                        "_id": {"user_id": "$user_id", "status": "$status"},
-                        "count": {"$sum": 1}
-                    }}
-                ],
+                "today_status": build_user_status_stages(today_iso),
+                "week_status": build_user_status_stages(week_iso),
+                "month_status": build_user_status_stages(month_iso),
                 # Active Users: User + Blueprint groupings
-                "today_blueprints": [
-                    {"$match": {"run_context.started_at": {"$gte": today_iso}}},
-                    {"$group": {
-                        "_id": {"user_id": "$user_id", "blueprint_id": "$blueprint_id"},
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                "week_blueprints": [
-                    {"$match": {"run_context.started_at": {"$gte": week_iso}}},
-                    {"$group": {
-                        "_id": {"user_id": "$user_id", "blueprint_id": "$blueprint_id"},
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                "month_blueprints": [
-                    {"$match": {"run_context.started_at": {"$gte": month_iso}}},
-                    {"$group": {
-                        "_id": {"user_id": "$user_id", "blueprint_id": "$blueprint_id"},
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                # Top Users: All-time user data
-                "all_time_user_status": [
-                    {"$match": {"run_context.started_at": {"$gte": all_time_iso}}},
-                    {"$group": {
-                        "_id": {"user_id": "$user_id", "status": "$status"},
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                "all_time_user_blueprints": [
-                    {"$match": {"run_context.started_at": {"$gte": all_time_iso}}},
-                    {"$group": {
-                        "_id": {"user_id": "$user_id", "blueprint_id": "$blueprint_id"},
-                        "count": {"$sum": 1}
-                    }}
-                ],
+                "today_blueprints": build_user_blueprints_stages(today_iso),
+                "week_blueprints": build_user_blueprints_stages(week_iso),
+                "month_blueprints": build_user_blueprints_stages(month_iso),
+                # Top Users: User data filtered by selected time_range (None = all data)
+                "top_users_status": build_user_status_stages(time_range_iso),
+                "top_users_blueprints": build_user_blueprints_stages(time_range_iso),
                 # Top Blueprints: Blueprint + User groupings (time_range filtered)
-                "top_blueprints_data": [
-                    {"$match": {"run_context.started_at": {"$gte": time_range_iso}}},
-                    {"$group": {
-                        "_id": {"blueprint_id": "$blueprint_id", "user_id": "$user_id"},
-                        "count": {"$sum": 1}
-                    }}
-                ]
+                "top_blueprints_data": build_blueprint_data_stages(time_range_iso)
             }}
         ]
         
         empty_result = {
             "today_status": [], "week_status": [], "month_status": [],
             "today_blueprints": [], "week_blueprints": [], "month_blueprints": [],
-            "all_time_user_status": [], "all_time_user_blueprints": [],
+            "top_users_status": [], "top_users_blueprints": [],
             "top_blueprints_data": []
         }
         
@@ -290,8 +266,8 @@ class MongoAnalyticsRepository(AnalyticsRepository):
                 "today_blueprints": to_grouped_counts(facet_result.get("today_blueprints", [])),
                 "week_blueprints": to_grouped_counts(facet_result.get("week_blueprints", [])),
                 "month_blueprints": to_grouped_counts(facet_result.get("month_blueprints", [])),
-                "all_time_user_status": to_grouped_counts(facet_result.get("all_time_user_status", [])),
-                "all_time_user_blueprints": to_grouped_counts(facet_result.get("all_time_user_blueprints", [])),
+                "top_users_status": to_grouped_counts(facet_result.get("top_users_status", [])),
+                "top_users_blueprints": to_grouped_counts(facet_result.get("top_users_blueprints", [])),
                 "top_blueprints_data": to_grouped_counts(facet_result.get("top_blueprints_data", []))
             }
         except Exception:
