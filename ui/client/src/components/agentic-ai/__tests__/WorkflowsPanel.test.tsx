@@ -289,9 +289,9 @@ describe("WorkflowsPanel", () => {
       );
 
       await screen.findByText("Flow One");
-      // Selected flow should have primary border
+      // Selected flow should have primary border styling
       const flowElement = screen.getByText("Flow One").closest('[class*="border-"]');
-      expect(flowElement).toHaveClass("border-[hsl(var(--primary))]");
+      expect(flowElement).toHaveClass("border-primary");
     });
   });
 

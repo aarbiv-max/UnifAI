@@ -141,8 +141,9 @@ describe("AgentFlowGraph", () => {
       );
 
       // Find the CardContent element by checking for the height style
+      // Use getAttribute to check the raw style value since jsdom computes vh to px
       const cardContent = container.querySelector('[style*="height"]');
-      expect(cardContent).toHaveStyle({ height: "73.5vh" });
+      expect(cardContent?.getAttribute('style')).toContain('height: 73.5vh');
     });
   });
 

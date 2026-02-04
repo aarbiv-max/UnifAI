@@ -58,13 +58,13 @@ describe("WorkPlanDisplayHelpers", () => {
   });
 
   describe("formatTimestamp", () => {
-    it("formats ISO timestamp to 'HH:MM:SS' format", () => {
+    it("formats ISO timestamp to time format", () => {
       // Create a specific date/time
       const timestamp = "2024-01-15T14:30:45.000Z";
       const result = formatTimestamp(timestamp);
 
-      // The result should match HH:MM:SS pattern
-      expect(result).toMatch(/^\d{1,2}:\d{2}:\d{2}$/);
+      // The result should contain HH:MM:SS pattern (may include AM/PM based on locale)
+      expect(result).toMatch(/\d{1,2}:\d{2}:\d{2}/);
     });
 
     it("uses toLocaleTimeString with hour, minute, second", () => {

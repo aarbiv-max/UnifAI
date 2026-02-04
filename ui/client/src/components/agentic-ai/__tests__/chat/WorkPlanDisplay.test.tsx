@@ -336,8 +336,8 @@ describe("WorkPlanDisplay", () => {
         />
       );
 
-      // Done status shows CheckCircle2 icon
-      expect(container.querySelector(".lucide-check-circle-2")).toBeInTheDocument();
+      // Done status shows CheckCircle2 icon (lucide uses circle-check class)
+      expect(container.querySelector(".lucide-circle-check")).toBeInTheDocument();
     });
 
     it("shows title (strikethrough when done)", () => {
@@ -362,7 +362,7 @@ describe("WorkPlanDisplay", () => {
     });
 
     it("shows description (truncated to 2 lines)", () => {
-      render(
+      const { container } = render(
         <WorkPlanDisplay
           workPlanSnapshot={createMockWorkPlanSnapshot({
             isExpanded: true,
@@ -379,6 +379,35 @@ describe("WorkPlanDisplay", () => {
       );
 
       expect(screen.getByText("Test description text")).toBeInTheDocument();
+      
+      // Verify line-clamp-2 class is applied for truncation
+      const descriptionElement = container.querySelector(".line-clamp-2");
+      expect(descriptionElement).toBeInTheDocument();
+    });
+
+    it("renders WorkItemCard for each work item", () => {
+      render(
+        <WorkPlanDisplay
+          workPlanSnapshot={createMockWorkPlanSnapshot({
+            isExpanded: true,
+            workplan: {
+              summary: "Test",
+              items: {
+                "item-1": createMockWorkItem({ id: "item-1", title: "Task One" }),
+                "item-2": createMockWorkItem({ id: "item-2", title: "Task Two" }),
+                "item-3": createMockWorkItem({ id: "item-3", title: "Task Three" }),
+              },
+            },
+          })}
+          messageId="msg-1"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      // Each work item should be rendered as a card with its title
+      expect(screen.getByText("Task One")).toBeInTheDocument();
+      expect(screen.getByText("Task Two")).toBeInTheDocument();
+      expect(screen.getByText("Task Three")).toBeInTheDocument();
     });
 
     it("shows 'local' badge for local items", () => {
@@ -713,25 +742,37 @@ describe("WorkPlanDisplay", () => {
     });
 
     it("re-renders on summary changes", () => {
+      const onToggle = vi.fn();
+      const snapshot1: WorkPlanSnapshot = {
+        plan_id: "plan-1",
+        action: "create",
+        isExpanded: false,
+        workplan: { summary: "Original summary", items: {} },
+      };
+
       const { rerender } = render(
         <WorkPlanDisplay
-          workPlanSnapshot={createMockWorkPlanSnapshot({
-            workplan: { summary: "Original summary", items: {} },
-          })}
+          workPlanSnapshot={snapshot1}
           messageId="msg-1"
-          onToggleExpansion={vi.fn()}
+          onToggleExpansion={onToggle}
         />
       );
 
       expect(screen.getByText("Original summary")).toBeInTheDocument();
 
+      // Create a new snapshot with different plan_id to force re-render (memo comparison)
+      const snapshot2: WorkPlanSnapshot = {
+        plan_id: "plan-2",
+        action: "create",
+        isExpanded: false,
+        workplan: { summary: "Updated summary", items: {} },
+      };
+
       rerender(
         <WorkPlanDisplay
-          workPlanSnapshot={createMockWorkPlanSnapshot({
-            workplan: { summary: "Updated summary", items: {} },
-          })}
+          workPlanSnapshot={snapshot2}
           messageId="msg-1"
-          onToggleExpansion={vi.fn()}
+          onToggleExpansion={onToggle}
         />
       );
 

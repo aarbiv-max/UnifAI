@@ -96,96 +96,89 @@ describe("arrayFieldHelpers", () => {
   });
 
   describe("getArrayFieldMode", () => {
-    it("returns 'refItems' for array fields with $ref items", () => {
-      const fieldSchema = {
-        type: "array",
-        items: {
-          $ref: "#/definitions/ResourceRef",
-        },
-      };
-
-      expect(getArrayFieldMode(fieldSchema)).toBe("refItems");
+    // The function signature is: getArrayFieldMode(isArrayWithRefItems, hasDynamicHint, isDirectArrayType)
+    
+    it("returns 'refItems' when isArrayWithRefItems is true", () => {
+      expect(getArrayFieldMode(true, false, false)).toBe("refItems");
     });
 
-    it("returns 'dynamic' for arrays with populateHint", () => {
-      const fieldSchema = {
-        type: "array",
-        items: { type: "string" },
-      };
-      const hints = { populate: { endpoint: "/api/fetch" } };
-
-      expect(getArrayFieldMode(fieldSchema, hints)).toBe("dynamic");
+    it("returns 'dynamic' when hasDynamicHint is true (and not refItems)", () => {
+      expect(getArrayFieldMode(false, true, false)).toBe("dynamic");
     });
 
-    it("returns 'regular' for plain string arrays", () => {
-      const fieldSchema = {
-        type: "array",
-        items: { type: "string" },
-      };
-
-      expect(getArrayFieldMode(fieldSchema)).toBe("regular");
+    it("returns 'regular' when isDirectArrayType is true (and not refItems or dynamic)", () => {
+      expect(getArrayFieldMode(false, false, true)).toBe("regular");
     });
 
-    it("returns null when array mode cannot be determined", () => {
-      const fieldSchema = {
-        type: "object", // Not an array
-      };
-
-      expect(getArrayFieldMode(fieldSchema)).toBeNull();
+    it("returns null when all flags are false", () => {
+      expect(getArrayFieldMode(false, false, false)).toBeNull();
     });
 
-    it("handles nested $ref in items", () => {
-      const fieldSchema = {
-        type: "array",
-        items: {
-          anyOf: [{ $ref: "#/definitions/Type1" }, { $ref: "#/definitions/Type2" }],
-        },
-      };
+    it("refItems takes precedence over dynamic", () => {
+      expect(getArrayFieldMode(true, true, false)).toBe("refItems");
+    });
 
-      expect(getArrayFieldMode(fieldSchema)).toBe("refItems");
+    it("refItems takes precedence over regular", () => {
+      expect(getArrayFieldMode(true, false, true)).toBe("refItems");
+    });
+
+    it("dynamic takes precedence over regular", () => {
+      expect(getArrayFieldMode(false, true, true)).toBe("dynamic");
     });
   });
 
   describe("getValidRefOptions", () => {
-    it("filters options with valid non-empty rids", () => {
-      const options = [
-        { rid: "valid-1", name: "Option 1" },
-        { rid: "", name: "Empty RID" },
-        { rid: "valid-2", name: "Option 2" },
-        { rid: null, name: "Null RID" },
-      ];
+    // The function signature is: getValidRefOptions(refOptions, category)
+    
+    it("filters options with valid non-empty rids from category", () => {
+      const refOptions = {
+        resources: [
+          { rid: "valid-1", name: "Option 1" },
+          { rid: "", name: "Empty RID" },
+          { rid: "valid-2", name: "Option 2" },
+        ],
+      };
 
-      const result = getValidRefOptions(options);
+      const result = getValidRefOptions(refOptions, "resources");
 
       expect(result).toHaveLength(2);
       expect(result[0].rid).toBe("valid-1");
       expect(result[1].rid).toBe("valid-2");
     });
 
-    it("returns empty array for null input", () => {
-      expect(getValidRefOptions(null as any)).toEqual([]);
+    it("returns empty array when category is null", () => {
+      const refOptions = {
+        resources: [{ rid: "valid-1", name: "Option 1" }],
+      };
+      expect(getValidRefOptions(refOptions, null)).toEqual([]);
     });
 
-    it("returns empty array for undefined input", () => {
-      expect(getValidRefOptions(undefined as any)).toEqual([]);
+    it("returns empty array when category does not exist", () => {
+      const refOptions = {
+        resources: [{ rid: "valid-1", name: "Option 1" }],
+      };
+      expect(getValidRefOptions(refOptions, "nonexistent")).toEqual([]);
     });
 
     it("handles array with all invalid options", () => {
-      const options = [
-        { rid: "", name: "A" },
-        { rid: null, name: "B" },
-        { rid: undefined, name: "C" },
-      ];
+      const refOptions = {
+        items: [
+          { rid: "", name: "A" },
+          { rid: "   ", name: "B" },
+        ],
+      };
 
-      expect(getValidRefOptions(options)).toEqual([]);
+      expect(getValidRefOptions(refOptions, "items")).toEqual([]);
     });
 
     it("preserves all properties of valid options", () => {
-      const options = [
-        { rid: "valid-1", name: "Option", extra: "data", nested: { value: 1 } },
-      ];
+      const refOptions = {
+        items: [
+          { rid: "valid-1", name: "Option", extra: "data", nested: { value: 1 } },
+        ],
+      };
 
-      const result = getValidRefOptions(options);
+      const result = getValidRefOptions(refOptions, "items");
 
       expect(result[0]).toEqual({
         rid: "valid-1",
@@ -193,6 +186,10 @@ describe("arrayFieldHelpers", () => {
         extra: "data",
         nested: { value: 1 },
       });
+    });
+
+    it("returns empty array for empty refOptions", () => {
+      expect(getValidRefOptions({}, "resources")).toEqual([]);
     });
   });
 });

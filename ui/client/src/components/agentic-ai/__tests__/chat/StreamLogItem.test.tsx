@@ -181,8 +181,9 @@ describe("StreamLogItem", () => {
         />
       );
 
-      // Initial state is collapsed
-      expect(screen.getByText("Test message content")).toBeInTheDocument();
+      // Initial state is collapsed - use getAllByText since CSS display toggle keeps both views in DOM
+      const collapsedElements = screen.getAllByText("Test message content");
+      expect(collapsedElements.length).toBeGreaterThan(0);
 
       // Simulate expansion
       rerender(
@@ -193,8 +194,9 @@ describe("StreamLogItem", () => {
         />
       );
 
-      // Still shows content but in expanded form
-      expect(screen.getByText("Test message content")).toBeInTheDocument();
+      // Still shows content but in expanded form - multiple elements exist due to CSS display toggle
+      const expandedElements = screen.getAllByText("Test message content");
+      expect(expandedElements.length).toBeGreaterThan(0);
     });
   });
 
@@ -290,8 +292,8 @@ describe("StreamLogItem", () => {
         />
       );
 
-      // In collapsed mode, shows truncated preview
-      expect(screen.getByText(/Line 1/)).toBeInTheDocument();
+      // In collapsed mode, shows truncated preview - may have multiple elements
+      expect(screen.getAllByText(/Line 1/).length).toBeGreaterThanOrEqual(1);
     });
 
     it("shows 'Show full log' button when content > 2 lines", () => {
@@ -451,6 +453,118 @@ describe("StreamLogItem", () => {
       );
 
       expect(screen.getByText("1 tool")).toBeInTheDocument();
+    });
+
+    it("re-renders on messageId changes", () => {
+      const { rerender } = render(
+        <StreamLogItem
+          log={createMockLog()}
+          messageId="msg-1"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      rerender(
+        <StreamLogItem
+          log={createMockLog()}
+          messageId="msg-2"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      // Component should still render correctly with new messageId
+      expect(screen.getByText("Test Node")).toBeInTheDocument();
+    });
+
+    it("re-renders on nodeName changes", () => {
+      const { rerender } = render(
+        <StreamLogItem
+          log={createMockLog({ nodeName: "First Node" })}
+          messageId="msg-1"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText("First Node")).toBeInTheDocument();
+
+      rerender(
+        <StreamLogItem
+          log={createMockLog({ nodeName: "Second Node" })}
+          messageId="msg-1"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText("Second Node")).toBeInTheDocument();
+    });
+
+    it("re-renders on message content changes", () => {
+      const { rerender } = render(
+        <StreamLogItem
+          log={createMockLog({ message: "First message" })}
+          messageId="msg-1"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      // Message content should be visible in collapsed preview - may appear multiple times
+      expect(screen.getAllByText("First message").length).toBeGreaterThan(0);
+
+      rerender(
+        <StreamLogItem
+          log={createMockLog({ message: "Updated message" })}
+          messageId="msg-1"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      expect(screen.getAllByText("Updated message").length).toBeGreaterThan(0);
+    });
+
+    it("re-renders on tools content changes (id or output)", () => {
+      const { rerender } = render(
+        <StreamLogItem
+          log={createMockLog({
+            isExpanded: true,
+            tools: [createMockTool({ id: "tool-1", output: "initial output" })],
+          })}
+          messageId="msg-1"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText("Tool Calls (1)")).toBeInTheDocument();
+
+      rerender(
+        <StreamLogItem
+          log={createMockLog({
+            isExpanded: true,
+            tools: [createMockTool({ id: "tool-2", output: "updated output" })],
+          })}
+          messageId="msg-1"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      // Component should re-render with updated tool
+      expect(screen.getByText("Tool Calls (1)")).toBeInTheDocument();
+    });
+  });
+
+  describe("Node name display", () => {
+    it("displays nodeName directly without formatting", () => {
+      // Note: The component displays log.nodeName as-is without any transformation
+      // (no underscores→spaces or capitalization)
+      render(
+        <StreamLogItem
+          log={createMockLog({ nodeName: "my_node_name" })}
+          messageId="msg-1"
+          onToggleExpansion={vi.fn()}
+        />
+      );
+
+      // The node name is displayed exactly as provided
+      expect(screen.getByText("my_node_name")).toBeInTheDocument();
     });
   });
 });

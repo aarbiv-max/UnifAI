@@ -82,7 +82,8 @@ describe("WorkflowStatusBanner", () => {
         <WorkflowStatusBanner variant="loading" message="Loading" />
       );
 
-      expect(container.querySelector(".lucide-loader-2")).toBeInTheDocument();
+      // Lucide renders Loader2 with class lucide-loader-circle
+      expect(container.querySelector(".lucide-loader-circle")).toBeInTheDocument();
       expect(container.querySelector(".animate-spin")).toBeInTheDocument();
     });
   });

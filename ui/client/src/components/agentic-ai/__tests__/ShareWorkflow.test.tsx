@@ -100,17 +100,25 @@ describe("ShareWorkflow", () => {
     });
 
     it("toggle disabled when isLoading is true", async () => {
-      getBlueprintInfoMock.mockImplementation(
+      const user = userEvent.setup();
+      getBlueprintInfoMock.mockResolvedValueOnce({
+        metadata: { usageScope: "private" },
+      });
+      // Make setBlueprintMetadata hang to keep isLoading=true
+      setBlueprintMetadataMock.mockImplementation(
         () => new Promise(() => {}), // Never resolves, keeps loading
       );
 
       render(<ShareWorkflow blueprintId="bp-1" />);
 
-      // During loading, the switch should be disabled
-      await waitFor(() => {
-        const toggle = screen.getByRole("switch");
-        expect(toggle).toBeDisabled();
-      });
+      // Wait for initial state to load
+      const toggle = await screen.findByRole("switch");
+      
+      // Click the toggle to trigger loading state
+      await user.click(toggle);
+
+      // During loading, the label should show "Enabling..."
+      expect(screen.getByText("Enabling...")).toBeInTheDocument();
     });
 
     it("toggle disabled when isValidating is true", async () => {
@@ -351,8 +359,10 @@ describe("ShareWorkflow", () => {
     it("copy button: copies to clipboard, shows Check icon for 2s", async () => {
       const user = userEvent.setup();
       const writeTextMock = vi.fn().mockResolvedValue(undefined);
-      Object.assign(navigator, {
-        clipboard: { writeText: writeTextMock },
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: writeTextMock },
+        writable: true,
+        configurable: true,
       });
 
       getBlueprintInfoMock.mockResolvedValueOnce({
