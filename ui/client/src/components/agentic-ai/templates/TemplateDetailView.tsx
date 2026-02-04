@@ -85,6 +85,7 @@ interface FieldCardProps {
   value: any;
   onChange: (value: any) => void;
   error?: string;
+  onClickToEdit?: () => void;
 }
 
 const FieldCard: React.FC<FieldCardProps> = ({ 
@@ -92,7 +93,8 @@ const FieldCard: React.FC<FieldCardProps> = ({
   isEditing, 
   value, 
   onChange,
-  error 
+  error,
+  onClickToEdit
 }) => {
   // Get display type for badge
   const getDisplayType = () => {
@@ -111,10 +113,11 @@ const FieldCard: React.FC<FieldCardProps> = ({
             animate={{ rotateX: 0, opacity: 1 }}
             exit={{ rotateX: 90, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className={`flex items-center gap-2 p-3 bg-background-dark rounded-lg border ${
+            className={`flex items-center gap-2 p-3 bg-background-dark rounded-lg border cursor-pointer hover:border-primary/50 transition-colors ${
               error ? 'border-red-500 bg-red-500/5' : 'border-gray-800'
             }`}
             style={{ transformStyle: 'preserve-3d', backfaceVisibility: 'hidden' }}
+            onClick={onClickToEdit}
           >
             {error ? (
               <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
@@ -232,6 +235,7 @@ const FieldsSection: React.FC<FieldsSectionProps> = ({
               value={formData[field.key]}
               onChange={(value) => onFieldChange(field.key, value)}
               error={errors[field.key]}
+              onClickToEdit={!isEditing ? onToggleEdit : undefined}
             />
           </motion.div>
         ))}
