@@ -1,7 +1,7 @@
 /**
- * Analytics type definitions
+ * System Statistics type definitions
  * 
- * Type definitions for analytics and statistics data structures
+ * Type definitions for system-wide statistics data structures
  */
 
 export interface TotalStats {
@@ -33,20 +33,6 @@ export interface ActiveUser {
   status_breakdown: StatusBreakdownMap;
 }
 
-export interface TimeStats {
-  earliest_run: {
-    run_id: string;
-    user_id: string;
-    timestamp: string;
-  } | null;
-  latest_run: {
-    run_id: string;
-    user_id: string;
-    timestamp: string;
-  } | null;
-  time_span_days: number | null;
-}
-
 export interface BlueprintUsage {
   blueprint_id: string;
   blueprint_name: string;
@@ -59,10 +45,9 @@ export interface TimeSeriesData {
   count: number;
 }
 
-export interface AnalyticsOverview {
+export interface SystemStatsResponse {
   total_stats: TotalStats;
   status_breakdown: StatusBreakdown;
-  time_stats: TimeStats;
   active_today: ActiveUser[];
   active_7days: ActiveUser[];
   active_30days: ActiveUser[];

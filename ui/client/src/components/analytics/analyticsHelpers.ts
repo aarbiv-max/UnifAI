@@ -4,7 +4,7 @@
  * Shared functions for analytics data transformations and calculations
  */
 
-import type { StatusBreakdown, UserActivity, ActiveUser } from '@/types/analytics';
+import type { StatusBreakdown, UserActivity, ActiveUser } from '@/types/systemStats';
 
 interface FilteredStats {
   total_runs: number;

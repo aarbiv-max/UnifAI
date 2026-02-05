@@ -1,0 +1,31 @@
+/**
+ * System-wide Statistics API client
+ * 
+ * NOTE: Uses axios from @/http/axiosAgentConfig which points to /api2 (Multi-Agent Service).
+ * Statistics endpoints are in multi-agent/api/flask/endpoints/statistics.py.
+ */
+
+import axios from '@/http/axiosAgentConfig';
+import type { SystemStatsResponse } from '@/types/systemStats';
+
+/**
+ * Fetch comprehensive system-wide statistics (workflows, users, blueprints)
+ * 
+ * This single endpoint returns all system stats needed for the admin dashboard:
+ * - Total stats (runs, users, avg runs per user)
+ * - Status breakdown
+ * - Active users by time period (today, 7 days, 30 days)
+ * - Top users and blueprints
+ * - Time series activity data
+ * 
+ * Requires admin access.
+ */
+export async function fetchSystemWideStats(timeRange: 'today' | '7days' | '30days' | 'all' = 'all', userId?: string): Promise<SystemStatsResponse> {
+  const params: any = { time_range: timeRange };
+  if (userId) {
+    params.userId = userId;
+  }
+  const response = await axios.get<SystemStatsResponse>('/statistics/stats.system.get', { params });
+  return response.data;
+}
+

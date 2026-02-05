@@ -4,7 +4,7 @@ import Header from "@/components/layout/Header";
 import StatusBar from "@/components/layout/StatusBar";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { fetchAnalyticsOverview } from "@/api/analytics";
+import { fetchSystemWideStats } from "@/api/systemStats";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import GlassPanel from "@/components/ui/GlassPanel";
@@ -27,7 +27,7 @@ import { TopBlueprintsQuickView } from "@/components/analytics/TopBlueprintsQuic
 import { BlueprintsTable } from "@/components/analytics/BlueprintsTable";
 import { filterAnalyticsByTimeRange, truncateUserId } from "@/components/analytics/analyticsHelpers";
 import { getWorkflowStatusColors } from "@/components/agentic-ai/chat/WorkPlanDisplayHelpers";
-import type { UserActivity } from "@/types/analytics";
+import type { UserActivity } from "@/types/systemStats";
 
 type TimeRange = 'today' | '7days' | '30days' | 'all';
 
@@ -43,10 +43,10 @@ export default function Analytics() {
 
   const hasAccess = user?.is_admin || false;
 
-  // Fetch analytics data
+  // Fetch system-wide stats data
   const { data: analytics, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ['analyticsOverview', timeRange, user?.username || user?.sub],
-    queryFn: () => fetchAnalyticsOverview(timeRange, user?.username || user?.sub),
+    queryKey: ['systemStats', timeRange, user?.username || user?.sub],
+    queryFn: () => fetchSystemWideStats(timeRange, user?.username || user?.sub),
     staleTime: 60000,
     gcTime: 300000,
     refetchInterval: 60000,

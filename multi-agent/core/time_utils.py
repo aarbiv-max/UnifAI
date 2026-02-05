@@ -1,5 +1,5 @@
 """
-Analytics utility functions for time range filtering and date calculations.
+Time utilities for analytics and statistics.
 
 This module provides reusable utilities for:
 - Time range filtering (today, 7days, 30days, all)
@@ -33,8 +33,9 @@ def apply_time_range_filter(
     
     if time_range and time_range != "all":
         cutoff_date = get_cutoff_date(time_range)
-        cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z')
-        result[field_path] = {"$gte": cutoff_iso}
+        if cutoff_date:
+            cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z')
+            result[field_path] = {"$gte": cutoff_iso}
 
     return result
 
@@ -62,17 +63,20 @@ def get_cutoff_date(time_range: str) -> Optional[datetime]:
         return None
 
 
-def get_time_range_params(time_range: str, now: datetime) -> Tuple[Optional[datetime], str]:
+def get_time_range_params(time_range: str, now: datetime = None) -> Tuple[Optional[datetime], str]:
     """
     Get cutoff date and date format based on time_range.
     
     Args:
         time_range: One of "today", "7days", "30days", or "all"
-        now: Current datetime (usually datetime.now(timezone.utc))
+        now: Current datetime (defaults to datetime.now(timezone.utc))
     
     Returns:
         Tuple of (cutoff_date, date_format_string). cutoff_date is None for "all".
     """
+    if now is None:
+        now = datetime.now(timezone.utc)
+    
     if time_range == "today":
         cutoff_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
         date_format = "%Y-%m-%d %H:00"

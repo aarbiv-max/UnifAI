@@ -18,8 +18,6 @@ from sharing.repository.mongo_repository import MongoShareRepository
 from sharing.cloner import ShareCloner
 from sharing.service import ShareService
 from statistics.service import StatisticsService
-from analytics.repository.mongo_repository import MongoAnalyticsRepository
-from analytics.service import AnalyticsService
 from validation.service import ElementValidationService
 from config.app_config import AppConfig
 from global_utils.utils.singleton import SingletonMeta
@@ -135,19 +133,9 @@ class AppContainer(metaclass=SingletonMeta):
             cloner=self.share_cloner
         )
 
-        # Analytics service (system-wide statistics)
-        self.analytics_repo = MongoAnalyticsRepository(
-            mongodb_port=cfg.mongodb_port,
-            mongodb_ip=cfg.mongodb_ip,
-            db_name=cfg.mongo_db,
-            collection_name=cfg.session_coll  # Same collection as sessions
-        )
-        self.analytics_service = AnalyticsService(
-            analytics_repo=self.analytics_repo,
-            blueprint_service=self.blueprint_service
-        )
-
-        # Statistics service (user-specific dashboard stats)
+        # Statistics service (user-specific dashboard stats AND system-wide analytics)
+        # System-wide analytics uses session_service's system-wide methods
+        # No separate analytics repository needed - follows composition pattern
         self.statistics_service = StatisticsService(
             blueprint_service=self.blueprint_service,
             session_service=self.session_service,
