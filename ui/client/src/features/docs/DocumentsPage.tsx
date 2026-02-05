@@ -109,8 +109,20 @@ export default function Documents() {
 
   const selectedCount = Object.keys(rowSelection).length;
 
+  const handleBulkDeleteClick = () => {
+    setBulkDeleteConfirm({ open: true, count: selectedCount });
+  };
+
   const viewButtons = (
     <div className="flex items-center space-x-4">
+        {selectedCount > 0 && (
+          <BulkDeleteButton
+            selectedCount={selectedCount}
+            onClick={handleBulkDeleteClick}
+            disabled={bulkDeleteLoading || deleteLoading}
+            itemName={selectedCount === 1 ? "document" : "documents"}
+          />
+        )}
         <UmamiTrack 
           event={UmamiEvents.UPLOAD_DOCUMENT_BUTTON}
         >
