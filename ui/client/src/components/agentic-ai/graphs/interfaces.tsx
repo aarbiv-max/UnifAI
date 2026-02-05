@@ -127,7 +127,6 @@ export interface EnhancedNodeData extends NodeData {
 
 /**
  * Shared graph display properties used by AgentFlowGraph, WorkflowsPanel, and ReactFlowGraph.
- * Centralizing this type improves maintainability and ensures consistency.
  */
 export interface GraphDisplayProps {
   showControls?: boolean;

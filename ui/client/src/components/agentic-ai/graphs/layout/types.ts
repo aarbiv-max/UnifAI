@@ -89,11 +89,28 @@ export interface LayoutEdge {
   isBranch: boolean;
 }
 
+// ============================================================================
+// Node Type Classification
+// ============================================================================
+
+/**
+ * Known node types in the system.
+ * Using a union type prevents typos and makes the code more self-documenting.
+ */
+export type NodeType =
+  | "user_question_node"
+  | "final_answer_node"
+  | "orchestrator_node"
+  | "router_direct"
+  | "router"
+  | "condition"
+  | "custom_agent_node";
+
 /**
  * Basic node information
  */
 export interface NodeInfo {
-  type: string;
+  type: NodeType | string; // Allow string for unknown/future types
   label: string;
 }
 
