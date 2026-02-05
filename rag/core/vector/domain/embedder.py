@@ -137,3 +137,14 @@ class EmbeddingGenerator(ABC):
         """Split chunks into batches."""
         for i in range(0, len(chunks), self.batch_size):
             yield chunks[i:i + self.batch_size]
+    
+    def test_connection(self) -> bool:
+        """
+        Test if the embedding service is available.
+        
+        Delegates to the underlying port's test_connection method.
+        
+        Returns:
+            True if available, False otherwise
+        """
+        return self._port.test_connection()

@@ -405,6 +405,43 @@ def terms_approval_service():
     return TermsApprovalService(approval_repo=terms_approval_repository())
 
 
+@lru_cache(maxsize=1)
+def remote_services_health():
+    """
+    Services health service for checking external service availability.
+    
+    Checks Docling and Embedding services to determine if document upload
+    should be enabled. Used by the /service.readiness.get endpoint.
+    """
+    from core.health.service import ServicesHealthService
+    from bootstrap.factories import DocumentConverterFactory
+    from config.app_config import AppConfig
+    
+    config = AppConfig.get_instance()
+    
+    # Get the embedding port from the existing generator
+    # EmbeddingGenerator._port is the EmbeddingPort
+    embedding_port = None
+    if config.use_remote_embedding:
+        embedding_port = embedding_generator()._port
+    
+    # Create a docling port for health checking
+    # Uses shorter timeout since it's just a health check
+    docling_port = None
+    if config.use_remote_docling:
+        docling_port = DocumentConverterFactory.create_remote(
+            base_url=config.docling_service_url,
+            timeout=10,  # Short timeout for health checks
+        )
+    
+    return ServicesHealthService(
+        docling_port=docling_port,
+        embedding_port=embedding_port,
+        use_remote_docling=config.use_remote_docling,
+        use_remote_embedding=config.use_remote_embedding,
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # SLACK EVENTS (Application layer - event handling)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -612,6 +649,7 @@ def clear_all_caches():
     monitoring_service.cache_clear()
     data_source_service.cache_clear()
     terms_approval_service.cache_clear()
+    remote_services_health.cache_clear()
     # Registration & Dispatch
     doc_validators.cache_clear()
     slack_validators.cache_clear()

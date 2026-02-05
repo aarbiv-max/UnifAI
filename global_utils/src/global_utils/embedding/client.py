@@ -79,7 +79,8 @@ class EmbeddingClient:
         try:
             payload = {
                 "input": texts,
-                "model": model
+                "model": model,
+                "truncate": True,  # Truncate inputs that exceed model's max tokens
             }
             
             response = self._client.post(
