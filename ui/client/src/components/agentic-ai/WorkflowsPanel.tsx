@@ -104,7 +104,7 @@ export default function WorkflowsPanel({
       }
     } catch (error) {
       console.error("Error fetching available blueprints:", error);
-      // Ensure loading state is reset so user isn't stuck in loading state
+      // Clear any stale flows data on error
       setGraphFlows([]);
     }
   };
@@ -143,6 +143,15 @@ export default function WorkflowsPanel({
       clearValidation();
     }
   }, [selectedFlow?.id, validateSelectedBlueprint, clearValidation]);
+
+  // Expose flows data for parent components
+  useEffect(() => {
+    // This allows parent components to access the flows data if needed
+    // Also handles auto-selecting first flow after deletion clears selection
+    if (typeof onFlowSelect === 'function' && graphFlows.length > 0 && !selectedFlow) {
+      onFlowSelect(graphFlows[0]);
+    }
+  }, [graphFlows, selectedFlow, onFlowSelect]);
 
   const handleFlowSelect = (flow: FlowObject): void => {
     onFlowSelect(flow);
