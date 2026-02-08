@@ -14,7 +14,7 @@ pymongo
 python-dotenv
 httptools
 mcp
-paramiko
+asyncssh
 openshift-client
 yarl
 jsonschema
