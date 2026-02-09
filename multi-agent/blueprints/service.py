@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Mapping, Optional
 
-from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft
+from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft, BlueprintSummary
 from blueprints.repository.repository import BlueprintRepository
 from blueprints.resolver import BlueprintResolver
 from blueprints.validation.collector import BlueprintConfigCollector
@@ -92,6 +92,12 @@ class BlueprintService:
         """
         docs = self._repo.list_docs(user_id=user_id, **pg)
         return [doc for doc in docs]
+
+    def list_summaries(
+            self, *, user_id: str | None = None, **pg
+    ) -> List[BlueprintSummary]:
+        """Return lightweight blueprint summaries (no full spec)."""
+        return self._repo.list_summaries(user_id=user_id, **pg)
 
     def list_resolved_docs(
             self, *, user_id: str | None = None, **pg

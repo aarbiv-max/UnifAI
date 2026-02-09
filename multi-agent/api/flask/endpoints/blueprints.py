@@ -98,6 +98,23 @@ def available_doc_list(user_id):
         return jsonify({"error": str(e)}), 500
 
 
+@blueprints_bp.route("/available.blueprints.summary.get", methods=["GET"])
+@from_query({
+    "user_id": fields.Str(data_key="userId", required=True)
+})
+def available_blueprint_summaries(user_id):
+    """
+    Return lightweight blueprint summaries (id, name, description,
+    timestamps, metadata) without the full spec.
+    """
+    try:
+        svc = current_app.container.blueprint_service
+        summaries = svc.list_summaries(user_id=user_id)
+        return jsonify([s.model_dump(mode="json") for s in summaries]), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @blueprints_bp.route("/available.blueprints.resolved.get", methods=["GET"])
 @from_query({
     "user_id": fields.Str(data_key="userId", required=True)

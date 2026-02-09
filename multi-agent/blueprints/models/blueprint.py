@@ -1,5 +1,6 @@
-from typing import Generic, List, TypeVar
+from typing import Any, Dict, Generic, List, TypeVar
 from uuid import uuid4
+from datetime import datetime
 from pydantic import BaseModel, Field, Extra
 
 # -----------------------------------------------------------------------------
@@ -64,6 +65,20 @@ class StepDef(BaseModel):
 
     class Config:
         extra = Extra.forbid
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Blueprint summary (lightweight view – no spec details)
+# ─────────────────────────────────────────────────────────────────────────────
+class BlueprintSummary(BaseModel):
+    """Lightweight view of a blueprint for listing – no spec details."""
+    blueprint_id: str
+    user_id: str
+    name: str = "Untitled blueprint"
+    description: str = ""
+    created_at: datetime
+    updated_at: datetime
+    metadata: Dict[str, Any] = {}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

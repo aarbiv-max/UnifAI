@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Mapping, Any, Optional, Dict
-from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft
+from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft, BlueprintSummary
 
 
 class BlueprintRepository(ABC):
@@ -64,6 +64,20 @@ class BlueprintRepository(ABC):
         """
         Return resolved `BlueprintSpec`s, optionally restricted to `user_id`,
         with pagination.
+        """
+
+    @abstractmethod
+    def list_summaries(
+            self,
+            *,
+            user_id: Optional[str] = None,
+            skip: int = 0,
+            limit: int = 100,
+            sort_desc: bool = True,
+    ) -> List[BlueprintSummary]:
+        """
+        Return lightweight blueprint summaries (id, name, description,
+        timestamps, metadata) without the full spec.
         """
 
     @abstractmethod
