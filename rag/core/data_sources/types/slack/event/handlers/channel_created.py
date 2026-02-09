@@ -5,6 +5,7 @@ from core.data_sources.types.slack.domain.event.port import SlackEventHandler
 from core.data_sources.types.slack.domain.event.model import ChannelCreatedEvent
 from core.data_sources.types.slack.domain.channel.model import SlackChannel
 from core.data_sources.types.slack.domain.channel.repository import SlackChannelRepository
+from core.data_sources.types.slack.domain.channel.restriction_checker import ChannelRestrictionChecker
 from shared.logger import logger
 
 
@@ -50,6 +51,15 @@ class ChannelCreatedEventHandler(SlackEventHandler):
             channel_info = typed.channel_raw
             if not channel_info:
                 logger.warning(f"No channel payload found for {self.event_type}")
+                return
+
+            # AIA-Issue-011: Filter out restricted channels before saving
+            if ChannelRestrictionChecker.is_restricted(
+                channel_name=channel_info.get("name", ""),
+                is_private=channel_info.get("is_private", False),
+                is_ext_shared=channel_info.get("is_ext_shared", False),
+            ):
+                logger.info(f"Skipping restricted channel from {self.event_type}: {typed.channel_id}")
                 return
 
             # Create domain model from Slack API response

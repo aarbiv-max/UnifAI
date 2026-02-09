@@ -7,6 +7,7 @@ from infrastructure.sources.slack.config import SlackConfigManager
 from core.connector.domain.base import DataConnector
 from core.data_sources.types.slack.domain.channel.model import SlackChannel
 from core.data_sources.types.slack.domain.channel.repository import SlackChannelRepository
+from core.data_sources.types.slack.domain.channel.restriction_checker import ChannelRestrictionChecker
 from infrastructure.sources.slack.thread_retriever import SlackThreadRetriever
 from infrastructure.sources.slack.thread_retriever_worker import ThreadRetrieverWorker
 
@@ -223,11 +224,19 @@ class SlackConnector(DataConnector):
             # Process channels from current page
             batch_channels: List[SlackChannel] = []
             for channel in response.get('channels', []):
+                # AIA-Issue-011: Filter out restricted channels before saving
+                if ChannelRestrictionChecker.is_restricted(
+                    channel_name=channel.get("name", ""),
+                    is_private=channel.get("is_private", False),
+                    is_ext_shared=channel.get("is_ext_shared", False),
+                ):
+                    continue
+                
                 channel_model = SlackChannel.from_slack_api(channel, self._project_id)
                 channels.append(channel_model)
                 batch_channels.append(channel_model)
             
-            # Cache batch to MongoDB
+            # Cache batch to MongoDB (only allowed channels)
             self._channel_repo.save_many(batch_channels)
             
             # Check if there are more pages
@@ -349,6 +358,14 @@ class SlackConnector(DataConnector):
             
             # Process channels from current page
             for channel in response.get('channels', []):
+                # AIA-Issue-011: Filter out restricted channels
+                if ChannelRestrictionChecker.is_restricted(
+                    channel_name=channel.get("name", ""),
+                    is_private=channel.get("is_private", False),
+                    is_ext_shared=channel.get("is_ext_shared", False),
+                ):
+                    continue
+                
                 channel_model = SlackChannel.from_slack_api(channel, self._project_id)
                 channels.append(channel_model)
             
