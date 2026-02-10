@@ -123,7 +123,7 @@ export default function Sidebar() {
             isActive={location === '/slack'}
             status={null}
             isCollapsed={isCollapsed}
-            disabled={true}
+            disabled={false}
           />
           <NavItem 
             icon={<FaFileAlt className="sidebar-icon" />} 
