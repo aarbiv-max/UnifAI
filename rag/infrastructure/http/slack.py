@@ -15,7 +15,7 @@ from shared.logger import logger
 slack_bp = Blueprint("slack", __name__)
 
 # Default project ID - should come from session/config in production
-DEFAULT_PROJECT_ID = "default"
+DEFAULT_PROJECT_ID = "example-project"
 
 
 @slack_bp.route("/fetch.available.slack.channels", methods=["PUT"])
@@ -23,7 +23,7 @@ def fetch_slack_channels():
     """Fetch and cache Slack channels from the API."""
     try:
         connector = slack_connector(DEFAULT_PROJECT_ID)
-        channels = connector.fetch_and_cache_channels()
+        channels = connector.fetch_available_slack_channels()
         return jsonify({"status": "channels fetched and cached", "count": len(channels)}), 200
     except Exception as e:
         logger.error(f"Failed to fetch available Slack channels: {str(e)}")

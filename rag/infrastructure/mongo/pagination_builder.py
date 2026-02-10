@@ -169,7 +169,11 @@ class PaginatedQueryBuilder:
         """Build regex match condition for search."""
         if not self._search_regex:
             return {}
-        pattern = f"^{re.escape(self._search_regex)}"
+        # Client may send already-anchored regex (e.g. ^durh); use as-is to match backend behavior
+        if self._search_regex.startswith("^"):
+            pattern = self._search_regex
+        else:
+            pattern = f"^{re.escape(self._search_regex)}"
         return {field: {"$regex": pattern, "$options": "i"}}
 
     def _compute_pagination(
@@ -225,10 +229,14 @@ class PaginatedQueryBuilder:
             pipeline.append({"$sort": {self._sort_field: self._sort_order}})
 
         # Facet for efficient count + data in single query
+        # Exclude _id from documents so ObjectId is not in JSON response (match backend behavior)
+        data_stages = [{"$skip": skip}, {"$limit": self._limit}]
+        if not distinct_field:
+            data_stages.insert(0, {"$project": {"_id": 0}})
         pipeline.append({
             "$facet": {
                 "metadata": [{"$count": "total"}],
-                "data": [{"$skip": skip}, {"$limit": self._limit}]
+                "data": data_stages
             }
         })
 

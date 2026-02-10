@@ -47,7 +47,6 @@ class MongoSlackChannelRepository(SlackChannelRepository):
         builder = (PaginatedQueryBuilder(self._col)
             .with_filter({"project_id": project_id})
             .with_search(search, field="channel_name")
-            .with_sort("channel_name", desc=False)  # Alphabetical
             .paginate(cursor, limit))
         
         if types:
