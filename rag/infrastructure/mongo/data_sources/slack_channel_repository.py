@@ -41,12 +41,13 @@ class MongoSlackChannelRepository(SlackChannelRepository):
     ) -> PaginatedResult[Dict[str, Any]]:
         """
         Get channels with pagination using the builder.
-        
-        Uses PaginatedQueryBuilder for consistent pagination logic.
+
+        Uses natural order (no sort) to match backend Slack channel listing.
         """
         builder = (PaginatedQueryBuilder(self._col)
             .with_filter({"project_id": project_id})
             .with_search(search, field="channel_name")
+            .with_sort(None)
             .paginate(cursor, limit))
         
         if types:

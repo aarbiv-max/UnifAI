@@ -42,7 +42,7 @@ class PaginatedQueryBuilder:
         """
         self._col = collection
         self._filters: List[Dict[str, Any]] = []
-        self._sort_field = "_id"
+        self._sort_field: Optional[str] = None  # None = natural order (no $sort), matches backend when no sort
         self._sort_order = -1
         self._cursor: Optional[str] = None
         self._limit = 50
@@ -91,17 +91,17 @@ class PaginatedQueryBuilder:
         return self
 
     def with_sort(
-        self, 
-        field: str, 
-        desc: bool = True
+        self,
+        field: Optional[str] = None,
+        desc: bool = True,
     ) -> "PaginatedQueryBuilder":
         """
-        Set sort field and order.
-        
+        Set sort field and order. None = natural order (no $sort stage).
+
         Args:
-            field: Field to sort by
-            desc: True for descending (newest first), False for ascending
-            
+            field: Field to sort by, or None for natural/insertion order
+            desc: True for descending (newest first), False for ascending (ignored if field is None)
+
         Returns:
             Self for chaining
         """
@@ -219,13 +219,15 @@ class PaginatedQueryBuilder:
                 }})
             
             pipeline.append({"$group": {"_id": f"${distinct_field}"}})
-            pipeline.append({"$sort": {"_id": self._sort_order}})
+            if self._sort_field is not None:
+                pipeline.append({"$sort": {"_id": self._sort_order}})
         else:
             # ─── FULL DOCUMENTS MODE ──────────────────────────────────────
             search_match = self._build_search_match(self._search_field)
             if search_match:
                 pipeline.append({"$match": search_match})
-            pipeline.append({"$sort": {self._sort_field: self._sort_order}})
+            if self._sort_field is not None:
+                pipeline.append({"$sort": {self._sort_field: self._sort_order}})
 
         # Facet for efficient count + data in single query
         data_stages = [{"$skip": skip}, {"$limit": self._limit}]
