@@ -30,12 +30,12 @@ export const SlackSetupInfo = ({ className = '' }: SlackSetupInfoProps) => {
   const [isNoticeCopied, setIsNoticeCopied] = useState(false);
 
   const copyTagUser = () => {
-    navigator.clipboard.writeText('TAG-001');
+    navigator.clipboard.writeText('Unifai');
     setIsCopied(true);
     
     toast({
       title: "Copied!",
-      description: "TAG-001 has been copied to your clipboard",
+      description: "Unifai has been copied to your clipboard",
       variant: "default",
     });
 
@@ -73,8 +73,8 @@ export const SlackSetupInfo = ({ className = '' }: SlackSetupInfoProps) => {
     },
     {
       icon: Puzzle,
-      title: "Add TAG-001 App",
-      description: "Search for and add the TAG-001 app from the Apps section",
+      title: "Add Unifai App",
+      description: "Search for and add the Unifai app from the Apps section",
       status: "required"
     },
     {
@@ -121,7 +121,7 @@ export const SlackSetupInfo = ({ className = '' }: SlackSetupInfoProps) => {
                 Channel App Integration Required
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                To successfully fetch and embed channel messages, you need to add the TAG-001 app to your Slack channels through the Integrations tab.
+                To successfully fetch and embed channel messages, you need to add the Unifai app to your Slack channels through the Integrations tab.
               </p>
             </div>
           </div>
@@ -147,7 +147,7 @@ export const SlackSetupInfo = ({ className = '' }: SlackSetupInfoProps) => {
                     variant="secondary" 
                     className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 font-mono text-sm shadow-sm"
                   >
-                    TAG-001
+                    Unifai
                   </Badge>
                 </div>
                 <Button
