@@ -1,10 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FaSync, FaCog, FaPlus, FaTrash, FaUsers, FaGlobe } from "react-icons/fa";
 import { HiOutlineLockClosed } from "react-icons/hi";
 import { useLocation } from "wouter";
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { EmbedChannel } from "@/types";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,65 @@ export function isChannelNew(createdAt: Date): boolean {
   const now = new Date()
   const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   return createdAt > dayAgo
+}
+
+const TAGS_MAX_VISIBLE = 2;
+
+function TagsCell({ tags }: { tags: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (tags.length === 0) {
+    return <span className="text-muted-foreground text-xs">—</span>;
+  }
+
+  const visible = tags.slice(0, TAGS_MAX_VISIBLE);
+  const extra = tags.slice(TAGS_MAX_VISIBLE);
+  const remaining = extra.length;
+
+  return (
+    <div className="flex flex-wrap gap-1 items-center max-w-[220px]">
+      {visible.map(tag => (
+        <Badge key={tag} variant="secondary" className="text-xs px-1.5 py-0">
+          {tag}
+        </Badge>
+      ))}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            className="flex flex-wrap gap-1 items-center overflow-hidden"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+          >
+            {extra.map(tag => (
+              <Badge key={tag} variant="secondary" className="text-xs px-1.5 py-0">
+                {tag}
+              </Badge>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {remaining > 0 && !expanded && (
+        <Badge
+          variant="outline"
+          className="text-xs px-1.5 py-0 cursor-pointer hover:bg-muted"
+          onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+        >
+          +{remaining} more
+        </Badge>
+      )}
+      {expanded && remaining > 0 && (
+        <Badge
+          variant="outline"
+          className="text-xs px-1.5 py-0 cursor-pointer hover:bg-muted"
+          onClick={(e) => { e.stopPropagation(); setExpanded(false); }}
+        >
+          Show less
+        </Badge>
+      )}
+    </div>
+  );
 }
 
 export function getColumns(
@@ -70,6 +129,16 @@ export function getColumns(
           </div>
         )
       }
+    },
+    {
+      accessorKey: "tags",
+      header: "Tags",
+      cell: (info) => <TagsCell tags={info.getValue<string[]>() || []} />,
+      filterFn: (row, columnId, filterValue) => {
+        const tags = row.getValue(columnId) as string[];
+        return tags?.some(t => t.toLowerCase().includes(String(filterValue).toLowerCase())) ?? false;
+      },
+      meta: { align: "left", filterType: "text" },
     },
     {
       accessorKey: "status",

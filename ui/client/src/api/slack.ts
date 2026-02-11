@@ -70,6 +70,7 @@ export interface ChannelWithSettings extends Channel {
     communityPrivacy: 'public' | 'private';
     includeThreads: boolean;
     processFileContent: boolean;
+    tags: string[];
   };
 }
 
@@ -96,6 +97,7 @@ export async function submitSlackChannels(
     channel_name: channel.channel_name,
     channel_id: channel.channel_id,
     is_private: channel.is_private,
+    tags: channel.settings.tags || [],
     // Include settings as additional metadata for backend processing
     metadata: {
       dateRange: channel.settings.dateRange,
@@ -142,6 +144,7 @@ export async function fetchEmbeddedSlackChannels(): Promise<EmbedChannel[]> {
     created: formatDate(item.created_at || ''),
     is_private: item.type_data?.is_private || false,
     communityPrivacy: item.type_data?.communityPrivacy || 'public',
+    tags: item.tags || [],
     // Surface backend error info so UI tooltips can display it
     type_data: {
       last_error: item.type_data?.last_error,
@@ -152,6 +155,13 @@ export async function fetchEmbeddedSlackChannels(): Promise<EmbedChannel[]> {
       : (item.type_data?.start_timestamp ? formatDate(item.type_data.start_timestamp) : undefined),
   }));
 };
+
+export async function updateSlackChannel(sourceId: string, updates: Record<string, unknown>): Promise<void> {
+  await api.put('data_sources/data.source.update', {
+    source_id: sourceId,
+    updates
+  });
+}
 
 export async function deleteSlackChannels(channelIds: string[]): Promise<any> {
   const { data } = await api.delete(`data_sources/data.source.delete`, {

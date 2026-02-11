@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { X, Tag } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -13,6 +16,7 @@ export interface ChannelSettingsData {
   dateRange: string;
   includeThreads: boolean;
   processFileContent: boolean;
+  tags: string[];
 }
 
 export interface ChannelSettingsProps {
@@ -26,6 +30,7 @@ export const defaultChannelSettings: ChannelSettingsData = {
   dateRange: '180d',
   includeThreads: true,
   processFileContent: false,
+  tags: [],
 };
 
 export function ChannelSettings({ 
@@ -34,11 +39,32 @@ export function ChannelSettings({
   settings, 
   onSettingsChange 
 }: ChannelSettingsProps) {
+  const [tagInput, setTagInput] = useState('');
+
   const updateSetting = <K extends keyof ChannelSettingsData>(
     key: K, 
     value: ChannelSettingsData[K]
   ) => {
     onSettingsChange(channelId, { ...settings, [key]: value });
+  };
+
+  const handleAddTag = () => {
+    const tag = tagInput.trim().toLowerCase();
+    if (tag && !settings.tags.includes(tag)) {
+      updateSetting('tags', [...settings.tags, tag]);
+    }
+    setTagInput('');
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    updateSetting('tags', settings.tags.filter(t => t !== tagToRemove));
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddTag();
+    }
   };
 
   return (
@@ -77,6 +103,39 @@ export function ChannelSettings({
         <p className="text-xs text-gray-400 mt-1">
           How far back to fetch messages
         </p>
+      </div>
+
+      {/* Tags */}
+      <div>
+        <Label className="text-sm flex items-center gap-1.5">
+          <Tag className="h-3.5 w-3.5" />
+          Tags
+        </Label>
+        <p className="text-xs text-gray-400 mt-1 mb-2">
+          Add tags to organize and filter this channel in retrievers
+        </p>
+        {settings.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {settings.tags.map(tag => (
+              <Badge key={tag} variant="outline" className="text-xs px-2 py-0.5 gap-1">
+                {tag}
+                <X
+                  className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors"
+                  onClick={() => handleRemoveTag(tag)}
+                />
+              </Badge>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Input
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={handleTagKeyDown}
+            placeholder="Type tag and press Enter..."
+            className="text-sm dark:bg-zinc-800 dark:!text-white dark:border-zinc-700"
+          />
+        </div>
       </div>
 
       {/* Include Threads - Disabled for now */}

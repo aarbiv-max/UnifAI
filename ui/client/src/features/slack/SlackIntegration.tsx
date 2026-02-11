@@ -7,7 +7,7 @@ import { PaginatedChannelTable } from "@/features/slack/PaginatedChannelTable";
 import { ChannelSettingsDrawer } from "@/features/slack/ChannelSettingsDrawer";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation } from "wouter";
-import { fetchEmbeddedSlackChannels, fetchSystemStats, deleteSlackChannels } from "@/api/slack";
+import { fetchEmbeddedSlackChannels, fetchSystemStats, deleteSlackChannels, updateSlackChannel } from "@/api/slack";
 import { FaHashtag, FaComments, FaSync, FaDatabase } from "react-icons/fa";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -144,8 +144,31 @@ export default function SlackIntegration() {
     },
   });
 
-  const handleSave = (values: Record<string, string | boolean>) => {
-    setSettingsChannel(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  const handleSave = async (values: Record<string, string | boolean>, tags: string[]) => {
+    if (!settingsChannel) return;
+    
+    setIsSavingSettings(true);
+    try {
+      await updateSlackChannel(settingsChannel.channel_id, { tags });
+      queryClient.invalidateQueries({ queryKey: ["embeddedSlackChannels"] });
+      toast({
+        title: "Settings Saved",
+        description: `Tags updated for #${settingsChannel.name}.`,
+        variant: "default",
+      });
+      setSettingsChannel(null);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast({
+        title: "Save Failed",
+        description: `Unable to save settings: ${errorMessage}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
   const handleDeleteChannel = (channel: EmbedChannel) => {
@@ -316,7 +339,7 @@ export default function SlackIntegration() {
               {isError && <div className="text-destructive">Failed to load channels: {error.message}</div>}
 
               {!isLoading && !isError && (
-                <div className="flex gap-4 min-h-[400px] relative">
+                <div className="flex gap-4 min-h-[600px] relative overflow-hidden">
                   <motion.div
                     className="flex transition-all duration-500 ease-in-out"
                     style={{
@@ -340,7 +363,7 @@ export default function SlackIntegration() {
                   <AnimatePresence>
                     {settingsChannel && (
                       <motion.div
-                        className="absolute right-0 top-0 w-[400px] z-10"
+                        className="absolute right-0 top-0 bottom-0 w-[400px] z-10"
                         initial={{ x: 400, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}
                         exit={{ x: 400, opacity: 0 }}
@@ -351,6 +374,7 @@ export default function SlackIntegration() {
                           isOpen={settingsChannel !== null}
                           onClose={() => setSettingsChannel(null)}
                           onSave={handleSave}
+                          isSaving={isSavingSettings}
                         />
                       </motion.div>
                     )}

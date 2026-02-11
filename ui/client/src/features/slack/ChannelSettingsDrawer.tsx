@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import { EmbedChannel } from "@/types";
 import { StatItem, StatsSection } from "./StatsSection";
 import { HiOutlineLockClosed } from "react-icons/hi";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
+import { X, Tag } from "lucide-react";
 
 export interface SettingOption {
   value: string | number;
@@ -55,44 +56,45 @@ export interface ChannelSettingsDrawerProps {
   channel: EmbedChannel;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (values: Record<string, string | boolean>) => void;
+  onSave: (values: Record<string, string | boolean>, tags: string[]) => void;
+  isSaving?: boolean;
 }
 
 const categories: SettingsCategory[] = [
-  {
-    title: "Sync Options",
-    settings: [
-      {
-        id: "updateFrequency",
-        type: "select",
-        label: "Update Frequency",
-        description: "How often to sync new messages",
-        defaultValue: "30",
-        options: [
-          { value: "15", label: "Every 15 minutes" },
-          { value: "30", label: "Every 30 minutes" },
-          { value: "60", label: "Every hour" },
-          { value: "360", label: "Every 6 hours" },
-          { value: "720", label: "Every 12 hours" },
-          { value: "1440", label: "Every day" },
-        ],
-      },
-      {
-        id: "includeThreads",
-        type: "switch",
-        label: "Include Threads",
-        description: "Process conversation threads",
-        defaultValue: true,
-      },
-      {
-        id: "channelActive",
-        type: "switch",
-        label: "Channel Active",
-        description: "Toggle channel processing",
-        defaultValue: true,
-      },
-    ],
-  },
+  // {
+  //   title: "Sync Options",
+  //   settings: [
+  //     {
+  //       id: "updateFrequency",
+  //       type: "select",
+  //       label: "Update Frequency",
+  //       description: "How often to sync new messages",
+  //       defaultValue: "30",
+  //       options: [
+  //         { value: "15", label: "Every 15 minutes" },
+  //         { value: "30", label: "Every 30 minutes" },
+  //         { value: "60", label: "Every hour" },
+  //         { value: "360", label: "Every 6 hours" },
+  //         { value: "720", label: "Every 12 hours" },
+  //         { value: "1440", label: "Every day" },
+  //       ],
+  //     },
+  //     {
+  //       id: "includeThreads",
+  //       type: "switch",
+  //       label: "Include Threads",
+  //       description: "Process conversation threads",
+  //       defaultValue: true,
+  //     },
+  //     {
+  //       id: "channelActive",
+  //       type: "switch",
+  //       label: "Channel Active",
+  //       description: "Toggle channel processing",
+  //       defaultValue: true,
+  //     },
+  //   ],
+  // },
   {
     title: "Historical Data",
     settings: [
@@ -120,9 +122,12 @@ export function ChannelSettingsDrawer({
   isOpen,
   onClose,
   onSave,
+  isSaving = false,
 }: ChannelSettingsDrawerProps) {
 
   const [values, setValues] = useState<Record<string, string | boolean>>({});
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -133,16 +138,36 @@ export function ChannelSettingsDrawer({
         });
       });
       setValues(initial);
+      setTags(channel.tags || []);
+      setTagInput('');
     }
-  }, [categories, isOpen]);
+  }, [categories, isOpen, channel]);
 
   const handleChange = (id: string, newValue: string | boolean) => {
     setValues((prev) => ({ ...prev, [id]: newValue }));
   };
 
+  const handleAddTag = () => {
+    const tag = tagInput.trim().toLowerCase();
+    if (tag && !tags.includes(tag)) {
+      setTags(prev => [...prev, tag]);
+    }
+    setTagInput('');
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(prev => prev.filter(t => t !== tagToRemove));
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddTag();
+    }
+  };
+
   const handleSave = () => {
-    onSave(values);
-    onClose();
+    onSave(values, tags);
   };
   
   const channelStats: StatItem[] = [
@@ -165,22 +190,24 @@ export function ChannelSettingsDrawer({
 
   return (
     <motion.div
-      className="bg-background-card shadow-lg border-l border-border rounded-lg"
+      className="bg-card text-card-foreground shadow-2xl rounded-lg overlay-elevation overlay-08 flex flex-col h-full"
      
       style={{ pointerEvents: isOpen ? "auto" : "none" }}
     >
       {isOpen && (
-        <CardContent className="p-6">
-          <div>
-                      <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Channel Settings</h3>
-               
-              </div>
-              <Button variant="ghost" size="sm" onClick={onClose}>
-                <X className="w-4 h-4" />
-              </Button>
+        <CardContent className="p-6 flex flex-col overflow-hidden">
+          {/* Fixed header */}
+          <div className="flex items-center justify-between mb-6 shrink-0">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Channel Settings</h3>
             </div>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* Scrollable content */}
+          <div className="overflow-y-auto flex-1 min-h-0 pr-1">
             <div className="space-y-6">
    
             <div className="space-y-4">
@@ -208,8 +235,8 @@ export function ChannelSettingsDrawer({
               
               <div className="grid grid-cols-3 gap-3 text-sm">
                 <div className="text-center p-3 bg-muted/30 rounded-lg">
-                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Progress</p>
-                  {/* <p className="font-semibold text-foreground text-lg">{channel.embeddingProgress || 0}%</p> */}
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Last Sync</p>
+                  <p className="font-semibold text-foreground text-sm">{channel.lastSync || '—'}</p>
                 </div>
                 <div className="text-center p-3 bg-muted/30 rounded-lg">
                   <p className="text-muted-foreground text-xs uppercase tracking-wide">Type</p>
@@ -223,6 +250,40 @@ export function ChannelSettingsDrawer({
             </div>
 
             <Separator />
+
+            {/* Tags */}
+            <div className="mb-6">
+              <Label className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                <Tag className="h-3.5 w-3.5" />
+                Tags
+              </Label>
+              <Separator className="bg-gray-800 mb-4" />
+              <p className="text-xs text-gray-400 mb-2">
+                Add tags to organize and filter this channel in retrievers
+              </p>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {tags.map(tag => (
+                    <Badge key={tag} variant="secondary" className="text-xs px-2 py-0.5 gap-1">
+                      {tag}
+                      <X
+                        className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors"
+                        onClick={() => handleRemoveTag(tag)}
+                      />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder="Type tag and press Enter..."
+                  className="text-sm dark:bg-zinc-800 dark:!text-white dark:border-zinc-700"
+                />
+              </div>
+            </div>
 
             {/* Iterate over each category */}
             {categories.map((category, catIdx) => (
@@ -307,12 +368,13 @@ export function ChannelSettingsDrawer({
           </div>
           </div>
           
-          <div className="flex justify-end space-x-2 pt-6 border-t border-border mt-6">
-            <Button variant="outline" onClick={onClose}>
+          {/* Fixed footer */}
+          <div className="flex justify-end space-x-2 pt-6 border-t border-border mt-6 shrink-0">
+            <Button variant="outline" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button className="bg-secondary" onClick={handleSave}>
-              Save Changes
+            <Button className="bg-secondary" onClick={handleSave} disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </CardContent>

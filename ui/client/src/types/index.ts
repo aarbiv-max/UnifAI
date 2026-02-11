@@ -71,6 +71,7 @@ export interface EmbedChannel {
   created: string;
   is_private: boolean;
   initialTimestamp: string;
+  tags: string[];
 }
 export interface Document {
   _id: string;

@@ -45,6 +45,7 @@ interface ChannelWithSettings extends Channel {
     communityPrivacy: 'public' | 'private';
     includeThreads: boolean;
     processFileContent: boolean;
+    tags: string[];
   };
 }
 
@@ -216,6 +217,7 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
           communityPrivacy: 'public' as const,
           includeThreads: settingsForThisChannel.includeThreads,
           processFileContent: settingsForThisChannel.processFileContent,
+          tags: settingsForThisChannel.tags || [],
         }
       });
     }
