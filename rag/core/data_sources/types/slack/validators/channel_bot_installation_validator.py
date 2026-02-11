@@ -22,7 +22,7 @@ class ChannelBotInstallationValidator(DataSourceValidator):
     """Validates that the Slack app (bot user) is a member of the provided channel."""
     
     name = "ChannelBotInstallationValidator"
-    error_message = "Invite the TAG-001 app user to this channel to enable embedding. Channel: {channel_name}"
+    error_message = "Invite the Unifai app user to this channel to enable embedding. Channel: {channel_name}"
     error_message_key = "Channel bot not installed"
 
     def __init__(

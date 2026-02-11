@@ -224,7 +224,7 @@ export default function Sidebar() {
             isActive={location === '/configuration'}
             status={null}
             isCollapsed={isCollapsed}
-            disabled={true}
+            disabled={false}
           />
           <NavItem 
             icon={<FaChartLine className="sidebar-icon" />} 
