@@ -308,15 +308,26 @@ def doc_validators():
     )
 
 
+def _slack_connector_for_validator():
+    """Return a Slack connector when default project has tokens, else None (graceful fallback)."""
+    manager = slack_config_manager()
+    try:
+        tokens = manager.get_project_tokens("example-project")
+        if tokens.get("bot_token"):
+            return slack_connector("example-project")
+    except KeyError:
+        pass
+    return None
+
+
 @lru_cache(maxsize=1)
 def slack_validators():
     """Slack validators pipeline factory."""
     from core.data_sources.types.slack.validators.factory import SlackValidators
     from core.data_sources.types.slack.validators.channel_bot_installation_validator import ChannelBotInstallationValidator
     from infrastructure.sources.slack.validator.bot_installation_checker import BotInstallationCheckerAdapter, MembershipUpdaterAdapter
-    
-    # TODO: Inject proper Slack connector based on project (None for now - graceful fallback)
-    bot_checker = BotInstallationCheckerAdapter(slack_connector=None)
+
+    bot_checker = BotInstallationCheckerAdapter(slack_connector=_slack_connector_for_validator())
     membership_updater = MembershipUpdaterAdapter(storage=slack_channel_repository())
     
     return SlackValidators(
@@ -473,6 +484,16 @@ def slack_stats_service():
     return SlackStatsService(data_source_service=data_source_service())
 
 
+@lru_cache(maxsize=1)
+def slack_service():
+    """Slack-specific application service (tags, channel queries)."""
+    from core.data_sources.types.slack.slack_service import SlackService
+    return SlackService(
+        data_source_service=data_source_service(),
+        source_repo=data_source_repository(),
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PIPELINE HANDLERS (Application layer - source-specific orchestration)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -482,7 +503,7 @@ def slack_pipeline_handler():
     """Slack pipeline handler with injected dependencies."""
     from core.data_sources.types.slack.pipeline_handler import SlackPipelineHandler
     return SlackPipelineHandler(
-        connector=slack_connector("default"),
+        connector=slack_connector("example-project"),
         processor=slack_processor(),
         chunker=slack_chunker(),
         embedder=embedding_generator(),

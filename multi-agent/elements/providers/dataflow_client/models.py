@@ -33,6 +33,20 @@ class AvailableDocsResponse(BaseModel):
     total: int = 0
 
 
+class ChannelInfo(BaseModel):
+    """Single channel info from available channels response."""
+    name: str
+    id: str
+
+
+class AvailableChannelsResponse(BaseModel):
+    """Response from /api/slack/available.channels.get"""
+    channels: List[ChannelInfo]
+    nextCursor: Optional[str] = None
+    hasMore: bool = False
+    total: int = 0
+
+
 class QueryMatchResult(BaseModel):
     """Single match result from query."""
     content: str

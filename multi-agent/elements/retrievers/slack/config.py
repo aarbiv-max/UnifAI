@@ -1,8 +1,8 @@
-from typing import Literal
+from typing import Dict, List, Literal, Optional
 from .identifiers import Identifier
 from pydantic import Field, HttpUrl
 from elements.retrievers.common.base_config import BaseRetrieverConfig
-from core.field_hints import HiddenHint
+from core.field_hints import ActionHint, HintType, HiddenHint, SelectionType
 
 
 class SlackRetrieverConfig(BaseRetrieverConfig):
@@ -24,4 +24,34 @@ class SlackRetrieverConfig(BaseRetrieverConfig):
     threshold: float = Field(
         0.3, ge=0.0, le=1.0,
         description="Minimum relevance score to include a message"
+    )
+
+    channels: Optional[List[Dict]] = Field(
+        default=None,
+        description="Filter results to specific Slack channels",
+        json_schema_extra=ActionHint(
+            action_uid="dataflow.get_available_slack_channels",
+            display_name="channels",
+            hint_type=HintType.POPULATE,
+            selection_type=SelectionType.MANUAL,
+            field_mapping="channels",
+            display_field="name",
+            multi_select=True,
+            pagination=True,
+            search=True,
+        ).to_hints()
+    )
+
+    tags: Optional[List[str]] = Field(
+        default=None,
+        description="Filter results by tags",
+        json_schema_extra=ActionHint(
+            action_uid="dataflow.get_available_slack_tags",
+            hint_type=HintType.POPULATE,
+            selection_type=SelectionType.MANUAL,
+            field_mapping="tags",
+            multi_select=True,
+            pagination=True,
+            search=True,
+        ).to_hints()
     )

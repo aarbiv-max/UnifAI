@@ -12,10 +12,14 @@ class SlackRetrieverFactory(BaseFactory[SlackRetrieverConfig, SlackRetriever]):
 
     def create(self, cfg: SlackRetrieverConfig, **kwargs: Any) -> SlackRetriever:
         try:
-            return SlackRetriever(api_url=cfg.api_url,
-                                  top_k_results=cfg.top_k_results,
-                                  threshold=cfg.threshold)
+            return SlackRetriever(
+                api_url=cfg.api_url,
+                top_k_results=cfg.top_k_results,
+                threshold=cfg.threshold,
+                channels=cfg.channels,
+                tags=cfg.tags,
+            )
         except Exception as e:
             raise PluginConfigurationError(
-                f"SlackRetrieverFactory.create() failed: {e}", cfg.dict()
+                f"SlackRetrieverFactory.create() failed: {e}", cfg.model_dump()
             ) from e

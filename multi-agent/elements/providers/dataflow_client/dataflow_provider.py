@@ -10,6 +10,7 @@ from .client import DataflowClient
 from .models import (
     AvailableTagsResponse,
     AvailableDocsResponse,
+    AvailableChannelsResponse,
     QueryMatchResponse,
 )
 
@@ -131,6 +132,54 @@ class DataflowProvider:
         """
         with self._create_client() as client:
             return client.get_available_docs(
+                limit=limit,
+                cursor=cursor,
+                search_regex=search_regex,
+            )
+
+    def get_available_slack_tags(
+            self,
+            limit: int = 50,
+            cursor: Optional[str] = None,
+            search_regex: Optional[str] = None,
+    ) -> AvailableTagsResponse:
+        """
+        Fetch available tags from Slack sources.
+
+        Args:
+            limit: Number of tags per page
+            cursor: Pagination cursor
+            search_regex: Filter pattern
+
+        Returns:
+            AvailableTagsResponse with tags and pagination
+        """
+        with self._create_client() as client:
+            return client.get_available_slack_tags(
+                limit=limit,
+                cursor=cursor,
+                search_regex=search_regex,
+            )
+
+    def get_available_slack_channels(
+            self,
+            limit: int = 50,
+            cursor: Optional[str] = None,
+            search_regex: Optional[str] = None,
+    ) -> AvailableChannelsResponse:
+        """
+        Fetch available embedded Slack channels.
+
+        Args:
+            limit: Number of channels per page
+            cursor: Pagination cursor
+            search_regex: Filter pattern
+
+        Returns:
+            AvailableChannelsResponse with channels and pagination
+        """
+        with self._create_client() as client:
+            return client.get_available_slack_channels(
                 limit=limit,
                 cursor=cursor,
                 search_regex=search_regex,

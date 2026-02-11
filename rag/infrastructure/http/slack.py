@@ -4,6 +4,7 @@ from webargs import fields
 
 from bootstrap.app_container import (
     slack_connector,
+    slack_service,
     vector_stats_service,
     retrieval_service,
     slack_stats_service,
@@ -62,6 +63,70 @@ def get_available_channels(types, cursor, limit, search_regex):
         return jsonify({"error": str(e)}), 500
 
 
+@slack_bp.route("/available.tags.get", methods=["GET"])
+@from_query({
+    "cursor": fields.Str(required=False, load_default=""),
+    "limit": fields.Int(required=False, load_default=50),
+    "search_regex": fields.Str(required=False, load_default=None),
+})
+def get_available_slack_tags(cursor="", limit=50, search_regex=None):
+    """
+    Get paginated list of available tags from DONE Slack channels.
+    Used for tag dropdown selection in the UI and retriever config.
+    
+    Response format matches docs endpoint: options array with label/value pairs.
+    """
+    try:
+        result = slack_service().get_available_tags(
+            cursor=cursor,
+            limit=limit,
+            search=search_regex,
+        )
+        
+        return jsonify({
+            "options": result.data,
+            "nextCursor": result.next_cursor,
+            "hasMore": result.has_more,
+            "total": result.total,
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Failed to get available Slack tags: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@slack_bp.route("/available.channels.get", methods=["GET"])
+@from_query({
+    "cursor": fields.Str(required=False, load_default=""),
+    "limit": fields.Int(required=False, load_default=50),
+    "search_regex": fields.Str(required=False, load_default=None),
+})
+def get_available_embedded_channels(cursor="", limit=50, search_regex=None):
+    """
+    Get paginated list of embedded (DONE) Slack channels.
+    Used for channel dropdown selection in retriever config.
+    
+    Response format: channels array with name/id pairs.
+    """
+    try:
+        result = slack_service().get_available_channels(
+            cursor=cursor,
+            limit=limit,
+            search=search_regex,
+        )
+        
+        return jsonify({
+            "channels": result.data,
+            "nextCursor": result.next_cursor,
+            "hasMore": result.has_more,
+            "total": result.total,
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Failed to get available embedded Slack channels: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
 @slack_bp.route("/slack.channel.chunks", methods=["GET"])
 @from_query({"channel_name": fields.Str(required=True)})
 def get_channel_chunks(channel_name):
@@ -114,9 +179,11 @@ def get_user_info(user_id, include_locale):
     "top_k_results": fields.Int(required=False, load_default=5),
     "scope": fields.Str(required=False, load_default="public"),
     "logged_in_user": fields.Str(required=False, load_default="default", data_key="loggedInUser"),
+    "channel_ids": fields.List(fields.Str(), required=False, load_default=None, data_key="channelIds"),
+    "tags": fields.List(fields.Str(), required=False, load_default=None),
 })
-def query_match(query, top_k_results, scope, logged_in_user):
-    """Search Slack messages using semantic similarity."""
+def query_match(query, top_k_results, scope, logged_in_user, channel_ids, tags):
+    """Search Slack messages using semantic similarity with optional channel/tag filtering."""
     try:
         svc = retrieval_service("SLACK")
         results = svc.search(
@@ -124,6 +191,8 @@ def query_match(query, top_k_results, scope, logged_in_user):
             limit=top_k_results,
             scope=scope,
             user=logged_in_user,
+            doc_ids=channel_ids,
+            tags=tags,
         )
         
         return jsonify({"search_results": results}), 200

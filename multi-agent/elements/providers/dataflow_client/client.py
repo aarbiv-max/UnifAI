@@ -11,6 +11,7 @@ from pydantic import HttpUrl
 from .models import (
     AvailableTagsResponse,
     AvailableDocsResponse,
+    AvailableChannelsResponse,
     QueryMatchResponse,
     HealthResponse,
 )
@@ -42,6 +43,8 @@ class DataflowClient:
     TAGS_ENDPOINT = "/api/docs/available.tags.get"
     DOCS_ENDPOINT = "/api/docs/available.docs.get"
     QUERY_ENDPOINT = "/api/docs/query.match"
+    SLACK_TAGS_ENDPOINT = "/api/slack/available.tags.get"
+    SLACK_CHANNELS_ENDPOINT = "/api/slack/available.channels.get"
 
     def __init__(
             self,
@@ -218,6 +221,84 @@ class DataflowClient:
         except httpx.HTTPStatusError as e:
             raise DataflowClientError(
                 f"Query failed: {e.response.status_code}"
+            ) from e
+        except httpx.RequestError as e:
+            raise DataflowConnectionError(f"Connection error: {e}") from e
+
+    def get_available_slack_tags(
+            self,
+            limit: int = 50,
+            cursor: Optional[str] = None,
+            search_regex: Optional[str] = None,
+    ) -> AvailableTagsResponse:
+        """
+        Fetch available tags from Slack sources.
+
+        Args:
+            limit: Number of tags per page (default 50)
+            cursor: Pagination cursor for subsequent pages
+            search_regex: Regex pattern to filter tags
+
+        Returns:
+            AvailableTagsResponse with tags and pagination info
+        """
+        self._require_connected()
+
+        params: Dict[str, Any] = {"limit": limit}
+        if cursor:
+            params["cursor"] = cursor
+        if search_regex:
+            params["search_regex"] = search_regex
+
+        try:
+            response = self._client.get(
+                self._build_url(self.SLACK_TAGS_ENDPOINT),
+                params=params,
+            )
+            response.raise_for_status()
+            return AvailableTagsResponse.model_validate(response.json())
+        except httpx.HTTPStatusError as e:
+            raise DataflowClientError(
+                f"Failed to fetch Slack tags: {e.response.status_code}"
+            ) from e
+        except httpx.RequestError as e:
+            raise DataflowConnectionError(f"Connection error: {e}") from e
+
+    def get_available_slack_channels(
+            self,
+            limit: int = 50,
+            cursor: Optional[str] = None,
+            search_regex: Optional[str] = None,
+    ) -> AvailableChannelsResponse:
+        """
+        Fetch available embedded Slack channels.
+
+        Args:
+            limit: Number of channels per page (default 50)
+            cursor: Pagination cursor for subsequent pages
+            search_regex: Regex pattern to filter channels
+
+        Returns:
+            AvailableChannelsResponse with channels and pagination info
+        """
+        self._require_connected()
+
+        params: Dict[str, Any] = {"limit": limit}
+        if cursor:
+            params["cursor"] = cursor
+        if search_regex:
+            params["search_regex"] = search_regex
+
+        try:
+            response = self._client.get(
+                self._build_url(self.SLACK_CHANNELS_ENDPOINT),
+                params=params,
+            )
+            response.raise_for_status()
+            return AvailableChannelsResponse.model_validate(response.json())
+        except httpx.HTTPStatusError as e:
+            raise DataflowClientError(
+                f"Failed to fetch Slack channels: {e.response.status_code}"
             ) from e
         except httpx.RequestError as e:
             raise DataflowConnectionError(f"Connection error: {e}") from e
