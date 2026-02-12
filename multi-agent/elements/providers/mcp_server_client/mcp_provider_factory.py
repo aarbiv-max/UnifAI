@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, Optional
 from elements.common.base_factory import BaseFactory
 from elements.common.exceptions import PluginConfigurationError
 from .config import McpProviderConfig
@@ -14,6 +14,20 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
     def accepts(self, cfg: McpProviderConfig, element_type: str) -> bool:
         return element_type == Identifier.TYPE
 
+    def _build_headers(self, bearer_token: Optional[str]) -> Optional[Dict[str, str]]:
+        """
+        Build HTTP headers from bearer token if provided.
+        
+        Args:
+            bearer_token: Optional bearer token for authentication
+            
+        Returns:
+            Headers dict with Authorization header, or None if no token
+        """
+        if bearer_token:
+            return {"Authorization": f"Bearer {bearer_token}"}
+        return None
+
     def create(self, cfg: McpProviderConfig, **kwargs: Any) -> McpProvider:
         """
         Instantiate an McpProvider using validated config values.
@@ -22,10 +36,14 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         :raises PluginConfigurationError: if instantiation fails
         """
         try:
+            # Build headers from bearer_token if provided
+            headers = self._build_headers(cfg.bearer_token)
+            
             # Use the clean sync factory method which handles async internally
             return McpProvider.create_sync(
                 sse_endpoint=cfg.sse_endpoint,
-                tool_names=cfg.tool_names
+                tool_names=cfg.tool_names,
+                headers=headers
             )
         except Exception as e:
             raise PluginConfigurationError(
@@ -41,10 +59,14 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         :raises PluginConfigurationError: if instantiation fails
         """
         try:
+            # Build headers from bearer_token if provided
+            headers = self._build_headers(cfg.bearer_token)
+            
             # Use the async factory method directly for better performance
             return await McpProvider.create_async(
                 sse_endpoint=cfg.sse_endpoint,
-                tool_names=cfg.tool_names
+                tool_names=cfg.tool_names,
+                headers=headers
             )
         except Exception as e:
             raise PluginConfigurationError(

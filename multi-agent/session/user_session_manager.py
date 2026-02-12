@@ -31,6 +31,16 @@ class UserSessionManager:
         """Check if blueprint exists without loading it."""
         return self._bp_service.exists(blueprint_id)
 
+    def get_blueprint_metadata(self, blueprint_id: str) -> Dict[str, Any]:
+        """Get blueprint metadata dict, empty dict if not found."""
+        if not blueprint_id:
+            return {}
+        try:
+            bp_doc = self._bp_service.get_blueprint_draft_doc(blueprint_id)
+            return bp_doc.metadata
+        except KeyError:
+            return {}
+
     def create_session(
             self,
             user_id: str,

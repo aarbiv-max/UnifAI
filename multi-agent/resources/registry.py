@@ -1,5 +1,5 @@
 from datetime import datetime
-from resources.models import ResourceDoc, ResourceQuery
+from resources.models import Resource, ResourceQuery
 from resources.repository.base import ResourceRepository
 from blueprints.repository.repository import BlueprintRepository
 from resources.errors import ResourceInUseError
@@ -19,14 +19,14 @@ class ResourcesRegistry:
         self._bp_repo = bp_repo
 
     # ---------- write ----------
-    def create(self, doc: ResourceDoc) -> ResourceDoc:
+    def create(self, doc: Resource) -> Resource:
         # uniqueness guard
         if self._repo.find_by_name(doc.user_id, doc.category, doc.type, doc.name):
             raise ValueError(f"{doc.category}:{doc.type}:{doc.name} exists for user")
         self._repo.save(doc)
         return doc
 
-    def update(self, doc: ResourceDoc) -> ResourceDoc:
+    def update(self, doc: Resource) -> Resource:
         # Guard against name conflicts with other resources
         existing_with_name = self._repo.find_by_name(doc.user_id, doc.category, doc.type, doc.name)
         if existing_with_name and existing_with_name.rid != doc.rid:
@@ -47,10 +47,10 @@ class ResourcesRegistry:
         self._repo.delete(rid)
 
     # ---------- read ----------
-    def get(self, rid: str) -> ResourceDoc:
+    def get(self, rid: str) -> Resource:
         return self._repo.get(rid)
 
-    def find_resources(self, query: ResourceQuery) -> Tuple[List[ResourceDoc], int]:
+    def find_resources(self, query: ResourceQuery) -> Tuple[List[Resource], int]:
         """Find resources with pagination info."""
         resources = self._repo.find_resources(query)
         total_count = self._repo.count_resources(query)

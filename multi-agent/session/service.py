@@ -104,22 +104,16 @@ class SessionService:
 
         for doc in docs:
             blueprint_id = doc.get("blueprint_id", "")
-            # Check if blueprint still exists
             blueprint_exists = self._manager.blueprint_exists(blueprint_id) if blueprint_id else False
+            bp_metadata = self._manager.get_blueprint_metadata(blueprint_id) if blueprint_exists else {}
 
             public_usage_scope = False
             if blueprint_exists and blueprint_id:
                 source = doc.get("metadata", {}).get("source", "")
                 if source == "public_link":
-                    try:
-                        blueprint_doc = self._manager._bp_service.get_blueprint_draft_doc(blueprint_id)
-                        bp_metadata = blueprint_doc.get("metadata", {})
-                        public_usage_scope = bp_metadata.get("usageScope") == "public"
-                    except (KeyError, Exception):
-                        public_usage_scope = False
+                    public_usage_scope = bp_metadata.get("usageScope") == "public"
 
-            chat_item = ChatHistoryItem.from_doc(doc, blueprint_exists=blueprint_exists, public_usage_scope=public_usage_scope)
-
+            chat_item = ChatHistoryItem.from_doc(doc, blueprint_exists=blueprint_exists, public_usage_scope=public_usage_scope, blueprint_metadata=bp_metadata)
             chat_items.append(chat_item)
 
         return chat_items

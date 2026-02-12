@@ -7,6 +7,7 @@ class AppConfig(SharedConfig):
     resources_coll: str = "resources"
     session_coll: str = "workflow_sessions"
     shares_coll: str = "shares"
+    templates_coll: str = "templates"
     hostname: str = "0.0.0.0"
     port: str = "8002"
     version: str = "1.0.0"

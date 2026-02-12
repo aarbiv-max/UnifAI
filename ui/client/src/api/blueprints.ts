@@ -7,10 +7,16 @@ import { BlueprintValidationResult, BlueprintValidationRequest } from '@/types/v
 
 export interface WorkflowBlueprint {
   blueprint_id: string;
+  user_id?: string;
   spec_dict: any;
   name?: string;
   created_at?: string;
   updated_at?: string;
+  rid_refs?: string[];
+  metadata?: {
+    usageScope?: "public" | "private";
+    [key: string]: any;
+  };
 }
 
 export interface BlueprintInfoResponse {
@@ -53,12 +59,37 @@ export async function fetchBlueprints(userId?: string): Promise<WorkflowBlueprin
 }
 
 /**
- * Fetch resolved blueprints (with all references resolved)
+ * Paginated response for resolved blueprints list
+ */
+export interface ResolvedBlueprintsResponse {
+  items: WorkflowBlueprint[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+/**
+ * Fetch resolved blueprints (with all references resolved) - paginated list
  */
 export async function fetchResolvedBlueprints(userId?: string): Promise<WorkflowBlueprint[]> {
   const userIdParam = userId || 'default';
-  const response = await axios.get(`/blueprints/available.blueprints.resolved.get?userId=${userIdParam}`);
-  return response.data || [];
+  const response = await axios.get<ResolvedBlueprintsResponse>(
+    `/blueprints/available.blueprints.resolved.get?userId=${userIdParam}`
+  );
+  // API returns paginated response with items array
+  return response.data?.items || [];
+}
+
+/**
+ * Fetch a single resolved blueprint by ID (with all references resolved)
+ */
+export async function fetchResolvedBlueprint(blueprintId: string, userId?: string): Promise<WorkflowBlueprint | null> {
+  const userIdParam = userId || 'default';
+  const response = await axios.get<WorkflowBlueprint>(
+    `/blueprints/available.blueprints.resolved.get?userId=${userIdParam}&blueprintId=${blueprintId}`
+  );
+  // Single blueprint mode returns flat document object (not wrapped in items)
+  return response.data || null;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { Route, Switch, useLocation } from "wouter";
+import { Route, Switch, useLocation, useRoute } from "wouter";
 import RagOverview from "@/pages/RagOverview";
 import AgenticOverview from "@/pages/AgenticOverview";
 import Configuration from "@/pages/Configuration";
@@ -6,6 +6,7 @@ import JiraIntegration from "@/pages/JiraIntegration";
 import AgenticWorkflows from "@/pages/AgenticWorkflows";
 import AgentRepository from "@/pages/AgentRepository";
 import AgenticChats from "@/pages/AgenticChats";
+import AgenticTemplates from "@/pages/AgenticTemplates";
 import GetToKnow from "@/pages/GetToKnow";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
@@ -23,14 +24,16 @@ import SlackAddSourcePage from "./features/slack/SlackAddSourcePage";
 import GuidesPage from "./components/guides/GuidesPage";
 import PublicChat from "./components/agentic-ai/chat/PublicChat";
 
-// Paths that require AgenticAIProvider
-const AGENTIC_PATHS = ['/agentic-overview', '/agentic-ai', '/inventory', '/agentic-chats'];
-
 // Routes component that conditionally wraps agentic routes with the shared provider
 function AppRoutes() {
-  const [location] = useLocation();
-  
-  const isAgenticRoute = AGENTIC_PATHS.some(path => location === path);
+  const [isChat] = useRoute("/chat/:token");
+  const [isAgenticOverview] = useRoute("/agentic-overview");
+  const [isAgenticAI] = useRoute("/agentic-ai");
+  const [isInventory] = useRoute("/inventory");
+  const [isAgenticChats] = useRoute("/agentic-chats");
+  const [isTemplates] = useRoute("/templates");
+
+  const isAgenticRoute = isChat || isAgenticOverview || isAgenticAI || isInventory || isAgenticChats || isTemplates;
 
   if (isAgenticRoute) {
     return (
@@ -40,10 +43,13 @@ function AppRoutes() {
           <Route path="/agentic-ai" component={AgenticWorkflows} />
           <Route path="/inventory" component={AgentRepository} />
           <Route path="/agentic-chats" component={AgenticChats} />
+          <Route path="/templates" component={AgenticTemplates} />
+          <Route path="/chat/:token" component={PublicChat} />
         </Switch>
       </AgenticAIProvider>
     );
   }
+
 
   return (
     <Switch>
@@ -56,7 +62,6 @@ function AppRoutes() {
       <Route path="/get-to-know" component={GetToKnow} />
       <Route path="/configuration" component={Configuration} />
       <Route path="/guides" component={GuidesPage} />
-      <Route path="/chat/:token" component={PublicChat} />
       <Route component={NotFound} />
     </Switch>
   );

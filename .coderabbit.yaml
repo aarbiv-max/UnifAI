@@ -7,14 +7,14 @@ reviews:
   high_level_summary: true
 
   path_filters:
-    - "multi-agents/**"
+    - "multi-agent/**"
     - "backend/**"
     - "ui/**"
 
   instructions: |
     This repository represents an agentic AI system with a modular, layered architecture.
 
-    Each of the main directories (multi-agents/, backend/, ui/) contains README.md and ARCHITECTURE.md files
+    Each of the main directories (multi-agent/, backend/, ui/) contains README.md and ARCHITECTURE.md files
     that define architectural intent, responsibilities, and boundaries.
 
     These documents should be treated as the source of truth.

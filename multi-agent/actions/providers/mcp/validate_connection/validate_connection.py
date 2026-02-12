@@ -4,23 +4,29 @@ MCP validate_connection action.
 Validates MCP server connection reachability.
 """
 
-import asyncio
+import anyio
 import time
 from typing import Optional, Dict, Any
 
-from pydantic import HttpUrl
+from pydantic import HttpUrl, Field
 
 from actions.common.base_action import BaseAction
 from actions.common.action_models import BaseActionInput, BaseActionOutput, ActionType
-from elements.providers.mcp_server_client.mcp_server_client import McpServerClient
+from elements.providers.mcp_server_client.mcp_provider_factory import McpProviderFactory
+from elements.providers.mcp_server_client.config import McpProviderConfig
 from elements.providers.mcp_server_client.identifiers import Identifier
 from core.enums import ResourceCategory
+from core.field_hints import SecretHint
 
 
 # Input/Output models for this action
 class ValidateConnectionInput(BaseActionInput):
     """Input for MCP connection validation"""
     sse_endpoint: HttpUrl
+    bearer_token: Optional[str] = Field(
+        default=None,
+        description="Bearer token for MCP server authentication"
+    )
 
 
 class ValidateConnectionOutput(BaseActionOutput):
@@ -46,6 +52,16 @@ class ValidateConnectionAction(BaseAction):
     version = "1.0.0"
     tags = {"mcp", "validation", "connectivity"}
     elements = {(ResourceCategory.PROVIDER.value, Identifier.TYPE)}
+    
+    def __init__(self, factory: McpProviderFactory = None):
+        """
+        Initialize action with optional factory injection.
+        
+        Args:
+            factory: McpProviderFactory instance (creates default if not provided)
+        """
+        super().__init__()
+        self._factory = factory or McpProviderFactory()
 
     def execute_sync(
         self,
@@ -96,12 +112,15 @@ class ValidateConnectionAction(BaseAction):
         start_time = time.time()
         
         try:
-            # Create client and test connection
-            client = McpServerClient(input_data.sse_endpoint)
+            # Create config from input data
+            config = McpProviderConfig(
+                sse_endpoint=input_data.sse_endpoint,
+                bearer_token=input_data.bearer_token
+            )
             
-            async with client:
-                # Test connection by listing tools with timeout
-                await asyncio.wait_for(client.tools.get_tools(), timeout=10.0)
+            # Create provider using factory - validates connection by fetching tools during init
+            with anyio.fail_after(10.0):
+                await self._factory.create_async(config)
             
             response_time = (time.time() - start_time) * 1000
             
@@ -112,7 +131,7 @@ class ValidateConnectionAction(BaseAction):
                 response_time_ms=response_time
             )
             
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ValidateConnectionOutput(
                 success=False,
                 message="Connection timeout - server may be unreachable",

@@ -14,7 +14,6 @@ import { getCategoryDisplay } from "@/components/shared/helpers";
 import { useAuth } from "@/contexts/AuthContext";
 import axios from "../http/axiosAgentConfig";
 import * as yaml from "js-yaml";
-import { useLocation } from "wouter";
 import { saveBlueprint } from "@/api/blueprints";
 
 interface YamlFlowNode {
@@ -78,9 +77,20 @@ const defaulYmlState: YamlFlowState = {
   ],
 };
 
-export const useGraphLogic = () => {
+export interface SavedBlueprintInfo {
+  blueprintId: string;
+  name: string;
+  description: string;
+}
+
+interface UseGraphLogicOptions {
+  /** Callback to execute after a successful save (e.g., navigate back to workflow list) */
+  onSaveComplete?: (savedBlueprint?: SavedBlueprintInfo) => void;
+}
+
+export const useGraphLogic = (options: UseGraphLogicOptions = {}) => {
+  const { onSaveComplete } = options;
   const { toast } = useToast();
-  const [location, setLocation] = useLocation();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [nodeId, setNodeId] = useState(1);
@@ -1033,11 +1043,17 @@ export const useGraphLogic = () => {
           setSaveModalOpen(false);
           setIsSaving(false);
 
-          // Force navigation to reset component state
-          // Use window.location to ensure component remounts and resets to Agent Flow tab
-          setTimeout(() => {
-            window.location.href = "/agentic-ai";
-          }, 100);
+          // Call the onSaveComplete callback to navigate back (if provided)
+          // Pass the saved blueprint info so it can be selected in the workflow list
+          if (onSaveComplete) {
+            setTimeout(() => {
+              onSaveComplete({
+                blueprintId: response.blueprint_id,
+                name,
+                description,
+              });
+            }, 100);
+          }
         } else {
           throw new Error("Unknown error occurred while saving blueprint");
         }
@@ -1051,7 +1067,7 @@ export const useGraphLogic = () => {
         setIsSaving(false);
       }
     },
-    [yamlFlow, toast, setLocation],
+    [yamlFlow, toast, onSaveComplete],
   );
 
   useEffect(() => {

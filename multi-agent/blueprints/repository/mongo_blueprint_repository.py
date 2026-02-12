@@ -1,14 +1,11 @@
 import pymongo
 from uuid import uuid4
 from datetime import datetime
-from typing import List, Dict, Any, Mapping
-from pydantic import ValidationError
-from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft
+from typing import List, Dict, Any
+from blueprints.models.blueprint import BlueprintDraft, BlueprintDocument
 from .repository import BlueprintRepository
 from core.enums import ResourceCategory
-from bson import json_util
 from global_utils.utils.util import get_mongo_url
-import json
 
 
 class MongoBlueprintRepository(BlueprintRepository):
@@ -63,11 +60,11 @@ class MongoBlueprintRepository(BlueprintRepository):
         )
         return res.modified_count == 1
 
-    def load(self, blueprint_id: str) -> Mapping[str, Any]:
+    def load(self, blueprint_id: str) -> BlueprintDocument:
         doc = self._col.find_one({"blueprint_id": blueprint_id})
         if not doc:
             raise KeyError(f"No blueprint with id={blueprint_id}")
-        return doc
+        return BlueprintDocument(**doc)
 
     def delete(self, blueprint_id: str) -> bool:
         res = self._col.delete_one({"blueprint_id": blueprint_id})
@@ -98,16 +95,15 @@ class MongoBlueprintRepository(BlueprintRepository):
             skip: int = 0,
             limit: int = 100,
             sort_desc: bool = True,
-    ) -> List[Mapping[str, Any]]:
-        """Return raw Mongo documents (not validated) for bulk operations."""
+    ) -> List[BlueprintDocument]:
+        """Return BlueprintDocument objects for bulk operations."""
         cursor = (
             self._col.find(self._user_q(user_id))
             .sort("updated_at", pymongo.DESCENDING if sort_desc else pymongo.ASCENDING)
             .skip(skip)
             .limit(limit)
         )
-        res = json.loads(json_util.dumps(list(cursor)))
-        return res
+        return [BlueprintDocument(**raw) for raw in cursor]
 
     def list_direct_usage(self, rid: str) -> List[str]:
         cur = self._col.find({"rid_refs": rid}, {"blueprint_id": 1})

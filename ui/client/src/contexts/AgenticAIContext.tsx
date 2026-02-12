@@ -2,10 +2,14 @@ import React, { createContext, useContext, useEffect, useState, ReactNode, useCa
 import axios from '@/http/axiosAgentConfig';
 import { useAuth } from './AuthContext';
 import { catalogService } from '@/api/catalog';
-import { ElementValidationResult, CachedValidationResult, BlueprintValidationResult } from '@/types/validation';
+import { ElementValidationResult, CachedValidationResult, BlueprintValidationResult, BlueprintValidationRequest, CachedBlueprintValidationResult } from '@/types/validation';
+import { validateBlueprint as validateBlueprintApi } from '@/api/blueprints';
 
 // Validation status type
 export type ValidationStatus = 'loading' | 'valid' | 'invalid';
+
+// Blueprint validation cache TTL: 60 minutes in milliseconds
+const BLUEPRINT_CACHE_TTL_MS = 60 * 60 * 1000;
 
 interface ResourceMapping {
   rid: string;
@@ -39,6 +43,12 @@ interface AgenticAIContextType {
   getAllAncestors: (rid: string) => string[];
   // Cache all element results from a blueprint validation result
   cacheBlueprintValidationResults: (blueprintResult: BlueprintValidationResult) => void;
+  // Blueprint validation cache functions
+  validateBlueprintWithCache: (request: BlueprintValidationRequest, skipCache?: boolean) => Promise<BlueprintValidationResult>;
+  getCachedBlueprintValidation: (blueprintId: string) => CachedBlueprintValidationResult | null;
+  isBlueprintValidationCacheHit: (blueprintId: string) => boolean;
+  invalidateBlueprintValidation: (blueprintId: string) => void;
+  getBlueprintValidationStatus: (blueprintId: string) => ValidationStatus;
 }
 
 const AgenticAIContext = createContext<AgenticAIContextType | undefined>(undefined);
@@ -54,6 +64,10 @@ export const AgenticAIProvider: React.FC<AgenticAIProviderProps> = ({ children }
   const [validationStatusMap, setValidationStatusMap] = useState<Map<string, ValidationStatus>>(new Map());
   // Dependency parent tracking: maps resourceId -> [parentIds] where parents are resources that depend on this resource
   const [dependencyParentMap, setDependencyParentMap] = useState<Map<string, string[]>>(new Map());
+  // Blueprint validation cache: maps blueprintId -> cached validation result with timestamp
+  const [blueprintValidationCache, setBlueprintValidationCache] = useState<Map<string, CachedBlueprintValidationResult>>(new Map());
+  // Blueprint validation status tracking (loading/valid/invalid)
+  const [blueprintValidationStatusMap, setBlueprintValidationStatusMap] = useState<Map<string, ValidationStatus>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -73,6 +87,10 @@ export const AgenticAIProvider: React.FC<AgenticAIProviderProps> = ({ children }
 
   // Ref to hold the revalidate ancestors function (avoids circular dependency in useCallback)
   const revalidateAncestorsRef = useRef<((rid: string) => Promise<void>) | null>(null);
+
+  // Use ref to access latest blueprint validation cache without causing stale closures
+  const blueprintValidationCacheRef = useRef(blueprintValidationCache);
+  blueprintValidationCacheRef.current = blueprintValidationCache;
 
   // ==================== Helper Functions ====================
 
@@ -531,7 +549,125 @@ return String(ref);
     Object.values(blueprintResult.element_results).forEach(elementResult => {
       cacheElementAndDependencies(elementResult);
     });
-  }, [cacheValidationResult, updateDependencyParentMap]);
+  }, [cacheValidationResult]);
+
+  // ==================== Blueprint Validation Cache Functions ====================
+
+  // Helper: Set blueprint validation status
+  const setBlueprintValidationStatus = useCallback((blueprintId: string, status: ValidationStatus) => {
+    setBlueprintValidationStatusMap((prevStatus) => {
+      const newStatus = new Map(prevStatus);
+      newStatus.set(blueprintId, status);
+      return newStatus;
+    });
+  }, []);
+
+  // Helper: Cache a blueprint validation result
+  const cacheBlueprintResult = useCallback((blueprintId: string, result: BlueprintValidationResult) => {
+    setBlueprintValidationCache((prevCache) => {
+      const newCache = new Map(prevCache);
+      newCache.set(blueprintId, {
+        result,
+        isValid: result.is_valid,
+        timestamp: Date.now(),
+      });
+      return newCache;
+    });
+    
+    // Update status based on result
+    setBlueprintValidationStatus(blueprintId, result.is_valid ? 'valid' : 'invalid');
+    
+    // Also cache all element results for the resource-level cache
+    cacheBlueprintValidationResults(result);
+  }, [setBlueprintValidationStatus, cacheBlueprintValidationResults]);
+
+  // Get cached blueprint validation result
+  const getCachedBlueprintValidation = useCallback((blueprintId: string): CachedBlueprintValidationResult | null => {
+    return blueprintValidationCache.get(blueprintId) || null;
+  }, [blueprintValidationCache]);
+
+  // Check if a cached blueprint validation is fresh (within TTL and valid)
+  const isBlueprintValidationCacheHit = useCallback((blueprintId: string): boolean => {
+    const cached = blueprintValidationCacheRef.current.get(blueprintId);
+    if (!cached) return false;
+    
+    const now = Date.now();
+    const ageMs = now - cached.timestamp;
+    
+    // Fresh only if valid AND within TTL
+    return cached.isValid && ageMs < BLUEPRINT_CACHE_TTL_MS;
+  }, []);
+
+  // Invalidate a blueprint's cached validation
+  /* invalidateBlueprintValidation is useful for explicit cache invalidation scenarios where you want to clear the cache without immediately re-validating. 
+    For example:
+    When a blueprint is edited/saved - you'd want to invalidate its cache so the next validation call fetches fresh data
+    When a blueprint is deleted - clean up the cache
+    When a dependent resource changes and you want to mark related blueprints as needing revalidation */
+  const invalidateBlueprintValidation = useCallback((blueprintId: string) => {
+    setBlueprintValidationCache((prevCache) => {
+      const newCache = new Map(prevCache);
+      newCache.delete(blueprintId);
+      return newCache;
+    });
+    setBlueprintValidationStatusMap((prevStatus) => {
+      const newStatus = new Map(prevStatus);
+      newStatus.delete(blueprintId);
+      return newStatus;
+    });
+  }, []);
+
+  // Get validation status for a blueprint
+  const getBlueprintValidationStatus = useCallback((blueprintId: string): ValidationStatus => {
+    return blueprintValidationStatusMap.get(blueprintId) || 'loading';
+  }, [blueprintValidationStatusMap]);
+
+  // Main function: Validate blueprint with caching support
+  // Logic:
+  // - If skipCache is true -> always trigger API call (force refresh)
+  // - If blueprintId is cached as VALID within the last 60 minutes -> return cached result (skip API call)
+  // - If blueprintId is cached as INVALID or cache expired -> trigger API call
+  // - If not cached -> trigger API call
+  const validateBlueprintWithCache = useCallback(async (
+    request: BlueprintValidationRequest,
+    skipCache: boolean = false
+  ): Promise<BlueprintValidationResult> => {
+    const { blueprintId } = request;
+    
+    // Check if we have a fresh valid cache (unless skipCache is true)
+    if (!skipCache) {
+      const cached = blueprintValidationCacheRef.current.get(blueprintId);
+      if (cached) {
+        const now = Date.now();
+        const ageMs = now - cached.timestamp;
+        
+        // If cached as VALID and within TTL, return cached result
+        if (cached.isValid && ageMs < BLUEPRINT_CACHE_TTL_MS) {
+          // Ensure status is set to valid (in case component just mounted)
+          setBlueprintValidationStatus(blueprintId, 'valid');
+          return cached.result;
+        }
+        // If cached as INVALID, always re-trigger API (fall through)
+        // If cache expired, re-trigger API (fall through)
+      }
+    }
+    
+    // Set loading status
+    setBlueprintValidationStatus(blueprintId, 'loading');
+    
+    try {
+      const result = await validateBlueprintApi(request);
+      
+      // Cache the result
+      cacheBlueprintResult(blueprintId, result);
+      
+      return result;
+    } catch (error) {
+      // On error, mark as invalid
+      setBlueprintValidationStatus(blueprintId, 'invalid');
+      throw error;
+    }
+  }, [setBlueprintValidationStatus, cacheBlueprintResult]);
 
   // ==================== Effects ====================
 
@@ -561,6 +697,11 @@ return String(ref);
     revalidateResourceAndAncestors,
     getAllAncestors,
     cacheBlueprintValidationResults,
+    validateBlueprintWithCache,
+    getCachedBlueprintValidation,
+    isBlueprintValidationCacheHit,
+    invalidateBlueprintValidation,
+    getBlueprintValidationStatus,
   };
 
   return (

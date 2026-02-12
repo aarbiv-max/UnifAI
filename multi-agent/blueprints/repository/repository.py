@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import List, Mapping, Any, Optional, Dict
-from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft
+from typing import List, Optional, Dict, Any
+from blueprints.models.blueprint import BlueprintDraft, BlueprintDocument
 
 
 class BlueprintRepository(ABC):
@@ -27,7 +27,7 @@ class BlueprintRepository(ABC):
 
     # ────────────────────────────── Reads by ID ─────────────────────────
     @abstractmethod
-    def load(self, blueprint_id: str) -> Mapping[str, Any]:
+    def load(self, blueprint_id: str) -> BlueprintDocument:
         """Load a blueprint document by its globally-unique ID or raise `KeyError`."""
 
     @abstractmethod
@@ -60,9 +60,9 @@ class BlueprintRepository(ABC):
             skip: int = 0,
             limit: int = 100,
             sort_desc: bool = True,
-    ) -> List[Mapping[str, Any]]:
+    ) -> List[BlueprintDocument]:
         """
-        Return resolved `BlueprintSpec`s, optionally restricted to `user_id`,
+        Return blueprint documents, optionally restricted to `user_id`,
         with pagination.
         """
 

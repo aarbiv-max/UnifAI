@@ -1,8 +1,9 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, Field
 from actions.common.base_action import BaseAction
 from actions.common.action_models import BaseActionInput, BaseActionOutput, ActionType
-from elements.providers.mcp_server_client.mcp_server_client import McpServerClient
+from elements.providers.mcp_server_client.mcp_provider_factory import McpProviderFactory
+from elements.providers.mcp_server_client.config import McpProviderConfig
 from elements.providers.mcp_server_client.identifiers import Identifier
 from core.enums import ResourceCategory
 
@@ -11,6 +12,10 @@ from core.enums import ResourceCategory
 class GetToolsNamesInput(BaseActionInput):
     """Input for MCP tools discovery"""
     sse_endpoint: HttpUrl
+    bearer_token: Optional[str] = Field(
+        default=None,
+        description="Bearer token for MCP server authentication"
+    )
 
 
 class GetToolsNamesOutput(BaseActionOutput):
@@ -37,6 +42,16 @@ class GetToolsNamesAction(BaseAction):
     tags = {"mcp", "discovery", "tools"}
     elements = {(ResourceCategory.PROVIDER.value, Identifier.TYPE)}
     
+    def __init__(self, factory: McpProviderFactory = None):
+        """
+        Initialize action with optional factory injection.
+        
+        Args:
+            factory: McpProviderFactory instance (creates default if not provided)
+        """
+        super().__init__()
+        self._factory = factory or McpProviderFactory()
+    
     async def execute(self, input_data: GetToolsNamesInput, 
                      context: Optional[Dict[str, Any]] = None) -> GetToolsNamesOutput:
         """
@@ -50,12 +65,16 @@ class GetToolsNamesAction(BaseAction):
             Discovery result with tool names and count
         """
         try:
-            # Create client and discover tools
-            client = McpServerClient(input_data.sse_endpoint)
+            # Create config from input data
+            config = McpProviderConfig(
+                sse_endpoint=input_data.sse_endpoint,
+                bearer_token=input_data.bearer_token
+            )
             
-            async with client:
-                tools = await client.tools.get_tools()
-                tool_names = [tool.name for tool in tools]
+            # Create provider using factory - fetches tools during initialization
+            provider = await self._factory.create_async(config)
+            tools = provider.get_tools()
+            tool_names = [tool.name for tool in tools]
             
             return GetToolsNamesOutput(
                 success=True,

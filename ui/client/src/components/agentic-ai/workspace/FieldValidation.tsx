@@ -24,6 +24,8 @@ interface FieldValidationProps {
   elementActions: any[];
   selectedElementType: any;
   isRequired?: boolean;
+  /** All current config field values, used to resolve dependencies for validation actions */
+  configValues?: Record<string, any>;
   onValidationChange: (fieldName: string, isValid: boolean, itemResults?: ItemValidationResult[]) => void;
 }
 
@@ -34,6 +36,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
   elementActions,
   selectedElementType,
   isRequired = false,
+  configValues = {},
   onValidationChange
 }) => {
   const [validationState, setValidationState] = useState<{
@@ -47,7 +50,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
   });
 
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastValidatedValueRef = useRef<any>(null);
+  const lastValidatedKeyRef = useRef<string | null>(null);
 
   // Determine if this is an ApiHint or ActionHint
   const useApiHint = isApiHint(validationHint);
@@ -57,40 +60,86 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
     ? elementActions.find(action => action.uid === validationHint.action_uid)
     : null;
 
+  /**
+   * Creates a stable validation key that combines the field value and all dependency values.
+   * This key is used to determine if validation should be re-triggered.
+   * When either the field value or any dependency changes, this key will change.
+   */
+  const validationKey = React.useMemo(() => {
+    // Gather dependency values (excluding the current field)
+    const dependencyValues: Record<string, any> = {};
+    if (validationHint?.dependencies) {
+      Object.keys(validationHint.dependencies).forEach((configField) => {
+        if (configField !== fieldName) {
+          dependencyValues[configField] = configValues[configField];
+        }
+      });
+    }
+    
+    return JSON.stringify({
+      fieldValue,
+      dependencies: dependencyValues
+    });
+  }, [fieldValue, validationHint?.dependencies, fieldName, configValues]);
+
+  /**
+   * Builds the input data for validation by:
+   * 1. Always including the current field's value
+   * 2. Gathering dependency values from configValues based on the hint's dependencies mapping
+   * 
+   * @param value - The current field's value
+   * @param fieldNameMapping - Optional custom mapping for the current field name in the input
+   * @returns Record with field values for the validation action/API
+   */
+  const buildInputWithDependencies = (value: any, fieldNameMapping?: string): Record<string, any> => {
+    const inputData: Record<string, any> = {};
+    
+    // Always include the current field's value
+    const targetFieldName = fieldNameMapping || fieldName;
+    inputData[targetFieldName] = value;
+    
+    // Gather dependency values from configValues
+    if (validationHint.dependencies && Object.keys(validationHint.dependencies).length > 0) {
+      Object.entries(validationHint.dependencies).forEach(([configField, actionField]) => {
+        // Skip if this is the current field (already added above)
+        if (configField === fieldName) {
+          return;
+        }
+        
+        // Get the dependency value from configValues
+        const dependencyValue = configValues[configField];
+        if (dependencyValue !== undefined) {
+          inputData[actionField as string] = dependencyValue;
+        }
+      });
+    }
+    
+    return inputData;
+  };
+
   // Validate using ActionHint (via action system)
   const performActionValidation = async (value: any) => {
     if (!validationAction) {
       return { success: false, message: 'Validation action not found' };
     }
 
-    // Prepare input data based on validation action's input schema
-    const inputData: any = {};
+    // Determine the correct field name mapping for the current field
+    let fieldNameMapping: string | undefined;
     
-    // Map dependencies from validation hint or use field name directly
-    if (validationHint.dependencies && Object.keys(validationHint.dependencies).length > 0) {
-      Object.entries(validationHint.dependencies).forEach(([configField, actionField]) => {
-        if (configField === fieldName) {
-          inputData[actionField as string] = value;
-        }
-      });
-    } else {
-      // Check if the field name exists in the action's input schema
-      if (validationAction.input_schema?.properties?.[fieldName]) {
-        inputData[fieldName] = value;
-      } else {
-        // If fieldName doesn't match input schema, try to find matching property
-        const inputProperties = validationAction.input_schema?.properties || {};
-        const inputKeys = Object.keys(inputProperties);
-        
-        // Use the first required property or first property as fallback
-        const requiredFields = validationAction.input_schema?.required || [];
-        const targetField = requiredFields.length > 0 ? requiredFields[0] : inputKeys[0];
-        
-        if (targetField) {
-          inputData[targetField] = value;
-        }
-      }
+    // Check if the current field is explicitly mapped in dependencies
+    if (validationHint.dependencies?.[fieldName]) {
+      fieldNameMapping = validationHint.dependencies[fieldName];
+    } else if (!validationAction.input_schema?.properties?.[fieldName]) {
+      // If fieldName doesn't match input schema, try to find matching property
+      const inputProperties = validationAction.input_schema?.properties || {};
+      const inputKeys = Object.keys(inputProperties);
+      
+      // Use the first required property or first property as fallback
+      const requiredFields = validationAction.input_schema?.required || [];
+      fieldNameMapping = requiredFields.length > 0 ? requiredFields[0] : inputKeys[0];
     }
+
+    const inputData = buildInputWithDependencies(value, fieldNameMapping);
 
     const response = await axios.post('/actions/action.execute', {
       uid: validationAction.uid,
@@ -102,19 +151,11 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
 
   // Validate using ApiHint (direct API call)
   const performApiValidation = async (value: any) => {
-    // Build request body from dependencies mapping
-    const requestBody: any = {};
+    // Determine field name mapping for the current field
+    const fieldNameMapping = validationHint.dependencies?.[fieldName] || fieldName;
     
-    if (validationHint.dependencies && Object.keys(validationHint.dependencies).length > 0) {
-      Object.entries(validationHint.dependencies).forEach(([configField, requestField]) => {
-        if (configField === fieldName) {
-          requestBody[requestField as string] = value;
-        }
-      });
-    } else {
-      // If no dependencies specified, use the field name directly
-      requestBody[fieldName] = value;
-    }
+    // Build request body with current field and dependencies
+    const requestBody = buildInputWithDependencies(value, fieldNameMapping);
 
     // Determine the HTTP method (default to POST)
     const method = (validationHint.method || 'POST').toUpperCase();
@@ -172,8 +213,8 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
       return;
     }
 
-    // Skip validation if value hasn't changed
-    if (lastValidatedValueRef.current === value) {
+    // Skip validation if neither the value nor dependencies have changed
+    if (lastValidatedKeyRef.current === validationKey) {
       return;
     }
 
@@ -211,7 +252,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
             : `${invalidCount} of ${itemResults.length} items invalid`
         });
 
-        lastValidatedValueRef.current = value;
+        lastValidatedKeyRef.current = validationKey;
         onValidationChange(fieldName, allValid, itemResults);
       } else {
         // Single item response (original behavior)
@@ -223,7 +264,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
           message: responseData.message || (isValid ? 'Valid' : 'Invalid')
         });
 
-        lastValidatedValueRef.current = value;
+        lastValidatedKeyRef.current = validationKey;
         onValidationChange(fieldName, isValid);
       }
 
@@ -241,7 +282,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
     }
   };
 
-  // Debounced validation on value change
+  // Debounced validation on field value change OR dependency value change
   useEffect(() => {
     if (validationTimeoutRef.current) {
       clearTimeout(validationTimeoutRef.current);
@@ -256,7 +297,7 @@ export const FieldValidation: React.FC<FieldValidationProps> = ({
         clearTimeout(validationTimeoutRef.current);
       }
     };
-  }, [fieldValue]);
+  }, [validationKey]); // Re-trigger when field value OR any dependency changes
 
   // Cleanup on unmount
   useEffect(() => {

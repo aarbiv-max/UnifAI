@@ -6,10 +6,11 @@ from core.enums import ResourceCategory
 from core.field_hints import HiddenHint
 
 
-class ResourceDoc(BaseModel):
+class Resource(BaseModel):
     """
-    One persisted element in the user *Library*.
-    – cfg_dict is **plain json**; we do NOT store the Pydantic instance.
+    One persisted element in the user's Library.
+    
+    cfg_dict is plain JSON; we do NOT store the Pydantic instance.
     """
     rid: str = Field(default_factory=lambda: uuid4().hex, json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())  # public key
     user_id: str = Field(default="admin", json_schema_extra=HiddenHint(reason="UI hint to hide this value").to_hints())  # tenant

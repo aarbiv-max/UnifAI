@@ -48,7 +48,7 @@ class PlanBuilder:
 
         # Handle condition if present
         if step_def.exit_condition:
-            condition_spec = self._find_condition_by_ref(step_def.exit_condition, blueprint)
+            condition_spec = self._find_condition_by_ref(step_def.exit_condition.ref, blueprint)
             condition_meta = self._build_condition_meta(condition_spec)
 
             step.condition = condition_meta

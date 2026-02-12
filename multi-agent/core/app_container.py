@@ -19,6 +19,8 @@ from sharing.cloner import ShareCloner
 from sharing.service import ShareService
 from statistics.service import StatisticsService
 from validation.service import ElementValidationService
+from templates.repository.mongo_repository import MongoTemplateRepository
+from templates.service import TemplateService
 from config.app_config import AppConfig
 from global_utils.utils.singleton import SingletonMeta
 
@@ -137,6 +139,18 @@ class AppContainer(metaclass=SingletonMeta):
             blueprint_service=self.blueprint_service,
             session_service=self.session_service,
             resources_service=self.resources_service
+        )
+
+        # Template service
+        self.template_repo = MongoTemplateRepository(
+            db_name=cfg.mongo_db,
+            coll_name=cfg.templates_coll
+        )
+        self.template_service = TemplateService(
+            repository=self.template_repo,
+            element_registry=self.element_registry,
+            blueprint_service=self.blueprint_service,
+            resources_service=self.resources_service,
         )
 
         self._initialized = True

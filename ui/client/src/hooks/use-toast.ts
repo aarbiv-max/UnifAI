@@ -6,7 +6,8 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 4
-const TOAST_REMOVE_DELAY = 24 * 60 * 60 * 1000
+const TOAST_REMOVE_DELAY = 1000 // Delay before removing from DOM after dismiss (for exit animation)
+const AUTO_DISMISS_DELAY = 3000 // Auto-dismiss after 3 seconds
 
 type ToasterToast = Omit<ToastProps, "title" | "description" | "action"> & {
   id: string
@@ -54,6 +55,7 @@ interface State {
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+const autoDismissTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
 const addToRemoveQueue = (toastId: string) => {
   if (toastTimeouts.has(toastId)) {
@@ -69,6 +71,26 @@ const addToRemoveQueue = (toastId: string) => {
   }, TOAST_REMOVE_DELAY)
 
   toastTimeouts.set(toastId, timeout)
+}
+
+const scheduleAutoDismiss = (toastId: string, delay: number = AUTO_DISMISS_DELAY) => {
+  // Clear any existing auto-dismiss timeout for this toast
+  clearAutoDismiss(toastId)
+
+  const timeout = setTimeout(() => {
+    autoDismissTimeouts.delete(toastId)
+    dispatch({ type: "DISMISS_TOAST", toastId })
+  }, delay)
+
+  autoDismissTimeouts.set(toastId, timeout)
+}
+
+const clearAutoDismiss = (toastId: string) => {
+  const existingTimeout = autoDismissTimeouts.get(toastId)
+  if (existingTimeout) {
+    clearTimeout(existingTimeout)
+    autoDismissTimeouts.delete(toastId)
+  }
 }
 
 export const reducer = (state: State, action: Action): State => {
@@ -139,7 +161,7 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+function toast({ ...props }: Toast & { duration?: number }) {
   const id = genId()
 
   const update = (props: ToasterToast) =>
@@ -147,7 +169,10 @@ function toast({ ...props }: Toast) {
       type: "UPDATE_TOAST",
       toast: { ...props, id },
     })
-  const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
+  const dismiss = () => {
+    clearAutoDismiss(id)
+    dispatch({ type: "DISMISS_TOAST", toastId: id })
+  }
 
   dispatch({
     type: "ADD_TOAST",
@@ -160,6 +185,9 @@ function toast({ ...props }: Toast) {
       },
     },
   })
+
+  // Schedule auto-dismiss (use custom duration or default)
+  scheduleAutoDismiss(id, props.duration)
 
   return {
     id: id,

@@ -109,6 +109,7 @@ def update_resource(resource_id, config, name=None):
     "resource_id": fields.Str(data_key="resourceId", required=True),
 })
 def delete_resource(resource_id):
+    # TODO: Add authorization check - verify user has permission to delete this resource
     svc = current_app.container.resources_service
     try:
         svc.delete(resource_id)
@@ -126,7 +127,7 @@ def delete_resource(resource_id):
 
 @resources_bp.route("/resource.schema", methods=["GET"])
 def get_resource_schema():
-    """Get the JSON schema for ResourceDoc model."""
+    """Get the JSON schema for Resource model."""
     svc = current_app.container.resources_service
     try:
         schema = svc.get_resource_schema()
@@ -189,8 +190,8 @@ def validate_resources(resource_ids, timeout_seconds, max_workers):
     if not resource_ids:
         return jsonify([]), 200
     
-    # Cap max_workers to prevent resource exhaustion
-    max_workers = min(max_workers, 20)
+    # Cap max_workers and ensure a positive value
+    max_workers = max(1, min(max_workers, 20))
     
     try:
         results = svc.validate_resources(

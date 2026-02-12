@@ -23,7 +23,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { usePublicChat } from "@/hooks/use-public-chat";
-import { getBlueprintInfo, validateBlueprint } from "@/api/blueprints";
+import { getBlueprintInfo } from "@/api/blueprints";
+import { useAgenticAI } from "@/contexts/AgenticAIContext";
 import { UmamiTrack } from "@/components/ui/umamitrack";
 import { UmamiEvents } from "@/config/umamiEvents";
 
@@ -42,6 +43,9 @@ export default function PublicChat() {
   const [isSharingDisabled, setIsSharingDisabled] = useState<boolean>(false);
   const [isBlueprintValid, setIsBlueprintValid] = useState<boolean>(true);
   const [isValidatingBlueprint, setIsValidatingBlueprint] = useState<boolean>(false);
+
+  // Use the cached blueprint validation from context
+  const { validateBlueprintWithCache } = useAgenticAI();
 
   // Use the custom hook for chat management
   const {
@@ -75,13 +79,15 @@ export default function PublicChat() {
     }
   }, []);
 
-  // Check blueprint validity
+  // Check blueprint validity using cached validation from context
+  // This leverages the 60-minute cache for valid blueprints to avoid redundant API calls
   const checkBlueprintValidity = useCallback(async (blueprintId: string, showLoadingState: boolean = true) => {
     if (showLoadingState) {
       setIsValidatingBlueprint(true);
     }
     try {
-      const result = await validateBlueprint({ blueprintId });
+      // Uses context's cached validation - if valid within 60 minutes, returns cached result
+      const result = await validateBlueprintWithCache({ blueprintId });
       setIsBlueprintValid(result.is_valid);
       if (!result.is_valid && showLoadingState) {
         // Only set validation error on initial load, not during polling
@@ -96,7 +102,7 @@ export default function PublicChat() {
         setIsValidatingBlueprint(false);
       }
     }
-  }, []);
+  }, [validateBlueprintWithCache]);
 
   // Validate token and get blueprint info
   useEffect(() => {
