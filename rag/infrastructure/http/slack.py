@@ -8,6 +8,7 @@ from bootstrap.app_container import (
     retrieval_service,
     slack_stats_service,
     slack_event_dispatch_service,
+    slack_sync_service,
 )
 from global_utils.helpers.apiargs import from_query
 from shared.logger import logger
@@ -141,6 +142,19 @@ def slack_stats():
         return jsonify(stats.to_dict()), 200
     except Exception as e:
         logger.error(f"Failed to get Slack stats: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@slack_bp.route("/sync/<channel_id>", methods=["POST"])
+def sync_channel(channel_id):
+    """Trigger an immediate sync for a single Slack channel."""
+    try:
+        result = slack_sync_service().sync_one(channel_id)
+        return jsonify(result), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        logger.error(f"Failed to trigger sync for {channel_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
 

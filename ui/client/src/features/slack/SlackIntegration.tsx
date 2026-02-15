@@ -7,7 +7,7 @@ import { PaginatedChannelTable } from "@/features/slack/PaginatedChannelTable";
 import { ChannelSettingsDrawer } from "@/features/slack/ChannelSettingsDrawer";
 import { AnimatePresence, motion } from "framer-motion";
 import { useLocation } from "wouter";
-import { fetchEmbeddedSlackChannels, fetchSystemStats, deleteSlackChannels } from "@/api/slack";
+import { fetchEmbeddedSlackChannels, fetchSystemStats, deleteSlackChannels, syncSlackChannel } from "@/api/slack";
 import { FaHashtag, FaComments, FaSync, FaDatabase } from "react-icons/fa";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -175,6 +175,25 @@ export default function SlackIntegration() {
     refetchStats();
   }, [refetchStats]);
 
+  const handleSyncChannel = useCallback(async (channel: EmbedChannel) => {
+    try {
+      await syncSlackChannel(channel.channel_id);
+      trackEmbeddingStart([channel.channel_id]);
+      refetch();
+      toast({
+        title: "Sync Started",
+        description: `Syncing channel "${channel.name}"...`,
+        variant: "default",
+      });
+    } catch (error) {
+      toast({
+        title: "Sync Failed",
+        description: `Unable to sync channel "${channel.name}".`,
+        variant: "destructive",
+      });
+    }
+  }, [trackEmbeddingStart, refetch, toast]);
+
   useEffect(() => {
     if (Array.isArray(embedChannels) && embedChannels.length > 0 && activeEmbedding.size > 0) {
       const completedChannels: string[] = [];
@@ -262,8 +281,7 @@ export default function SlackIntegration() {
     {
       icon: FaSync,
       label: 'Last Sync',
-      value: getLastSyncTime(),
-      status: 'Real-time',
+      value: getLastSyncTime(stats?.lastSyncAt ?? undefined),
       color: 'amber'
     },
     {
@@ -331,6 +349,7 @@ export default function SlackIntegration() {
                       allChannels={embedChannels}
                       onSettingsClick={setSettingsChannel}
                       onDeleteClick={handleDeleteChannel}
+                      onSyncClick={handleSyncChannel}
                       onRefresh={handleRefresh}
                       deletingChannelId={deletingChannelId || undefined}
                       activeEmbeddingIds={Array.from(activeEmbedding)}

@@ -1,16 +1,8 @@
 import React from 'react';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 export interface ChannelSettingsData {
-  dateRange: string;
   includeThreads: boolean;
   processFileContent: boolean;
 }
@@ -23,7 +15,6 @@ export interface ChannelSettingsProps {
 }
 
 export const defaultChannelSettings: ChannelSettingsData = {
-  dateRange: '180d',
   includeThreads: true,
   processFileContent: false,
 };
@@ -44,38 +35,17 @@ export function ChannelSettings({
   return (
     <div className="bg-background-card border border-gray-800 rounded-lg p-4 space-y-4">
       <h4 className="font-medium text-sm text-foreground">
-        Settings for{' '}
         <span className="inline-block px-3 py-1 bg-blue-500/20 border border-blue-500/40 rounded-md text-blue-400 font-bold text-base">
           #{channelName}
         </span>
       </h4>
       
-      {/* Date Range */}
-      <div>
-        <Label htmlFor={`date-range-${channelId}`} className="text-sm">
-          Date Range
-        </Label>
-        <Select 
-          value={settings.dateRange} 
-          onValueChange={(value) => updateSetting('dateRange', value)}
-        >
-          <SelectTrigger
-            id={`date-range-${channelId}`}
-            className="mt-1 bg-background-dark"
-          >
-            <SelectValue placeholder="Select date range" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Last 7 days</SelectItem>
-            <SelectItem value="30d">Last 30 days</SelectItem>
-            <SelectItem value="90d">Last 90 days</SelectItem>
-            <SelectItem value="180d">Last 6 months</SelectItem>
-            <SelectItem value="365d">Last year</SelectItem>
-            <SelectItem value="all">All time</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-gray-400 mt-1">
-          How far back to fetch messages
+      {/* Sync Info */}
+      <div className="flex items-start gap-2 rounded-md bg-blue-500/10 border border-blue-500/20 px-3 py-2">
+        <span className="text-blue-400 text-sm mt-0.5">&#8505;</span>
+        <p className="text-xs text-blue-300">
+          Messages will be collected from the moment this channel is added and
+          synced automatically twice a day.
         </p>
       </div>
 

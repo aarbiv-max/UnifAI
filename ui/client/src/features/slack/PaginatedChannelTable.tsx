@@ -13,6 +13,7 @@ export interface PaginatedChannelTableProps {
   allChannels: EmbedChannel[];
   onSettingsClick: (channel: EmbedChannel) => void;
   onDeleteClick: (channel: EmbedChannel) => void;
+  onSyncClick: (channel: EmbedChannel) => void;
   onRefresh: () => void;
   pageSize?: number;
   isLoading?: boolean;
@@ -24,6 +25,7 @@ export function PaginatedChannelTable({
   allChannels,
   onSettingsClick,
   onDeleteClick,
+  onSyncClick,
   onRefresh,
   pageSize = 6,
   isLoading = false,
@@ -106,7 +108,7 @@ export function PaginatedChannelTable({
               [&_tbody_tr]:!border-b-[0.5px] [&_tbody_tr]:!border-gray-500/15"
           >
             <DataTable
-              columns={getColumns(onSettingsClick, onDeleteClick, deletingChannelId, activeEmbeddingIds)}
+              columns={getColumns(onSettingsClick, onDeleteClick, onSyncClick, deletingChannelId, activeEmbeddingIds)}
               data={allChannels}
               enableSorting={true}
               enableColumnFilters={true}

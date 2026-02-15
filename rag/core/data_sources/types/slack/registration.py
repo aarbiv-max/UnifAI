@@ -1,6 +1,7 @@
 """Slack registration implementation."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 from functools import cached_property
 from dataclasses import dataclass
@@ -10,7 +11,6 @@ from core.data_sources.domain.repository import DataSourceRepository
 from core.registration.base_registration import BaseRegistration
 from core.validation.validator import Validator
 from core.data_sources.types.slack.validators.factory import SlackValidators
-from global_utils.helpers.helpers import calculate_date_range
 
 
 @dataclass
@@ -79,11 +79,8 @@ class SlackRegistration(BaseRegistration):
         )
 
     def _build_type_data(self) -> Dict[str, Any]:
-        date_range = self.source_data.form_data.get("dateRange")
-        start_datetime, end_datetime = calculate_date_range(date_range)
         return {
             "is_private": self.instance.get("is_private", False),
-            "start_timestamp": start_datetime,
-            "end_timestamp": end_datetime,
+            "start_timestamp": datetime.now(timezone.utc),
             **self.source_data.form_data,
         }

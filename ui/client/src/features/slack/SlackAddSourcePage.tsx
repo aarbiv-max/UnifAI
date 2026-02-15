@@ -51,8 +51,8 @@ export default function SlackAddSourcePage() {
             } else {
                 // Only show success toast if there are no blocking issues
                 toast({
-                    title: "🚀 Embedding Task Started",
-                    description: "Your Slack channels have been submitted for processing. You'll see them appear in the integration dashboard as they're processed.",
+                    title: "Channels Added to Sync",
+                    description: "Your channels have been registered and will be synced automatically on the next scheduled run.",
                     variant: "default",
                 });
             }
@@ -70,7 +70,7 @@ export default function SlackAddSourcePage() {
                         <span>Submission Failed</span>
                     </span>
                 ),
-                description: `Unable to start embedding process: ${err.message}`,
+                description: `Unable to register channels: ${err.message}`,
                 variant: "destructive",
             });
         },

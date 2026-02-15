@@ -33,15 +33,18 @@ const ALL_CHANNEL_TYPES = 'private_channel,public_channel';
 
 const CACHE_KEY = 'availableSlackChannels';
 
+const sharedTransition = {
+  type: "spring",
+  stiffness: 300,
+  damping: 30,
+};
+
 const scopeOptions = [
-  { label: 'All', value: SCOPE.ALL },
-  { label: 'Public', value: SCOPE.PUBLIC },
-  { label: 'Private', value: SCOPE.PRIVATE },
+  { label: 'Public Channels', value: SCOPE.PUBLIC },
 ];
 
 interface ChannelWithSettings extends Channel {
   settings: {
-    dateRange: string;
     communityPrivacy: 'public' | 'private';
     includeThreads: boolean;
     processFileContent: boolean;
@@ -72,7 +75,7 @@ const parseChannelUniqueId = (uniqueId: string) => {
 
 const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProps>(({ onSave, onCancel, isSubmitting }, ref) => {
   const queryClient = useQueryClient();
-  const [scope, setScope] = useState<Scope>(SCOPE.ALL);
+  const [scope, setScope] = useState<Scope>(SCOPE.PUBLIC);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -212,7 +215,6 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
       result.push({
         ...channel,
         settings: {
-          dateRange: settingsForThisChannel.dateRange,
           communityPrivacy: 'public' as const,
           includeThreads: settingsForThisChannel.includeThreads,
           processFileContent: settingsForThisChannel.processFileContent,
@@ -463,88 +465,6 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
           )}
         </div>
 
-        <TooltipProvider>
-        <div 
-          ref={scrollContainerRef}
-          className="border border-gray-800 rounded-md h-48 overflow-y-auto bg-background-dark"
-        >
-          {isLoading && channels.length === 0 && (
-            <div className="p-4 text-center text-gray-400">
-              <FaSpinner className="animate-spin inline mr-2" />
-              Loading channels...
-            </div>
-          )}
-          
-          {isError && (
-            <div className="p-4 text-center text-red-500">{error?.message}</div>
-          )}
-          
-          {!isLoading && !isError && filteredChannels.length === 0 && channels.length > 0 && (
-            <div className="p-4 text-center text-gray-500">No channels found matching your search</div>
-          )}
-          
-          {!isLoading && !isError && channels.length === 0 && (
-            <div className="p-4 text-center text-gray-500">No channels available</div>
-          )}
-
-          {filteredChannels.map(c => {
-            const isEmbedded = isChannelEmbedded(c);
-            const uniqueId = getChannelUniqueId(c);
-            const notMember = c.is_app_member === false || c.is_app_member === null;
-            return (
-              <div 
-                key={uniqueId} 
-                className={`flex items-center justify-between p-3 border-b border-gray-800 ${
-                  (isEmbedded) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-background-surface cursor-pointer'
-                }`}
-                onClick={() => !isEmbedded && handleToggleChannel(c)}
-              >
-                <div className="flex items-center">
-                  <span className="text-gray-400 mr-2">{c.is_private ? <HiOutlineLockClosed className="inline" /> : '#'}</span>
-                  <span>{c.channel_name}</span>
-                  {c.is_private && <Badge className="ml-2 bg-gray-700/40 text-gray-400 border border-gray-700/40">Private</Badge>}
-                  {!c.is_private && <Badge className="ml-2 bg-gray-700/40 text-gray-400 border border-gray-700/40">Public</Badge>}
-                  {isEmbedded && <Badge className="ml-2 bg-[hsl(var(--success))]/20 text-[hsl(var(--success))] border border-[hsl(var(--success))]/30">Embedded</Badge>}
-                </div>
-                <div 
-                  onClick={(e) => e.stopPropagation()} 
-                  onPointerDown={(e) => e.stopPropagation()} 
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
-                  <Switch 
-                    checked={isEmbedded || selectedChannels.includes(uniqueId)} 
-                    disabled={isEmbedded}
-                    onCheckedChange={() => handleToggleChannel(c)} 
-                  />
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Loading indicator for infinite scroll */}
-          {isFetchingNextPage && (
-            <div className="p-4 text-center text-gray-400">
-              <FaSpinner className="animate-spin inline mr-2" />
-              Loading more channels...
-            </div>
-          )}
-
-          {/* Load more button as fallback */}
-          {hasNextPage && !isFetchingNextPage && (
-            <div className="p-4 text-center">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => fetchNextPage()}
-                className="w-full"
-              >
-                Load More Channels
-              </Button>
-            </div>
-          )}
-        </div>
-        </TooltipProvider>
-
         <div className="flex justify-between items-center">
           <span className="text-sm">{selectedChannels.length} channel{selectedChannels.length !== 1 && 's'} selected</span>
           <Button variant="outline" size="sm" onClick={handleSelectAll}>
@@ -552,36 +472,133 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
           </Button>
         </div>
 
-        {selectedChannels.length > 0 && lastSelectedChannel ? (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Channel Settings</h3>
-            <p className="text-sm text-gray-400">
-              Configure settings for the most recently selected channel
-              {selectedChannels.length > 1 && (
-                <span className="text-amber-400 ml-1">
-                  ({selectedChannels.length} channels selected total)
-                </span>
+        <div className="flex gap-4 min-h-[420px] relative">
+          {/* Channel list — shrinks when settings panel opens */}
+          <motion.div
+            className="flex flex-col transition-all duration-500 ease-in-out"
+            style={{ width: lastSelectedChannel && selectedChannels.length > 0 ? "calc(100% - 420px)" : "100%" }}
+            animate={{ width: lastSelectedChannel && selectedChannels.length > 0 ? "calc(100% - 420px)" : "100%" }}
+            transition={sharedTransition}
+          >
+            <TooltipProvider>
+            <div 
+              ref={scrollContainerRef}
+              className="border border-gray-800 rounded-md h-[420px] overflow-y-auto bg-background-dark"
+            >
+              {isLoading && channels.length === 0 && (
+                <div className="p-4 text-center text-gray-400">
+                  <FaSpinner className="animate-spin inline mr-2" />
+                  Loading channels...
+                </div>
               )}
-            </p>
-            
-            <div className="space-y-4">
-              {(() => {
-                const channel = channels.find(c => getChannelUniqueId(c) === lastSelectedChannel);
-                if (!channel) return null;
-                
+              
+              {isError && (
+                <div className="p-4 text-center text-red-500">{error?.message}</div>
+              )}
+              
+              {!isLoading && !isError && filteredChannels.length === 0 && channels.length > 0 && (
+                <div className="p-4 text-center text-gray-500">No channels found matching your search</div>
+              )}
+              
+              {!isLoading && !isError && channels.length === 0 && (
+                <div className="p-4 text-center text-gray-500">No channels available</div>
+              )}
+
+              {filteredChannels.map(c => {
+                const isEmbedded = isChannelEmbedded(c);
+                const uniqueId = getChannelUniqueId(c);
+                const notMember = c.is_app_member === false || c.is_app_member === null;
                 return (
-                  <ChannelSettings
-                    key={lastSelectedChannel}
-                    channelId={lastSelectedChannel}
-                    channelName={channel.channel_name}
-                    settings={channelSettings[lastSelectedChannel] || defaultChannelSettings}
-                    onSettingsChange={handleChannelSettingsChange}
-                  />
+                  <div 
+                    key={uniqueId} 
+                    className={`flex items-center justify-between p-3 border-b border-gray-800 ${
+                      (isEmbedded) ? 'opacity-60 cursor-not-allowed' : 'hover:bg-background-surface cursor-pointer'
+                    }`}
+                    onClick={() => !isEmbedded && handleToggleChannel(c)}
+                  >
+                    <div className="flex items-center">
+                      <span className="text-gray-400 mr-2">{c.is_private ? <HiOutlineLockClosed className="inline" /> : '#'}</span>
+                      <span>{c.channel_name}</span>
+                      {c.is_private && <Badge className="ml-2 bg-gray-700/40 text-gray-400 border border-gray-700/40">Private</Badge>}
+                      {!c.is_private && <Badge className="ml-2 bg-gray-700/40 text-gray-400 border border-gray-700/40">Public</Badge>}
+                      {isEmbedded && <Badge className="ml-2 bg-[hsl(var(--success))]/20 text-[hsl(var(--success))] border border-[hsl(var(--success))]/30">Embedded</Badge>}
+                    </div>
+                    <div 
+                      onClick={(e) => e.stopPropagation()} 
+                      onPointerDown={(e) => e.stopPropagation()} 
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <Switch 
+                        checked={isEmbedded || selectedChannels.includes(uniqueId)} 
+                        disabled={isEmbedded}
+                        onCheckedChange={() => handleToggleChannel(c)} 
+                      />
+                    </div>
+                  </div>
                 );
-              })()}
+              })}
+
+              {/* Loading indicator for infinite scroll */}
+              {isFetchingNextPage && (
+                <div className="p-4 text-center text-gray-400">
+                  <FaSpinner className="animate-spin inline mr-2" />
+                  Loading more channels...
+                </div>
+              )}
+
+              {/* Load more button as fallback */}
+              {hasNextPage && !isFetchingNextPage && (
+                <div className="p-4 text-center">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => fetchNextPage()}
+                    className="w-full"
+                  >
+                    Load More Channels
+                  </Button>
+                </div>
+              )}
             </div>
-          </div>
-        ) : null}
+            </TooltipProvider>
+          </motion.div>
+
+          {/* Settings panel — slides in from the right */}
+          <AnimatePresence>
+            {selectedChannels.length > 0 && lastSelectedChannel && (() => {
+              const channel = channels.find(c => getChannelUniqueId(c) === lastSelectedChannel);
+              if (!channel) return null;
+              return (
+                <motion.div
+                  key="channel-settings-panel"
+                  className="absolute right-0 top-0 w-[400px] z-10"
+                  initial={{ x: 400, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: 400, opacity: 0 }}
+                  transition={sharedTransition}
+                >
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-400">
+                      Configure settings for the selected channel
+                      {selectedChannels.length > 1 && (
+                        <span className="text-amber-400 ml-1">
+                          ({selectedChannels.length} channels selected total)
+                        </span>
+                      )}
+                    </p>
+                    <ChannelSettings
+                      key={lastSelectedChannel}
+                      channelId={lastSelectedChannel}
+                      channelName={channel.channel_name}
+                      settings={channelSettings[lastSelectedChannel] || defaultChannelSettings}
+                      onSettingsChange={handleChannelSettingsChange}
+                    />
+                  </div>
+                </motion.div>
+              );
+            })()}
+          </AnimatePresence>
+        </div>
       </CardContent>
     </Card>
   );

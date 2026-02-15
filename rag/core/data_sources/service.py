@@ -1,6 +1,6 @@
 """DataSource application service - CRUD and business logic."""
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Callable
 
 from core.data_sources.domain.model import DataSource
@@ -187,12 +187,15 @@ class DataSourceService:
         source_type: str,
         pipeline_id: str,
         summary: Optional[Dict[str, Any]] = None,
+        success: bool = True,
+        sync_timestamp: Optional[datetime] = None,
     ) -> None:
         """
         Upsert source after pipeline execution completes.
         
-        Creates the source if it doesn't exist, or updates sync time and type_data.
-        Called by the pipeline executor after successful/failed pipeline run.
+        Creates the source if it doesn't exist, or updates type_data.
+        Only advances ``last_sync_at`` on success so that failed time
+        windows are retried on the next sync.
         
         Args:
             source_id: Unique source identifier
@@ -200,13 +203,19 @@ class DataSourceService:
             source_type: Type of source (SLACK, DOCUMENT, etc.)
             pipeline_id: Associated pipeline ID
             summary: Optional dict to merge into type_data (e.g. stats, error info)
+            success: Whether the pipeline completed successfully.
+                     Only advances ``last_sync_at`` when True.
+            sync_timestamp: Timestamp captured *before* collection started.
+                           Used as ``last_sync_at`` on success to avoid a
+                           small message gap. Falls back to ``utcnow()``.
         """
         existing = self._source_repo.find_by_pipeline_id(pipeline_id)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
+        effective_ts = sync_timestamp or now
 
         if existing:
-            # Update existing source
-            existing.last_sync_at = now
+            if success:
+                existing.last_sync_at = effective_ts
             if summary:
                 existing.type_data = {**existing.type_data, **summary}
             self._source_repo.save(existing)
@@ -219,7 +228,7 @@ class DataSourceService:
                 pipeline_id=pipeline_id,
                 upload_by="",  # Could be passed as param if needed
                 created_at=now,
-                last_sync_at=now,
+                last_sync_at=effective_ts if success else None,
                 type_data=summary or {},
             )
             self._source_repo.save(source)

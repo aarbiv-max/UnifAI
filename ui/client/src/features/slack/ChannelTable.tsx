@@ -31,6 +31,7 @@ export function isChannelNew(createdAt: Date): boolean {
 export function getColumns(
   onSettingsClick: (ch: EmbedChannel) => void,
   onDeleteClick: (ch: EmbedChannel) => void,
+  onSyncClick: (ch: EmbedChannel) => void,
   deletingChannelId?: string,
   activeEmbeddingIds: string[] = [],
 ): DataTableColumn<EmbedChannel>[] {
@@ -122,6 +123,9 @@ export function getColumns(
             break;
           case PIPELINE_STATUS.PENDING:
             displayLabel = "Pending";
+            break;
+          case PIPELINE_STATUS.AWAITING_SYNC:
+            displayLabel = "Awaiting Sync";
             break;
           case PIPELINE_STATUS.CHUNKING_AND_EMBEDDING:
             displayLabel = "Chunking & Embedding";
@@ -282,9 +286,7 @@ export function getColumns(
                 variant="ghost"
                 size="sm"
                 className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all duration-200"
-                onClick={() => {
-                  /* optional per-row refresh */
-                }}
+                onClick={() => onSyncClick(ch)}
               >
                 <FaSync className="h-4 w-4" />
               </Button>

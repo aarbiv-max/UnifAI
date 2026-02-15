@@ -69,6 +69,13 @@ export function StatusBadge({
           label: "Pending",
           isActive: true,
         };
+      case "AWAITING_SYNC":
+        return {
+          bgColor: "bg-sky-500/15",
+          textColor: "text-sky-400",
+          label: "Awaiting Sync",
+          isActive: false,
+        };
       // Handle all the processing statuses as active states
       case "CHUNKING_AND_EMBEDDING":
         return {

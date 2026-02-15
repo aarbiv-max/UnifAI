@@ -66,7 +66,6 @@ export async function fetchAvailableSlackChannels(
 
 export interface ChannelWithSettings extends Channel {
   settings: {
-    dateRange: string;
     communityPrivacy: 'public' | 'private';
     includeThreads: boolean;
     processFileContent: boolean;
@@ -98,7 +97,6 @@ export async function submitSlackChannels(
     is_private: channel.is_private,
     // Include settings as additional metadata for backend processing
     metadata: {
-      dateRange: channel.settings.dateRange,
       communityPrivacy: channel.settings.communityPrivacy,
       includeThreads: channel.settings.includeThreads,
       processFileContent: channel.settings.processFileContent,
@@ -136,8 +134,8 @@ export async function fetchEmbeddedSlackChannels(): Promise<EmbedChannel[]> {
     name: item.source_name || '', 
     messages: String(item.pipeline_stats?.documents_retrieved || 0),
     lastSync: timeAgo(item.last_sync_at),
-    status: item.status || 'PENDING',
-    frequency: "", // No field provided, fallback to empty
+    status: item.status || 'AWAITING_SYNC',
+    frequency: "Every 12 hours",
     channel_id: item.source_id || '',
     created: formatDate(item.created_at || ''),
     is_private: item.type_data?.is_private || false,
@@ -146,10 +144,9 @@ export async function fetchEmbeddedSlackChannels(): Promise<EmbedChannel[]> {
     type_data: {
       last_error: item.type_data?.last_error,
     },
-    // For UI: if dateRange is 'all', mark initialTimestamp as 'all' to customize label
-    initialTimestamp: item.type_data?.dateRange === 'all'
-      ? 'all'
-      : (item.type_data?.start_timestamp ? formatDate(item.type_data.start_timestamp) : undefined),
+    initialTimestamp: item.type_data?.start_timestamp
+      ? formatDate(item.type_data.start_timestamp)
+      : '',
   }));
 };
 
@@ -159,6 +156,11 @@ export async function deleteSlackChannels(channelIds: string[]): Promise<any> {
   });
   return data;
 };
+
+export async function syncSlackChannel(channelId: string): Promise<{ source_id: string; status: string }> {
+  const { data } = await api.post(`/slack/sync/${channelId}`);
+  return data;
+}
 
 export async function fetchSystemStats(): Promise<SystemStats> {
   const response = await api.get("/slack/stats");

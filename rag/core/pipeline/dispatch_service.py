@@ -97,8 +97,10 @@ class PipelineDispatchService:
         registered_sources = reg_response.get("registered_sources", [])
 
         # 2. Dispatch pipeline tasks
+        #    Slack sources are synced by a scheduled cron job, so there is
+        #    nothing to embed right after registration (start_timestamp = now).
         task_results: List[TaskResult] = []
-        if registered_sources:
+        if registered_sources and source_type.upper() != "SLACK":
             try:
                 task_results = self._dispatcher.dispatch_batch(
                     source_type=source_type.upper(),

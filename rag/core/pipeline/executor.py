@@ -1,4 +1,5 @@
 """Pipeline Executor - Application use case for orchestrating pipeline execution."""
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from core.pipeline.domain.port import SourcePipelinePort, PipelineContext
@@ -73,6 +74,11 @@ class PipelineExecutor:
         source_type = handler.source_type
         vector_repo = self._vector_repository(f"{source_type.lower()}_data")
         
+        # Capture timestamp before collection so that last_sync_at reflects
+        # the moment just before the Slack API call, avoiding a small gap
+        # where messages could be missed between collect and store.
+        started_at = datetime.now(timezone.utc)
+        
         # Register pipeline
         self._pipeline_svc.register(context.pipeline_id, source_type)
         
@@ -118,6 +124,7 @@ class PipelineExecutor:
                 source_type=source_type,
                 pipeline_id=context.pipeline_id,
                 summary=summary,
+                sync_timestamp=started_at,
             )
             
             return result
@@ -133,7 +140,6 @@ class PipelineExecutor:
             # Update status to failed
             self._pipeline_svc.update_status(context.pipeline_id, PipelineStatus.FAILED)
             
-            # Upsert source with error info
             self._data_source_svc.upsert_after_pipeline(
                 source_id=context.source_id,
                 source_name=context.source_name,
@@ -143,6 +149,7 @@ class PipelineExecutor:
                     "last_error": str(e),
                     "failed_at": current_step.value if current_step else "UNKNOWN",
                 },
+                success=False,
             )
             
             raise
