@@ -1,7 +1,7 @@
 """
 elements/providers/mcp_server_client/validator.py
 
-Validator for MCP Provider - checks endpoint reachability using McpServerClient.
+Validator for MCP Provider - checks endpoint reachability using McpProviderFactory.
 """
 
 import anyio
@@ -17,7 +17,7 @@ from elements.common.validator import (
     ValidationCode,
 )
 from elements.providers.mcp_server_client.config import McpProviderConfig
-from elements.providers.mcp_server_client.mcp_server_client import McpServerClient
+from elements.providers.mcp_server_client.mcp_provider_factory import McpProviderFactory
 
 
 class McpProviderValidator(BaseElementValidator):
@@ -28,6 +28,16 @@ class McpProviderValidator(BaseElementValidator):
     - MCP server connectivity
     - Ability to list tools from the server
     """
+
+    def __init__(self, factory: McpProviderFactory = None):
+        """
+        Initialize validator with optional factory injection.
+        
+        Args:
+            factory: McpProviderFactory instance (creates default if not provided)
+        """
+        super().__init__()
+        self._factory = factory or McpProviderFactory()
 
     def validate(
         self,
@@ -68,15 +78,13 @@ class McpProviderValidator(BaseElementValidator):
         messages: List[ValidationMessage],
     ) -> None:
         """
-        Async MCP connection check using McpServerClient.
+        Async MCP connection check using McpProviderFactory.
         
         Uses anyio.fail_after INSIDE the async function for timeout control.
         """
         try:
             with anyio.fail_after(context.timeout_seconds):
-                client = McpServerClient(config.sse_endpoint)
-                async with client:
-                    await client.tools.get_tools()
+                await self._factory.create_async(config)
             
             # Connection successful
             messages.append(self._info(

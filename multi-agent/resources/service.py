@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from resources.registry import ResourcesRegistry
 from catalog.element_registry import ElementRegistry
-from resources.models import ResourceDoc, ResourceQuery
+from resources.models import Resource, ResourceQuery
 from core.enums import ResourceCategory
 from core.ref import RefWalker
 from core.dto import GroupedCount
@@ -33,7 +33,7 @@ class ResourcesService:
         self._dependency_resolver = DependencyResolver(resource_registry=self._store)
 
     # ---------- CRUD ----------
-    def create(self, *, user_id, category, type, name, config) -> ResourceDoc:
+    def create(self, *, user_id, category, type, name, config) -> Resource:
         # schema validation
         model_cls = self.element_registry.get_schema(ResourceCategory(category), type)
         cfg_model = model_cls(**config)  # Pydantic instance
@@ -42,7 +42,7 @@ class ResourcesService:
         nested_refs = list(RefWalker.external_rids(cfg_model))
 
         # build the document for storage
-        doc = ResourceDoc(
+        doc = Resource(
             user_id=user_id,
             category=category,
             type=type,
@@ -52,9 +52,27 @@ class ResourcesService:
         )
         return self._store.create(doc)
 
-    def update(self, rid: str, *, config: dict, name: str = None) -> ResourceDoc:
+    def save_resource(self, resource: Resource) -> Resource:
+        """
+        Save a pre-built Resource directly.
+        
+        Use this when you already have a validated Resource object.
+        Skips schema validation since the Resource is already built.
+        
+        Args:
+            resource: Resource object to save
+            
+        Returns:
+            Saved Resource object
+            
+        Raises:
+            ValueError: If resource with same name exists
+        """
+        return self._store.create(resource)
+
+    def update(self, rid: str, *, config: dict, name: str = None) -> Resource:
         # 1. fetch immutable meta
-        doc = self._store.get(rid)  # existing ResourceDoc
+        doc = self._store.get(rid)  # existing Resource
         model_cls = self.element_registry.get_schema(
             ResourceCategory(doc.category), doc.type)
         cfg_model = model_cls(**config)  # validate
@@ -62,7 +80,7 @@ class ResourcesService:
         # 2. recompute nested refs
         nested_refs = list(RefWalker.external_rids(cfg_model))
 
-        # 3. build a *new* ResourceDoc (immutability) or mutate doc
+        # 3. build a *new* Resource (immutability) or mutate doc
         doc.cfg_dict = cfg_model.model_dump(mode="json")
         doc.nested_refs = nested_refs
         
@@ -76,13 +94,13 @@ class ResourcesService:
         self._store.delete(rid)
 
     # ---------- READ ----------
-    def get(self, rid: str) -> ResourceDoc:
+    def get(self, rid: str) -> Resource:
         """Get a single resource by ID."""
         return self._store.get(rid)
 
     def find_resources(self, user_id: str, category: Optional[str] = None,
                        type: Optional[str] = None, limit: int = 50,
-                       offset: int = 0) -> Tuple[List[ResourceDoc], int]:
+                       offset: int = 0) -> Tuple[List[Resource], int]:
         """Find resources with optional filtering and pagination."""
         # Convert string category to enum if provided
         category_enum = ResourceCategory(category) if category else None
@@ -108,8 +126,8 @@ class ResourcesService:
 
     @staticmethod
     def get_resource_schema() -> dict:
-        """Get the JSON schema for ResourceDoc model."""
-        return ResourceDoc.model_json_schema()
+        """Get the JSON schema for Resource model."""
+        return Resource.model_json_schema()
 
     # ---------- Statistics ----------
     def count(self, user_id: str, filter: Dict[str, Any] = None) -> int:

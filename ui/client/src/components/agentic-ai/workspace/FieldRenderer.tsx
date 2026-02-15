@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -45,6 +45,80 @@ interface FieldRendererProps {
   onValidationChange: (fieldName: string, isValid: boolean, itemResults?: ItemValidationResult[]) => void;
   onPopulateResult: (fieldName: string, results: string[] | any, multiSelect: boolean) => void;
 }
+
+// Controlled number input with local state buffer to handle intermediate typing (e.g., "0.")
+interface NumberFieldInputProps {
+  fieldName: string;
+  value: number | null;
+  isFloatField: boolean;
+  hasFieldError: boolean;
+  placeholder?: string;
+  onChange: (value: number | null) => void;
+}
+
+const NumberFieldInput: React.FC<NumberFieldInputProps> = ({
+  fieldName,
+  value,
+  isFloatField,
+  hasFieldError,
+  placeholder,
+  onChange,
+}) => {
+  // Local string buffer to preserve intermediate typing states like "0." or "-"
+  const [localNumStr, setLocalNumStr] = useState<string>(
+    value != null ? String(value) : ""
+  );
+
+  // Sync from parent when value changes externally (e.g., clear, populate, reset)
+  useEffect(() => {
+    const incoming = value != null ? String(value) : "";
+    setLocalNumStr((prev) => {
+      // Don't overwrite if user is mid-edit with the same numeric value
+      // e.g., user typed "0." which parent sees as 0, don't replace "0." with "0"
+      if (prev === "") {
+        return incoming;
+      }
+      const parsed = parseFloat(prev);
+      if (!isNaN(parsed) && parsed === value) {
+        return prev; // Same numeric value, keep user's string representation
+      }
+      return incoming;
+    });
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const strValue = e.target.value;
+    
+    // For integer fields, reject any input containing a decimal point
+    if (!isFloatField && strValue.includes('.')) {
+      return; // Don't update - reject decimal input for integers
+    }
+    
+    setLocalNumStr(strValue);
+    
+    // Parse and notify parent
+    if (strValue === "") {
+      onChange(null);
+    } else {
+      const numValue = isFloatField
+        ? parseFloat(strValue)
+        : parseInt(strValue, 10);
+      onChange(isNaN(numValue) ? null : numValue);
+    }
+  };
+
+  return (
+    <Input
+      id={fieldName}
+      type="number"
+      step={isFloatField ? "any" : "1"}
+      value={localNumStr}
+      onChange={handleChange}
+      className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}
+      placeholder={placeholder}
+    />
+  );
+};
 
 export const FieldRenderer: React.FC<FieldRendererProps> = ({
   fieldName,
@@ -373,6 +447,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             elementActions={elementActions}
             selectedElementType={elementType}
             isRequired={isRequired}
+            configValues={formData}
             onValidationChange={onValidationChange}
           />
         )}
@@ -470,6 +545,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               elementActions={elementActions}
               selectedElementType={elementType}
               isRequired={isRequired}
+              configValues={formData}
               onValidationChange={onValidationChange}
             />
           )}
@@ -562,24 +638,32 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           option.type === "integer" || option.type === "number",
       ));
 
+  // Determine if the field should accept float values (step="any") or only integers (step="1")
+  const isFloatField =
+    fieldSchema.type === "number" ||
+    (fieldSchema.anyOf &&
+      fieldSchema.anyOf.some((option: any) => option.type === "number"));
+
   if (isNumberField) {
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName} className="flex items-center">
+        <Label htmlFor={fieldName} className="flex items-center flex-wrap gap-1">
           {fieldName} {isRequired && <span className="text-red-400">*</span>}
+          {isFloatField && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              float
+            </Badge>
+          )}
           {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
         </Label>
-        <Input
-          id={fieldName}
-          type="number"
-          value={value || ""}
-          onChange={(e) => {
-            const numValue =
-              e.target.value === "" ? null : parseFloat(e.target.value);
-            onInputChange(fieldName, numValue);
-          }}
-          className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}
+        <NumberFieldInput
+          key={`${fieldName}-${editingElement?.rid || 'new'}`}
+          fieldName={fieldName}
+          value={value}
+          isFloatField={isFloatField}
+          hasFieldError={hasFieldError}
           placeholder={fieldSchema.description}
+          onChange={(numValue) => onInputChange(fieldName, numValue)}
         />
         {fieldSchema.description && (
           <p className="text-xs text-gray-400">{fieldSchema.description}</p>
@@ -641,6 +725,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           elementActions={elementActions}
           selectedElementType={elementType}
           isRequired={isRequired}
+          configValues={formData}
           onValidationChange={onValidationChange}
         />
       )}
@@ -717,6 +802,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
         elementActions={elementActions}
         selectedElementType={elementType}
         isRequired={isRequired}
+        configValues={formData}
         onValidationChange={onValidationChange}
       />
     )}

@@ -1,6 +1,6 @@
 from typing import List, Dict, Any
 import pymongo
-from resources.models import ResourceDoc, ResourceQuery
+from resources.models import Resource, ResourceQuery
 from resources.repository.base import ResourceRepository
 from core.dto import GroupedCount
 
@@ -11,8 +11,8 @@ class MongoResourceRepository(ResourceRepository):
                  db_name="UnifAI",
                  coll_name="resources"):
         mongo_uri = f"mongodb://{mongodb_ip}:{mongodb_port}/"
-        client = pymongo.MongoClient(mongo_uri)
-        self.col = client[db_name][coll_name]
+        self._client = pymongo.MongoClient(mongo_uri)
+        self.col = self._client[db_name][coll_name]
         self.col.create_index("nested_refs")
         self.col.create_index(
             [("user_id", 1), ("category", 1), ("type", 1), ("name", 1)],
@@ -21,7 +21,7 @@ class MongoResourceRepository(ResourceRepository):
         # Add index for better query performance
         self.col.create_index([("user_id", 1), ("created", -1)])
 
-    def save(self, doc: ResourceDoc) -> str:
+    def save(self, doc: Resource) -> str:
         """Insert a new resource document (create only)."""
         result = self.col.insert_one({"_id": doc.rid,
                                       **doc.model_dump(mode="json")})
@@ -29,7 +29,7 @@ class MongoResourceRepository(ResourceRepository):
             raise RuntimeError(f"Failed to insert document with rid: {doc.rid}")
         return doc.rid
 
-    def update(self, doc: ResourceDoc) -> str:
+    def update(self, doc: Resource) -> str:
         """Update an existing resource document."""
         result = self.col.replace_one(
             {"_id": doc.rid},
@@ -39,20 +39,20 @@ class MongoResourceRepository(ResourceRepository):
             raise KeyError(f"No document found with rid: {doc.rid}")
         return doc.rid
 
-    def get(self, rid: str) -> ResourceDoc:
+    def get(self, rid: str) -> Resource:
         raw = self.col.find_one({"_id": rid})
         if not raw:
             raise KeyError(rid)
-        return ResourceDoc(**raw)
+        return Resource(**raw)
 
     def delete(self, rid: str) -> None:
         self.col.delete_one({"_id": rid})
 
     def find_by_name(self, user_id: str, category: str, type: str, name: str):
         raw = self.col.find_one({"user_id": user_id, "category": category, "type": type, "name": name})
-        return ResourceDoc(**raw) if raw else None
+        return Resource(**raw) if raw else None
 
-    def find_resources(self, query: ResourceQuery) -> List[ResourceDoc]:
+    def find_resources(self, query: ResourceQuery) -> List[Resource]:
         """Find resources based on query criteria with pagination."""
         filter_dict = {"user_id": query.user_id}
         
@@ -74,7 +74,7 @@ class MongoResourceRepository(ResourceRepository):
         if query.limit:
             cursor = cursor.limit(query.limit)
             
-        return [ResourceDoc(**doc) for doc in cursor]
+        return [Resource(**doc) for doc in cursor]
 
     def count_resources(self, query: ResourceQuery) -> int:
         """Count resources matching query criteria."""

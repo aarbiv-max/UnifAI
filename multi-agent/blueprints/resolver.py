@@ -4,7 +4,7 @@ from core.enums import ResourceCategory
 from core.ref.models import Ref
 from core.ref import RefWalker
 from .models.blueprint import (
-    Resource,
+    BlueprintResource,
     ResourceSpec,
     BlueprintDraft,
     BlueprintSpec
@@ -54,7 +54,7 @@ class BlueprintResolver:
     # --------------------------------------------------------------------
     # helpers
     # --------------------------------------------------------------------
-    def _stash_inline(self, cat: ResourceCategory, res: Resource, bucket: dict, visited: set):
+    def _stash_inline(self, cat: ResourceCategory, res: BlueprintResource, bucket: dict, visited: set):
         """Put an inline/frozen entry straight into the bucket."""
         concrete = res.config  # already a validated Pydantic model
         bucket.setdefault(cat.value, []).append(

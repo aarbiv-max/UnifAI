@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useLocation } from "wouter";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import StatusBar from "@/components/layout/StatusBar";
@@ -13,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 // Agentic AI components
 import AgentFlowGraph from "@/components/agentic-ai/AgentFlowGraph";
 import NewGraph from "../workspace/NewGraph";
+import { SavedBlueprintInfo } from "@/hooks/use-graph-logic";
 import axios from "../http/axiosAgentConfig";
 
 // Create a ReactFlow provider wrapper
@@ -43,6 +45,7 @@ export default function AgenticWorkflows() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { cacheBlueprintValidationResults } = useAgenticAI();
+  const [, navigate] = useLocation();
   
   // Handle validation changes from the flow graph
   const handleValidationChange = useCallback((isValid: boolean, validationResult: BlueprintValidationResult | null, isValidating: boolean) => {
@@ -80,8 +83,8 @@ export default function AgenticWorkflows() {
       );
       setSelectedGraphId(response.data);
 
-      // Navigate to Agentic Chats page
-      window.location.href = "/agentic-chats";
+      // Navigate to Agentic Chats page (client-side navigation preserves context/cache)
+      navigate("/agentic-chats");
     } catch (error: any) {
       console.error("Error create new graph session:", error);
       toast({
@@ -98,9 +101,22 @@ export default function AgenticWorkflows() {
     setShowGraphBuilder(true);
   };
 
-  const handleBackToFlowConfig = () => {
+  const handleBackToFlowConfig = useCallback((savedBlueprint?: SavedBlueprintInfo) => {
     setShowGraphBuilder(false);
-  };
+    
+    // If a blueprint was just saved, select it in the workflow list
+    if (savedBlueprint) {
+      // Create a minimal FlowObject to select the newly saved blueprint
+      // The WorkflowsPanel will fetch the full data and match by ID
+      setSelectedFlow({
+        id: savedBlueprint.blueprintId,
+        name: savedBlueprint.name,
+        description: savedBlueprint.description,
+        icon: null,
+        flow: { nodes: [], edges: [] },
+      } as FlowObject);
+    }
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden">

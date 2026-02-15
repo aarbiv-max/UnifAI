@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, ChevronLeft, ChevronRight, Loader2, Sparkles, Info, Copy, RotateCcw, ThumbsUp, ThumbsDown, Check } from "lucide-react";
+import { Send, Trash2, Loader2, Sparkles, Info, Copy, RotateCcw, ThumbsUp, ThumbsDown, Check, Columns3, MessageSquare, Network, Maximize2, Minimize2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -39,9 +39,10 @@ interface ChatInterfaceProps {
   isSharingDisabled?: boolean; // If true, sharing is disabled for this blueprint
   blueprintValid?: boolean;
   isValidatingBlueprint?: boolean;
-  onToggleBlueprintGraph?: () => void;
   isBlueprintGraphHidden?: boolean;
   isChatOnlyMode?: boolean; // If true, hide agent thinking and workflow details
+  onSetCarouselMode?: (mode: 'normal' | 'chat' | 'graph') => void; // Carousel mode setter
+  carouselMode?: 'normal' | 'chat' | 'graph'; // Current carousel mode
 }
 
 export default function ChatInterface({
@@ -52,9 +53,10 @@ export default function ChatInterface({
   isSharingDisabled = false,
   blueprintValid = true,
   isValidatingBlueprint = false,
-  onToggleBlueprintGraph,
   isBlueprintGraphHidden = false,
   isChatOnlyMode = false,
+  onSetCarouselMode,
+  carouselMode = 'normal',
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
@@ -74,6 +76,99 @@ export default function ChatInterface({
   const { toast } = useToast();
   const [userPromptsMap, setUserPromptsMap] = useState<Record<string, string>>({});
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+  // ────────────────────────────────────────────────────────────────────────────────
+  // Auto-expanding textarea configuration
+  // ────────────────────────────────────────────────────────────────────────────────
+  const TEXTAREA_MIN_HEIGHT = 44;  // Starting height (single line + padding)
+  const TEXTAREA_MAX_HEIGHT = 200; // Maximum expansion height (normal mode)
+  
+  const getExpandedHeight = useCallback(() => {
+    return Math.floor(window.innerHeight * 0.65);
+  }, []);
+  
+  const [isAtMaxHeight, setIsAtMaxHeight] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  /**
+   * Adjusts textarea height dynamically based on content.
+   * Resets to minimum when empty, expands up to max as content grows.
+   */
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // If in expanded mode, use 80% of viewport height
+    if (isExpanded) {
+      textarea.style.height = `${getExpandedHeight()}px`;
+      textarea.style.overflowY = 'auto';
+      return;
+    }
+
+    // If content is empty, reset to minimum height immediately
+    if (!textarea.value || textarea.value.trim() === '') {
+      textarea.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
+      textarea.style.overflowY = 'hidden';
+      setIsAtMaxHeight(false);
+      return;
+    }
+
+    // Reset height to 'auto' to get accurate scrollHeight measurement
+    textarea.style.height = 'auto';
+    
+    // Calculate new height based on content
+    const scrollHeight = textarea.scrollHeight;
+    const newHeight = Math.min(Math.max(scrollHeight, TEXTAREA_MIN_HEIGHT), TEXTAREA_MAX_HEIGHT);
+    
+    textarea.style.height = `${newHeight}px`;
+    
+    // Track if we've reached max height (for expand icon)
+    const reachedMax = scrollHeight > TEXTAREA_MAX_HEIGHT;
+    setIsAtMaxHeight(reachedMax);
+    
+    // Enable scrolling only when content exceeds max height
+    textarea.style.overflowY = reachedMax ? 'auto' : 'hidden';
+  }, [isExpanded, getExpandedHeight]);
+
+  /**
+   * Resets textarea to initial compact state
+   */
+  const resetTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    textarea.style.height = `${TEXTAREA_MIN_HEIGHT}px`;
+    textarea.style.overflowY = 'hidden';
+    setIsAtMaxHeight(false);
+    setIsExpanded(false);
+  }, []);
+
+  /**
+   * Toggles between normal and expanded textarea height
+   */
+  const toggleExpandedHeight = useCallback(() => {
+    setIsExpanded(prev => !prev);
+  }, []);
+
+  /**
+   * Returns the appropriate placeholder text for the chat input based on current state.
+   * Priority order: deleted > sharing disabled > validating > invalid > default
+   */
+  const getInputPlaceholder = useCallback((): string => {
+    if (!blueprintExists) {
+      return "This chat cannot be continued - workflow was deleted";
+    }
+    if (isSharingDisabled) {
+      return "Chat sharing has been disabled for this workflow";
+    }
+    if (isValidatingBlueprint) {
+      return "Validating workflow...";
+    }
+    if (!blueprintValid) {
+      return "This chat cannot be continued - workflow validation failed";
+    }
+    return "Ask a question about your data...";
+  }, [blueprintExists, isSharingDisabled, isValidatingBlueprint, blueprintValid]);
 
   // Transform backend messages to frontend format (streamLogs/workPlans, managed separately)
   const transformBackendMessagesToFrontend = useCallback(
@@ -113,6 +208,11 @@ export default function ChatInterface({
   // useEffect(() => {
   //   scrollToBottom();
   // }, [messages]);
+
+  // Adjust textarea height when input or expanded state changes
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [inputMessage, isExpanded, adjustTextareaHeight]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -461,8 +561,9 @@ export default function ChatInterface({
     setInputMessage("");
     setIsTyping(true);
 
-    // Reset textarea cursor to start position after clearing
+    // Reset textarea to compact state and focus
     setTimeout(() => {
+      resetTextareaHeight();
       if (textareaRef.current) {
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(0, 0);
@@ -828,7 +929,7 @@ export default function ChatInterface({
     <Card className="bg-background-card shadow-card border-gray-800 flex flex-col h-full max-h-[82.5vh]">
       <CardHeader className="py-4 px-6 flex flex-row justify-between items-center flex-shrink-0">
         <CardTitle className="text-lg font-heading">AI Assistant</CardTitle>
-        <div className="flex space-x-2">
+        <div className="flex space-x-1 items-center">
           {!isChatOnlyMode && (
             <>
               <Button
@@ -836,23 +937,50 @@ export default function ChatInterface({
                 size="sm"
                 onClick={clearChat}
                 className="text-gray-400 hover:text-gray-100"
+                title="Clear chat"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
-              {onToggleBlueprintGraph && !isChatOnlyMode && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onToggleBlueprintGraph}
-                  className="text-gray-400 hover:text-gray-100"
-                  title={isBlueprintGraphHidden ? "Show Blueprint Graph" : "Hide Blueprint Graph"}
-                >
-                  {isBlueprintGraphHidden ? (
-                    <ChevronLeft className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                </Button>
+              {/* Carousel Mode Switch - 3 icons for Split/Chat/Graph views */}
+              {onSetCarouselMode && !isChatOnlyMode && (
+                <div className="flex items-center bg-background-surface border border-gray-700 rounded-lg p-0.5">
+                  {/* Split View */}
+                  <button
+                    onClick={() => onSetCarouselMode('normal')}
+                    className={`p-1.5 rounded-md transition-all duration-200 ${
+                      carouselMode === 'normal'
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                    }`}
+                    title="Split View"
+                  >
+                    <Columns3 className="h-4 w-4" />
+                  </button>
+                  {/* Full Chat View */}
+                  <button
+                    onClick={() => onSetCarouselMode('chat')}
+                    className={`p-1.5 rounded-md transition-all duration-200 ${
+                      carouselMode === 'chat'
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                    }`}
+                    title="Full Chat View"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </button>
+                  {/* Full Graph View */}
+                  <button
+                    onClick={() => onSetCarouselMode('graph')}
+                    className={`p-1.5 rounded-md transition-all duration-200 ${
+                      carouselMode === 'graph'
+                        ? 'bg-primary text-white shadow-sm'
+                        : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                    }`}
+                    title="Full Graph View"
+                  >
+                    <Network className="h-4 w-4" />
+                  </button>
+                </div>
               )}
             </>
           )}
@@ -924,26 +1052,49 @@ export default function ChatInterface({
           
           {/* Input area */}
           <div className="flex space-x-2 items-end">
-            <Textarea
-              ref={textareaRef}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                !blueprintExists 
-                  ? "This chat cannot be continued - workflow was deleted" 
-                  : isSharingDisabled
-                    ? "Chat sharing has been disabled for this workflow"
-                    : isValidatingBlueprint
-                      ? "Validating workflow..."
-                      : !blueprintValid 
-                        ? "This chat cannot be continued - workflow validation failed" 
-                        : "Ask a question about your data..."
-              }
-              className={`bg-background-dark min-h-[80px] resize-none ${(!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint) ? 'opacity-50 cursor-not-allowed' : ''}`}
-              rows={3}
-              disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
-            />
+            {/* Textarea container with expand/collapse icon */}
+            <div className="relative flex-1">
+              <Textarea
+                ref={textareaRef}
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={getInputPlaceholder()}
+                className={`bg-background-dark resize-none transition-[height] duration-200 ease-out w-full ${
+                  (!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint) 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : ''
+                } ${(isAtMaxHeight || isExpanded) ? 'pr-10' : ''}`}
+                style={{ height: `${TEXTAREA_MIN_HEIGHT}px` }}
+                rows={1}
+                disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
+              />
+              {/* Expand/Collapse icon - shows when textarea is at max height or expanded */}
+              <AnimatePresence>
+                {(isAtMaxHeight || isExpanded) && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.15 }}
+                    onClick={toggleExpandedHeight}
+                    className={`absolute top-2 right-2 p-1.5 rounded-md transition-colors border ${
+                      isExpanded 
+                        ? 'bg-primary/20 text-primary border-primary/50 hover:bg-primary/30' 
+                        : 'bg-background-surface/90 hover:bg-primary/20 text-gray-400 hover:text-primary border-gray-700 hover:border-primary/50'
+                    }`}
+                    title={isExpanded ? "Collapse input area" : "Expand input area"}
+                    type="button"
+                  >
+                    {isExpanded ? (
+                      <Minimize2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    )}
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
             <UmamiTrack 
               event={UmamiEvents.AGENT_CHAT_SEND_MESSAGE_BUTTON}
             >
@@ -959,7 +1110,7 @@ export default function ChatInterface({
           <div className="flex items-start gap-2 mt-2 px-1">
             <Info className="h-3.5 w-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-gray-500">
-              AI agent responses may be inaccurate or incomplete. Verify important information.
+              AI agent responses may be inaccurate or incomplete. Always review AI generated content prior to use.
             </p>
           </div>
         </div>

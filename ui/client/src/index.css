@@ -25,6 +25,9 @@
     --foreground: 0 0% 100%;            /* primary white */
     --text-primary: 0 0% 100%;
     --text-secondary: 216, 13%, 65%;      /* gray (approx Tailwind gray-400 #9CA3AF) */
+    /* Muted colors for placeholders and secondary text */
+    --muted: 220 12% 18%;
+    --muted-foreground: 215 20% 65%;    /* light gray for placeholders ~#9BA5B5 */
     /* Lines / inputs */
     --border: 220 12% 21%;              /* ~#2A2F36 */
     --input: 220 12% 21%;
@@ -32,8 +35,22 @@
     --primary: 267 95% 76%;             /* keep existing bright primary */
     --primary-foreground: 0 0% 98%;
     --secondary: 216, 13%, 65%;           /* gray (approx Tailwind gray-400 #9CA3AF) */
+    --secondary-foreground: 0 0% 98%;
     --success: 95, 40%, 56%;              /* #63993d */
     --info: 199 89% 55%;                /* blue */
+    /* Popover */
+    --popover: 222 15% 14%;
+    --popover-foreground: 0 0% 100%;
+    /* Accent */
+    --accent: 220 13% 20%;
+    --accent-foreground: 0 0% 100%;
+    /* Destructive */
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    /* Ring */
+    --ring: 267 95% 76%;
+    /* Radius */
+    --radius: 0.5rem;
 
     /* Sidebar color tokens used by UI sidebar primitives */
     --sidebar-background: 222 15% 14%;  /* align with card */
@@ -62,13 +79,30 @@
     --foreground: 240 10% 3.9%;
     --text-primary: 240 10% 3.9%;
     --text-secondary: 216, 13%, 65%;
+    /* Muted colors for placeholders and secondary text */
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;  /* medium gray for placeholders */
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --primary: 267 95% 76%;
     --primary-foreground: 0 0% 98%;
     --secondary: 216, 13%, 65%;
+    --secondary-foreground: 240 5.9% 10%;
     --success: 92 44% 41%;
     --info: 199 89% 45%;
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    /* Accent */
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    /* Destructive */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    /* Ring */
+    --ring: 267 95% 76%;
+    /* Radius */
+    --radius: 0.5rem;
   }
 
   /* Style for inputs, textareas, and selects across all components for better visibility */
@@ -102,9 +136,10 @@
     color: rgba(0, 0, 0, 0.5) !important;
   }
 
+  /* Dark mode inputs have light/white backgrounds, so placeholders need dark color */
   .dark-mode input::placeholder, 
   .dark-mode textarea::placeholder {
-    color: rgba(255, 255, 255, 0.5) !important;
+    color: rgba(0, 0, 0, 0.4) !important;
   }
 
   /* Ensure text is visible in all form components */

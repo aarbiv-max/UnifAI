@@ -2,10 +2,10 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Copy, Check, Share2, Loader2, AlertTriangle } from "lucide-react";
+import { Copy, Check, Share2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { getBlueprintInfo, setBlueprintMetadata } from "@/api/blueprints";
+import { setBlueprintMetadata } from "@/api/blueprints";
 import { constructShareLink } from "@/utils/blueprintHelpers";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { UmamiTrack } from "@/components/ui/umamitrack";
@@ -19,6 +19,8 @@ interface ShareWorkflowProps {
   isValid?: boolean;
   /** Whether validation is currently in progress */
   isValidating?: boolean;
+  /** Initial sharing status (provided by parent component) */
+  initialSharingEnabled: boolean;
 }
 
 export default function ShareWorkflow({
@@ -26,9 +28,12 @@ export default function ShareWorkflow({
   className = "",
   isValid = true,
   isValidating = false,
+  initialSharingEnabled,
 }: ShareWorkflowProps) {
-  const [enabled, setEnabled] = useState(false);
-  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [enabled, setEnabled] = useState(initialSharingEnabled);
+  const [shareLink, setShareLink] = useState<string | null>(
+    initialSharingEnabled ? constructShareLink(blueprintId) : null
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -40,23 +45,11 @@ export default function ShareWorkflow({
   // Show warning if sharing is enabled but blueprint is invalid
   const showInvalidWarning = enabled && !isValid && !isValidating;
 
-  // Fetch current public_usage_scope status from blueprint metadata
+  // Sync state when initialSharingEnabled prop changes (e.g., when switching workflows)
   useEffect(() => {
-    if (!blueprintId) return;
-    
-    const fetchStatus = async () => {
-      try {
-        const blueprintInfo = await getBlueprintInfo(blueprintId);
-        const isPublic = blueprintInfo.metadata?.usageScope === "public";
-        setEnabled(isPublic);
-        setShareLink(isPublic ? constructShareLink(blueprintId) : null);
-      } catch (error) {
-        console.error("Error fetching blueprint info:", error);
-      }
-    };
-
-    fetchStatus();
-  }, [blueprintId]);
+    setEnabled(initialSharingEnabled);
+    setShareLink(initialSharingEnabled ? constructShareLink(blueprintId) : null);
+  }, [initialSharingEnabled, blueprintId]);
 
   const handleToggle = async (checked: boolean) => {
     setIsLoading(true);

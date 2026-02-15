@@ -31,7 +31,7 @@ import InnerRefElement from "./InnerRefElement";
 import NodeValidationIndicator from "./NodeValidationIndicator";
 import { ValidationResultModal } from "../workspace/ValidationResultModal";
 import { ElementValidationResult } from "@/types/validation";
-import axios from "../../../http/axiosAgentConfig";
+import { fetchResolvedBlueprint } from "@/api/blueprints";
 
 // Node status enum
 type NodeStatus = "IDLE" | "PROGRESS" | "DONE";
@@ -293,7 +293,7 @@ const AgentNode: React.FC<NodeProps<EnhancedNodeData>> = ({
             <div className={`text-xs text-gray-400 mb-1`}>
               Resources:
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="grid grid-cols-3 gap-1">
               {Object.entries(references).map(([key, refId]) => (
                 <InnerRefElement
                   key={`${key}-${refId}`}
@@ -861,20 +861,13 @@ export default function ReactFlowGraph({
   const convertGraphFlowToReactFlow = async (graphId: string) => {
     try {
       setIsLoading(true);
-      const response = await axios.get(
-        `/blueprints/available.blueprints.resolved.get?userId=${user?.username || "default"}`,
-      );
-      const blueprintObjects = response.data;
+      
+      const userId = user?.username || 'default';
+      const blueprint = await fetchResolvedBlueprint(graphId, userId);
 
-      // Find the specific graph flow by blueprint_id
-      const targetBlueprintObj = blueprintObjects.find(
-        (blueprintObj: any) =>
-          blueprintObj.blueprint_id === graphId
-      );
-
-      if (targetBlueprintObj) {
+      if (blueprint?.spec_dict) {
         const { nodes: newNodes, edges: newEdges } =
-          parseGraphFlow(targetBlueprintObj.spec_dict, fetchResourceById);
+          parseGraphFlow(blueprint.spec_dict as GraphFlow, fetchResourceById);
 
         // Apply validation data directly to nodes during loading
         // This handles the case where validation finished before graph loading
@@ -910,7 +903,7 @@ export default function ReactFlowGraph({
           }, 200);
         }, 100);
       } else {
-        console.warn(`Graph flow with ID ${graphId} not found`);
+        console.warn(`Graph flow with ID ${graphId} not found or has no spec_dict`);
       }
     } catch (error) {
       console.error("Error loading graph flow:", error);

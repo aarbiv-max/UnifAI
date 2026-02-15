@@ -1,22 +1,22 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
-from resources.models import ResourceDoc, ResourceQuery
+from resources.models import Resource, ResourceQuery
 from core.dto import GroupedCount
 
 
 class ResourceRepository(ABC):
     @abstractmethod
-    def save(self, doc: ResourceDoc) -> str:
+    def save(self, doc: Resource) -> str:
         """Insert a new resource document."""
         ...
 
     @abstractmethod
-    def update(self, doc: ResourceDoc) -> str:
+    def update(self, doc: Resource) -> str:
         """Update an existing resource document."""
         ...
 
     @abstractmethod
-    def get(self, rid: str) -> ResourceDoc:
+    def get(self, rid: str) -> Resource:
         """Retrieve a resource document by ID."""
         ...
 
@@ -26,12 +26,12 @@ class ResourceRepository(ABC):
         ...
 
     @abstractmethod
-    def find_by_name(self, user_id: str, category: str, type: str, name: str) -> ResourceDoc | None:
+    def find_by_name(self, user_id: str, category: str, type: str, name: str) -> Resource | None:
         """Find a resource document by alias."""
         ...
 
     @abstractmethod
-    def find_resources(self, query: ResourceQuery) -> List[ResourceDoc]:
+    def find_resources(self, query: ResourceQuery) -> List[Resource]:
         """Find resources based on query criteria with pagination."""
         ...
 

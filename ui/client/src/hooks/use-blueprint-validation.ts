@@ -1,15 +1,15 @@
 import { useState, useCallback } from 'react';
-import { validateBlueprint } from '@/api/blueprints';
 import { BlueprintValidationResult, ElementValidationResult } from '@/types/validation';
 import { useToast } from '@/hooks/use-toast';
+import { useAgenticAI } from '@/contexts/AgenticAIContext';
 
 export interface UseBlueprintValidationOptions {
   /** Callback when validation state changes */
   onValidationChange?: (isValid: boolean, validationResult: BlueprintValidationResult | null, isValidating: boolean) => void;
-  /** Callback to cache validation results */
-  onCacheResults?: (result: BlueprintValidationResult) => void;
   /** Whether to show toast notifications on validation failure */
   showToastOnFailure?: boolean;
+  /** Whether to skip caching and always call the API (useful for force-refresh scenarios) */
+  skipCache?: boolean;
 }
 
 export interface UseBlueprintValidationResult {
@@ -27,6 +27,7 @@ export interface UseBlueprintValidationResult {
 
 /**
  * Hook to manage blueprint validation state and logic.
+ * Uses AgenticAIContext for caching - valid blueprints are cached for 60 minutes.
  * Used by components that need to validate blueprints and display validation results.
  */
 export function useBlueprintValidation(
@@ -34,11 +35,12 @@ export function useBlueprintValidation(
 ): UseBlueprintValidationResult {
   const { 
     onValidationChange, 
-    onCacheResults, 
-    showToastOnFailure = true 
+    showToastOnFailure = true,
+    skipCache = false,
   } = options;
   
   const { toast } = useToast();
+  const { validateBlueprintWithCache, isBlueprintValidationCacheHit } = useAgenticAI();
   
   const [isValidating, setIsValidating] = useState<boolean>(false);
   const [validationResults, setValidationResults] = useState<Record<string, ElementValidationResult>>({});
@@ -51,22 +53,23 @@ export function useBlueprintValidation(
   }, [onValidationChange]);
 
   const validate = useCallback(async (blueprintId: string) => {
-    setIsValidating(true);
-    setValidationResults({});
-    setIsValid(true); // Assume valid until proven otherwise
+    // Check if we have a cache hit (valid result within TTL)
+    const isCacheHit = !skipCache && isBlueprintValidationCacheHit(blueprintId);
     
-    // Notify parent that validation is starting
-    onValidationChange?.(true, null, true);
+    // Only show loading state if we're actually going to fetch from API (no cache hit)
+    if (!isCacheHit) {
+      setIsValidating(true);
+      setValidationResults({});
+      setIsValid(true); // Assume valid until proven otherwise
+      onValidationChange?.(true, null, true);
+    }
     
     try {
-      const result = await validateBlueprint({ blueprintId });
+      // Return cached result if valid and within 60 minutes (unless skipCache is true)
+      // validateBlueprintWithCache handles all caching internally (both blueprint-level and element-level)
+      const result = await validateBlueprintWithCache({ blueprintId }, skipCache);
       setValidationResults(result.element_results || {});
       setIsValid(result.is_valid);
-      
-      // Cache validation results if callback provided
-      if (result && onCacheResults) {
-        onCacheResults(result);
-      }
       
       // Notify parent of validation result
       onValidationChange?.(result.is_valid, result, false);
@@ -97,7 +100,14 @@ export function useBlueprintValidation(
     } finally {
       setIsValidating(false);
     }
-  }, [onValidationChange, onCacheResults, showToastOnFailure, toast]);
+  }, [
+    skipCache,
+    isBlueprintValidationCacheHit,
+    validateBlueprintWithCache,
+    onValidationChange, 
+    showToastOnFailure, 
+    toast,
+  ]);
 
   return {
     isValidating,

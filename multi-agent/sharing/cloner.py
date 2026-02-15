@@ -5,12 +5,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pydantic import BaseModel
 
-from resources.models import ResourceDoc
+from resources.models import Resource
 from resources.registry import ResourcesRegistry
-from blueprints.models.blueprint import BlueprintDraft, Resource, StepDef
+from blueprints.models.blueprint import BlueprintDraft, BlueprintResource, StepDef
 from blueprints.service import BlueprintService
 from catalog.element_registry import ElementRegistry
-from core.ref import RefWalker
+from core.ref import RefWalker, RefRemapper
 from core.ref.models import Ref
 from core.enums import ResourceCategory
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ResourceCacheData:
     """Cached data for a resource."""
-    doc: ResourceDoc
+    doc: Resource
     dependencies: Set[str]  # Pre-computed dependencies
     cfg_model: object  # Pre-built schema model
 
@@ -81,13 +81,13 @@ class ShareCloner:
         try:
             # Load and validate blueprint
             bp_doc = self.blueprints.get_blueprint_draft_doc(blueprint_id)
-            if bp_doc["user_id"] != sender_user_id:
+            if bp_doc.user_id != sender_user_id:
                 raise ValueError(f"Blueprint {blueprint_id} not owned by sender")
 
-            draft = BlueprintDraft(**bp_doc["spec_dict"])
+            draft = BlueprintDraft(**bp_doc.spec_dict)
 
             # Use pre-computed external refs from the blueprint document
-            external_rids = set(bp_doc.get("rid_refs", []))
+            external_rids = set(bp_doc.rid_refs)
 
             # Clone dependencies and build RID mapping
             rid_mapping, name_conflicts, resources_cloned = self._clone_dependencies(
@@ -225,7 +225,7 @@ class ShareCloner:
         return closure_cache
 
     def _clone_single_resource(self, cache_data: ResourceCacheData, rid_mapping: Dict[str, str],
-                               recipient_user_id: str) -> ResourceDoc:
+                               recipient_user_id: str) -> Resource:
         """Clone a single resource using pre-computed data."""
         original_doc = cache_data.doc
         new_rid = rid_mapping[original_doc.rid]
@@ -236,15 +236,16 @@ class ShareCloner:
             original_doc.type, original_doc.name
         )
 
-        # Clone config with reference rewriting
-        new_cfg_dict = self._walk_and_replace(original_doc.cfg_dict, rid_mapping)
+        # Use typed model for clean remapping (Ref objects), then dump to dict
+        remapped_model = RefRemapper.remap(cache_data.cfg_model, rid_mapping)
+        new_cfg_dict = remapped_model.model_dump(mode="json")
 
         # Map dependencies to new RIDs
         new_nested_refs = [
             rid_mapping.get(dep_rid, dep_rid) for dep_rid in cache_data.dependencies
         ]
 
-        return ResourceDoc(
+        return Resource(
             rid=new_rid,
             user_id=recipient_user_id,
             category=original_doc.category,
@@ -255,7 +256,7 @@ class ShareCloner:
             nested_refs=new_nested_refs
         )
 
-    def _batch_create_resources(self, docs: List[ResourceDoc]) -> None:
+    def _batch_create_resources(self, docs: List[Resource]) -> None:
         """Create multiple resources efficiently."""
         # TODO: Implement actual batch creation in ResourcesRegistry
         for doc in docs:
@@ -298,17 +299,9 @@ class ShareCloner:
             **resource_fields
         )
 
-    def _clone_resource_with_refs(self, resource: Resource, rid_mapping: Dict[str, str]) -> Resource:
-        """Clone a resource and replace any Ref instances."""
-        new_resource = resource.model_copy(deep=True)
-
-        # Handle all fields that might contain refs (rid, config, name, type, etc.)
-        for field_name in new_resource.model_fields:
-            field_value = getattr(new_resource, field_name, None)
-            if field_value is not None:
-                setattr(new_resource, field_name, self._walk_and_replace(field_value, rid_mapping))
-
-        return new_resource
+    def _clone_resource_with_refs(self, resource: BlueprintResource, rid_mapping: Dict[str, str]) -> BlueprintResource:
+        """Clone a resource and replace any Ref instances using shared utility."""
+        return RefRemapper.remap(resource, rid_mapping)
 
     def _clone_plan(self, plan: List[StepDef], rid_mapping: Dict[str, str]) -> List[StepDef]:
         """Clone plan with proper UID mapping for step references."""
@@ -339,8 +332,8 @@ class ShareCloner:
                 if field_name not in manually_handled_fields:
                     field_value = getattr(step, field_name, None)
                     if field_value is not None:
-                        # First replace RIDs, then replace UIDs
-                        updated_value = self._walk_and_replace(field_value, rid_mapping)
+                        # First replace RIDs using shared utility, then replace UIDs
+                        updated_value = RefRemapper.remap(field_value, rid_mapping)
                         updated_value = self._replace_step_uids(updated_value, uid_mapping)
                         setattr(step, field_name, updated_value)
         
@@ -370,61 +363,5 @@ class ShareCloner:
         else:
             return obj
 
-    def _walk_and_replace(self, node: Any, rid_mapping: Dict[str, str]) -> Any:
-        """Walk object graph and replace refs, following RefWalker's traversal pattern."""
-        if isinstance(node, Ref):
-            return self._clone_ref_with_mapping(node, rid_mapping)
-
-        elif isinstance(node, BaseModel):
-            # Use RefWalker's pattern: iterate over __dict__.values()
-            new_node = node.model_copy(deep=True)
-            for field_name, field_value in new_node.__dict__.items():
-                setattr(new_node, field_name, self._walk_and_replace(field_value, rid_mapping))
-            return new_node
-
-        elif isinstance(node, dict):
-            # Use RefWalker's pattern: iterate over values
-            return {k: self._walk_and_replace(v, rid_mapping) for k, v in node.items()}
-
-        elif isinstance(node, (list, tuple)):
-            # Use RefWalker's pattern: handle both list and tuple
-            result = [self._walk_and_replace(v, rid_mapping) for v in node]
-            return tuple(result) if isinstance(node, tuple) else result
-
-        elif isinstance(node, str):
-            return self._replace_string_refs(node, rid_mapping)
-
-        else:
-            return node
-
-    def _clone_ref_with_mapping(self, ref_obj: Ref, rid_mapping: Dict[str, str]) -> Ref:
-        """Clone a Ref object with updated RID if mapped."""
-        old_rid = ref_obj.ref
-        if old_rid not in rid_mapping:
-            return ref_obj
-
-        new_rid = rid_mapping[old_rid]
-
-        # Create new Ref with updated rid, preserving the ref format and type
-        new_ref = ref_obj.__class__(ref_obj.root)
-        if ref_obj.is_external_ref():
-            new_ref.root = f"$ref:{new_rid}"
-        else:
-            new_ref.root = new_rid
-
-        return new_ref
-
-    def _replace_string_refs(self, text: str, rid_mapping: Dict[str, str]) -> str:
-        """Replace reference patterns in a string."""
-        if not rid_mapping:
-            return text
-
-        result = text
-        for old_rid, new_rid in rid_mapping.items():
-            # Replace $ref: patterns
-            result = result.replace(f"$ref:{old_rid}", f"$ref:{new_rid}")
-            # Handle bare refs if they appear as full strings
-            if result == old_rid:
-                result = new_rid
-
-        return result
+    # NOTE: _walk_and_replace, _clone_ref_with_mapping, and _replace_string_refs
+    # have been replaced by the shared RefRemapper utility in core/ref/remapper.py

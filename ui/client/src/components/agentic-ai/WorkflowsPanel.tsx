@@ -16,7 +16,7 @@ import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { GraphFlow, FlowObject } from "./graphs/interfaces";
 import ReactFlowGraph from "./graphs/ReactFlowGraph";
 import { fetchActiveSessions } from "@/api/agentic";
-import { fetchBlueprints, fetchResolvedBlueprints, deleteBlueprint } from "@/api/blueprints";
+import { fetchBlueprints, fetchResolvedBlueprints, deleteBlueprint, fetchResolvedBlueprint } from "@/api/blueprints";
 import { convertGraphFlowToFlowObject } from "@/utils/blueprintHelpers";
 import ShareWorkflow from "./ShareWorkflow";
 import { BlueprintValidationResult } from "@/types/validation";
@@ -66,6 +66,10 @@ export default function WorkflowsPanel({
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [flowToDelete, setFlowToDelete] = useState<FlowObject | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [selectedBlueprintData, setSelectedBlueprintData] = useState<{
+    specDict: any;
+    sharingEnabled: boolean;
+  } | null>(null);
   
   const { user } = useAuth();
   const { openShareForItem } = useShared();
@@ -147,6 +151,33 @@ export default function WorkflowsPanel({
       clearValidation();
     }
   }, [selectedFlow?.id, validateSelectedBlueprint, clearValidation]);
+
+  // Fetch blueprint data (spec_dict + metadata) when selected flow changes
+  // This consolidates API calls - data is fetched once and passed to child components
+  useEffect(() => {
+    if (!selectedFlow?.id) {
+      setSelectedBlueprintData(null);
+      return;
+    }
+
+    const fetchBlueprintData = async () => {
+      try {
+        const userId = user?.username || 'default';
+        const blueprint = await fetchResolvedBlueprint(selectedFlow.id, userId);
+        if (blueprint) {
+          setSelectedBlueprintData({
+            specDict: blueprint.spec_dict,
+            sharingEnabled: blueprint.metadata?.usageScope === "public",
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching blueprint data:", error);
+        setSelectedBlueprintData(null);
+      }
+    };
+
+    fetchBlueprintData();
+  }, [selectedFlow?.id, user?.username]);
 
   const handleFlowSelect = (flow: FlowObject): void => {
     onFlowSelect(flow);
@@ -314,6 +345,7 @@ export default function WorkflowsPanel({
                   blueprintId={selectedFlow.id} 
                   isValid={isValid}
                   isValidating={isValidating}
+                  initialSharingEnabled={selectedBlueprintData?.sharingEnabled ?? false}
                 />
               </div>
             <ReactFlowGraph

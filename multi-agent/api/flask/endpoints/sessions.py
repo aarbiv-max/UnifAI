@@ -4,6 +4,7 @@ from webargs import fields
 import json
 from pydantic.json import pydantic_encoder
 from session.exceptions import BlueprintNotFoundError
+from api.flask.streaming import HeartbeatStream
 
 sessions_bp = Blueprint("sessions", __name__)
 
@@ -62,16 +63,22 @@ def execute_user_session(session_id, inputs, stream_mode, stream, scope, logged_
 
         # streaming run
         def generate():
-            for chunk in svc.execute(
-                    session_id=session_id,
-                    inputs=inputs,
-                    stream=True,
-                    stream_mode=stream_mode,
-                    scope=scope,
-                    logged_in_user=logged_in_user
-            ):
-                # each chunk may include Pydantic models; use pydantic_encoder
-                yield json.dumps(chunk, default=pydantic_encoder)
+            source = svc.execute(
+                session_id=session_id,
+                inputs=inputs,
+                stream=True,
+                stream_mode=stream_mode,
+                scope=scope,
+                logged_in_user=logged_in_user
+            )
+            heartbeat_stream = HeartbeatStream(source)
+
+            try:
+                for chunk in heartbeat_stream:
+                    yield json.dumps(chunk, default=pydantic_encoder) + "\n"
+            except GeneratorExit:
+                heartbeat_stream.close()
+                raise
 
         return Response(
             generate(),
@@ -148,6 +155,7 @@ def delete_session(session_id):
     Delete a session by session_id.
     Returns success: true if deleted, false if not found.
     """
+    # TODO: Add authorization check - verify user has permission to delete this session
     try:
         svc = current_app.container.session_service
         deleted = svc.delete(run_id=session_id)
