@@ -27,9 +27,7 @@ import { TopBlueprintsQuickView } from "@/components/analytics/TopBlueprintsQuic
 import { BlueprintsTable } from "@/components/analytics/BlueprintsTable";
 import { truncateUserId } from "@/components/analytics/analyticsHelpers";
 import { getWorkflowStatusColors } from "@/components/agentic-ai/chat/WorkPlanDisplayHelpers";
-import type { UserActivity } from "@/types/systemStats";
-
-type TimeRange = 'today' | '7days' | '30days' | 'all';
+import type { TimeRange, UserActivity } from "@/types/systemStats";
 
 export default function Analytics() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -100,244 +98,226 @@ export default function Analytics() {
     failed: u.status_breakdown?.FAILED || 0,
   })) || [];
 
-  // Render different states
-  if (!hasAccess) {
-    return (
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header title="Analytics" onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-          <main className="flex-1 overflow-y-auto bg-background-dark">
-            <AccessDenied />
-          </main>
-          <StatusBar />
-        </div>
-      </div>
-    );
-  }
+  // Determine error details for display
+  const axiosError = error as any;
+  const errorStatusCode = axiosError?.response?.status;
+  const errorMessage = axiosError?.message || 'Unknown error';
+  const isAccessDeniedError = errorStatusCode === 403;
 
-  if (isLoading) {
-    return (
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header title="Analytics" onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-          <LoadingSkeleton />
-          <StatusBar />
-        </div>
-      </div>
-    );
-  }
+  // Render page content based on state
+  const renderContent = () => {
+    if (!hasAccess) {
+      return (
+        <main className="flex-1 overflow-y-auto bg-background-dark">
+          <AccessDenied />
+        </main>
+      );
+    }
 
-  if (error) {
-    const axiosError = error as any;
-    const statusCode = axiosError?.response?.status;
-    const errorMessage = axiosError?.message || 'Unknown error';
-    const isAccessDenied = statusCode === 403;
-    
+    if (isLoading) {
+      return <LoadingSkeleton />;
+    }
+
+    if (error) {
+      return (
+        <main className="flex-1 overflow-y-auto bg-background-dark">
+          {isAccessDeniedError
+            ? <AccessDenied />
+            : <ErrorDisplay errorMessage={errorMessage} title="Failed to Load Analytics" onRetry={refetch} />}
+        </main>
+      );
+    }
+
     return (
-      <div className="flex h-screen overflow-hidden">
-        <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header title="Analytics" onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-          <main className="flex-1 overflow-y-auto bg-background-dark">
-            {isAccessDenied ? <AccessDenied /> : <ErrorDisplay errorMessage={errorMessage} title="Failed to Load Analytics" onRetry={refetch} />}
-          </main>
-          <StatusBar />
+      <main className="flex-1 overflow-y-auto bg-background-dark p-6">
+        {/* Header with Actions */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-2xl font-heading font-bold">Workflow Analytics</h2>
+            <p className="text-sm text-gray-400 mt-1">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => refetch()} 
+              variant="outline"
+              size="sm"
+              disabled={isFetching}
+              className="gap-2 border-gray-700 hover:bg-gray-800"
+            >
+              <FaSync className={isFetching ? "animate-spin" : ""} />
+              Refresh
+            </Button>
+          </div>
         </div>
-      </div>
+
+        {/* Time Range Filter */}
+        <div className="flex gap-2 mb-6">
+          {[
+            { value: 'today' as TimeRange, label: 'Today' },
+            { value: '7days' as TimeRange, label: 'Last 7 Days' },
+            { value: '30days' as TimeRange, label: 'Last 30 Days' },
+            { value: 'all' as TimeRange, label: 'All Time' }
+          ].map((range) => (
+            <Button
+              key={range.value}
+              variant={timeRange === range.value ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setTimeRange(range.value)}
+              className={timeRange === range.value ? 'bg-primary' : 'border-gray-700 hover:bg-gray-800'}
+            >
+              {range.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Overview Stats Cards */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6"
+        >
+          <GlassPanel className="h-full">
+            <StatCard
+              icon={<FaRocket className="w-4 h-4" />}
+              title="Total Runs"
+              value={analytics?.total_stats?.total_runs || 0}
+              subtext={timeRange === 'all' ? 'All workflow executions' : 'In selected period'}
+              isLoading={isLoading}
+              error={error}
+              iconColor={colors.primary}
+              iconBgColor={`${colors.primary}33`}
+            />
+          </GlassPanel>
+          <GlassPanel className="h-full">
+            <StatCard
+              icon={<FaUsers className="w-4 h-4" />}
+              title="Total Users"
+              value={analytics?.total_stats?.unique_users || 0}
+              subtext={timeRange === 'all' ? 'Unique users' : 'Active users'}
+              isLoading={isLoading}
+              error={error}
+              iconColor={colors.info}
+              iconBgColor={`${colors.info}33`}
+            />
+          </GlassPanel>
+          <GlassPanel className="h-full">
+            <StatCard
+              icon={<FaCheckCircle className="w-4 h-4" />}
+              title="Success Rate"
+              value={`${successRate.toFixed(1)}%`}
+              subtext="↑ Completed runs"
+              isLoading={isLoading}
+              error={error}
+              iconColor={colors.success}
+              iconBgColor={`${colors.success}33`}
+            />
+          </GlassPanel>
+          <GlassPanel className="h-full">
+            <StatCard
+              icon={<FaFire className="w-4 h-4" />}
+              title="Active Users"
+              value={analytics?.active_users?.length || 0}
+              subtext={timeRange === 'today' ? 'Users active today' : 'Users in selected period'}
+              isLoading={isLoading}
+              error={error}
+              iconColor={colors.warning}
+              iconBgColor={`${colors.warning}33`}
+            />
+          </GlassPanel>
+        </motion.div>
+
+        {/* Tabs Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="mb-6 bg-background-card border border-gray-800">
+              <TabsTrigger value="overview" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+                <FaChartLine className="mr-2" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="users" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+                <FaUsers className="mr-2" />
+                Users
+              </TabsTrigger>
+              <TabsTrigger value="blueprints" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+                <FaRocket className="mr-2" />
+                Blueprints
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Overview Tab */}
+            <TabsContent value="overview">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Status Breakdown */}
+                <StatusBreakdownChart statusData={statusData} totalRuns={totalRuns} />
+
+                {/* Top Active Users */}
+                <TopUsersChart topUsersData={topUsersData} colors={colors} />
+
+                {/* Top Blueprints Quick View */}
+                <TopBlueprintsQuickView 
+                  blueprints={analytics?.top_blueprints?.slice(0, 5) || []}
+                  totalBlueprints={analytics?.top_blueprints?.length || 0}
+                  colors={colors}
+                />
+
+                {/* Workflow Execution Chart */}
+                <WorkflowExecutionChart 
+                  timeSeriesData={analytics?.time_series || []} 
+                  timeRange={timeRange}
+                  colors={colors}
+                />
+              </div>
+            </TabsContent>
+
+            {/* Users Tab */}
+            <TabsContent value="users">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ActiveTodayTable 
+                  users={analytics?.active_users || []}
+                  page={activeTodayPage}
+                  setPage={setActiveTodayPage}
+                  itemsPerPage={itemsPerPage}
+                  timeRange={timeRange}
+                />
+                <AllUsersTable 
+                  users={analytics?.active_users || []}
+                  page={allUsersPage}
+                  setPage={setAllUsersPage}
+                  itemsPerPage={itemsPerPage}
+                />
+              </div>
+            </TabsContent>
+
+            {/* Blueprints Tab */}
+            <TabsContent value="blueprints">
+              <BlueprintsTable blueprints={analytics?.top_blueprints || []} colors={colors} />
+            </TabsContent>
+          </Tabs>
+        </motion.div>
+
+        {/* Footer */}
+        <div className="mt-6 text-center text-xs text-gray-500">
+          Data generated at: {analytics?.generated_at ? new Date(analytics.generated_at).toLocaleString() : 'N/A'} • Auto-refreshes every 60 seconds
+        </div>
+      </main>
     );
-  }
+  };
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header title="Workflow Analytics" onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        
-        <main className="flex-1 overflow-y-auto bg-background-dark p-6">
-          {/* Header with Actions */}
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h2 className="text-2xl font-heading font-bold">Workflow Analytics</h2>
-              <p className="text-sm text-gray-400 mt-1">
-                Last updated: {lastUpdated.toLocaleTimeString()}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => refetch()} 
-                variant="outline"
-                size="sm"
-                disabled={isFetching}
-                className="gap-2 border-gray-700 hover:bg-gray-800"
-              >
-                <FaSync className={isFetching ? "animate-spin" : ""} />
-                Refresh
-              </Button>
-            </div>
-          </div>
-
-          {/* Time Range Filter */}
-          <div className="flex gap-2 mb-6">
-            {[
-              { value: 'today' as TimeRange, label: 'Today' },
-              { value: '7days' as TimeRange, label: 'Last 7 Days' },
-              { value: '30days' as TimeRange, label: 'Last 30 Days' },
-              { value: 'all' as TimeRange, label: 'All Time' }
-            ].map((range) => (
-              <Button
-                key={range.value}
-                variant={timeRange === range.value ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setTimeRange(range.value)}
-                className={timeRange === range.value ? 'bg-primary' : 'border-gray-700 hover:bg-gray-800'}
-              >
-                {range.label}
-              </Button>
-            ))}
-          </div>
-
-          {/* Overview Stats Cards */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6"
-          >
-            <GlassPanel className="h-full">
-              <StatCard
-                icon={<FaRocket className="w-4 h-4" />}
-                title="Total Runs"
-                value={analytics?.total_stats?.total_runs || 0}
-                subtext={timeRange === 'all' ? 'All workflow executions' : 'In selected period'}
-                isLoading={isLoading}
-                error={error}
-                iconColor={colors.primary}
-                iconBgColor={`${colors.primary}33`}
-              />
-            </GlassPanel>
-            <GlassPanel className="h-full">
-              <StatCard
-                icon={<FaUsers className="w-4 h-4" />}
-                title="Total Users"
-                value={analytics?.total_stats?.unique_users || 0}
-                subtext={timeRange === 'all' ? 'Unique users' : 'Active users'}
-                isLoading={isLoading}
-                error={error}
-                iconColor={colors.info}
-                iconBgColor={`${colors.info}33`}
-              />
-            </GlassPanel>
-            <GlassPanel className="h-full">
-              <StatCard
-                icon={<FaCheckCircle className="w-4 h-4" />}
-                title="Success Rate"
-                value={`${successRate.toFixed(1)}%`}
-                subtext="↑ Completed runs"
-                isLoading={isLoading}
-                error={error}
-                iconColor={colors.success}
-                iconBgColor={`${colors.success}33`}
-              />
-            </GlassPanel>
-            <GlassPanel className="h-full">
-              <StatCard
-                icon={<FaFire className="w-4 h-4" />}
-                title="Active Users"
-                value={analytics?.active_users?.length || 0}
-                subtext={timeRange === 'today' ? 'Users active today' : 'Users in selected period'}
-                isLoading={isLoading}
-                error={error}
-                iconColor={colors.warning}
-                iconBgColor={`${colors.warning}33`}
-              />
-            </GlassPanel>
-          </motion.div>
-
-          {/* Tabs Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
-            <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="mb-6 bg-background-card border border-gray-800">
-                <TabsTrigger value="overview" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                  <FaChartLine className="mr-2" />
-                  Overview
-                </TabsTrigger>
-                <TabsTrigger value="users" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                  <FaUsers className="mr-2" />
-                  Users
-                </TabsTrigger>
-                <TabsTrigger value="blueprints" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-                  <FaRocket className="mr-2" />
-                  Blueprints
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Overview Tab */}
-              <TabsContent value="overview">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Status Breakdown */}
-                  <StatusBreakdownChart statusData={statusData} totalRuns={totalRuns} colors={colors} />
-
-                  {/* Top Active Users */}
-                  <TopUsersChart topUsersData={topUsersData} colors={colors} />
-
-                  {/* Top Blueprints Quick View */}
-                  <TopBlueprintsQuickView 
-                    blueprints={analytics?.top_blueprints?.slice(0, 5) || []}
-                    totalBlueprints={analytics?.top_blueprints?.length || 0}
-                    colors={colors}
-                  />
-
-                  {/* Workflow Execution Chart */}
-                  <WorkflowExecutionChart 
-                    timeSeriesData={analytics?.time_series || []} 
-                    timeRange={timeRange}
-                    colors={colors}
-                  />
-                </div>
-              </TabsContent>
-
-              {/* Users Tab */}
-              <TabsContent value="users">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <ActiveTodayTable 
-                    users={analytics?.active_users || []}
-                    page={activeTodayPage}
-                    setPage={setActiveTodayPage}
-                    itemsPerPage={itemsPerPage}
-                    timeRange={timeRange}
-                  />
-                  <AllUsersTable 
-                    users={analytics?.active_users || []}
-                    page={allUsersPage}
-                    setPage={setAllUsersPage}
-                    itemsPerPage={itemsPerPage}
-                  />
-                </div>
-              </TabsContent>
-
-              {/* Blueprints Tab */}
-              <TabsContent value="blueprints">
-                <BlueprintsTable blueprints={analytics?.top_blueprints || []} colors={colors} />
-              </TabsContent>
-            </Tabs>
-          </motion.div>
-
-          {/* Footer */}
-          <div className="mt-6 text-center text-xs text-gray-500">
-            Data generated at: {analytics?.generated_at ? new Date(analytics.generated_at).toLocaleString() : 'N/A'} • Auto-refreshes every 60 seconds
-          </div>
-        </main>
-        
+        {renderContent()}
         <StatusBar />
       </div>
     </div>
   );
 }
-

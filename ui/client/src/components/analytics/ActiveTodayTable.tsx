@@ -1,17 +1,9 @@
-import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { FaFire } from "react-icons/fa";
 import { AnalyticCard } from "./AnalyticCard";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-
-type TimeRange = 'today' | '7days' | '30days' | 'all';
+import { Pagination } from "@/components/shared/Pagination";
+import type { TimeRange } from "@/types/systemStats";
 
 interface ActiveTodayTableProps {
   users: Array<{
@@ -59,90 +51,69 @@ export function ActiveTodayTable({ users, page, setPage, itemsPerPage, timeRange
     }
   };
 
-  const totalPages = Math.ceil(users.length / itemsPerPage);
-  const startItem = page * itemsPerPage + 1;
-  const endItem = Math.min((page + 1) * itemsPerPage, users.length);
+  const pageCount = Math.ceil(users.length / itemsPerPage);
 
   return (
     <AnalyticCard
       title={getTitle()}
       icon={<FaFire className="text-warning" />}
     >
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User ID</TableHead>
-                  <TableHead className="text-right">Runs</TableHead>
-                  <TableHead className="text-right">Status</TableHead>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>User ID</TableHead>
+              <TableHead className="text-right">Runs</TableHead>
+              <TableHead className="text-right">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.length > 0 ? (
+              users.slice(page * itemsPerPage, (page + 1) * itemsPerPage).map((user, idx) => (
+                <TableRow key={idx} className="hover:bg-muted/50">
+                  <TableCell className="font-medium text-sm truncate max-w-[200px]">
+                    {user.user_id}
+                  </TableCell>
+                  <TableCell className="text-right text-sm">{user.run_count}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex gap-1 justify-end">
+                      {user.status_breakdown?.COMPLETED && user.status_breakdown.COMPLETED > 0 && (
+                        <Badge variant="outline" className="border-success text-success text-xs">
+                          ✓ {user.status_breakdown.COMPLETED}
+                        </Badge>
+                      )}
+                      {user.status_breakdown?.FAILED && user.status_breakdown.FAILED > 0 && (
+                        <Badge variant="outline" className="border-error text-error text-xs">
+                          ✗ {user.status_breakdown.FAILED}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.length > 0 ? (
-                  users.slice(page * itemsPerPage, (page + 1) * itemsPerPage).map((user, idx) => (
-                    <TableRow key={idx} className="hover:bg-muted/50">
-                      <TableCell className="font-medium text-sm truncate max-w-[200px]">
-                        {user.user_id}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">{user.run_count}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
-                          {user.status_breakdown?.COMPLETED && user.status_breakdown.COMPLETED > 0 && (
-                            <Badge variant="outline" className="border-success text-success text-xs">
-                              ✓ {user.status_breakdown.COMPLETED}
-                            </Badge>
-                          )}
-                          {user.status_breakdown?.FAILED && user.status_breakdown.FAILED > 0 && (
-                            <Badge variant="outline" className="border-error text-error text-xs">
-                              ✗ {user.status_breakdown.FAILED}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center py-6 text-gray-400">
-                      {getEmptyMessage()}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {users.length > itemsPerPage && (
-            <div className="flex justify-between items-center mt-4 px-2">
-              <span className="text-sm text-gray-400">
-                Showing {startItem}-{endItem} of {users.length}
-              </span>
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      href="#"
-                      onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
-                        e.preventDefault();
-                        setPage((p: number) => Math.max(0, p - 1));
-                      }}
-                      className={page === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationNext
-                      href="#"
-                      onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
-                        e.preventDefault();
-                        setPage((p: number) => p + 1);
-                      }}
-                      className={page >= totalPages - 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          )}
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={3} className="text-center py-6 text-gray-400">
+                  {getEmptyMessage()}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      {users.length > itemsPerPage && (
+        <Pagination
+          pageIndex={page}
+          pageCount={pageCount}
+          pageSize={itemsPerPage}
+          totalItems={users.length}
+          onPreviousPage={() => setPage((p) => Math.max(0, p - 1))}
+          onNextPage={() => setPage((p) => p + 1)}
+          canPreviousPage={page > 0}
+          canNextPage={page < pageCount - 1}
+          itemName="users"
+        />
+      )}
     </AnalyticCard>
   );
 }
-

@@ -5,6 +5,8 @@
  * All data is scoped to the requested time range by the backend.
  */
 
+export type TimeRange = 'today' | '7days' | '30days' | 'all';
+
 export interface TotalStats {
   total_runs: number;
   unique_users: number;
@@ -15,15 +17,11 @@ export interface StatusBreakdown {
   [status: string]: number;
 }
 
-export interface StatusBreakdownMap {
-  [status: string]: number;
-}
-
 export interface UserActivity {
   user_id: string;
   run_count: number;
   unique_blueprints: number;
-  status_breakdown: StatusBreakdownMap;
+  status_breakdown: StatusBreakdown;
 }
 
 export interface BlueprintUsage {

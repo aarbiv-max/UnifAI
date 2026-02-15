@@ -6,7 +6,7 @@
  */
 
 import axios from '@/http/axiosAgentConfig';
-import type { SystemStatsResponse } from '@/types/systemStats';
+import type { SystemStatsResponse, TimeRange } from '@/types/systemStats';
 
 /**
  * Fetch comprehensive system-wide statistics (workflows, users, blueprints)
@@ -21,8 +21,8 @@ import type { SystemStatsResponse } from '@/types/systemStats';
  * 
  * Requires admin access.
  */
-export async function fetchSystemWideStats(timeRange: 'today' | '7days' | '30days' | 'all' = 'all', userId?: string): Promise<SystemStatsResponse> {
-  const params: any = { time_range: timeRange };
+export async function fetchSystemWideStats(timeRange: TimeRange = 'all', userId?: string): Promise<SystemStatsResponse> {
+  const params: Record<string, string> = { time_range: timeRange };
   if (userId) {
     params.userId = userId;
   }
