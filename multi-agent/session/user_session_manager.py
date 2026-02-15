@@ -110,7 +110,7 @@ class UserSessionManager:
         """Delete a session by run_id. Returns True if deleted, False if not found."""
         return self._repo.delete(run_id)
 
-    # ---------- statistics (user-scoped) ----------
+    # ---------- statistics ( user-scope) ----------
     def count(self, user_id: str, filter: Dict[str, Any] = None) -> int:
         """Count sessions matching filter criteria for a user."""
         return self._repo.count(user_id, filter or {})
@@ -135,17 +135,15 @@ class UserSessionManager:
         """
         return self._repo.group_count(user_id, group_by, filter)
 
-    # ---------- statistics (system-wide for admin analytics) ----------
+# ---------- statistics (system-wide for admin analytics) ----------
     def count_system(self, filter: Dict[str, Any] = None) -> int:
         """Count all sessions system-wide (no user_id constraint)."""
         return self._repo.count_system(filter)
-
     def get_distinct_users(self, filter: Dict[str, Any] = None) -> List[str]:
         """Get distinct user IDs from all sessions."""
         return self._repo.get_distinct_users(filter)
-
     def group_count_system(
-        self, 
+        self,
         group_by: List[str],
         filter: Dict[str, Any] = None
     ) -> List[GroupedCount]:
@@ -154,15 +152,13 @@ class UserSessionManager:
         No user_id constraint - for admin analytics.
         """
         return self._repo.group_count_system(group_by, filter)
-
     def get_time_series(
-        self, 
+        self,
         time_range: str = "all",
         field_path: str = "run_context.started_at"
     ) -> List[Dict[str, Any]]:
         """Get time series activity data grouped by appropriate time intervals."""
         return self._repo.get_time_series(time_range, field_path)
-
     def get_all_stats_faceted(self, time_range: str = "all") -> Dict[str, List[GroupedCount]]:
         """Get all stats data using efficient faceted aggregation."""
         return self._repo.get_all_stats_faceted(time_range)
