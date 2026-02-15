@@ -47,3 +47,45 @@ class GroupedCount(BaseModel):
         """Allow 'in' operator for checking field existence."""
         return field in self.fields
 
+
+class TimeSeriesPoint(BaseModel):
+    """
+    Single data point in a time series.
+    
+    Used for session activity charts on admin dashboards.
+    The period granularity (hourly, daily, monthly) is determined
+    by the repository implementation based on the requested time range.
+    """
+    period: str = Field(
+        ...,
+        description="Time period label (e.g., '2024-01-15', '2024-01-15 14:00', '2024-01')"
+    )
+    count: int = Field(
+        ...,
+        description="Number of sessions in this period"
+    )
+
+
+class SystemAnalyticsData(BaseModel):
+    """
+    Aggregated system analytics data returned by the repository layer.
+    
+    Groups session data by user+status, user+blueprint, and blueprint+user
+    for building admin dashboard views (active users, top blueprints, etc.).
+    
+    Implementations should optimize for efficiency (e.g., batching
+    multiple aggregations into a single database operation).
+    """
+    user_status_counts: List[GroupedCount] = Field(
+        default_factory=list,
+        description="Sessions grouped by user_id and status"
+    )
+    user_blueprint_counts: List[GroupedCount] = Field(
+        default_factory=list,
+        description="Sessions grouped by user_id and blueprint_id"
+    )
+    blueprint_user_counts: List[GroupedCount] = Field(
+        default_factory=list,
+        description="Sessions grouped by blueprint_id and user_id"
+    )
+

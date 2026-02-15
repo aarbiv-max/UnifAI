@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List, Mapping, Any, Dict
+from typing import List, Mapping, Any, Dict, Optional
+from datetime import datetime
 from session.workflow_session import WorkflowSession
-from core.dto import GroupedCount
+from core.dto import GroupedCount, TimeSeriesPoint, SystemAnalyticsData
 
 
 class SessionRepository(ABC):
@@ -59,25 +60,25 @@ class SessionRepository(ABC):
     # ---------- System-wide methods (for admin analytics) ----------
 
     @abstractmethod
-    def count_system(self, filter: Dict[str, Any] = None) -> int:
+    def count_system(self, since: Optional[datetime] = None) -> int:
         """
         Count all sessions system-wide (no user_id constraint).
         
         Args:
-            filter: Optional filter criteria
+            since: Optional cutoff datetime - only count sessions started after this time
             
         Returns:
-            Total count of sessions matching the criteria
+            Total count of matching sessions
         """
         ...
 
     @abstractmethod
-    def get_distinct_users(self, filter: Dict[str, Any] = None) -> List[str]:
+    def get_distinct_users(self, since: Optional[datetime] = None) -> List[str]:
         """
         Get distinct user IDs from all sessions.
         
         Args:
-            filter: Optional filter criteria
+            since: Optional cutoff datetime - only include sessions started after this time
             
         Returns:
             List of distinct user IDs
@@ -88,7 +89,7 @@ class SessionRepository(ABC):
     def group_count_system(
         self, 
         group_by: List[str],
-        filter: Dict[str, Any] = None
+        since: Optional[datetime] = None
     ) -> List[GroupedCount]:
         """
         Group all sessions by specified fields and return counts (system-wide).
@@ -96,7 +97,7 @@ class SessionRepository(ABC):
         
         Args:
             group_by: List of field names to group by
-            filter: Optional filter criteria
+            since: Optional cutoff datetime - only include sessions started after this time
             
         Returns:
             List of GroupedCount DTOs with grouped field values and count.
@@ -104,35 +105,42 @@ class SessionRepository(ABC):
         ...
 
     @abstractmethod
-    def get_time_series(
+    def get_session_activity_series(
         self, 
-        time_range: str = "all",
-        field_path: str = "run_context.started_at"
-    ) -> List[Dict[str, Any]]:
+        since: Optional[datetime] = None
+    ) -> List[TimeSeriesPoint]:
         """
-        Get time series activity data grouped by appropriate time intervals.
+        Get session activity data grouped by appropriate time intervals.
+        
+        The implementation determines the appropriate time granularity
+        (hourly, daily, monthly) based on the time range.
         
         Args:
-            time_range: Time filter - "today", "7days", "30days", or "all"
-            field_path: Field path for time-based filtering
+            since: Optional cutoff datetime - only include sessions started after this time.
+                   None means all-time data.
             
         Returns:
-            List of dicts with 'period' (time label) and 'count' (executions)
+            List of TimeSeriesPoint with period labels and session counts,
+            sorted chronologically.
         """
         ...
 
     @abstractmethod
-    def get_all_stats_faceted(self, time_range: str = "all") -> Dict[str, List[GroupedCount]]:
+    def get_system_analytics(
+        self, 
+        since: Optional[datetime] = None
+    ) -> SystemAnalyticsData:
         """
-        Get all stats data using efficient faceted aggregation.
+        Get aggregated system analytics data for admin dashboards.
         
-        Executes multiple aggregations in parallel for active users,
-        top users, and top blueprints data.
+        Returns grouped session data for building user activity and
+        top blueprints views. Implementations should optimize for
+        efficiency (e.g., batching multiple aggregations).
         
         Args:
-            time_range: Time filter - 'today', '7days', '30days', or 'all'
-        
+            since: Optional cutoff datetime - only include sessions started after this time
+            
         Returns:
-            Dictionary with facet keys containing lists of GroupedCount DTOs.
+            SystemAnalyticsData containing user and blueprint groupings.
         """
         ...

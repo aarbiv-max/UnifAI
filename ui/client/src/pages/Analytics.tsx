@@ -25,7 +25,7 @@ import { ActiveTodayTable } from "@/components/analytics/ActiveTodayTable";
 import { AllUsersTable } from "@/components/analytics/AllUsersTable";
 import { TopBlueprintsQuickView } from "@/components/analytics/TopBlueprintsQuickView";
 import { BlueprintsTable } from "@/components/analytics/BlueprintsTable";
-import { filterAnalyticsByTimeRange, truncateUserId } from "@/components/analytics/analyticsHelpers";
+import { truncateUserId } from "@/components/analytics/analyticsHelpers";
 import { getWorkflowStatusColors } from "@/components/agentic-ai/chat/WorkPlanDisplayHelpers";
 import type { UserActivity } from "@/types/systemStats";
 
@@ -77,49 +77,28 @@ export default function Analytics() {
   // Use WorkPlanDisplayHelpers color scheme for workflow statuses
   const statusColors = getWorkflowStatusColors();
 
-  // Filter data by time range
-  const displayData = filterAnalyticsByTimeRange(analytics, timeRange);
-
-  // Calculate metrics
-  const completedRuns = displayData?.status_breakdown?.COMPLETED || 0;
-  const totalRuns = displayData?.total_stats?.total_runs || 0;
+  // Backend returns data already scoped to the selected time range
+  const completedRuns = analytics?.status_breakdown?.COMPLETED || 0;
+  const totalRuns = analytics?.total_stats?.total_runs || 0;
   const successRate = totalRuns > 0 ? (completedRuns / totalRuns) * 100 : 0;
 
   // Prepare chart data
-  const statusData = displayData?.status_breakdown 
-    ? Object.entries(displayData.status_breakdown).map(([status, count]) => ({
+  const statusData = analytics?.status_breakdown 
+    ? Object.entries(analytics.status_breakdown).map(([status, count]) => ({
         name: status,
         value: typeof count === 'number' ? count : 0,
         color: statusColors[status] || colors.gray
       }))
     : [];
 
-  const topUsersData = displayData?.top_users?.slice(0, 8).map((u: UserActivity) => ({
+  const topUsersData = analytics?.active_users?.slice(0, 8).map((u: UserActivity) => ({
     name: truncateUserId(u.user_id, 12),
     fullName: u.user_id,
-    runs: u.total_runs,
+    runs: u.run_count,
     blueprints: u.unique_blueprints,
     completed: u.status_breakdown?.COMPLETED || 0,
     failed: u.status_breakdown?.FAILED || 0,
   })) || [];
-
-  // Get active users for the selected time range
-  const getActiveUsersForTimeRange = (analytics: any, range: TimeRange) => {
-    if (!analytics) return [];
-    switch (range) {
-      case 'today':
-        return analytics.active_today || [];
-      case '7days':
-        return analytics.active_7days || [];
-      case '30days':
-        return analytics.active_30days || [];
-      case 'all':
-        // For 'all' time range, use top_users which contains all-time data
-        return analytics.top_users || [];
-      default:
-        return analytics.active_today || [];
-    }
-  };
 
   // Render different states
   if (!hasAccess) {
@@ -231,7 +210,7 @@ export default function Analytics() {
               <StatCard
                 icon={<FaRocket className="w-4 h-4" />}
                 title="Total Runs"
-                value={displayData?.total_stats?.total_runs || 0}
+                value={analytics?.total_stats?.total_runs || 0}
                 subtext={timeRange === 'all' ? 'All workflow executions' : 'In selected period'}
                 isLoading={isLoading}
                 error={error}
@@ -243,7 +222,7 @@ export default function Analytics() {
               <StatCard
                 icon={<FaUsers className="w-4 h-4" />}
                 title="Total Users"
-                value={displayData?.total_stats?.unique_users || 0}
+                value={analytics?.total_stats?.unique_users || 0}
                 subtext={timeRange === 'all' ? 'Unique users' : 'Active users'}
                 isLoading={isLoading}
                 error={error}
@@ -266,9 +245,9 @@ export default function Analytics() {
             <GlassPanel className="h-full">
               <StatCard
                 icon={<FaFire className="w-4 h-4" />}
-                title="Active Today"
-                value={analytics?.active_today?.length || 0}
-                subtext="Users active today"
+                title="Active Users"
+                value={analytics?.active_users?.length || 0}
+                subtext={timeRange === 'today' ? 'Users active today' : 'Users in selected period'}
                 isLoading={isLoading}
                 error={error}
                 iconColor={colors.warning}
@@ -310,8 +289,8 @@ export default function Analytics() {
 
                   {/* Top Blueprints Quick View */}
                   <TopBlueprintsQuickView 
-                    blueprints={displayData?.top_blueprints?.slice(0, 5) || []}
-                    totalBlueprints={displayData?.top_blueprints?.length || 0}
+                    blueprints={analytics?.top_blueprints?.slice(0, 5) || []}
+                    totalBlueprints={analytics?.top_blueprints?.length || 0}
                     colors={colors}
                   />
 
@@ -328,14 +307,14 @@ export default function Analytics() {
               <TabsContent value="users">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <ActiveTodayTable 
-                    users={getActiveUsersForTimeRange(analytics, timeRange)}
+                    users={analytics?.active_users || []}
                     page={activeTodayPage}
                     setPage={setActiveTodayPage}
                     itemsPerPage={itemsPerPage}
                     timeRange={timeRange}
                   />
                   <AllUsersTable 
-                    users={timeRange === 'all' ? (analytics?.top_users || []) : (displayData?.top_users || [])}
+                    users={analytics?.active_users || []}
                     page={allUsersPage}
                     setPage={setAllUsersPage}
                     itemsPerPage={itemsPerPage}

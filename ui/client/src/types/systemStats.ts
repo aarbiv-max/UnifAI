@@ -1,7 +1,8 @@
 /**
  * System Statistics type definitions
  * 
- * Type definitions for system-wide statistics data structures
+ * Type definitions for system-wide statistics data structures.
+ * All data is scoped to the requested time range by the backend.
  */
 
 export interface TotalStats {
@@ -20,16 +21,8 @@ export interface StatusBreakdownMap {
 
 export interface UserActivity {
   user_id: string;
-  total_runs: number;
+  run_count: number;
   unique_blueprints: number;
-  status_breakdown: StatusBreakdownMap;
-}
-
-export interface ActiveUser {
-  user_id: string;
-  recent_runs: number;
-  runs_today?: number;
-  last_run_id: string;
   status_breakdown: StatusBreakdownMap;
 }
 
@@ -48,10 +41,7 @@ export interface TimeSeriesData {
 export interface SystemStatsResponse {
   total_stats: TotalStats;
   status_breakdown: StatusBreakdown;
-  active_today: ActiveUser[];
-  active_7days: ActiveUser[];
-  active_30days: ActiveUser[];
-  top_users: UserActivity[];
+  active_users: UserActivity[];
   top_blueprints: BlueprintUsage[];
   time_series?: TimeSeriesData[];
   generated_at: string;

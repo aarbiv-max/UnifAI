@@ -1,12 +1,13 @@
-from typing import Any, Dict, Iterator, List, Union
+from typing import Any, Dict, Iterator, List, Optional
+from datetime import datetime
 from .user_session_manager import UserSessionManager
 from .session_executor import SessionExecutor
 from .workflow_session import WorkflowSession
 from .dto import ChatHistoryItem
 from .models import SessionMeta
 from .exceptions import BlueprintNotFoundError
-from core.dto import GroupedCount
-from core import time_utils
+from core.dto import GroupedCount, TimeSeriesPoint, SystemAnalyticsData
+
 
 class SessionService:
     """
@@ -156,71 +157,68 @@ class SessionService:
         """
         return self._manager.delete_session(run_id)
 
-# ---------- System-wide methods (for admin analytics) ----------
-    def count_system(self, filter: Dict[str, Any] = None) -> int:
+    # ---------- System-wide methods (for admin analytics) ----------
+
+    def count_system(self, since: Optional[datetime] = None) -> int:
         """
         Count all sessions system-wide (no user_id constraint).
-        For admin analytics.
-        """
-        return self._manager.count_system(filter)
-    def count_system_with_time_range(self, time_range: str = "all") -> int:
-        """
-        Count all sessions system-wide with time range filtering.
+        
         Args:
-            time_range: Time filter - "today", "7days", "30days", or "all"
+            since: Optional cutoff datetime - only count sessions after this time.
+                   None means count all sessions.
         """
-        time_filter = time_utils.apply_time_range_filter({}, time_range)
-        return self._manager.count_system(time_filter)
-    def get_distinct_users(self, filter: Dict[str, Any] = None) -> List[str]:
+        return self._manager.count_system(since)
+
+    def get_distinct_users(self, since: Optional[datetime] = None) -> List[str]:
         """
         Get distinct user IDs from all sessions.
-        For admin analytics.
-        """
-        return self._manager.get_distinct_users(filter)
-    def get_distinct_users_with_time_range(self, time_range: str = "all") -> List[str]:
-        """
-        Get distinct user IDs with time range filtering.
+        
         Args:
-            time_range: Time filter - "today", "7days", "30days", or "all"
+            since: Optional cutoff datetime - only include sessions after this time.
+                   None means include all sessions.
         """
-        time_filter = time_utils.apply_time_range_filter({}, time_range)
-        return self._manager.get_distinct_users(time_filter)
+        return self._manager.get_distinct_users(since)
+
     def group_count_system(
         self,
         group_by: List[str],
-        filter: Dict[str, Any] = None
+        since: Optional[datetime] = None
     ) -> List[GroupedCount]:
         """
         Group all sessions by specified fields and return counts (system-wide).
         No user_id constraint - for admin analytics.
-        """
-        return self._manager.group_count_system(group_by, filter)
-    def group_count_system_with_time_range(
-        self,
-        group_by: List[str],
-        time_range: str = "all"
-    ) -> List[GroupedCount]:
-        """
-        Group all sessions system-wide with time range filtering.
+        
         Args:
             group_by: List of field names to group by
-            time_range: Time filter - "today", "7days", "30days", or "all"
+            since: Optional cutoff datetime - only include sessions after this time.
+                   None means include all sessions.
         """
-        time_filter = time_utils.apply_time_range_filter({}, time_range)
-        return self._manager.group_count_system(group_by, time_filter)
-    def get_time_series(
+        return self._manager.group_count_system(group_by, since)
+
+    def get_session_activity_series(
         self,
-        time_range: str = "all",
-        field_path: str = "run_context.started_at"
-    ) -> List[Dict[str, Any]]:
+        since: Optional[datetime] = None
+    ) -> List[TimeSeriesPoint]:
         """
-        Get time series activity data grouped by appropriate time intervals.
+        Get session activity data grouped by appropriate time intervals.
         For admin analytics dashboards.
+        
+        Args:
+            since: Optional cutoff datetime. None means all-time data.
         """
-        return self._manager.get_time_series(time_range, field_path)
-    def get_all_stats_faceted(self, time_range: str = "all") -> Dict[str, List[GroupedCount]]:
+        return self._manager.get_session_activity_series(since)
+
+    def get_system_analytics(
+        self,
+        since: Optional[datetime] = None
+    ) -> SystemAnalyticsData:
         """
-        Get all stats data using efficient faceted aggregation.
-        For admin dashboards.
+        Get aggregated system analytics data for admin dashboards.
+        
+        Returns grouped session data for building user activity
+        and top blueprints views.
+        
+        Args:
+            since: Optional cutoff datetime. None means all-time data.
         """
-        return self._manager.get_all_stats_faceted(time_range)
+        return self._manager.get_system_analytics(since)

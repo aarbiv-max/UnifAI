@@ -2,11 +2,9 @@ from flask import Blueprint, jsonify, current_app
 from global_utils.helpers.apiargs import from_query
 from webargs import fields, validate
 from ..decorators import require_admin_access
+from statistics.models import TimeRangePreset
 
 statistics_bp = Blueprint("statistics", __name__)
-
-# Valid time range values for system stats endpoint
-VALID_TIME_RANGES = ["today", "7days", "30days", "all"]
 
 
 @statistics_bp.route("/stats.get", methods=["GET"])
@@ -33,8 +31,11 @@ def get_all(user_id):
 @from_query({
     "time_range": fields.Str(
         data_key="time_range",
-        load_default="all",
-        validate=validate.OneOf(VALID_TIME_RANGES, error="Time range must be one of {choices}")
+        load_default=TimeRangePreset.ALL.value,
+        validate=validate.OneOf(
+            [preset.value for preset in TimeRangePreset],
+            error="Time range must be one of {choices}"
+        )
     ),
     "user_id": fields.Str(data_key="userId", required=True)
 })
@@ -43,6 +44,10 @@ def get_system_stats(time_range, user_id):
     """
     Get comprehensive system-wide statistics for workflows, users, and blueprints.
     Returns all key metrics in a single response for the admin dashboard.
+    
+    All data is scoped to the requested time_range. The client can call this
+    endpoint with different time_range values to get different views
+    (e.g., today vs. last 7 days vs. all time).
     
     Requires admin access (user must be in admin_allowed_users list).
     If admin_allowed_users is empty, system stats are disabled and access is denied.
@@ -55,9 +60,12 @@ def get_system_stats(time_range, user_id):
         container = current_app.container
         statistics_service = container.statistics_service
         
-        stats = statistics_service.get_system_stats(time_range=time_range)
+        # Convert API string to TimeRangePreset enum, then to cutoff datetime
+        preset = TimeRangePreset(time_range)
+        since = preset.to_since()
+        
+        stats = statistics_service.get_system_stats(since=since)
         
         return jsonify(stats.model_dump(mode="json")), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-

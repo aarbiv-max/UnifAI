@@ -1,13 +1,13 @@
 import pymongo
 from pymongo.collection import Collection
 from typing import List, Mapping, Any, Dict, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import logging
 
 from session.repository.repository import SessionRepository
 from session.workflow_session import WorkflowSession
-from core.dto import GroupedCount
-from core import time_utils
+from core.dto import GroupedCount, TimeSeriesPoint, SystemAnalyticsData
+from global_utils.utils.time_utils import format_utc_iso
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,9 @@ class MongoSessionRepository(SessionRepository):
 
     On load, we simply re-run the factory and then inject the saved state & context.
     """
+
+    # Field path used for time-based filtering in this MongoDB schema
+    _TIME_FIELD = "run_context.started_at"
 
     def __init__(
             self,
@@ -105,51 +108,27 @@ class MongoSessionRepository(SessionRepository):
 
     # ---------- System-wide methods (for admin analytics) ----------
 
-    def count_system(self, filter: Dict[str, Any] = None) -> int:
-        """
-        Count all sessions system-wide (no user_id constraint).
-        
-        Args:
-            filter: Optional filter criteria
-            
-        Returns:
-            Total count of sessions matching the criteria
-        """
-        return self._col.count_documents(filter or {})
+    def count_system(self, since: Optional[datetime] = None) -> int:
+        """Count all sessions system-wide, optionally filtered by time."""
+        time_filter = self._build_time_filter(since)
+        return self._col.count_documents(time_filter)
 
-    def get_distinct_users(self, filter: Dict[str, Any] = None) -> List[str]:
-        """
-        Get distinct user IDs from all sessions.
-        
-        Args:
-            filter: Optional filter criteria
-            
-        Returns:
-            List of distinct user IDs
-        """
-        return self._col.distinct("user_id", filter or {})
+    def get_distinct_users(self, since: Optional[datetime] = None) -> List[str]:
+        """Get distinct user IDs, optionally filtered by time."""
+        time_filter = self._build_time_filter(since)
+        return self._col.distinct("user_id", time_filter)
 
     def group_count_system(
         self, 
         group_by: List[str],
-        filter: Dict[str, Any] = None
+        since: Optional[datetime] = None
     ) -> List[GroupedCount]:
-        """
-        Group all sessions by specified fields and return counts (system-wide).
-        No user_id constraint - for admin analytics.
-        
-        Args:
-            group_by: List of field names to group by
-            filter: Optional filter criteria
-            
-        Returns:
-            List of GroupedCount DTOs with grouped field values and count.
-        """
-        match = filter or {}
+        """Group all sessions by specified fields and return counts (system-wide)."""
+        time_filter = self._build_time_filter(since)
         group_id = {field: f"${field}" for field in group_by}
         
         pipeline = [
-            {"$match": match},
+            {"$match": time_filter},
             {"$group": {"_id": group_id, "count": {"$sum": 1}}}
         ]
         
@@ -158,148 +137,146 @@ class MongoSessionRepository(SessionRepository):
             for doc in self._col.aggregate(pipeline)
         ]
 
-    def get_time_series(
+    def get_session_activity_series(
         self, 
-        time_range: str = "all",
-        field_path: str = "run_context.started_at"
-    ) -> List[Dict[str, Any]]:
+        since: Optional[datetime] = None
+    ) -> List[TimeSeriesPoint]:
         """
-        Get time series activity data grouped by appropriate time intervals.
+        Get session activity data grouped by appropriate time intervals.
         
-        Args:
-            time_range: Time filter - "today", "7days", "30days", or "all"
-            field_path: Field path for time-based filtering
-            
-        Returns:
-            List of dicts with 'period' (time label) and 'count' (executions)
+        Automatically determines granularity:
+        - Less than 1 day -> hourly
+        - Up to 30 days -> daily
+        - All time -> monthly
         """
-        now = datetime.now(timezone.utc)
-        cutoff_date, date_format = time_utils.get_time_range_params(time_range, now)
-        cutoff_iso = cutoff_date.isoformat().replace('+00:00', 'Z') if cutoff_date else None
-        
-        pipeline = time_utils.build_time_series_pipeline(cutoff_iso, date_format, field_path)
+        date_format = self._get_granularity_format(since)
+        pipeline = self._build_time_series_pipeline(since, date_format)
         
         try:
             results = list(self._col.aggregate(pipeline))
-            return [{"period": doc["_id"], "count": doc["count"]} for doc in results]
+            return [
+                TimeSeriesPoint(period=doc["_id"], count=doc["count"])
+                for doc in results
+            ]
         except Exception as e:
-            logger.warning(f"Failed to get time series data: {e}")
+            logger.warning(f"Failed to get session activity series: {e}")
             return []
 
-    def get_all_stats_faceted(self, time_range: str = "all") -> Dict[str, List[GroupedCount]]:
+    def get_system_analytics(
+        self, 
+        since: Optional[datetime] = None
+    ) -> SystemAnalyticsData:
         """
-        Get all stats data using MongoDB $facet aggregation.
+        Get aggregated system analytics using MongoDB $facet for efficiency.
         
-        Executes multiple aggregations in parallel:
-        - Active users data (today, 7 days, 30 days) with status and blueprint groupings
-        - Top users data (filtered by time_range, or all data when time_range="all")
-        - Top blueprints data (filtered by time_range, or all data when time_range="all")
-        
-        Args:
-            time_range: Time filter - 'today', '7days', '30days', or 'all' (no time limit)
-        
-        Returns:
-            Dictionary with keys for each facet, containing lists of GroupedCount DTOs.
+        Executes user+status, user+blueprint, and blueprint+user aggregations
+        in a single database round-trip.
         """
-        now = datetime.now(timezone.utc)
+        cutoff_iso = format_utc_iso(since) if since else None
         
-        # Calculate cutoff dates
-        today_cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        week_cutoff = now - timedelta(days=7)
-        month_cutoff = now - timedelta(days=30)
-        
-        # Get time_range cutoff for top users and top blueprints (respects selected time_range)
-        # Returns None for "all" (no time limit)
-        time_range_cutoff = time_utils.get_cutoff_date(time_range)
-        
-        # Convert to ISO strings
-        today_iso = today_cutoff.isoformat().replace('+00:00', 'Z')
-        week_iso = week_cutoff.isoformat().replace('+00:00', 'Z')
-        month_iso = month_cutoff.isoformat().replace('+00:00', 'Z')
-        time_range_iso = time_range_cutoff.isoformat().replace('+00:00', 'Z') if time_range_cutoff else None
-        
-        # Helper to build pipeline stages with optional time filter
-        def build_user_status_stages(time_filter_iso: Optional[str]) -> List[Dict]:
-            stages = []
-            if time_filter_iso:
-                stages.append({"$match": {"run_context.started_at": {"$gte": time_filter_iso}}})
-            stages.append({"$group": {
-                "_id": {"user_id": "$user_id", "status": "$status"},
-                "count": {"$sum": 1}
-            }})
-            return stages
-        
-        def build_user_blueprints_stages(time_filter_iso: Optional[str]) -> List[Dict]:
-            stages = []
-            if time_filter_iso:
-                stages.append({"$match": {"run_context.started_at": {"$gte": time_filter_iso}}})
-            stages.append({"$group": {
-                "_id": {"user_id": "$user_id", "blueprint_id": "$blueprint_id"},
-                "count": {"$sum": 1}
-            }})
-            return stages
-        
-        def build_blueprint_data_stages(time_filter_iso: Optional[str]) -> List[Dict]:
-            stages = []
-            if time_filter_iso:
-                stages.append({"$match": {"run_context.started_at": {"$gte": time_filter_iso}}})
-            stages.append({"$group": {
-                "_id": {"blueprint_id": "$blueprint_id", "user_id": "$user_id"},
-                "count": {"$sum": 1}
-            }})
-            return stages
-        
-        # Build faceted pipeline
         pipeline = [
             {"$facet": {
-                # Active Users: User + Status groupings
-                "today_status": build_user_status_stages(today_iso),
-                "week_status": build_user_status_stages(week_iso),
-                "month_status": build_user_status_stages(month_iso),
-                # Active Users: User + Blueprint groupings
-                "today_blueprints": build_user_blueprints_stages(today_iso),
-                "week_blueprints": build_user_blueprints_stages(week_iso),
-                "month_blueprints": build_user_blueprints_stages(month_iso),
-                # Top Users: User data filtered by selected time_range (None = all data)
-                "top_users_status": build_user_status_stages(time_range_iso),
-                "top_users_blueprints": build_user_blueprints_stages(time_range_iso),
-                # Top Blueprints: Blueprint + User groupings (time_range filtered)
-                "top_blueprints_data": build_blueprint_data_stages(time_range_iso)
+                "user_status": self._build_group_stages(
+                    {"user_id": "$user_id", "status": "$status"}, cutoff_iso
+                ),
+                "user_blueprint": self._build_group_stages(
+                    {"user_id": "$user_id", "blueprint_id": "$blueprint_id"}, cutoff_iso
+                ),
+                "blueprint_user": self._build_group_stages(
+                    {"blueprint_id": "$blueprint_id", "user_id": "$user_id"}, cutoff_iso
+                ),
             }}
         ]
-        
-        empty_result = {
-            "today_status": [], "week_status": [], "month_status": [],
-            "today_blueprints": [], "week_blueprints": [], "month_blueprints": [],
-            "top_users_status": [], "top_users_blueprints": [],
-            "top_blueprints_data": []
-        }
         
         try:
             results = list(self._col.aggregate(pipeline))
             if not results:
-                return empty_result
+                return SystemAnalyticsData()
             
             facet_result = results[0]
             
-            # Transform to GroupedCount DTOs
-            def to_grouped_counts(docs: List[Dict]) -> List[GroupedCount]:
-                return [
-                    GroupedCount(fields=doc["_id"], count=doc["count"])
-                    for doc in docs
-                ]
-            
-            return {
-                "today_status": to_grouped_counts(facet_result.get("today_status", [])),
-                "week_status": to_grouped_counts(facet_result.get("week_status", [])),
-                "month_status": to_grouped_counts(facet_result.get("month_status", [])),
-                "today_blueprints": to_grouped_counts(facet_result.get("today_blueprints", [])),
-                "week_blueprints": to_grouped_counts(facet_result.get("week_blueprints", [])),
-                "month_blueprints": to_grouped_counts(facet_result.get("month_blueprints", [])),
-                "top_users_status": to_grouped_counts(facet_result.get("top_users_status", [])),
-                "top_users_blueprints": to_grouped_counts(facet_result.get("top_users_blueprints", [])),
-                "top_blueprints_data": to_grouped_counts(facet_result.get("top_blueprints_data", []))
-            }
+            return SystemAnalyticsData(
+                user_status_counts=self._to_grouped_counts(
+                    facet_result.get("user_status", [])
+                ),
+                user_blueprint_counts=self._to_grouped_counts(
+                    facet_result.get("user_blueprint", [])
+                ),
+                blueprint_user_counts=self._to_grouped_counts(
+                    facet_result.get("blueprint_user", [])
+                )
+            )
         except Exception as e:
-            logger.warning(f"Failed to get all stats data: {e}")
-            return empty_result
+            logger.warning(f"Failed to get system analytics data: {e}")
+            return SystemAnalyticsData()
+
+    # ---------- Private helpers ----------
+
+    def _build_time_filter(self, since: Optional[datetime]) -> Dict[str, Any]:
+        """Build a MongoDB match filter from an optional cutoff datetime."""
+        if since is None:
+            return {}
+        cutoff_iso = format_utc_iso(since)
+        return {self._TIME_FIELD: {"$gte": cutoff_iso}}
+
+    def _get_granularity_format(self, since: Optional[datetime]) -> str:
+        """Determine date format for time series granularity based on the time range."""
+        if since is None:
+            return "%Y-%m"  # Monthly for all-time data
+        delta = datetime.now(timezone.utc) - since
+        if delta.days < 1:
+            return "%Y-%m-%d %H:00"  # Hourly for today
+        return "%Y-%m-%d"  # Daily for other ranges
+
+    def _build_time_series_pipeline(
+        self, 
+        since: Optional[datetime],
+        date_format: str
+    ) -> List[Dict[str, Any]]:
+        """Build MongoDB aggregation pipeline for time series data."""
+        field_path = self._TIME_FIELD
+        
+        if since:
+            cutoff_iso = format_utc_iso(since)
+            match_stage = {"$match": {
+                field_path: {"$gte": cutoff_iso, "$exists": True}
+            }}
+        else:
+            match_stage = {"$match": {
+                field_path: {"$exists": True}
+            }}
+        
+        return [
+            match_stage,
+            {"$group": {
+                "_id": {
+                    "$dateToString": {
+                        "format": date_format,
+                        "date": {"$dateFromString": {"dateString": f"${field_path}"}}
+                    }
+                },
+                "count": {"$sum": 1}
+            }},
+            {"$sort": {"_id": 1}},
+            {"$limit": 1000}
+        ]
+
+    def _build_group_stages(
+        self,
+        group_fields: Dict[str, str],
+        time_filter_iso: Optional[str]
+    ) -> List[Dict]:
+        """Build MongoDB aggregation stages for a group operation with optional time filter."""
+        stages = []
+        if time_filter_iso:
+            stages.append({"$match": {self._TIME_FIELD: {"$gte": time_filter_iso}}})
+        stages.append({"$group": {"_id": group_fields, "count": {"$sum": 1}}})
+        return stages
+
+    @staticmethod
+    def _to_grouped_counts(docs: List[Dict]) -> List[GroupedCount]:
+        """Transform raw MongoDB aggregation results to GroupedCount DTOs."""
+        return [
+            GroupedCount(fields=doc["_id"], count=doc["count"])
+            for doc in docs
+        ]

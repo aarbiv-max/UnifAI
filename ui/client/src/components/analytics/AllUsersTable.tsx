@@ -12,7 +12,7 @@ import {
 interface AllUsersTableProps {
   users: Array<{
     user_id: string;
-    total_runs: number;
+    run_count: number;
     unique_blueprints: number;
   }>;
   page: number;
@@ -42,7 +42,7 @@ export function AllUsersTable({ users, page, setPage, itemsPerPage }: AllUsersTa
                     <TableCell className="font-medium text-sm truncate max-w-[200px]">
                       {user.user_id}
                     </TableCell>
-                    <TableCell className="text-right text-sm">{user.total_runs}</TableCell>
+                    <TableCell className="text-right text-sm">{user.run_count}</TableCell>
                     <TableCell className="text-right text-sm">{user.unique_blueprints}</TableCell>
                   </TableRow>
                 ))}

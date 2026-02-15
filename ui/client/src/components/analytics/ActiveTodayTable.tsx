@@ -7,7 +7,6 @@ import {
   Pagination,
   PaginationContent,
   PaginationItem,
-  PaginationLink,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
@@ -17,9 +16,7 @@ type TimeRange = 'today' | '7days' | '30days' | 'all';
 interface ActiveTodayTableProps {
   users: Array<{
     user_id: string;
-    runs_today?: number;
-    recent_runs?: number;
-    total_runs?: number;
+    run_count: number;
     status_breakdown?: {
       COMPLETED?: number;
       FAILED?: number;
@@ -44,20 +41,6 @@ export function ActiveTodayTable({ users, page, setPage, itemsPerPage, timeRange
         return 'Active (All Time)';
       default:
         return 'Active Today';
-    }
-  };
-
-  const getRunsField = (user: any) => {
-    switch (timeRange) {
-      case 'today':
-        return user.runs_today || 0;
-      case '7days':
-      case '30days':
-        return user.recent_runs || 0;
-      case 'all':
-        return user.total_runs || 0;
-      default:
-        return user.runs_today || 0;
     }
   };
 
@@ -101,7 +84,7 @@ export function ActiveTodayTable({ users, page, setPage, itemsPerPage, timeRange
                       <TableCell className="font-medium text-sm truncate max-w-[200px]">
                         {user.user_id}
                       </TableCell>
-                      <TableCell className="text-right text-sm">{getRunsField(user)}</TableCell>
+                      <TableCell className="text-right text-sm">{user.run_count}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 justify-end">
                           {user.status_breakdown?.COMPLETED && user.status_breakdown.COMPLETED > 0 && (

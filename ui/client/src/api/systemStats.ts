@@ -11,11 +11,12 @@ import type { SystemStatsResponse } from '@/types/systemStats';
 /**
  * Fetch comprehensive system-wide statistics (workflows, users, blueprints)
  * 
- * This single endpoint returns all system stats needed for the admin dashboard:
+ * This single endpoint returns all system stats needed for the admin dashboard,
+ * scoped to the requested time range:
  * - Total stats (runs, users, avg runs per user)
  * - Status breakdown
- * - Active users by time period (today, 7 days, 30 days)
- * - Top users and blueprints
+ * - Active users with run counts and status breakdown
+ * - Top blueprints
  * - Time series activity data
  * 
  * Requires admin access.
