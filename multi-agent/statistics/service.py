@@ -306,6 +306,9 @@ class StatisticsService:
             status = item.get("status")
             count = item.count
             
+            if not user_id:
+                continue
+
             if user_id not in user_data:
                 user_data[user_id] = UserActivity(user_id=user_id)
             
@@ -390,6 +393,9 @@ class StatisticsService:
             user_id = item.get("user_id")
             count = item.count
             
+            if not blueprint_id:
+                continue
+
             if blueprint_id not in blueprint_data:
                 blueprint_data[blueprint_id] = {
                     "run_count": 0,
