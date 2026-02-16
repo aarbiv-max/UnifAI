@@ -236,10 +236,14 @@ class StatisticsService:
         Returns:
             SystemStatsResponse containing all system-wide statistics data
         """
-        # Calculate total statistics
-        total_runs = self._session_service.count_system(since)
-        distinct_users = self._session_service.get_distinct_users(since)
-        unique_users = len(distinct_users)
+        # Get system analytics data (batched aggregation via single $facet call).
+        # Derive total_runs, unique_users, and status_breakdown from the
+        # user_status_counts grouping to avoid 3 extra DB round-trips.
+        analytics = self._session_service.get_system_analytics(since=since)
+        
+        total_runs, unique_users, status_breakdown = self._derive_totals_from_status_counts(
+            analytics.user_status_counts
+        )
         avg_runs_per_user = round(total_runs / unique_users, 2) if unique_users > 0 else 0
         
         total_stats = TotalStats(
@@ -247,19 +251,6 @@ class StatisticsService:
             unique_users=unique_users,
             avg_runs_per_user=avg_runs_per_user
         )
-        
-        # Get status breakdown
-        status_counts = self._session_service.group_count_system(
-            group_by=["status"],
-            since=since
-        )
-        status_breakdown = {
-            item.get("status"): item.count
-            for item in status_counts
-        }
-        
-        # Get system analytics data (batched aggregation for active users + top blueprints)
-        analytics = self._session_service.get_system_analytics(since=since)
         
         # Build active users list from analytics data
         active_users = self._build_user_activity_list(
@@ -342,6 +333,38 @@ class StatisticsService:
         
         return result
 
+    @staticmethod
+    def _derive_totals_from_status_counts(
+        status_counts: List[GroupedCount],
+    ) -> tuple:
+        """
+        Derive total_runs, unique_users, and status_breakdown from
+        user+status grouped counts, avoiding separate DB round-trips.
+        
+        Args:
+            status_counts: Sessions grouped by user_id and status
+            
+        Returns:
+            Tuple of (total_runs, unique_users, status_breakdown dict)
+        """
+        total_runs = 0
+        user_ids: Set[str] = set()
+        status_breakdown: Dict[str, int] = {}
+        
+        for item in status_counts:
+            count = item.count
+            total_runs += count
+            
+            user_id = item.get("user_id")
+            if user_id:
+                user_ids.add(user_id)
+            
+            status = item.get("status")
+            if status:
+                status_breakdown[status] = status_breakdown.get(status, 0) + count
+        
+        return total_runs, len(user_ids), status_breakdown
+
     def _build_blueprint_usage_list(
         self,
         blueprint_counts: List[GroupedCount],
@@ -398,27 +421,33 @@ class StatisticsService:
 
     def _batch_get_blueprint_names(self, blueprint_ids: List[str]) -> Dict[str, str]:
         """
-        Get blueprint names for multiple blueprints in batch.
+        Get blueprint names for multiple blueprints in a single DB query.
         
         Args:
             blueprint_ids: List of blueprint IDs to look up
         
         Returns:
-            Dictionary mapping blueprint_id to blueprint_name
+            Dictionary mapping blueprint_id to blueprint_name.
+            Falls back to blueprint_id as the name for missing or invalid entries.
         """
+        if not blueprint_ids:
+            return {}
+        
+        try:
+            docs = self._blueprint_service.load_by_ids(blueprint_ids)
+        except Exception:
+            return {bp_id: bp_id for bp_id in blueprint_ids}
+        
         names = {}
-        for blueprint_id in blueprint_ids:
-            try:
-                if self._blueprint_service.exists(blueprint_id):
-                    bp_doc = self._blueprint_service.get_blueprint_draft_doc(blueprint_id)
-                    spec_dict = bp_doc.get("spec_dict", {})
-                    if isinstance(spec_dict, dict):
-                        names[blueprint_id] = spec_dict.get("name", blueprint_id)
-                    else:
-                        names[blueprint_id] = blueprint_id
-                else:
-                    names[blueprint_id] = blueprint_id
-            except Exception:
-                names[blueprint_id] = blueprint_id
+        for doc in docs:
+            spec_dict = doc.spec_dict
+            if isinstance(spec_dict, dict):
+                names[doc.blueprint_id] = spec_dict.get("name", doc.blueprint_id)
+            else:
+                names[doc.blueprint_id] = doc.blueprint_id
+        
+        for bp_id in blueprint_ids:
+            if bp_id not in names:
+                names[bp_id] = bp_id
         
         return names

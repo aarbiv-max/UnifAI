@@ -27,6 +27,8 @@ class MongoSessionRepository(SessionRepository):
 
     # Field path used for time-based filtering in this MongoDB schema
     _TIME_FIELD = "run_context.started_at"
+    # Maximum number of data points returned in a time series query
+    _MAX_TIME_SERIES_POINTS = 1000
 
     def __init__(
             self,
@@ -258,7 +260,7 @@ class MongoSessionRepository(SessionRepository):
                 "count": {"$sum": 1}
             }},
             {"$sort": {"_id": 1}},
-            {"$limit": 1000}
+            {"$limit": self._MAX_TIME_SERIES_POINTS}
         ]
 
     def _build_group_stages(
