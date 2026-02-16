@@ -200,9 +200,24 @@ def slack_connector(project_id: str):
 
 @lru_cache(maxsize=1)
 def document_connector():
-    """Document connector for PDF and other document formats."""
-    from infrastructure.sources.document.connector import DocumentConnector
-    return DocumentConnector()
+    """Document connector for PDF and other document formats.
+    
+    Uses local docling library by default.
+    Set USE_REMOTE_DOCLING=true to use the remote docling service.
+    """
+    from bootstrap.factories import DocumentConnectorFactory
+    from config.app_config import AppConfig
+    
+    config = AppConfig.get_instance()
+    
+    if config.use_remote_docling:
+        return DocumentConnectorFactory.create({
+            "type": "remote",
+            "service_url": config.docling_service_url,
+            "timeout": config.docling_service_timeout,
+        })
+    else:
+        return DocumentConnectorFactory.create({"type": "local"})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -390,6 +405,43 @@ def terms_approval_service():
     return TermsApprovalService(approval_repo=terms_approval_repository())
 
 
+@lru_cache(maxsize=1)
+def remote_services_health():
+    """
+    Services health service for checking external service availability.
+    
+    Checks Docling and Embedding services to determine if document upload
+    should be enabled. Used by the /service.readiness.get endpoint.
+    """
+    from core.health.service import ServicesHealthService
+    from bootstrap.factories import DocumentConverterFactory
+    from config.app_config import AppConfig
+    
+    config = AppConfig.get_instance()
+    
+    # Get the embedding port from the existing generator
+    # EmbeddingGenerator._port is the EmbeddingPort
+    embedding_port = None
+    if config.use_remote_embedding:
+        embedding_port = embedding_generator()._port
+    
+    # Create a docling port for health checking
+    # Uses shorter timeout since it's just a health check
+    docling_port = None
+    if config.use_remote_docling:
+        docling_port = DocumentConverterFactory.create_remote(
+            base_url=config.docling_service_url,
+            timeout=10,  # Short timeout for health checks
+        )
+    
+    return ServicesHealthService(
+        docling_port=docling_port,
+        embedding_port=embedding_port,
+        use_remote_docling=config.use_remote_docling,
+        use_remote_embedding=config.use_remote_embedding,
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # SLACK EVENTS (Application layer - event handling)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -419,9 +471,26 @@ def slack_event_service():
 
 @lru_cache(maxsize=1)
 def embedding_generator():
-    """Shared embedding generator (sentence transformer)."""
+    """Shared embedding generator.
+    
+    Uses local SentenceTransformer by default.
+    Set USE_REMOTE_EMBEDDING=true to use the remote embedding service.
+    """
     from bootstrap.factories import EmbeddingGeneratorFactory
-    return EmbeddingGeneratorFactory.create({"type": "sentence_transformer"})
+    from config.app_config import AppConfig
+    
+    config = AppConfig.get_instance()
+    
+    if config.use_remote_embedding:
+        return EmbeddingGeneratorFactory.create({
+            "type": "remote",
+            "service_url": config.embedding_service_url,
+            "timeout": config.embedding_service_timeout,
+            "model_name": config.embedding_service_model,
+            "embedding_dim": 384,
+        })
+    else:
+        return EmbeddingGeneratorFactory.create({"type": "local"})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -580,6 +649,7 @@ def clear_all_caches():
     monitoring_service.cache_clear()
     data_source_service.cache_clear()
     terms_approval_service.cache_clear()
+    remote_services_health.cache_clear()
     # Registration & Dispatch
     doc_validators.cache_clear()
     slack_validators.cache_clear()
@@ -605,4 +675,3 @@ def clear_all_caches():
     slack_pipeline_handler.cache_clear()
     document_pipeline_handler.cache_clear()
     pipeline_executor.cache_clear()
-
