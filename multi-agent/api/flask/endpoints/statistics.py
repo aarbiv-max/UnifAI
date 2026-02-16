@@ -1,8 +1,11 @@
 from flask import Blueprint, jsonify, current_app
 from global_utils.helpers.apiargs import from_query
 from webargs import fields, validate
+import logging
 from ..decorators import require_admin_access
 from statistics.models import TimeRangePreset
+
+logger = logging.getLogger(__name__)
 
 statistics_bp = Blueprint("statistics", __name__)
 
@@ -23,11 +26,15 @@ def get_all(user_id):
         stats = statistics_service.get_all(user_id)
         
         return jsonify(stats.model_dump(mode="json")), 200
+    except ValueError as e:
+        return jsonify({"error": str(e), "error_type": "VALIDATION_ERROR"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception("Unexpected error in get_all stats for user %s", user_id)
+        return jsonify({"error": "Internal server error", "error_type": "INTERNAL_ERROR"}), 500
 
 
 @statistics_bp.route("/stats.system.get", methods=["GET"])
+@require_admin_access
 @from_query({
     "time_range": fields.Str(
         data_key="time_range",
@@ -39,7 +46,6 @@ def get_all(user_id):
     ),
     "user_id": fields.Str(data_key="userId", required=True)
 })
-@require_admin_access
 def get_system_stats(time_range, user_id):
     """
     Get comprehensive system-wide statistics for workflows, users, and blueprints.
@@ -67,5 +73,8 @@ def get_system_stats(time_range, user_id):
         stats = statistics_service.get_system_stats(since=since)
         
         return jsonify(stats.model_dump(mode="json")), 200
+    except ValueError as e:
+        return jsonify({"error": str(e), "error_type": "VALIDATION_ERROR"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception("Unexpected error in get_system_stats")
+        return jsonify({"error": "Internal server error", "error_type": "INTERNAL_ERROR"}), 500

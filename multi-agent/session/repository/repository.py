@@ -26,6 +26,11 @@ class SessionRepository(ABC):
         ...
 
     @abstractmethod
+    def list_docs(self, user_id: str) -> List[Mapping[str, Any]]:
+        """Return all session documents for a user in a single query."""
+        ...
+
+    @abstractmethod
     def delete(self, run_id: str) -> bool:
         """Delete a session by run_id. Returns True if deleted, False if not found."""
         ...

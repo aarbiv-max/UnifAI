@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, List, Set, TypedDict, Optional
 from datetime import datetime, timezone
 from blueprints.service import BlueprintService
@@ -9,6 +10,8 @@ from .models import (
     StatisticsResponse, ResourceCategoryStats, SystemStatsResponse,
     TotalStats, UserActivity, BlueprintUsage
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SessionStats(TypedDict):
@@ -260,7 +263,7 @@ class StatisticsService:
         
         # Build top blueprints list from analytics data
         top_blueprints = self._build_blueprint_usage_list(
-            analytics.blueprint_user_counts,
+            analytics.user_blueprint_counts,
             limit=10
         )
         
@@ -280,7 +283,7 @@ class StatisticsService:
         self,
         status_counts: List[GroupedCount],
         blueprint_counts: List[GroupedCount],
-        limit: Optional[int] = None
+        limit: int = 500
     ) -> List[UserActivity]:
         """
         Build a list of UserActivity models from grouped count data.
@@ -435,7 +438,8 @@ class StatisticsService:
         
         try:
             docs = self._blueprint_service.load_by_ids(blueprint_ids)
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to batch-load blueprint names for %s: %s", blueprint_ids, e)
             return {bp_id: bp_id for bp_id in blueprint_ids}
         
         names = {}

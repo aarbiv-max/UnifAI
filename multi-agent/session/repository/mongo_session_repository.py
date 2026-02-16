@@ -105,6 +105,13 @@ class MongoSessionRepository(SessionRepository):
         )
         return [d[self._RUN_ID_FIELD] for d in cursor]
 
+    def list_docs(self, user_id: str) -> List[Mapping[str, Any]]:
+        """Return all session documents for a user in a single query."""
+        return list(self._col.find(
+            {self._USER_FIELD: user_id},
+            {"_id": 0}
+        ))
+
     def delete(self, run_id: str) -> bool:
         """Delete a session by run_id. Returns True if deleted, False if not found."""
         result = self._col.delete_one({self._RUN_ID_FIELD: run_id})
@@ -242,7 +249,6 @@ class MongoSessionRepository(SessionRepository):
             return SystemAnalyticsData(
                 user_status_counts=self._to_grouped_counts(facet.get("user_status", [])),
                 user_blueprint_counts=user_blueprint,
-                blueprint_user_counts=user_blueprint  # Same data, different perspective
             )
         except Exception as e:
             logger.warning(f"Failed to get system analytics: {e}")

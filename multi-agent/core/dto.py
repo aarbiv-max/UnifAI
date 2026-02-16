@@ -70,8 +70,13 @@ class SystemAnalyticsData(BaseModel):
     """
     Aggregated system analytics data returned by the repository layer.
     
-    Groups session data by user+status, user+blueprint, and blueprint+user
-    for building admin dashboard views (active users, top blueprints, etc.).
+    Groups session data by user+status and user+blueprint for building
+    admin dashboard views (active users, top blueprints, etc.).
+    
+    The user_blueprint_counts field serves double duty:
+    - User perspective: which blueprints did each user run?
+    - Blueprint perspective: which users ran each blueprint?
+    Both views are derived from the same (user_id, blueprint_id) grouping.
     
     Implementations should optimize for efficiency (e.g., batching
     multiple aggregations into a single database operation).
@@ -82,10 +87,6 @@ class SystemAnalyticsData(BaseModel):
     )
     user_blueprint_counts: List[GroupedCount] = Field(
         default_factory=list,
-        description="Sessions grouped by user_id and blueprint_id"
-    )
-    blueprint_user_counts: List[GroupedCount] = Field(
-        default_factory=list,
-        description="Sessions grouped by blueprint_id and user_id"
+        description="Sessions grouped by user_id and blueprint_id (used for both user and blueprint views)"
     )
 

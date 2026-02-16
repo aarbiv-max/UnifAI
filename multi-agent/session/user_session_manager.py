@@ -14,8 +14,12 @@ from .exceptions import BlueprintNotFoundError
 
 class UserSessionManager:
     """
-    High-level CRUD for user sessions.
-    SRP: only creates, loads, and lists run_ids.
+    High-level manager for user sessions and session analytics.
+
+    Responsibilities:
+    - Session lifecycle (create, get, list, delete)
+    - User-scoped statistics (count, group_count)
+    - System-wide analytics for admin dashboards
     """
 
     def __init__(
@@ -104,8 +108,7 @@ class UserSessionManager:
         return self._repo.list_runs(user_id)
 
     def list_docs(self, user_id: str) -> List[Mapping[str, Any]]:
-        session_ids = self.list_sessions_ids(user_id)
-        return [self.get_doc(session_id) for session_id in session_ids]
+        return self._repo.list_docs(user_id)
 
     def delete_session(self, run_id: str) -> bool:
         """Delete a session by run_id. Returns True if deleted, False if not found."""
