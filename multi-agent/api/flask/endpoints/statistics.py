@@ -27,10 +27,10 @@ def get_all(user_id):
         
         return jsonify(stats.model_dump(mode="json")), 200
     except ValueError as e:
-        return jsonify({"error": str(e), "error_type": "VALIDATION_ERROR"}), 400
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Unexpected error in get_all stats for user %s", user_id)
-        return jsonify({"error": "Internal server error", "error_type": "INTERNAL_ERROR"}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @statistics_bp.route("/stats.system.get", methods=["GET"])
@@ -74,7 +74,7 @@ def get_system_stats(time_range, user_id):
         
         return jsonify(stats.model_dump(mode="json")), 200
     except ValueError as e:
-        return jsonify({"error": str(e), "error_type": "VALIDATION_ERROR"}), 400
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.exception("Unexpected error in get_system_stats")
-        return jsonify({"error": "Internal server error", "error_type": "INTERNAL_ERROR"}), 500
+        return jsonify({"error": str(e)}), 500
