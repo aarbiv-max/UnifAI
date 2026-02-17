@@ -14,7 +14,6 @@ class AppConfig(SharedConfig):
     version: str = "1.0.0"
 
 
-    frontend_url: str = "http://127.0.0.1:5000"
-    redirect_url: str = "http://127.0.0.1:13456/api/auth/callback"    # session_cookie_secure=True
+    frontend_url: str = "http://localhost:5000" 
     backend_env: str = "development"
 
