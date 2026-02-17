@@ -49,83 +49,32 @@ export function getTimeRangeSuffix(range: TimeRange): string {
 }
 
 /**
- * Format a period string into a display-friendly label based on the active time range.
+ * Format an ISO datetime period string into a display-friendly label
+ * based on the active time range.
  *
- * - "today"  : "2024-01-15 14:00" → "2:00 PM"
- * - "all"    : "2024-01"          → "Jan 2024"
- * - default  : "2024-01-15"       → "Jan 15"
+ * The backend sends ISO datetime strings (e.g., "2024-01-15T14:00:00Z")
+ * truncated to the appropriate granularity bucket.
+ *
+ * - "today"  : "2024-01-15T14:00:00Z" → "2:00 PM"
+ * - "all"    : "2024-01-01T00:00:00Z" → "Jan 2024"
+ * - default  : "2024-01-15T00:00:00Z" → "Jan 15"
  */
 export function formatPeriodLabel(period: string, range: string): string {
   if (!period) return '';
 
   try {
+    const date = new Date(period);
+    if (isNaN(date.getTime())) return period;
+
     if (range === 'today') {
-      return formatHourlyPeriod(period);
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     } else if (range === 'all') {
-      return formatMonthlyPeriod(period);
+      return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     } else {
-      return formatDailyPeriod(period);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
   } catch {
     return period;
   }
-}
-
-/** Parse a date-like string into a Date, handling common period formats. */
-function parsePeriodDate(period: string, fallbackSuffix: string): Date | null {
-  let date: Date | null = null;
-  if (period.includes('T') || period.includes('Z')) {
-    date = new Date(period);
-  } else if (period.includes(' ')) {
-    date = new Date(period + fallbackSuffix);
-  } else {
-    date = new Date(period + fallbackSuffix);
-  }
-  return date && !isNaN(date.getTime()) ? date : null;
-}
-
-/** "2024-01-15 14:00" → "2:00 PM" */
-function formatHourlyPeriod(period: string): string {
-  const date = parsePeriodDate(period, ':00Z');
-  if (date) {
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  }
-
-  // Fallback: extract hour from "2024-01-15 14:00"
-  const parts = period.split(' ');
-  if (parts.length > 1) {
-    const hourStr = parts[1].split(':')[0];
-    const hour = parseInt(hourStr);
-    if (!isNaN(hour)) {
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const displayHour = hour % 12 || 12;
-      return `${displayHour}:00 ${ampm}`;
-    }
-  }
-  return period;
-}
-
-/** "2024-01" → "Jan 2024" */
-function formatMonthlyPeriod(period: string): string {
-  const parts = period.split('-');
-  if (parts.length === 2) {
-    const year = parts[0];
-    const month = parseInt(parts[1], 10);
-    if (!isNaN(month) && month >= 1 && month <= 12) {
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return `${monthNames[month - 1]} ${year}`;
-    }
-  }
-  return period;
-}
-
-/** "2024-01-15" → "Jan 15" */
-function formatDailyPeriod(period: string): string {
-  const date = parsePeriodDate(period, 'T00:00:00Z');
-  if (date) {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
-  return period;
 }
 

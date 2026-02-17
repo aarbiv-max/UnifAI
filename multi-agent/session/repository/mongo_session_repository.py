@@ -177,15 +177,15 @@ class MongoSessionRepository(SessionRepository):
         - Over 30 days or all time -> monthly
         """
         now = datetime.now(timezone.utc)
-        date_format = self._determine_granularity(since, now)
+        truncate_unit = self._determine_granularity(since, now)
 
         pipeline = [
             {"$match": self._time_match(since, require_exists=True)},
             {"$group": {
                 "_id": {
-                    "$dateToString": {
-                        "format": date_format,
-                        "date": {"$dateFromString": {"dateString": f"${self._TIME_FIELD}"}}
+                    "$dateTrunc": {
+                        "date": {"$dateFromString": {"dateString": f"${self._TIME_FIELD}"}},
+                        "unit": truncate_unit
                     }
                 },
                 "count": {"$sum": 1}
@@ -296,7 +296,7 @@ class MongoSessionRepository(SessionRepository):
     @staticmethod
     def _determine_granularity(since: Optional[datetime], now: datetime) -> str:
         """
-        Determine date format string for time series grouping.
+        Determine the $dateTrunc unit for time series grouping.
 
         Returns appropriate granularity:
         - Hourly for < 1 day
@@ -304,14 +304,14 @@ class MongoSessionRepository(SessionRepository):
         - Monthly for > 30 days or all-time
         """
         if since is None:
-            return "%Y-%m"
+            return "month"
 
         delta = now - since
         if delta < timedelta(days=1):
-            return "%Y-%m-%d %H:00"
+            return "hour"
         if delta <= timedelta(days=30):
-            return "%Y-%m-%d"
-        return "%Y-%m"
+            return "day"
+        return "month"
 
     @staticmethod
     def _to_grouped_counts(docs: List[Dict]) -> List[GroupedCount]:

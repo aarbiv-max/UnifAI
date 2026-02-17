@@ -11,10 +11,12 @@ class TimeSeriesPoint(BaseModel):
 
     The period granularity (hourly, daily, monthly) is determined
     by the repository implementation based on the requested time range.
+    The period is truncated to the start of the bucket
+    (e.g., start of the hour, day, or month).
     """
-    period: str = Field(
+    period: datetime = Field(
         ...,
-        description="Time period label (e.g., '2024-01-15', '2024-01-15 14:00', '2024-01')"
+        description="Start of the time bucket (truncated to hour, day, or month depending on granularity)"
     )
     count: int = Field(
         ...,
