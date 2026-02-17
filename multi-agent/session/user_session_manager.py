@@ -1,26 +1,22 @@
-from typing import List, Mapping, Any, Dict, Optional
 from datetime import datetime
+from typing import List, Mapping, Any, Dict, Optional
 from session.repository.repository import SessionRepository
 from session.workflow_session_factory import WorkflowSessionFactory
 from session.workflow_session import WorkflowSession
 from core.run_context import RunContext
 from core.dto import GroupedCount
-from statistics.models import TimeSeriesPoint, SystemAnalyticsData
 from graph.state.graph_state import GraphState
 from session.status import SessionStatus
 from blueprints.service import BlueprintService
+from statistics.models import TimeSeriesPoint, SystemAnalyticsData
 from session.models import SessionMeta
 from .exceptions import BlueprintNotFoundError
 
 
 class UserSessionManager:
     """
-    High-level manager for user sessions and session analytics.
-
-    Responsibilities:
-    - Session lifecycle (create, get, list, delete)
-    - User-scoped statistics (count, group_count)
-    - System-wide analytics for admin dashboards
+    High‐level CRUD for user sessions.
+    SRP: only creates, loads, and lists run_ids.
     """
 
     def __init__(
@@ -109,13 +105,14 @@ class UserSessionManager:
         return self._repo.list_runs(user_id)
 
     def list_docs(self, user_id: str) -> List[Mapping[str, Any]]:
-        return self._repo.list_docs(user_id)
+        session_ids = self.list_sessions_ids(user_id)
+        return [self.get_doc(session_id) for session_id in session_ids]
 
     def delete_session(self, run_id: str) -> bool:
         """Delete a session by run_id. Returns True if deleted, False if not found."""
         return self._repo.delete(run_id)
 
-    # ---------- statistics ( user-scope) ----------
+    # ---------- statistics ----------
     def count(self, user_id: str, filter: Dict[str, Any] = None) -> int:
         """Count sessions matching filter criteria for a user."""
         return self._repo.count(user_id, filter or {})
