@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Union
 from datetime import datetime
 from .user_session_manager import UserSessionManager
 from .session_executor import SessionExecutor
@@ -8,7 +8,6 @@ from .models import SessionMeta
 from .exceptions import BlueprintNotFoundError
 from core.dto import GroupedCount
 from statistics.models import TimeSeriesPoint, SystemAnalyticsData
-
 
 class SessionService:
     """
@@ -158,7 +157,7 @@ class SessionService:
         """
         return self._manager.delete_session(run_id)
 
-    # ---------- System-wide methods (for admin analytics) ----------
+# ---------- System-wide methods (for admin analytics) ----------
 
     def count_system(self, since: Optional[datetime] = None) -> int:
         """
