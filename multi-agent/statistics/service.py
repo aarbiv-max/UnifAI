@@ -443,7 +443,7 @@ class StatisticsService:
             return {}
         
         try:
-            docs = self._blueprint_service.load_by_ids(blueprint_ids)
+            docs = self._blueprint_service.load_many(blueprint_ids)
         except Exception as e:
             logger.warning("Failed to batch-load blueprint names for %s: %s", blueprint_ids, e)
             return {bp_id: bp_id for bp_id in blueprint_ids}

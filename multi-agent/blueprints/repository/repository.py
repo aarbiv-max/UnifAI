@@ -39,7 +39,7 @@ class BlueprintRepository(ABC):
         """Return `True` if that ID is present in the store."""
 
     @abstractmethod
-    def load_by_ids(self, blueprint_ids: List[str]) -> List[BlueprintDocument]:
+    def load_many(self, blueprint_ids: List[str]) -> List[BlueprintDocument]:
         """Load multiple blueprint documents by their IDs in a single operation."""
 
     # ────────────────────────────── Listings / Stats ────────────────────

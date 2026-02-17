@@ -70,7 +70,7 @@ class MongoBlueprintRepository(BlueprintRepository):
         res = self._col.delete_one({"blueprint_id": blueprint_id})
         return res.deleted_count == 1
 
-    def load_by_ids(self, blueprint_ids: List[str]) -> List[BlueprintDocument]:
+    def load_many(self, blueprint_ids: List[str]) -> List[BlueprintDocument]:
         """Load multiple blueprint documents by their IDs in a single $in query."""
         if not blueprint_ids:
             return []
