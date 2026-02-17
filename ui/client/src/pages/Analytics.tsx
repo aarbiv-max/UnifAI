@@ -13,6 +13,7 @@ import {
   FaUsers, FaRocket, FaChartLine, FaCheckCircle, 
   FaFire, FaSync
 } from "react-icons/fa";
+import type { ReactNode } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { AccessDenied } from "@/components/analytics/AccessDenied";
@@ -98,6 +99,56 @@ export default function Analytics() {
     failed: u.status_breakdown?.FAILED || 0,
   })) || [];
 
+  // Stat card configuration for the overview section
+  interface StatCardConfig {
+    key: string;
+    icon: ReactNode;
+    title: string;
+    value: string | number;
+    subtext: string;
+    iconColor: string;
+    iconBgColor: string;
+  }
+
+  const statCards: StatCardConfig[] = [
+    {
+      key: 'total-runs',
+      icon: <FaRocket className="w-4 h-4" />,
+      title: 'Total Runs',
+      value: analytics?.total_stats?.total_runs || 0,
+      subtext: timeRange === 'all' ? 'All workflow executions' : 'In selected period',
+      iconColor: colors.primary,
+      iconBgColor: `${colors.primary}33`,
+    },
+    {
+      key: 'total-users',
+      icon: <FaUsers className="w-4 h-4" />,
+      title: 'Total Users',
+      value: analytics?.total_stats?.unique_users || 0,
+      subtext: timeRange === 'all' ? 'Unique users' : 'Active users',
+      iconColor: colors.info,
+      iconBgColor: `${colors.info}33`,
+    },
+    {
+      key: 'success-rate',
+      icon: <FaCheckCircle className="w-4 h-4" />,
+      title: 'Success Rate',
+      value: `${successRate.toFixed(1)}%`,
+      subtext: '↑ Completed runs',
+      iconColor: colors.success,
+      iconBgColor: `${colors.success}33`,
+    },
+    {
+      key: 'active-users',
+      icon: <FaFire className="w-4 h-4" />,
+      title: 'Active Users',
+      value: analytics?.active_users?.length || 0,
+      subtext: timeRange === 'today' ? 'Users active today' : 'Users in selected period',
+      iconColor: colors.warning,
+      iconBgColor: `${colors.warning}33`,
+    },
+  ];
+
   // Determine error details for display
   const axiosError = error as any;
   const errorStatusCode = axiosError?.response?.status;
@@ -179,54 +230,20 @@ export default function Analytics() {
           transition={{ duration: 0.5 }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6"
         >
-          <GlassPanel className="h-full">
-            <StatCard
-              icon={<FaRocket className="w-4 h-4" />}
-              title="Total Runs"
-              value={analytics?.total_stats?.total_runs || 0}
-              subtext={timeRange === 'all' ? 'All workflow executions' : 'In selected period'}
-              isLoading={isLoading}
-              error={error}
-              iconColor={colors.primary}
-              iconBgColor={`${colors.primary}33`}
-            />
-          </GlassPanel>
-          <GlassPanel className="h-full">
-            <StatCard
-              icon={<FaUsers className="w-4 h-4" />}
-              title="Total Users"
-              value={analytics?.total_stats?.unique_users || 0}
-              subtext={timeRange === 'all' ? 'Unique users' : 'Active users'}
-              isLoading={isLoading}
-              error={error}
-              iconColor={colors.info}
-              iconBgColor={`${colors.info}33`}
-            />
-          </GlassPanel>
-          <GlassPanel className="h-full">
-            <StatCard
-              icon={<FaCheckCircle className="w-4 h-4" />}
-              title="Success Rate"
-              value={`${successRate.toFixed(1)}%`}
-              subtext="↑ Completed runs"
-              isLoading={isLoading}
-              error={error}
-              iconColor={colors.success}
-              iconBgColor={`${colors.success}33`}
-            />
-          </GlassPanel>
-          <GlassPanel className="h-full">
-            <StatCard
-              icon={<FaFire className="w-4 h-4" />}
-              title="Active Users"
-              value={analytics?.active_users?.length || 0}
-              subtext={timeRange === 'today' ? 'Users active today' : 'Users in selected period'}
-              isLoading={isLoading}
-              error={error}
-              iconColor={colors.warning}
-              iconBgColor={`${colors.warning}33`}
-            />
-          </GlassPanel>
+          {statCards.map((card) => (
+            <GlassPanel key={card.key} className="h-full">
+              <StatCard
+                icon={card.icon}
+                title={card.title}
+                value={card.value}
+                subtext={card.subtext}
+                isLoading={isLoading}
+                error={error}
+                iconColor={card.iconColor}
+                iconBgColor={card.iconBgColor}
+              />
+            </GlassPanel>
+          ))}
         </motion.div>
 
         {/* Tabs Section */}
