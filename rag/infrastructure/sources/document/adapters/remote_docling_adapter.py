@@ -13,6 +13,10 @@ from core.connector.domain.document_converter import (
 
 logger = logging.getLogger(__name__)
 
+# Approximate characters per page for page count estimation.
+# Used as fallback when the remote docling service does not return page_count.
+_ESTIMATED_CHARS_PER_PAGE = 2000
+
 
 class RemoteDoclingAdapter(DocumentConverterPort):
     """
@@ -79,7 +83,7 @@ class RemoteDoclingAdapter(DocumentConverterPort):
         metadata["word_count"] = len(text.split())
         
         if "page_count" not in metadata and text:
-            metadata["page_count"] = max(1, len(text) // 2000)
+            metadata["page_count"] = max(1, len(text) // _ESTIMATED_CHARS_PER_PAGE)
         
         if file_path:
             metadata["filename"] = os.path.basename(file_path)

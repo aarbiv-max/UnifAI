@@ -39,6 +39,7 @@ class EmbeddingClient:
         self, 
         base_url: str,
         timeout: int = 60,
+        truncate: bool = True,
     ):
         """
         Initialize the HTTP client.
@@ -46,9 +47,11 @@ class EmbeddingClient:
         Args:
             base_url: Base URL for the embedding service
             timeout: Request timeout in seconds
+            truncate: Whether to truncate inputs exceeding model's max tokens
         """
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
+        self.truncate = truncate
         self._client = httpx.Client(
             base_url=self.base_url,
             timeout=httpx.Timeout(timeout),
@@ -80,7 +83,7 @@ class EmbeddingClient:
             payload = {
                 "input": texts,
                 "model": model,
-                "truncate": True,  # Truncate inputs that exceed model's max tokens
+                "truncate": self.truncate,
             }
             
             response = self._client.post(

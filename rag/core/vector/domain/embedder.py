@@ -1,8 +1,12 @@
 """Embedding generator port - domain interface for embedding generation."""
 
+import logging
+
 import numpy as np
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Iterator
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingPort(ABC):
@@ -78,6 +82,11 @@ class EmbeddingGenerator(ABC):
         self.batch_size = batch_size
     
     @property
+    def port(self) -> EmbeddingPort:
+        """Get the underlying embedding port."""
+        return self._port
+    
+    @property
     def embedding_dim(self) -> int:
         """Get the embedding dimension from the port."""
         return self._port.embedding_dim
@@ -108,10 +117,18 @@ class EmbeddingGenerator(ABC):
                     if i < len(embeddings):
                         enriched_chunk["embedding"] = embeddings[i]
                     else:
+                        logger.warning(
+                            "Embedding count mismatch: expected index %d but got %d embeddings",
+                            i, len(embeddings),
+                        )
                         enriched_chunk["embedding"] = np.zeros(self.embedding_dim)
                     result_chunks.append(enriched_chunk)
                     
-            except Exception:
+            except Exception as e:
+                logger.error(
+                    "Embedding generation failed for batch of %d chunks: %s",
+                    len(batch), e,
+                )
                 for chunk in batch:
                     enriched_chunk = chunk.copy()
                     enriched_chunk["embedding"] = np.zeros(self.embedding_dim)

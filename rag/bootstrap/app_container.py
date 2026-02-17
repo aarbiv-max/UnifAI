@@ -420,10 +420,9 @@ def remote_services_health():
     config = AppConfig.get_instance()
     
     # Get the embedding port from the existing generator
-    # EmbeddingGenerator._port is the EmbeddingPort
     embedding_port = None
     if config.use_remote_embedding:
-        embedding_port = embedding_generator()._port
+        embedding_port = embedding_generator().port
     
     # Create a docling port for health checking
     # Uses shorter timeout since it's just a health check
@@ -487,7 +486,7 @@ def embedding_generator():
             "service_url": config.embedding_service_url,
             "timeout": config.embedding_service_timeout,
             "model_name": config.embedding_service_model,
-            "embedding_dim": 384,
+            "embedding_dim": config.embedding_dim,
         })
     else:
         return EmbeddingGeneratorFactory.create({"type": "local"})

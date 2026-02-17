@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { checkServicesHealth, ServicesHealthResponse, ServiceHealth } from '@/api/health';
+import { useQuery } from '@tanstack/react-query';
+import { checkServicesHealth, ServiceHealth } from '@/api/health';
 
 /**
  * Polling interval for health checks in milliseconds.
  * Checks every 10 seconds as requested.
  */
-const HEALTH_CHECK_INTERVAL_MS = 10000;
+const HEALTH_CHECK_INTERVAL_MS = 10_000;
 
 /**
  * Return type for the useRemoteServicesHealth hook
@@ -26,10 +26,12 @@ export interface UseServicesHealthResult {
 }
 
 /**
- * Hook to poll for service health status.
+ * Hook to poll for service health status using React Query.
  * 
  * Polls every 10 seconds while the component is mounted.
  * Automatically stops polling when the component unmounts.
+ * Preserves last known state on transient fetch errors to avoid
+ * false-negative disabling of uploads when only the backend is briefly unreachable.
  * 
  * @example
  * ```tsx
@@ -47,49 +49,23 @@ export interface UseServicesHealthResult {
  * @returns UseServicesHealthResult with health status and controls
  */
 export function useRemoteServicesHealth(): UseServicesHealthResult {
-    const [docling, setDocling] = useState<ServiceHealth | null>(null);
-    const [embedding, setEmbedding] = useState<ServiceHealth | null>(null);
-    const [uploadEnabled, setUploadEnabled] = useState(true);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    const fetchHealth = useCallback(async () => {
-        try {
-            const response = await checkServicesHealth();
-            setDocling(response.docling);
-            setEmbedding(response.embedding);
-            setUploadEnabled(response.upload_enabled);
-            setError(null);
-        } catch (err) {
-            console.error('Failed to check services health:', err);
-            setError('Failed to check services health');
-            // On error, assume services might be down (fail-safe)
-            setUploadEnabled(false);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    // Fetch on mount and poll every 10 seconds
-    useEffect(() => {
-        // Fetch immediately on mount
-        fetchHealth();
-        
-        // Set up interval for periodic polling
-        const interval = setInterval(() => {
-            fetchHealth();
-        }, HEALTH_CHECK_INTERVAL_MS);
-
-        // Cleanup on unmount - stops polling
-        return () => clearInterval(interval);
-    }, [fetchHealth]);
+    const { data, isLoading, error, refetch } = useQuery({
+        queryKey: ['services-health'],
+        queryFn: checkServicesHealth,
+        refetchInterval: HEALTH_CHECK_INTERVAL_MS,
+        // Keep previous data while refetching — prevents flicker and avoids
+        // false-negative when backend is briefly unreachable
+        placeholderData: (previousData) => previousData,
+        retry: 2,
+        staleTime: HEALTH_CHECK_INTERVAL_MS / 2,
+    });
 
     return {
-        docling,
-        embedding,
-        uploadEnabled,
+        docling: data?.docling ?? null,
+        embedding: data?.embedding ?? null,
+        uploadEnabled: data?.upload_enabled ?? true,
         isLoading,
-        error,
-        refresh: fetchHealth,
+        error: error ? 'Failed to check services health' : null,
+        refresh: async () => { await refetch(); },
     };
 }

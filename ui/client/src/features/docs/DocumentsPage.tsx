@@ -46,6 +46,24 @@ export default function Documents() {
   const { toast } = useToast();
   const { uploadEnabled, isLoading: healthLoading, docling, embedding } = useRemoteServicesHealth();
 
+  /**
+   * Build a human-readable message describing which services are unavailable.
+   * @param detailed - If true, appends the upload-disabled notice.
+   */
+  const getServiceUnavailableMessage = (detailed: boolean = false): string => {
+    const suffix = detailed ? ' Document upload is temporarily disabled.' : '';
+    if (docling?.status === 'unhealthy' && embedding?.status === 'unhealthy') {
+      return `Document processing and embedding services are currently unavailable.${suffix}`;
+    }
+    if (docling?.status === 'unhealthy') {
+      return `Document processing service is currently unavailable.${suffix}`;
+    }
+    if (embedding?.status === 'unhealthy') {
+      return `Embedding service is currently unavailable.${suffix}`;
+    }
+    return `Required services are currently unavailable.${suffix}`;
+  };
+
   // Track previous uploadEnabled state to detect changes
   const prevUploadEnabled = useRef<boolean | null>(null);
 
@@ -56,18 +74,9 @@ export default function Documents() {
     
     // Show toast when transitioning from enabled to disabled (service went down)
     if (prevUploadEnabled.current === true && !uploadEnabled) {
-      const message = 
-        docling?.status === 'unhealthy' && embedding?.status === 'unhealthy'
-          ? 'Document processing and embedding services are currently unavailable.'
-          : docling?.status === 'unhealthy'
-            ? 'Document processing service is currently unavailable.'
-            : embedding?.status === 'unhealthy'
-              ? 'Embedding service is currently unavailable.'
-              : 'Services are currently unavailable.';
-      
       toast({
         title: "Service Unavailable",
-        description: message,
+        description: getServiceUnavailableMessage(),
         variant: "destructive",
       });
     }
@@ -180,15 +189,7 @@ export default function Documents() {
               </TooltipTrigger>
               {!uploadEnabled && !healthLoading && (
                 <TooltipContent>
-                  <p>
-                    {docling?.status === 'unhealthy' && embedding?.status === 'unhealthy'
-                      ? 'Document processing and embedding services are unavailable'
-                      : docling?.status === 'unhealthy'
-                        ? 'Document processing service is unavailable'
-                        : embedding?.status === 'unhealthy'
-                          ? 'Embedding service is unavailable'
-                          : 'Services are unavailable'}
-                  </p>
+                  <p>{getServiceUnavailableMessage()}</p>
                 </TooltipContent>
               )}
             </Tooltip>
@@ -295,13 +296,7 @@ export default function Documents() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Service Unavailable</AlertTitle>
               <AlertDescription>
-                {docling?.status === 'unhealthy' && embedding?.status === 'unhealthy'
-                  ? 'Document processing and embedding services are currently unavailable. Document upload is temporarily disabled.'
-                  : docling?.status === 'unhealthy'
-                    ? 'Document processing service is currently unavailable. Document upload is temporarily disabled.'
-                    : embedding?.status === 'unhealthy'
-                      ? 'Embedding service is currently unavailable. Document upload is temporarily disabled.'
-                      : 'Required services are currently unavailable. Document upload is temporarily disabled.'}
+                {getServiceUnavailableMessage(true)}
               </AlertDescription>
             </Alert>
           )}
