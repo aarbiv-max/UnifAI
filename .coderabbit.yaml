@@ -10,6 +10,10 @@ reviews:
     - "multi-agent/**"
     - "backend/**"
     - "ui/**"
+    - "ci/**"
+    - "helm/**"
+    - ".github/**"
+    - ".cursor/**"
 
   instructions: |
     This repository represents an agentic AI system with a modular, layered architecture.
