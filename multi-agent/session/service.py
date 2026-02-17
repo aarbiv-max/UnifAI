@@ -4,10 +4,9 @@ from .user_session_manager import UserSessionManager
 from .session_executor import SessionExecutor
 from .workflow_session import WorkflowSession
 from .dto import ChatHistoryItem
-from .models import SessionMeta
+from .models import SessionMeta, TimeSeriesPoint, SystemAnalyticsData
 from .exceptions import BlueprintNotFoundError
 from core.dto import GroupedCount
-from statistics.models import TimeSeriesPoint, SystemAnalyticsData
 
 class SessionService:
     """

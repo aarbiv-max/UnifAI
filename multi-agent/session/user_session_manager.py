@@ -8,8 +8,7 @@ from core.dto import GroupedCount
 from graph.state.graph_state import GraphState
 from session.status import SessionStatus
 from blueprints.service import BlueprintService
-from statistics.models import TimeSeriesPoint, SystemAnalyticsData
-from session.models import SessionMeta
+from session.models import SessionMeta, TimeSeriesPoint, SystemAnalyticsData
 from .exceptions import BlueprintNotFoundError
 
 
