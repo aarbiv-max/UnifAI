@@ -3,19 +3,13 @@
  * initialisation, data-fetching, layout, SVG injection, and sizing logic that
  * was previously inlined in the main useEffect of GraphDisplay.
  *
- * Keeps GraphDisplay lean by separating React rendering from the imperative
- * JointJS/DOM manipulation.
+ * Uses the shared factory helpers from GraphDisplayHelpers so that node/link
+ * creation is consistent between the display and creation canvases.
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { flushSync } from "react-dom";
 
-/**
- * Runs `fn` synchronously within React's commit phase when possible.
- * Falls back to a normal invocation if flushSync throws (e.g. when called
- * during an already-flushing render or when the SVG context is invalid).
- * Logs a warning so we can identify root causes instead of silently swallowing.
- */
 function safeFlushSync(fn: () => void): void {
   try {
     flushSync(fn);
@@ -24,7 +18,7 @@ function safeFlushSync(fn: () => void): void {
     fn();
   }
 }
-import { dia, shapes } from "@joint/core";
+import { dia } from "@joint/core";
 import { DirectedGraph } from "@joint/layout-directed-graph";
 import type { GraphFlow } from "@/components/agentic-ai/graphs/interfaces";
 import {
@@ -42,14 +36,15 @@ import {
   LAYOUT_OPTS,
   FIT_PADDING,
   SCALE_CONTENT_TO_FIT_OPTS,
-  STATUS_STYLES,
-  computeNodeHeight,
-  nodeFillForType,
   injectSvgDefs,
   injectStatusGlowFilters,
   injectLinkAnimations,
   removeLinkAnimations,
   buildElementBlockMap,
+  createJointPaper,
+  setupPanZoom,
+  createJointNode,
+  createJointLink,
   type OverlayBadge,
   type OverlayHeader,
 } from "@/components/agentic-ai/graphs/GraphDisplayHelpers";
@@ -174,31 +169,11 @@ export function useJointGraph({
     setOverlayBadges([]);
     setOverlayHeaders([]);
 
-    const namespace = { ...shapes };
-    const graph = new dia.Graph({}, { cellNamespace: namespace });
-    graphRef.current = graph;
-
-    const paper = new dia.Paper({
-      model: graph,
-      cellViewNamespace: namespace,
-      width: "100%",
-      height: "100%",
+    const { graph, paper } = createJointPaper(containerRef.current, {
       interactive: interactive ? { elementMove: true } : false,
-      background: showBackground ? { color: "transparent" } : undefined,
-      gridSize: 16,
-      drawGrid: showBackground
-        ? {
-            name: "doubleMesh",
-            args: [
-              { color: "rgba(255,255,255,0.06)", thickness: 1 },
-              { color: "rgba(255,255,255,0.12)", scaleFactor: 4, thickness: 1 },
-            ],
-          }
-        : false,
+      showBackground,
     });
-
-    containerRef.current.replaceChildren(paper.el);
-    paper.el.classList.add("joint-paper");
+    graphRef.current = graph;
     paperRef.current = paper;
 
     // Freeze the paper immediately so that adding nodes/edges does NOT
@@ -209,77 +184,11 @@ export function useJointGraph({
     // complete and the container has valid dimensions.
     paper.freeze();
 
-    // ── Panning support (drag on blank area to translate the canvas) ──
-    let panMoveHandler: ((e: PointerEvent) => void) | null = null;
-    let panUpHandler: (() => void) | null = null;
-
+    // ── Pan + Zoom (shared helper, only for interactive mode) ──
+    let cleanupPanZoom: (() => void) | null = null;
     if (interactive) {
-      let isPanning = false;
-      let panStartX = 0;
-      let panStartY = 0;
-
-      paper.el.style.cursor = "grab";
-
-      paper.on("blank:pointerdown", (evt: dia.Event) => {
-        isPanning = true;
-        const ne = (evt as any).originalEvent ?? evt;
-        panStartX = ne.clientX;
-        panStartY = ne.clientY;
-        paper.el.style.cursor = "grabbing";
-      });
-
-      panMoveHandler = (evt: PointerEvent) => {
-        if (!isPanning) return;
-        const dx = evt.clientX - panStartX;
-        const dy = evt.clientY - panStartY;
-        panStartX = evt.clientX;
-        panStartY = evt.clientY;
-        const t = paper.translate();
-        paper.translate(t.tx + dx, t.ty + dy);
-        const s = paper.scale();
-        const tr = paper.translate();
-        safeFlushSync(() => {
-          setPaperTransform({ sx: s.sx, sy: s.sy, tx: tr.tx, ty: tr.ty });
-        });
-      };
-
-      panUpHandler = () => {
-        if (!isPanning) return;
-        isPanning = false;
-        paper.el.style.cursor = "grab";
-      };
-
-      document.addEventListener("pointermove", panMoveHandler);
-      document.addEventListener("pointerup", panUpHandler);
-
-      // ── Mouse-wheel zoom ──
-      const ZOOM_FACTOR = 1.1;
-      const MIN_ZOOM = 0.1;
-      const MAX_ZOOM = 4;
-
-      const onMouseWheel = (_evt: dia.Event, ox: number, oy: number, delta: number) => {
-        const oldScale = paper.scale().sx;
-        const newScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, delta > 0 ? oldScale * ZOOM_FACTOR : oldScale / ZOOM_FACTOR));
-        if (newScale === oldScale) return;
-
-        // Zoom towards the cursor position (ox, oy are local coordinates)
-        const t = paper.translate();
-        const scaleDiff = newScale / oldScale;
-        const tx = t.tx - ox * (scaleDiff - 1) * oldScale;
-        const ty = t.ty - oy * (scaleDiff - 1) * oldScale;
-
-        paper.scale(newScale, newScale);
-        paper.translate(tx, ty);
-        const s = paper.scale();
-        const tr = paper.translate();
-        safeFlushSync(() => {
-          setPaperTransform({ sx: s.sx, sy: s.sy, tx: tr.tx, ty: tr.ty });
-        });
-      };
-
-      paper.on("blank:mousewheel", onMouseWheel);
-      paper.on("cell:mousewheel", (_cellView: unknown, evt: dia.Event, ox: number, oy: number, delta: number) => {
-        onMouseWheel(evt, ox, oy, delta);
+      cleanupPanZoom = setupPanZoom(paper, (t) => {
+        safeFlushSync(() => setPaperTransform(t));
       });
     }
 
@@ -352,56 +261,28 @@ export function useJointGraph({
         injectSvgDefs(paper.el, primaryNow);
         injectStatusGlowFilters(paper.el);
 
-        // Create JointJS nodes
+        // Create JointJS nodes (using shared factory)
         for (const n of layoutNodes) {
-          new shapes.standard.Rectangle({
-            id: n.id,
-            position: { x: 0, y: 0 },
-            size: {
-              width: NODE_WIDTH,
-              height: computeNodeHeight(n.resolvedElements.length),
-            },
-            attrs: {
-              body: {
-                fill: nodeFillForType(n.type),
-                stroke: STATUS_STYLES.IDLE.stroke,
-                strokeWidth: STATUS_STYLES.IDLE.strokeWidth,
-                rx: 12,
-                ry: 12,
-                filter: STATUS_STYLES.IDLE.filter,
-              },
-              label: { text: "" },
-            },
-          }).addTo(graph);
+          createJointNode(graph, n.id, n.type, { x: 0, y: 0 }, n.resolvedElements.length);
         }
 
-        // Create edges
+        // Create edges (using shared factory)
         const linkColor = primaryHexRef.current?.startsWith("#")
           ? primaryHexRef.current
           : `#${primaryHexRef.current || "8b5cf6"}`;
-
-        const mkMarker = (color: string, r: number) => ({
-          type: "circle" as const, r, fill: color,
-        });
+        const edgeColors = {
+          primary: linkColor,
+          bidi: linkColor,
+          conditional: "#94a3b8",
+        };
 
         conditionalLinkIdsRef.current.clear();
         for (const e of layoutEdges) {
-          const isCond = e.isConditional;
-          const c = isCond ? "#94a3b8" : linkColor;
-          const link = new shapes.standard.Link({
-            source: { id: e.source },
-            target: { id: e.target },
-            attrs: {
-              line: {
-                stroke: isCond ? "rgba(148, 163, 184, 0.8)" : c,
-                strokeWidth: isCond ? 1.5 : 2,
-                opacity: isCond ? 1 : 0.9,
-                sourceMarker: mkMarker(c, isCond ? 3 : 4),
-                targetMarker: { type: "classic", size: isCond ? 10 : 12, fill: c },
-              },
-            },
-          }).addTo(graph);
-          if (isCond) conditionalLinkIdsRef.current.add(link.id as string);
+          const linkId = `${e.source}-${e.target}`;
+          const link = createJointLink(graph, linkId, e.source, e.target, edgeColors, {
+            isConditional: e.isConditional,
+          });
+          if (e.isConditional) conditionalLinkIdsRef.current.add(link.id as string);
         }
 
         // Auto-layout
@@ -494,8 +375,7 @@ export function useJointGraph({
 
     return () => {
       cancelled = true;
-      if (panMoveHandler) document.removeEventListener("pointermove", panMoveHandler);
-      if (panUpHandler) document.removeEventListener("pointerup", panUpHandler);
+      if (cleanupPanZoom) cleanupPanZoom();
       graph.off("change:position");
       removeLinkAnimations(paper.el);
       paper.remove();

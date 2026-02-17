@@ -6,33 +6,34 @@ import { Eye, Loader2 } from "lucide-react";
 import { BuildingBlock } from "@/types/graph";
 import { getCategoryDisplay } from "@/components/shared/helpers";
 import ResourceDetailsModal from "./ResourceDetailsModal";
-import { UmamiTrack } from '@/components/ui/umamitrack';
-import { UmamiEvents } from '@/config/umamiEvents';
+import { UmamiTrack } from "@/components/ui/umamitrack";
+import { UmamiEvents } from "@/config/umamiEvents";
 import { useTheme } from "@/contexts/ThemeContext";
 import { deriveThemeColors } from "@/lib/colorUtils";
 
 interface BuildingBlocksSidebarProps {
   buildingBlocks: BuildingBlock[];
+  orchestrators: BuildingBlock[];
   conditions: BuildingBlock[];
   isLoading: boolean;
   onDragStart: (event: React.DragEvent, block: BuildingBlock) => void;
-  usedElementIds?: Set<string>; // Track which elements are currently used on canvas
+  onDragEnd?: () => void;
+  usedElementIds?: Set<string>;
 }
 
 const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
   buildingBlocks,
+  orchestrators,
   conditions,
   isLoading,
   onDragStart,
+  onDragEnd,
   usedElementIds = new Set<string>(),
 }) => {
-  const [selectedElement, setSelectedElement] = useState<BuildingBlock | null>(
-    null,
-  );
+  const [selectedElement, setSelectedElement] = useState<BuildingBlock | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const { primaryHex } = useTheme();
 
-  // Derive theme-aligned colors from the single shared helper
   const themeColors = useMemo(() => {
     const t = deriveThemeColors(primaryHex);
     return {
@@ -49,12 +50,105 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
   };
 
   const handleDragStart = (event: React.DragEvent, block: BuildingBlock) => {
-    // Prevent dragging if element is already used
     if (usedElementIds.has(block.id)) {
       event.preventDefault();
       return;
     }
     onDragStart(event, block);
+  };
+
+  const renderBlockList = (
+    blocks: BuildingBlock[],
+    category: "nodes" | "orchestrators" | "conditions",
+  ) => {
+    const iconBg =
+      category === "conditions"
+        ? themeColors.conditionBg
+        : category === "orchestrators"
+          ? "#00BFA5"
+          : themeColors.iconBg;
+    const cardBg =
+      category === "conditions" ? themeColors.conditionCardBg : undefined;
+    const cardBorder =
+      category === "conditions" ? themeColors.conditionCardBorder : undefined;
+
+    return (
+      <div
+        className="space-y-2 overflow-y-auto"
+        style={{ maxHeight: "calc(100vh - 460px)" }}
+      >
+        {blocks.map((block) => {
+          const isUsed = usedElementIds.has(block.id);
+          return (
+            <Card
+              key={block.id}
+              className={`transition-colors ${
+                isUsed
+                  ? "bg-gray-900 border-gray-800 opacity-50 cursor-not-allowed"
+                  : category === "conditions"
+                    ? "cursor-grab active:cursor-grabbing"
+                    : "bg-gray-800 border-gray-700 hover:border-gray-600 cursor-grab active:cursor-grabbing"
+              }`}
+              style={
+                category === "conditions" && !isUsed
+                  ? { backgroundColor: cardBg, borderColor: cardBorder }
+                  : undefined
+              }
+              draggable={!isUsed}
+              onDragStart={(event) => handleDragStart(event, block)}
+              onDragEnd={onDragEnd}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1">
+                    <div
+                      className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold text-white"
+                      style={{ backgroundColor: iconBg }}
+                    >
+                      {getCategoryDisplay(
+                        category === "orchestrators" ? "orchestrators" : block.workspaceData?.category || "default",
+                      ).icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4
+                          className={`font-medium text-sm truncate ${isUsed ? "text-gray-500" : "text-white"}`}
+                        >
+                          {block.label}
+                        </h4>
+                        {isUsed && (
+                          <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
+                            Used
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 truncate">
+                        {block.workspaceData?.type || block.type}
+                      </p>
+                    </div>
+                  </div>
+                  {block.workspaceData && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+                      onClick={() => handleViewDetails(block)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+        {blocks.length === 0 && !isLoading && (
+          <p className="text-sm text-gray-500 text-center py-4">
+            No items in this category
+          </p>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -66,13 +160,29 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
         <CardContent className="p-4 flex-1 overflow-hidden flex flex-col">
           <div className="flex-1 min-h-0">
             <Tabs defaultValue="nodes" className="h-full flex flex-col">
-              <TabsList className="grid w-full grid-cols-2 bg-gray-800">
-                <TabsTrigger value="nodes" className="text-gray-300 data-[state=active]:text-white">
+              <TabsList className="grid w-full grid-cols-3 bg-gray-800">
+                <TabsTrigger
+                  value="nodes"
+                  className="text-gray-300 data-[state=active]:text-white text-xs"
+                >
                   Nodes ({buildingBlocks.length})
                 </TabsTrigger>
 
-                <UmamiTrack event={UmamiEvents.AGENT_GRAPHS_CONDITIONS_BUTTON} includeUserData={false}>
-                  <TabsTrigger value="conditions" className="text-gray-300 data-[state=active]:text-white">
+                <TabsTrigger
+                  value="orchestrators"
+                  className="text-gray-300 data-[state=active]:text-white text-xs"
+                >
+                  Orchestrators ({orchestrators.length})
+                </TabsTrigger>
+
+                <UmamiTrack
+                  event={UmamiEvents.AGENT_GRAPHS_CONDITIONS_BUTTON}
+                  includeUserData={false}
+                >
+                  <TabsTrigger
+                    value="conditions"
+                    className="text-gray-300 data-[state=active]:text-white text-xs"
+                  >
                     Conditions ({conditions.length})
                   </TabsTrigger>
                 </UmamiTrack>
@@ -87,59 +197,20 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                     </span>
                   </div>
                 ) : (
-                  <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 430px)' }}>
-                    {buildingBlocks.map((block) => {
-                      const isUsed = usedElementIds.has(block.id);
-                      return (
-                        <Card
-                          key={block.id}
-                          className={`transition-colors ${
-                            isUsed
-                              ? 'bg-gray-900 border-gray-800 opacity-50 cursor-not-allowed'
-                              : 'bg-gray-800 border-gray-700 hover:border-gray-600 cursor-grab active:cursor-grabbing'
-                          }`}
-                          draggable={!isUsed}
-                          onDragStart={(event) => handleDragStart(event, block)}
-                        >
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 flex-1">
-                              <div className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold text-white"
-                                   style={{ backgroundColor: themeColors.iconBg }}>
-                                {getCategoryDisplay(block.workspaceData?.category || "default").icon}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h4 className={`font-medium text-sm truncate ${isUsed ? 'text-gray-500' : 'text-white'}`}>
-                                    {block.label}
-                                  </h4>
-                                  {isUsed && (
-                                    <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
-                                      Used
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-gray-400 truncate">
-                                  {block.workspaceData?.type || block.type}
-                                </p>
-                              </div>
-                            </div>
-                            {block.workspaceData && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-gray-400 hover:text-white"
-                                onClick={() => handleViewDetails(block)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                      );
-                    })}
+                  renderBlockList(buildingBlocks, "nodes")
+                )}
+              </TabsContent>
+
+              <TabsContent value="orchestrators" className="mt-4">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="ml-2 text-sm text-gray-400">
+                      Loading orchestrators...
+                    </span>
                   </div>
+                ) : (
+                  renderBlockList(orchestrators, "orchestrators")
                 )}
               </TabsContent>
 
@@ -152,86 +223,29 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                     </span>
                   </div>
                 ) : (
-                  <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 430px)' }}>
-                    {conditions.map((condition) => {
-                      const isUsed = usedElementIds.has(condition.id);
-                      return (
-                        <Card
-                          key={condition.id}
-                          className={`transition-colors ${
-                            isUsed
-                              ? 'bg-gray-900 border-gray-800 opacity-50 cursor-not-allowed'
-                              : 'cursor-grab active:cursor-grabbing'
-                          }`}
-                          style={{
-                            backgroundColor: isUsed ? undefined : themeColors.conditionCardBg,
-                            borderColor: isUsed ? undefined : themeColors.conditionCardBorder,
-                          }}
-                          draggable={!isUsed}
-                          onDragStart={(event) => handleDragStart(event, condition)}
-                        >
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 flex-1">
-                              <div className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold text-white"
-                                   style={{ backgroundColor: themeColors.conditionBg }}>
-                                {getCategoryDisplay("conditions").icon}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h4 className={`font-medium text-sm truncate ${isUsed ? 'text-gray-500' : 'text-white'}`}>
-                                    {condition.label}
-                                  </h4>
-                                  {isUsed && (
-                                    <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
-                                      Used
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-gray-400 truncate">
-                                  {condition.workspaceData?.type || condition.type}
-                                </p>
-                              </div>
-                            </div>
-                            {condition.workspaceData && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-gray-400 hover:text-white"
-                                onClick={() => handleViewDetails(condition)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                      );
-                    })}
-                  </div>
+                  renderBlockList(conditions, "conditions")
                 )}
               </TabsContent>
             </Tabs>
           </div>
 
-          {/* Fixed Instructions Footer */}
+          {/* Instructions Footer */}
           {!isLoading && (
             <div className="mt-4 p-4 bg-gray-900 rounded-lg border border-gray-700 flex-shrink-0">
               <h4 className="font-medium text-white mb-2">How to use:</h4>
               <div className="text-xs text-gray-400 space-y-1">
-                <p>• Drag nodes from sidebar to canvas</p>
-                <p>• Connect nodes to build workflow</p>
-                <p>• Drag conditions onto nodes for branching</p>
-                <p>• Each node supports only one condition</p>
-                <p>• Always start with User Input node</p>
-                <p>• End workflow with Final Answer node</p>
+                <p>&bull; Drag nodes from sidebar to canvas</p>
+                <p>&bull; Click a node, then click another to connect</p>
+                <p>&bull; Choose unidirectional or bidirectional edge</p>
+                <p>&bull; Drag conditions onto nodes for branching</p>
+                <p>&bull; Each node supports only one condition</p>
+                <p>&bull; Press Esc to cancel a pending connection</p>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Resource Details Modal */}
       <ResourceDetailsModal
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}

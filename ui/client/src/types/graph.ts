@@ -1,10 +1,27 @@
-import { Node, Edge } from "reactflow";
+export interface CanvasNode {
+  id: string;
+  label: string;
+  position: { x: number; y: number };
+  type: string;
+  color: string;
+  workspaceData?: BuildingBlock["workspaceData"];
+  conditions: BuildingBlock[];
+}
+
+export interface CanvasEdge {
+  id: string;
+  source: string;
+  target: string;
+  isBidirectional?: boolean;
+  isConditional?: boolean;
+  branch?: string;
+}
 
 export interface CurrentGraph {
   id: string;
   name: string;
-  nodes: Node[];
-  edges: Edge[];
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
   metadata: {
     created: Date;
     lastModified: Date;

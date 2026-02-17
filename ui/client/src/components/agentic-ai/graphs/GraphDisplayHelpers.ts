@@ -1,11 +1,11 @@
 /**
- * Pure helpers and constants for GraphDisplay.
+ * Pure helpers and constants shared by both the read-only GraphDisplay and the
+ * interactive GraphCanvas (creation).
  *
- * Keeps the main component lean – all layout constants, SVG DOM logic, and
- * element-block-map building live here. Nothing in this file depends on React
- * state or hooks.
+ * Nothing in this file depends on React state or hooks.
  */
 
+import { dia, shapes } from "@joint/core";
 import type { GraphFlow } from "./interfaces";
 import type { LayoutNode, ResolvedElement } from "@/utils/graphFlowLayout";
 import { extractUidFromRef } from "@/utils/graphFlowLayout";
@@ -123,6 +123,29 @@ export function computeNodeHeight(elementCount: number): number {
     elementCount * ELEMENT_BADGE_HEIGHT +
     Math.max(0, elementCount - 1) * ELEMENT_GAP;
   return NODE_HEADER_HEIGHT + bodyHeight;
+}
+
+/** Height of a single condition badge row inside a node. */
+export const CONDITION_BADGE_HEIGHT = 28;
+export const CONDITION_GAP = 4;
+
+/**
+ * Full node height accounting for both sub-element badges and condition
+ * badges. Used by the creation canvas where conditions are attached to nodes.
+ */
+export function computeCreationNodeHeight(
+  elementCount: number,
+  conditionCount: number,
+): number {
+  let h = computeNodeHeight(elementCount);
+  if (conditionCount > 0) {
+    h +=
+      NODE_BODY_PADDING +
+      conditionCount * CONDITION_BADGE_HEIGHT +
+      Math.max(0, conditionCount - 1) * CONDITION_GAP +
+      NODE_BODY_PADDING;
+  }
+  return h;
 }
 
 /** Returns the SVG gradient fill reference for a node type. */
@@ -433,4 +456,261 @@ export function buildElementBlockMap(
   });
 
   return map;
+}
+
+// ---------------------------------------------------------------------------
+// Shared JointJS factories – used by both display and creation canvases
+// ---------------------------------------------------------------------------
+
+/** Standard paper grid options. */
+export const PAPER_GRID_OPTS = {
+  name: "doubleMesh" as const,
+  args: [
+    { color: "rgba(255,255,255,0.06)", thickness: 1 },
+    { color: "rgba(255,255,255,0.12)", scaleFactor: 4, thickness: 1 },
+  ],
+};
+
+/** Create a `dia.Graph` + `dia.Paper` with consistent styling. */
+export function createJointPaper(
+  container: HTMLElement,
+  opts: {
+    interactive?: boolean | { elementMove: boolean };
+    showBackground?: boolean;
+  } = {},
+): { graph: dia.Graph; paper: dia.Paper } {
+  const namespace = { ...shapes };
+  const graph = new dia.Graph({}, { cellNamespace: namespace });
+  const interactive = opts.interactive ?? false;
+  const showBackground = opts.showBackground ?? true;
+
+  const paper = new dia.Paper({
+    model: graph,
+    cellViewNamespace: namespace,
+    width: "100%",
+    height: "100%",
+    interactive,
+    background: showBackground ? { color: "transparent" } : undefined,
+    gridSize: 16,
+    drawGrid: showBackground ? PAPER_GRID_OPTS : false,
+  });
+
+  container.replaceChildren(paper.el);
+  paper.el.classList.add("joint-paper");
+  return { graph, paper };
+}
+
+/**
+ * Wire pan (drag on blank) and mouse-wheel zoom onto a `dia.Paper`.
+ * Returns a cleanup function that removes the global listeners.
+ */
+export function setupPanZoom(
+  paper: dia.Paper,
+  onTransformChange: (t: { sx: number; sy: number; tx: number; ty: number }) => void,
+): () => void {
+  let isPanning = false;
+  let panStartX = 0;
+  let panStartY = 0;
+
+  paper.el.style.cursor = "grab";
+
+  paper.on("blank:pointerdown", (evt: dia.Event) => {
+    isPanning = true;
+    const ne = (evt as any).originalEvent ?? evt;
+    panStartX = ne.clientX;
+    panStartY = ne.clientY;
+    paper.el.style.cursor = "grabbing";
+  });
+
+  const onPointerMove = (evt: PointerEvent) => {
+    if (!isPanning) return;
+    const dx = evt.clientX - panStartX;
+    const dy = evt.clientY - panStartY;
+    panStartX = evt.clientX;
+    panStartY = evt.clientY;
+    const t = paper.translate();
+    paper.translate(t.tx + dx, t.ty + dy);
+    emitTransform();
+  };
+
+  const onPointerUp = () => {
+    if (!isPanning) return;
+    isPanning = false;
+    paper.el.style.cursor = "grab";
+  };
+
+  document.addEventListener("pointermove", onPointerMove);
+  document.addEventListener("pointerup", onPointerUp);
+
+  const ZOOM_FACTOR = 1.04;
+  const MIN_ZOOM = 0.1;
+  const MAX_ZOOM = 4;
+
+  const onWheel = (_evt: dia.Event, ox: number, oy: number, delta: number) => {
+    const old = paper.scale().sx;
+    const ns = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, delta > 0 ? old * ZOOM_FACTOR : old / ZOOM_FACTOR));
+    if (ns === old) return;
+    const t = paper.translate();
+    const sd = ns / old;
+    paper.scale(ns, ns);
+    paper.translate(t.tx - ox * (sd - 1) * old, t.ty - oy * (sd - 1) * old);
+    emitTransform();
+  };
+
+  paper.on("blank:mousewheel", onWheel);
+  paper.on(
+    "cell:mousewheel",
+    (_cv: unknown, evt: dia.Event, ox: number, oy: number, delta: number) => onWheel(evt, ox, oy, delta),
+  );
+
+  function emitTransform() {
+    const s = paper.scale();
+    const tr = paper.translate();
+    onTransformChange({ sx: s.sx, sy: s.sy, tx: tr.tx, ty: tr.ty });
+  }
+
+  return () => {
+    document.removeEventListener("pointermove", onPointerMove);
+    document.removeEventListener("pointerup", onPointerUp);
+  };
+}
+
+/** Create a JointJS rectangle node with shared visual styling. */
+export function createJointNode(
+  graph: dia.Graph,
+  id: string,
+  type: string,
+  position: { x: number; y: number },
+  elementCount: number,
+): dia.Element {
+  return new shapes.standard.Rectangle({
+    id,
+    position,
+    size: { width: NODE_WIDTH, height: computeNodeHeight(elementCount) },
+    attrs: {
+      body: {
+        fill: nodeFillForType(type),
+        stroke: STATUS_STYLES.IDLE.stroke,
+        strokeWidth: STATUS_STYLES.IDLE.strokeWidth,
+        rx: 12,
+        ry: 12,
+        filter: STATUS_STYLES.IDLE.filter,
+      },
+      label: { text: "" },
+    },
+  }).addTo(graph);
+}
+
+export interface LinkStyleOptions {
+  isConditional?: boolean;
+  isBidirectional?: boolean;
+  branchLabel?: string;
+}
+
+/** Create a JointJS link with shared visual styling.
+ *  `primaryColor` = primary theme color for regular edges.
+ *  `bidiColor`    = color for bidirectional edges (defaults to primaryLight green).
+ *  `condColor`    = color for conditional edges.
+ */
+export function createJointLink(
+  graph: dia.Graph,
+  id: string,
+  sourceId: string,
+  targetId: string,
+  colors: { primary: string; bidi: string; conditional: string },
+  opts: LinkStyleOptions = {},
+): dia.Link {
+  const { isConditional, isBidirectional, branchLabel } = opts;
+
+  let strokeColor: string;
+  let strokeWidth: number;
+  let dashArray: string | undefined;
+  let markerColor: string;
+
+  if (isConditional) {
+    strokeColor = `${colors.conditional}cc`;
+    strokeWidth = 1.5;
+    dashArray = "6 3";
+    markerColor = colors.conditional;
+  } else if (isBidirectional) {
+    strokeColor = colors.bidi;
+    strokeWidth = 2.5;
+    dashArray = undefined;
+    markerColor = colors.bidi;
+  } else {
+    strokeColor = colors.primary;
+    strokeWidth = 2;
+    dashArray = undefined;
+    markerColor = colors.primary;
+  }
+
+  const link = new shapes.standard.Link({
+    id,
+    source: { id: sourceId },
+    target: { id: targetId },
+    attrs: {
+      line: {
+        stroke: strokeColor,
+        strokeWidth,
+        strokeDasharray: dashArray,
+        sourceMarker: { type: "circle" as const, r: isConditional ? 3 : 4, fill: markerColor },
+        targetMarker: { type: "classic" as const, size: isConditional ? 10 : 12, fill: markerColor },
+      },
+    },
+    labels: branchLabel
+      ? [
+          {
+            position: 0.5,
+            attrs: {
+              text: { text: branchLabel, fill: "#d1d5db", fontSize: 10 },
+              rect: { fill: "#1f2937", stroke: "#374151", rx: 3, ry: 3 },
+            },
+          },
+        ]
+      : [],
+  }).addTo(graph);
+  return link;
+}
+
+/**
+ * Extract `$ref:` IDs from a config object and resolve them against a block
+ * list. Returns an array of `{ id, name, type, category }` for badge rendering.
+ */
+export interface ResolvedRef {
+  id: string;
+  name: string;
+  type: string;
+  category: string;
+}
+
+export function resolveConfigRefs(
+  config: Record<string, unknown> | undefined,
+  allBlocks: BuildingBlock[],
+): ResolvedRef[] {
+  if (!config) return [];
+  const refIds: string[] = [];
+  const seen = new Set<string>();
+  const traverse = (obj: unknown) => {
+    if (typeof obj === "string" && obj.startsWith("$ref:")) {
+      const id = obj.substring(5);
+      if (!seen.has(id)) { seen.add(id); refIds.push(id); }
+    } else if (Array.isArray(obj)) {
+      obj.forEach(traverse);
+    } else if (obj && typeof obj === "object") {
+      Object.values(obj).forEach(traverse);
+    }
+  };
+  traverse(config);
+
+  return refIds.map((id) => {
+    const block = allBlocks.find(
+      (b) => b.workspaceData?.rid === id || b.id === id,
+    );
+    return {
+      id,
+      name: block?.label || id,
+      type: block?.type || "unknown",
+      category: block?.workspaceData?.category || "default",
+    };
+  });
 }

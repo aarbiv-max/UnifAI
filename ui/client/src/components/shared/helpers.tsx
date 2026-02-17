@@ -11,6 +11,7 @@ import {
   Search,
   GitBranch,
   Box,
+  Network,
 } from "lucide-react";
 import { DownloadFile } from "@/utils/guideLoader";
 
@@ -24,6 +25,7 @@ export const getCategoryDisplay = (category: string): CategoryDisplay => {
     llms: { icon: <Brain className="w-4 h-4" />, color: "#8A2BE2" },
     tools: { icon: <Wrench className="w-4 h-4" />, color: "#00B0FF" },
     nodes: { icon: <Circle className="w-4 h-4" />, color: "#FFB300" },
+    orchestrators: { icon: <Network className="w-4 h-4" />, color: "#00BFA5" },
     providers: { icon: <Server className="w-4 h-4" />, color: "#FF5722" },
     retrievers: { icon: <Search className="w-4 h-4" />, color: "#4CAF50" },
     conditions: { icon: <GitBranch className="w-4 h-4" />, color: "#9C27B0" },
@@ -35,6 +37,7 @@ export const getCategoryDisplay = (category: string): CategoryDisplay => {
 export const getCategoryDisplayName = (category: string) => {
   const nameMap: { [key: string]: string } = {
     nodes: "Agents",
+    orchestrators: "Orchestrators",
     llms: "LLMs",
     tools: "Tools",
     retrievers: "Retrievers",
@@ -46,6 +49,27 @@ export const getCategoryDisplayName = (category: string) => {
     nameMap[category] || category.charAt(0).toUpperCase() + category.slice(1)
   );
 };
+
+/**
+ * Known orchestrator node types. Nodes in the "nodes" backend category
+ * whose `type` matches one of these patterns are displayed in the
+ * "Orchestrators" tab instead of "Nodes".
+ */
+const ORCHESTRATOR_TYPE_PATTERNS = [
+  "orchestrator",
+  "supervisor",
+  "coordinator",
+  "manager",
+  "planner",
+  "graph_orchestrator",
+];
+
+export function isOrchestratorType(nodeType: string): boolean {
+  const lower = nodeType.toLowerCase();
+  return ORCHESTRATOR_TYPE_PATTERNS.some(
+    (pattern) => lower.includes(pattern),
+  );
+}
 
 export const handleDownloadFile = (downloadFile: DownloadFile, setDownloadingFile: any) => {
     setDownloadingFile(downloadFile.path);

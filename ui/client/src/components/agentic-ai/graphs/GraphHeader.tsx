@@ -1,7 +1,7 @@
 import React from 'react';
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, Save, ArrowLeft } from 'lucide-react';
+import { Trash2, Save, ArrowLeft, RefreshCw } from 'lucide-react';
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
 
@@ -10,6 +10,8 @@ interface GraphHeaderProps {
   onSaveGraph: () => void;
   onBack?: () => void;
   isGraphValid?: boolean;
+  onValidate?: () => void;
+  isValidating?: boolean;
 }
 
 const GraphHeader: React.FC<GraphHeaderProps> = ({
@@ -17,6 +19,8 @@ const GraphHeader: React.FC<GraphHeaderProps> = ({
   onSaveGraph,
   onBack,
   isGraphValid = false,
+  onValidate,
+  isValidating = false,
 }) => {
   return (
     <CardHeader className="py-3 px-6 border-b border-gray-800">
@@ -38,6 +42,18 @@ const GraphHeader: React.FC<GraphHeaderProps> = ({
           <CardTitle className="text-lg font-heading">Workflow Canvas</CardTitle>
         </div>
         <div className="flex gap-2">
+          {onValidate && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onValidate}
+              disabled={isValidating}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isValidating ? "animate-spin" : ""}`} />
+              {isValidating ? "Validating..." : "Validate"}
+            </Button>
+          )}
           <UmamiTrack event={UmamiEvents.AGENT_GRAPHS_CLEAR_BUTTON} includeUserData={false}>
             <Button
               variant="outline"

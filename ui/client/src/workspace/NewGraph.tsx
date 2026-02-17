@@ -3,6 +3,7 @@ import { useGraphLogic, SavedBlueprintInfo } from "@/hooks/use-graph-logic";
 import GraphCanvas from "@/components/agentic-ai/graphs/GraphCanvas";
 import BuildingBlocksSidebar from "./BuildingBlocksSidebar";
 import ConditionalEdgeModal from "@/components/agentic-ai/graphs/ConditionalEdgeModal";
+import EdgeDirectionModal from "@/components/agentic-ai/graphs/EdgeDirectionModal";
 import GraphValidationPanel from "@/components/agentic-ai/graphs/GraphValidationPanel";
 import SaveBlueprintModal from "@/components/agentic-ai/graphs/SaveBlueprintModal";
 
@@ -11,34 +12,47 @@ interface NewGraphProps {
 }
 
 export default function NewGraph({ onBack }: NewGraphProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
   const {
-    nodes,
-    edges,
+    canvasNodes,
+    canvasEdges,
     buildingBlocksData,
+    orchestratorsData,
     conditionsData,
     allBlocksData,
     isLoadingBlocks,
     yamlFlow,
-    handleNodesChange,
-    handleEdgesChange,
-    onConnect,
-    onDrop,
-    onDragOver,
-    onDragStart,
-    clearGraph,
-    saveGraph,
+
+    addNode,
+    deleteNode,
     deleteEdge,
-    attachConditionToNode,
-    removeConditionFromNode,
+
+    connectionSource,
+    handleNodeClick,
+    cancelConnection,
+
+    edgeDirectionModal,
+    handleEdgeDirectionConfirm,
+    handleEdgeDirectionCancel,
+
     conditionalEdgeModal,
     handleConditionalEdgeConfirm,
     handleConditionalEdgeCancel,
+
+    attachConditionToNode,
+    removeConditionFromNode,
+
+    onDragStart,
+    onDragEnd,
+    isDraggingCondition,
+
+    clearGraph,
+    saveGraph,
+
     isGraphValid,
     validationResult,
     fixSuggestions,
     isValidating,
+    validateGraph,
     isSaving,
   } = useGraphLogic({ onSaveComplete: onBack });
 
@@ -47,43 +61,42 @@ export default function NewGraph({ onBack }: NewGraphProps) {
   // Track which building blocks are currently used on the canvas
   const usedElementIds = useMemo(() => {
     const usedIds = new Set<string>();
-    
-    nodes.forEach(node => {
-      // 1. Track the node itself by workspaceData.rid
-      if (node.data?.workspaceData?.rid) {
-        const matchingBlock = [...buildingBlocksData, ...conditionsData].find(
-          block => block.workspaceData?.rid === node.data.workspaceData?.rid
-        );
-        if (matchingBlock) {
-          usedIds.add(matchingBlock.id);
-        }
+
+    canvasNodes.forEach((node) => {
+      if (node.workspaceData?.rid) {
+        const matchingBlock = [
+          ...buildingBlocksData,
+          ...orchestratorsData,
+          ...conditionsData,
+        ].find((block) => block.workspaceData?.rid === node.workspaceData?.rid);
+        if (matchingBlock) usedIds.add(matchingBlock.id);
       }
-      
-      // 2. Track any conditions attached to this node
-      if (node.data?.referencedConditions && Array.isArray(node.data.referencedConditions)) {
-        node.data.referencedConditions.forEach((condition: any) => {
+
+      if (node.conditions && Array.isArray(node.conditions)) {
+        node.conditions.forEach((condition) => {
           if (condition.workspaceData?.rid) {
             const matchingCondition = conditionsData.find(
-              block => block.workspaceData?.rid === condition.workspaceData.rid
+              (block) => block.workspaceData?.rid === condition.workspaceData?.rid,
             );
-            if (matchingCondition) {
-              usedIds.add(matchingCondition.id);
-            }
+            if (matchingCondition) usedIds.add(matchingCondition.id);
           }
         });
       }
     });
-    
+
     return usedIds;
-  }, [nodes, buildingBlocksData, conditionsData]);
+  }, [canvasNodes, buildingBlocksData, orchestratorsData, conditionsData]);
 
-  const handleSaveGraph = async () => {
-    setSaveModalOpen(true);
-  };
+  // Labels for direction modal
+  const sourceLabel = useMemo(() => {
+    const n = canvasNodes.find((n) => n.id === edgeDirectionModal.sourceNodeId);
+    return n?.label || edgeDirectionModal.sourceNodeId;
+  }, [canvasNodes, edgeDirectionModal.sourceNodeId]);
 
-  const handleClearGraph = () => {
-    clearGraph();
-  };
+  const targetLabel = useMemo(() => {
+    const n = canvasNodes.find((n) => n.id === edgeDirectionModal.targetNodeId);
+    return n?.label || edgeDirectionModal.targetNodeId;
+  }, [canvasNodes, edgeDirectionModal.targetNodeId]);
 
   return (
     <div className="h-full max-h-[calc(100vh-100px)] flex bg-background overflow-hidden">
@@ -91,9 +104,11 @@ export default function NewGraph({ onBack }: NewGraphProps) {
       <div className="w-80 h-full">
         <BuildingBlocksSidebar
           buildingBlocks={buildingBlocksData}
+          orchestrators={orchestratorsData}
           conditions={conditionsData}
           isLoading={isLoadingBlocks}
           onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
           usedElementIds={usedElementIds}
         />
       </div>
@@ -101,21 +116,25 @@ export default function NewGraph({ onBack }: NewGraphProps) {
       {/* Main Canvas */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <GraphCanvas
-          nodes={nodes}
-          edges={edges}
+          canvasNodes={canvasNodes}
+          canvasEdges={canvasEdges}
+          allBlocks={allBlocksData}
           yamlFlow={yamlFlow}
-          onNodesChange={handleNodesChange}
-          onEdgesChange={handleEdgesChange}
-          onConnect={onConnect}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
-          onClearGraph={handleClearGraph}
-          onSaveGraph={handleSaveGraph}
+          connectionSource={connectionSource}
+          onNodeClick={handleNodeClick}
+          onCancelConnection={cancelConnection}
+          onAddNode={addNode}
+          onDeleteNode={deleteNode}
           onDeleteEdge={deleteEdge}
-          onBack={onBack}
           onAttachCondition={attachConditionToNode}
           onRemoveCondition={removeConditionFromNode}
+          onClearGraph={clearGraph}
+          onSaveGraph={() => setSaveModalOpen(true)}
+          onBack={onBack}
           isGraphValid={isGraphValid}
+          isDraggingCondition={isDraggingCondition}
+          onValidate={validateGraph}
+          isValidating={isValidating}
         />
       </div>
 
@@ -127,6 +146,15 @@ export default function NewGraph({ onBack }: NewGraphProps) {
           isValidating={isValidating}
         />
       </div>
+
+      {/* Edge Direction Modal */}
+      <EdgeDirectionModal
+        isOpen={edgeDirectionModal.isOpen}
+        onClose={handleEdgeDirectionCancel}
+        onConfirm={handleEdgeDirectionConfirm}
+        sourceNodeLabel={sourceLabel}
+        targetNodeLabel={targetLabel}
+      />
 
       {/* Conditional Edge Modal */}
       <ConditionalEdgeModal
