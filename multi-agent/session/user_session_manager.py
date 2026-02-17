@@ -140,7 +140,7 @@ class UserSessionManager:
         """
         return self._repo.group_count(user_id, group_by, filter)
 
-    # ---------- Statistics (system-wide for admin analytics) ----------
+# ---------- Statistics (system-wide for admin analytics) ----------
 
     def count_system(self, since: Optional[datetime] = None) -> int:
         """Count all sessions system-wide (no user_id constraint)."""
