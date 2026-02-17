@@ -6,7 +6,8 @@ import logging
 
 from session.repository.repository import SessionRepository
 from session.workflow_session import WorkflowSession
-from core.dto import GroupedCount, TimeSeriesPoint, SystemAnalyticsData
+from core.dto import GroupedCount
+from statistics.models import TimeSeriesPoint, SystemAnalyticsData
 from global_utils.utils.time_utils import format_utc_iso
 
 logger = logging.getLogger(__name__)

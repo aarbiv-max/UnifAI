@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 from typing import List, Mapping, Any, Dict, Optional
 from datetime import datetime
 from session.workflow_session import WorkflowSession
-from core.dto import GroupedCount, TimeSeriesPoint, SystemAnalyticsData
+from core.dto import GroupedCount
+from statistics.models import TimeSeriesPoint, SystemAnalyticsData
 
 
 class SessionRepository(ABC):

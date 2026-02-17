@@ -4,7 +4,8 @@ from session.repository.repository import SessionRepository
 from session.workflow_session_factory import WorkflowSessionFactory
 from session.workflow_session import WorkflowSession
 from core.run_context import RunContext
-from core.dto import GroupedCount, TimeSeriesPoint, SystemAnalyticsData
+from core.dto import GroupedCount
+from statistics.models import TimeSeriesPoint, SystemAnalyticsData
 from graph.state.graph_state import GraphState
 from session.status import SessionStatus
 from blueprints.service import BlueprintService

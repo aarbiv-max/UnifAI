@@ -6,7 +6,8 @@ from .workflow_session import WorkflowSession
 from .dto import ChatHistoryItem
 from .models import SessionMeta
 from .exceptions import BlueprintNotFoundError
-from core.dto import GroupedCount, TimeSeriesPoint, SystemAnalyticsData
+from core.dto import GroupedCount
+from statistics.models import TimeSeriesPoint, SystemAnalyticsData
 
 
 class SessionService:
