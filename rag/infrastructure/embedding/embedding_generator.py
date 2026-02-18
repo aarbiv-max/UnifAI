@@ -31,10 +31,6 @@ class DefaultEmbeddingGenerator(EmbeddingGenerator):
     def embedding_dim(self) -> int:
         return self._port.embedding_dim
     
-    @property
-    def port(self) -> EmbeddingPort:
-        return self._port
-    
     def generate_embeddings(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not chunks:
             logger.warning("No chunks provided for embedding generation")

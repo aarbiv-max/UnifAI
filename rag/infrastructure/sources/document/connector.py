@@ -12,6 +12,7 @@ from typing import Dict, List, Any, Optional
 
 from core.connector.domain.base import DataConnector
 from core.connector.domain.document_converter import (
+    ConversionResult,
     DocumentConverterPort,
     DocumentConversionError,
 )
@@ -46,7 +47,7 @@ class DocumentConnector(DataConnector):
         super().__init__(config_manager)
         
         self._converter = converter
-        self._conversion_results: Dict[str, Any] = {}
+        self._conversion_results: Dict[str, ConversionResult] = {}
         
         logger.info(
             f"DocumentConnector initialized with {type(converter).__name__}"
@@ -115,14 +116,14 @@ class DocumentConnector(DataConnector):
         self._conversion_results[document_path] = result
         
         document_data = {
-            "text": result.get("text", ""),
-            "markdown": result.get("markdown", ""),
+            "text": result.text,
+            "markdown": result.markdown,
             "path": document_path,
             "filename": os.path.basename(document_path),
         }
         
         if self._config_manager.get_config_value("include_metadata"):
-            metadata = result.get("metadata", {})
+            metadata = dict(result.metadata)
             metadata["upload_by"] = upload_by
             metadata["file_size"] = f"{file_size_mb:.2f} MB"
             document_data["metadata"] = metadata
@@ -164,13 +165,13 @@ class DocumentConnector(DataConnector):
         self._conversion_results[document_url] = result
         
         document_data = {
-            "text": result.get("text", ""),
-            "markdown": result.get("markdown", ""),
+            "text": result.text,
+            "markdown": result.markdown,
             "url": document_url,
         }
         
         if self._config_manager.get_config_value("include_metadata"):
-            metadata = result.get("metadata", {})
+            metadata = dict(result.metadata)
             metadata["upload_by"] = upload_by
             document_data["metadata"] = metadata
             
@@ -186,7 +187,7 @@ class DocumentConnector(DataConnector):
         result = self._conversion_results[document_path]
         structure = {"title": "Untitled", "sections": []}
         
-        markdown = result.get("markdown", "")
+        markdown = result.markdown
         if markdown:
             header_pattern = r"^(#{1,6})\s+(.*)$"
             for line in markdown.split("\n"):

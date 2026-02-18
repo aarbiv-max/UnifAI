@@ -7,15 +7,14 @@ from typing import Dict, Any
 from global_utils.docling import DoclingService, DoclingProcessingError
 
 from core.connector.domain.document_converter import (
+    ConversionResult,
     DocumentConverterPort,
     DocumentConversionError,
 )
 
 logger = logging.getLogger(__name__)
 
-# Approximate characters per page for page count estimation.
-# Used as fallback when the remote docling service does not return page_count.
-_ESTIMATED_CHARS_PER_PAGE = 2000
+_DEFAULT_CHARS_PER_PAGE = 2000
 
 
 class RemoteDoclingAdapter(DocumentConverterPort):
@@ -26,26 +25,34 @@ class RemoteDoclingAdapter(DocumentConverterPort):
     Use when running in environments where the docling service is available.
     """
     
-    def __init__(self, docling_service: DoclingService):
+    def __init__(
+        self,
+        docling_service: DoclingService,
+        estimated_chars_per_page: int = _DEFAULT_CHARS_PER_PAGE,
+    ):
         """
         Initialize with a DoclingService instance.
         
         Args:
             docling_service: Configured DoclingService for HTTP communication
+            estimated_chars_per_page: Approximate characters per page, used as
+                fallback when the remote service does not return page_count
         """
         self._service = docling_service
+        self._estimated_chars_per_page = estimated_chars_per_page
         logger.info("RemoteDoclingAdapter initialized")
     
-    def convert_file(self, file_path: str) -> Dict[str, Any]:
+    def convert_file(self, file_path: str) -> ConversionResult:
         """Convert a local file using remote docling service."""
         try:
             logger.info(f"Converting file remotely: {file_path}")
             response = self._service.process_file(file_path)
             
-            result = response.to_dict()
-            result["metadata"] = self._build_metadata(response, file_path)
-            
-            return result
+            return ConversionResult(
+                text=response.text or "",
+                markdown=response.markdown or "",
+                metadata=self._build_metadata(response, file_path),
+            )
             
         except DoclingProcessingError as e:
             raise DocumentConversionError(str(e))
@@ -53,16 +60,17 @@ class RemoteDoclingAdapter(DocumentConverterPort):
             logger.error(f"Error converting file {file_path}: {e}")
             raise DocumentConversionError(str(e))
     
-    def convert_url(self, document_url: str) -> Dict[str, Any]:
+    def convert_url(self, document_url: str) -> ConversionResult:
         """Convert a document from URL using remote docling service."""
         try:
             logger.info(f"Converting URL remotely: {document_url}")
             response = self._service.process_url(document_url)
             
-            result = response.to_dict()
-            result["metadata"] = self._build_metadata(response)
-            
-            return result
+            return ConversionResult(
+                text=response.text or "",
+                markdown=response.markdown or "",
+                metadata=self._build_metadata(response),
+            )
             
         except DoclingProcessingError as e:
             raise DocumentConversionError(str(e))
@@ -83,7 +91,7 @@ class RemoteDoclingAdapter(DocumentConverterPort):
         metadata["word_count"] = len(text.split())
         
         if "page_count" not in metadata and text:
-            metadata["page_count"] = max(1, len(text) // _ESTIMATED_CHARS_PER_PAGE)
+            metadata["page_count"] = max(1, len(text) // self._estimated_chars_per_page)
         
         if file_path:
             metadata["filename"] = os.path.basename(file_path)

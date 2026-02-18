@@ -10,6 +10,7 @@ from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from pypdfium2 import PdfiumError
 
 from core.connector.domain.document_converter import (
+    ConversionResult,
     DocumentConverterPort,
     DocumentConversionError,
 )
@@ -37,7 +38,7 @@ class LocalDoclingAdapter(DocumentConverterPort):
         )
         logger.info("LocalDoclingAdapter initialized")
     
-    def convert_file(self, file_path: str) -> Dict[str, Any]:
+    def convert_file(self, file_path: str) -> ConversionResult:
         """Convert a local file using docling library."""
         if not os.path.exists(file_path):
             raise DocumentConversionError(f"File not found: {file_path}")
@@ -53,11 +54,11 @@ class LocalDoclingAdapter(DocumentConverterPort):
                     f"No content extracted from '{os.path.basename(file_path)}'"
                 )
             
-            return {
-                "text": text_content,
-                "markdown": result.document.export_to_markdown(),
-                "metadata": self._extract_metadata(result),
-            }
+            return ConversionResult(
+                text=text_content,
+                markdown=result.document.export_to_markdown(),
+                metadata=self._extract_metadata(result),
+            )
             
         except DocumentConversionError:
             raise
@@ -69,7 +70,7 @@ class LocalDoclingAdapter(DocumentConverterPort):
             logger.error(f"Error converting file {file_path}: {e}")
             raise DocumentConversionError(str(e))
     
-    def convert_url(self, document_url: str) -> Dict[str, Any]:
+    def convert_url(self, document_url: str) -> ConversionResult:
         """Convert a document from URL using docling library."""
         try:
             logger.info(f"Converting URL locally: {document_url}")
@@ -82,11 +83,11 @@ class LocalDoclingAdapter(DocumentConverterPort):
                     f"No content extracted from URL '{document_url}'"
                 )
             
-            return {
-                "text": text_content,
-                "markdown": result.document.export_to_markdown(),
-                "metadata": self._extract_metadata(result),
-            }
+            return ConversionResult(
+                text=text_content,
+                markdown=result.document.export_to_markdown(),
+                metadata=self._extract_metadata(result),
+            )
             
         except DocumentConversionError:
             raise

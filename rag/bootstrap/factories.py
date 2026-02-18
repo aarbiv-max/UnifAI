@@ -3,18 +3,12 @@
 import logging
 from typing import Dict, Any
 
-import torch
-
-from config.app_config import AppConfig
 from core.vector.domain.embedder import EmbeddingGenerator
 from core.vector.domain.repository import VectorRepository
 from core.connector.domain.base import DataConnector
 from core.connector.domain.document_converter import DocumentConverterPort
 
 logger = logging.getLogger(__name__)
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-app_config = AppConfig.get_instance()
 
 
 class DocumentConverterFactory:
@@ -92,10 +86,13 @@ class EmbeddingPortFactory:
         device_name: str = None,
     ):
         """Create a local embedding adapter."""
+        import torch
         from infrastructure.embedding.adapters import LocalEmbeddingAdapter
+
+        resolved_device = device_name or ("cuda" if torch.cuda.is_available() else "cpu")
         return LocalEmbeddingAdapter(
             model_name=model_name,
-            device=device_name or device,
+            device=resolved_device,
         )
     
     @staticmethod
@@ -164,8 +161,10 @@ class VectorRepositoryFactory:
     @staticmethod
     def create(config: Dict[str, Any]) -> VectorRepository:
         """Create a vector repository instance."""
+        from config.app_config import AppConfig
         from infrastructure.qdrant.qdrant_vector_repository import QdrantVectorRepository
-        
+
+        app_config = AppConfig.get_instance()
         storage_type = config.get("type", "qdrant")
         
         if storage_type == "qdrant":

@@ -1,7 +1,17 @@
 """Document converter port - domain interface for document conversion."""
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Dict, Any
+
+
+@dataclass
+class ConversionResult:
+    """Domain model representing the output of a document conversion."""
+
+    text: str = ""
+    markdown: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class DocumentConverterPort(ABC):
@@ -13,7 +23,7 @@ class DocumentConverterPort(ABC):
     """
     
     @abstractmethod
-    def convert_file(self, file_path: str) -> Dict[str, Any]:
+    def convert_file(self, file_path: str) -> ConversionResult:
         """
         Convert a local file to text/markdown.
         
@@ -21,7 +31,7 @@ class DocumentConverterPort(ABC):
             file_path: Path to the file to convert
             
         Returns:
-            Dictionary with keys: text, markdown, metadata
+            ConversionResult with text, markdown, and metadata
             
         Raises:
             DocumentConversionError: If conversion fails
@@ -29,7 +39,7 @@ class DocumentConverterPort(ABC):
         pass
     
     @abstractmethod
-    def convert_url(self, document_url: str) -> Dict[str, Any]:
+    def convert_url(self, document_url: str) -> ConversionResult:
         """
         Convert a document from URL to text/markdown.
         
@@ -37,7 +47,7 @@ class DocumentConverterPort(ABC):
             document_url: URL of the document to convert
             
         Returns:
-            Dictionary with keys: text, markdown, metadata
+            ConversionResult with text, markdown, and metadata
             
         Raises:
             DocumentConversionError: If conversion fails
