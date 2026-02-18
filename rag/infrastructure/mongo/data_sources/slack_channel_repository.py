@@ -40,12 +40,12 @@ class MongoSlackChannelRepository(SlackChannelRepository):
         search: Optional[str] = None,
     ) -> PaginatedResult[Dict[str, Any]]:
         """
-        Get channels with pagination using the builder.
+        Get non-restricted channels with pagination using the builder.
 
         Uses natural order (no sort) to match backend Slack channel listing.
         """
         builder = (PaginatedQueryBuilder(self._col)
-            .with_filter({"project_id": project_id})
+            .with_filter({"project_id": project_id, "restricted": {"$ne": True}})
             .with_search(search, field="channel_name")
             .with_sort(None)
             .paginate(cursor, limit))
@@ -58,8 +58,10 @@ class MongoSlackChannelRepository(SlackChannelRepository):
         return builder.documents()
 
     def exists_for_project(self, project_id: str) -> bool:
-        """Check if there are any channels for the project."""
-        return self._col.count_documents({"project_id": project_id}) > 0
+        """Check if there are any non-restricted channels for the project."""
+        return self._col.count_documents(
+            {"project_id": project_id, "restricted": {"$ne": True}},
+        ) > 0
 
     def save(self, channel: SlackChannel) -> bool:
         """Save a channel."""
@@ -90,14 +92,17 @@ class MongoSlackChannelRepository(SlackChannelRepository):
             return False
 
     def find_all(self, project_id: str) -> list:
-        """Return all channels for a project."""
+        """Return all channels for a project (including restricted)."""
         docs = self._col.find({"project_id": project_id})
         return [SlackChannel.from_dict(doc) for doc in docs]
 
-    def delete(self, channel_id: str) -> bool:
-        """Delete a single channel by ID."""
-        result = self._col.delete_one({"channel_id": channel_id})
-        return result.deleted_count > 0
+    def set_restricted(self, channel_id: str, restricted: bool) -> bool:
+        """Set the restricted flag on a channel."""
+        result = self._col.update_one(
+            {"channel_id": channel_id},
+            {"$set": {"restricted": restricted}},
+        )
+        return result.modified_count > 0
 
     def delete_by_project(self, project_id: str) -> int:
         """Delete all channels for a project."""

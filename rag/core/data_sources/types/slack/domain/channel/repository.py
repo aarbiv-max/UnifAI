@@ -60,12 +60,12 @@ class SlackChannelRepository(ABC):
 
     @abstractmethod
     def find_all(self, project_id: str) -> List[SlackChannel]:
-        """Return all channels for a project."""
+        """Return all channels for a project (including restricted)."""
         ...
 
     @abstractmethod
-    def delete(self, channel_id: str) -> bool:
-        """Delete a single channel by ID. Returns True if deleted."""
+    def set_restricted(self, channel_id: str, restricted: bool) -> bool:
+        """Set the restricted flag on a channel. Returns True if updated."""
         ...
 
     @abstractmethod

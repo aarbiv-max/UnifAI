@@ -21,6 +21,7 @@ class SlackChannel:
     is_private: bool
     is_app_member: bool
     last_updated: float
+    restricted: bool = False
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SlackChannel":
@@ -39,6 +40,7 @@ class SlackChannel:
             is_private=data.get("is_private", False),
             is_app_member=data.get("is_app_member", False),
             last_updated=data.get("last_updated", 0.0),
+            restricted=data.get("restricted", False),
         )
 
     @classmethod
@@ -65,5 +67,6 @@ class SlackChannel:
             "is_private": self.is_private,
             "is_app_member": self.is_app_member,
             "last_updated": self.last_updated,
+            "restricted": self.restricted,
         }
 

@@ -189,21 +189,24 @@ def slack_events():
 @slack_bp.route("/clean-restricted-channels", methods=["POST"])
 def clean_restricted_channels():
     """
-    Remove cached channels (and their embeddings) that now match
-    updated restriction rules.
+    Reconcile channel restrictions after rules change.
+
+    Newly restricted channels are soft-deleted (``restricted=True``)
+    and their embeddings removed.  Previously restricted channels
+    whose rules no longer match are restored to the visible list.
 
     Called by the backend ActionDispatcher when the
     slack_channel_restrictions config section is updated.
     """
     try:
-        result = slack_channel_service().cleanup_restricted_channels()
+        result = slack_channel_service().reconcile_restrictions()
         return jsonify({
             "status": "ok",
-            "removed_count": result.removed_count,
-            "removed_channels": result.removed_channels,
+            "newly_restricted": result.newly_restricted,
+            "newly_unrestricted": result.newly_unrestricted,
         }), 200
 
     except Exception as e:
-        logger.error(f"Failed to clean restricted channels: {e}")
+        logger.error(f"Failed to reconcile channel restrictions: {e}")
         return jsonify({"error": str(e)}), 500
 

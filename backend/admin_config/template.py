@@ -18,10 +18,38 @@ from admin_config.models import (
 
 ADMIN_CONFIG_TEMPLATE = AdminConfigTemplate(
     categories=[
-        # ── Data Source Rules ────────────────────────────────────────────
+               # ── User Management ─────────────────────────────────────────────
         CategoryDefinition(
-            key="data_source_rules",
-            title="Data Source Rules",
+            key="user_management",
+            title="User Management",
+            description="Control who has access to the admin configuration page.",
+            sections=[
+                SectionDefinition(
+                    key="admin_users",
+                    title="Admin Users",
+                    description=(
+                        "SSO usernames of users allowed to access and "
+                        "modify admin settings. At least one admin must "
+                        "always be present."
+                    ),
+                    fields=[
+                        FieldDefinition(
+                            key="admin_usernames",
+                            label="Admin Usernames",
+                            field_type="string_list",
+                            description="SSO usernames (preferred_username) with admin access.",
+                            default=["labuyous", "mcarmi", "nrashti", "oodeh", "osabach", "sfiresht", "yhabushi"],
+                            placeholder="e.g. jdoe",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        # ── Data Source Rules ────────────────────────────────────────────
+        CategoryDefinition( 
+            
+            key="restricted_channels_rules",
+            title="Restricted Slack channels Rules",
             description="Rules that control which data sources are ingested.",
             sections=[
                 SectionDefinition(
@@ -80,32 +108,6 @@ ADMIN_CONFIG_TEMPLATE = AdminConfigTemplate(
                 ),
             ],
         ),
-        # ── User Management ─────────────────────────────────────────────
-        CategoryDefinition(
-            key="user_management",
-            title="User Management",
-            description="Control who has access to the admin configuration page.",
-            sections=[
-                SectionDefinition(
-                    key="admin_users",
-                    title="Admin Users",
-                    description=(
-                        "SSO usernames of users allowed to access and "
-                        "modify admin settings. At least one admin must "
-                        "always be present."
-                    ),
-                    fields=[
-                        FieldDefinition(
-                            key="admin_usernames",
-                            label="Admin Usernames",
-                            field_type="string_list",
-                            description="SSO usernames (preferred_username) with admin access.",
-                            default=["labuyous", "mcarmi", "nrashti", "oodeh", "osabach", "sfiresht", "yhabushi"],
-                            placeholder="e.g. jdoe",
-                        ),
-                    ],
-                ),
-            ],
-        ),
+ 
     ],
 )
