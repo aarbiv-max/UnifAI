@@ -17,8 +17,6 @@ import NewGraph from "../workspace/NewGraph";
 import { SavedBlueprintInfo } from "@/hooks/use-graph-logic";
 import axios from "../http/axiosAgentConfig";
 
-// Create a ReactFlow provider wrapper
-import { ReactFlowProvider } from "reactflow";
 import { FlowObject } from "@/components/agentic-ai/graphs/interfaces";
 import { BlueprintValidationResult } from "@/types/validation";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
@@ -164,10 +162,10 @@ export default function AgenticWorkflows() {
                             disabled={isLoadingFlow || !isFlowValid || isValidatingFlow}
                             className={`${
                               !isFlowValid && !isValidatingFlow
-                                ? 'bg-gray-600 text-gray-400 border-gray-600' 
-                                : isValidatingFlow
-                                ? 'bg-gray-600 text-gray-300 border-gray-600'
-                                : 'bg-primary hover:bg-[#7525c9] text-white'
+                              ? 'bg-gray-600 text-gray-400 border-gray-600' 
+                              : isValidatingFlow
+                              ? 'bg-gray-600 text-gray-300 border-gray-600'
+                              : 'bg-primary hover:bg-primary/80 text-white'
                             } flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             {isValidatingFlow ? (

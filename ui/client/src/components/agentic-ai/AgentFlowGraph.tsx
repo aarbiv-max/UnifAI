@@ -5,9 +5,6 @@ import { FlowObject } from "./graphs/interfaces";
 import WorkflowsPanel from "./WorkflowsPanel";
 import { BlueprintValidationResult } from "@/types/validation";
 
-// Create a ReactFlow provider wrapper
-import { ReactFlowProvider } from "reactflow";
-
 type AgentFlowGraphProps = {
   selectedFlow: FlowObject | null;
   setSelectedFlow: (flow: FlowObject | null) => void;
@@ -40,25 +37,19 @@ export default function AgentFlowGraph({
       </CardHeader>
       <CardContent className="p-0" style={{ height: "73.5vh" }}>
         <StreamingDataProvider>
-          <ReactFlowProvider>
-            <WorkflowsPanel
-              selectedFlow={selectedFlow}
-              onFlowSelect={handleFlowSelect}
-              onFlowDelete={handleFlowDelete}
-              onValidationChange={onValidationChange}
-              showActiveStatus={true}
-              showDeleteButton={true}
-              useResolvedEndpoint={true}
-              height="100%"
-              graphProps={{
-                showControls: true,
-                showMiniMap: false,
-                showBackground: true,
-                interactive: true,
-                isLiveRequest: false,
-              }}
-            />
-          </ReactFlowProvider>
+          <WorkflowsPanel
+            selectedFlow={selectedFlow}
+            onFlowSelect={handleFlowSelect}
+            onFlowDelete={handleFlowDelete}
+            onValidationChange={onValidationChange}
+            showActiveStatus={true}
+            showDeleteButton={true}
+            height="100%"
+            graphProps={{
+              showBackground: true,
+              interactive: true,
+            }}
+          />
         </StreamingDataProvider>
       </CardContent>
     </Card>

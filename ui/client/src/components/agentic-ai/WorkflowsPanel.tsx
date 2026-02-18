@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Trash2, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,9 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { GraphFlow, FlowObject } from "./graphs/interfaces";
-import ReactFlowGraph from "./graphs/ReactFlowGraph";
+import GraphDisplay from "./graphs/GraphDisplay";
 import { fetchActiveSessions } from "@/api/agentic";
-import { fetchBlueprints, fetchResolvedBlueprints, deleteBlueprint, fetchResolvedBlueprint } from "@/api/blueprints";
+import { fetchResolvedBlueprints, deleteBlueprint, fetchResolvedBlueprint } from "@/api/blueprints";
 import { convertGraphFlowToFlowObject } from "@/utils/blueprintHelpers";
 import ShareWorkflow from "./ShareWorkflow";
 import { BlueprintValidationResult } from "@/types/validation";
@@ -31,13 +31,9 @@ export interface WorkflowsPanelProps {
   showDeleteButton?: boolean;
   className?: string;
   height?: string;
-  useResolvedEndpoint?: boolean; // If true, uses resolved endpoint, otherwise uses regular get endpoint
   graphProps?: {
-    showControls?: boolean;
-    showMiniMap?: boolean;
     showBackground?: boolean;
     interactive?: boolean;
-    isLiveRequest?: boolean;
   };
 }
 
@@ -50,13 +46,9 @@ export default function WorkflowsPanel({
   showDeleteButton = false,
   className = "",
   height = "100%",
-  useResolvedEndpoint = false,
   graphProps = {
-    showControls: true,
-    showMiniMap: false,
     showBackground: true,
     interactive: true,
-    isLiveRequest: false,
   },
 }: WorkflowsPanelProps): React.ReactElement {
   // State for available graph flows
@@ -86,15 +78,13 @@ export default function WorkflowsPanel({
     showToastOnFailure: true,
   });
 
-  // Fetch available blueprints from API
+  // Fetch available blueprints from API (resolved – references replaced with actual data)
   const fetchAvailableFlows = async (): Promise<void> => {
     try {
       const userId = user?.username || "default";
-      // Use resolved endpoint if requested (returns blueprints with all references resolved)
-      // Otherwise use regular endpoint (returns blueprints as stored, may contain unresolved references)
-      const blueprints = useResolvedEndpoint 
-        ? await fetchResolvedBlueprints(userId)
-        : await fetchBlueprints(userId);
+      // Resolved endpoint so spec_dict contains actual resource names (not $ref: pointers).
+      // Per-flow resolved data is still fetched on selection for the graph + sharing status.
+      const blueprints = await fetchResolvedBlueprints(userId);
 
       // Convert the blueprints to the format expected by the component
       const processedFlows = blueprints
@@ -140,7 +130,7 @@ export default function WorkflowsPanel({
     ]).finally(() => {
       setIsLoading(false);
     });
-  }, [user, useResolvedEndpoint]);
+  }, [user]);
 
   // Trigger validation when selected flow changes
   useEffect(() => {
@@ -152,18 +142,26 @@ export default function WorkflowsPanel({
     }
   }, [selectedFlow?.id, validateSelectedBlueprint, clearValidation]);
 
-  // Fetch blueprint data (spec_dict + metadata) when selected flow changes
-  // This consolidates API calls - data is fetched once and passed to child components
+  // Fetch blueprint data (spec_dict + metadata) when selected flow changes.
+  // This consolidates API calls - data is fetched once and passed to child components.
+  // A `cancelled` flag prevents stale responses from overwriting state when the
+  // user switches flows quickly.
   useEffect(() => {
     if (!selectedFlow?.id) {
       setSelectedBlueprintData(null);
       return;
     }
 
+    let cancelled = false;
+    // Clear previous data immediately so the UI shows a loading state
+    // instead of the previous flow's graph while the new fetch is in-flight.
+    setSelectedBlueprintData(null);
+
     const fetchBlueprintData = async () => {
       try {
         const userId = user?.username || 'default';
         const blueprint = await fetchResolvedBlueprint(selectedFlow.id, userId);
+        if (cancelled) return;
         if (blueprint) {
           setSelectedBlueprintData({
             specDict: blueprint.spec_dict,
@@ -171,12 +169,14 @@ export default function WorkflowsPanel({
           });
         }
       } catch (error) {
+        if (cancelled) return;
         console.error("Error fetching blueprint data:", error);
         setSelectedBlueprintData(null);
       }
     };
 
     fetchBlueprintData();
+    return () => { cancelled = true; };
   }, [selectedFlow?.id, user?.username]);
 
   const handleFlowSelect = (flow: FlowObject): void => {
@@ -348,13 +348,23 @@ export default function WorkflowsPanel({
                   initialSharingEnabled={selectedBlueprintData?.sharingEnabled ?? false}
                 />
               </div>
-            <ReactFlowGraph
-              blueprintId={selectedFlow.id}
-              height="100%"
-              validationResults={validationResults}
-              isValidating={isValidating}
-              {...graphProps}
-            />
+            {selectedBlueprintData?.specDict ? (
+              <GraphDisplay
+                blueprintId={selectedFlow.id}
+                specDict={selectedBlueprintData.specDict}
+                height="100%"
+                showBackground={graphProps?.showBackground}
+                interactive={graphProps?.interactive}
+                centerInView={true}
+                animated={true}
+                validationResults={validationResults}
+                isValidating={isValidating}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                Loading graph...
+              </div>
+            )}
             </>
           ) : (
             <div className="flex items-center justify-center h-full text-gray-400">

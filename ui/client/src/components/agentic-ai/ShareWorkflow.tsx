@@ -54,7 +54,8 @@ export default function ShareWorkflow({
   const handleToggle = async (checked: boolean) => {
     setIsLoading(true);
     try {
-      await setBlueprintMetadata(blueprintId, { usageScope: checked ? "public" : "private" }, user?.username || "");
+      const newScope = checked ? "public" : "private";
+      await setBlueprintMetadata(blueprintId, { usageScope: newScope }, user?.username || "");
       setEnabled(checked);
       setShareLink(checked ? constructShareLink(blueprintId) : null);
       toast({
@@ -62,7 +63,7 @@ export default function ShareWorkflow({
         description: checked 
           ? "Your workflow is now accessible via the share link"
           : "Your workflow is no longer accessible via the share link",
-          variant: "destructive"
+        variant: checked ? "default" : "destructive",
       });
     } catch (error: any) {
       // Show the same error message format as "Load Workflow"

@@ -262,4 +262,49 @@
   .badge-slack-red { background-color: rgba(224, 30, 90, 0.18); color: #E01E5A; }
   .badge-slack-blue { background-color: rgba(54, 197, 240, 0.18); color: #36C5F0; }
   .badge-slack-purple { background-color: rgba(97, 31, 105, 0.18); color: #611F69; }
+
+  /* Workflow graph (JointJS) – modern card look with dot-grid background */
+  .workflow-graph-wrap {
+    border-radius: 1rem;
+    overflow: hidden;
+    background:
+      radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px),
+      linear-gradient(145deg, #0D1117 0%, #161B22 50%, #121722 100%);
+    background-size: 20px 20px, 100% 100%;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.2);
+  }
+  .workflow-graph-wrap .joint-paper {
+    border-radius: 1rem;
+    background: transparent !important;
+  }
+  .workflow-graph-wrap svg {
+    border-radius: 1rem;
+  }
+
+  /* Subtle animation for workflow graph */
+  .workflow-graph-animated {
+    animation: workflow-graph-pulse 5s ease-in-out infinite;
+  }
+  @keyframes workflow-graph-pulse {
+    0%, 100% {
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.2);
+    }
+    50% {
+      box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45), 0 0 20px rgba(255, 255, 255, 0.03);
+    }
+  }
+
+  /* Element badge hover state (frosted-glass look) */
+  .graph-badge-interactive:hover {
+    background: rgba(255, 255, 255, 0.10) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+  }
+
+  /* Respect users' reduced-motion preferences */
+  @media (prefers-reduced-motion: reduce) {
+    .workflow-graph-animated {
+      animation: none;
+    }
+  }
 }

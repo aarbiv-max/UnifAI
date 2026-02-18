@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,6 +8,8 @@ import { getCategoryDisplay } from "@/components/shared/helpers";
 import ResourceDetailsModal from "./ResourceDetailsModal";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
+import { useTheme } from "@/contexts/ThemeContext";
+import { deriveThemeColors } from "@/lib/colorUtils";
 
 interface BuildingBlocksSidebarProps {
   buildingBlocks: BuildingBlock[];
@@ -28,6 +30,18 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
     null,
   );
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const { primaryHex } = useTheme();
+
+  // Derive theme-aligned colors from the single shared helper
+  const themeColors = useMemo(() => {
+    const t = deriveThemeColors(primaryHex);
+    return {
+      iconBg: t.primary,
+      conditionBg: t.conditionAccent,
+      conditionCardBg: t.conditionCardBg,
+      conditionCardBorder: t.conditionCardBorder,
+    };
+  }, [primaryHex]);
 
   const handleViewDetails = (block: BuildingBlock) => {
     setSelectedElement(block);
@@ -91,7 +105,7 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 flex-1">
                               <div className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold text-white"
-                                   style={{ backgroundColor: block.color }}>
+                                   style={{ backgroundColor: themeColors.iconBg }}>
                                 {getCategoryDisplay(block.workspaceData?.category || "default").icon}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -146,16 +160,21 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                           key={condition.id}
                           className={`transition-colors ${
                             isUsed
-                              ? 'bg-orange-950 border-orange-800 opacity-50 cursor-not-allowed'
-                              : 'bg-orange-900 border-orange-700 hover:border-orange-600 cursor-grab active:cursor-grabbing'
+                              ? 'bg-gray-900 border-gray-800 opacity-50 cursor-not-allowed'
+                              : 'cursor-grab active:cursor-grabbing'
                           }`}
+                          style={{
+                            backgroundColor: isUsed ? undefined : themeColors.conditionCardBg,
+                            borderColor: isUsed ? undefined : themeColors.conditionCardBorder,
+                          }}
                           draggable={!isUsed}
                           onDragStart={(event) => handleDragStart(event, condition)}
                         >
                         <CardContent className="p-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 flex-1">
-                              <div className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold text-white bg-orange-600">
+                              <div className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold text-white"
+                                   style={{ backgroundColor: themeColors.conditionBg }}>
                                 {getCategoryDisplay("conditions").icon}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -164,7 +183,7 @@ const BuildingBlocksSidebar: React.FC<BuildingBlocksSidebarProps> = ({
                                     {condition.label}
                                   </h4>
                                   {isUsed && (
-                                    <span className="text-xs bg-orange-800 text-orange-300 px-1.5 py-0.5 rounded">
+                                    <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
                                       Used
                                     </span>
                                   )}
