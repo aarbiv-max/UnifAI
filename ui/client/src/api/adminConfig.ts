@@ -1,4 +1,4 @@
-import { platformApi } from '@/http/platformClient';
+import { backendApi } from '@/http/backendClient';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Types
@@ -47,7 +47,7 @@ export interface UpdateSectionResponse {
  * Fetch the full admin config template merged with stored values.
  */
 export async function getAdminConfig(): Promise<AdminConfigResponse> {
-  const response = await platformApi.get('/admin-config/config.get');
+  const response = await backendApi.get('/admin-config/config.get');
   return response.data;
 }
 
@@ -58,7 +58,7 @@ export async function updateAdminConfigSection(
   sectionKey: string,
   values: Record<string, unknown>,
 ): Promise<UpdateSectionResponse> {
-  const response = await platformApi.put('/admin-config/config.section.update', {
+  const response = await backendApi.put('/admin-config/config.section.update', {
     sectionKey,
     values,
   });
