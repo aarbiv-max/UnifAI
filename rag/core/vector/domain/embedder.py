@@ -1,12 +1,8 @@
-"""Embedding generator port - domain interface for embedding generation."""
-
-import logging
+"""Embedding domain - ports and exceptions for embedding generation."""
 
 import numpy as np
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Iterator
-
-logger = logging.getLogger(__name__)
+from typing import Dict, List, Any
 
 
 class EmbeddingPort(ABC):
@@ -62,35 +58,25 @@ class EmbeddingPort(ABC):
 
 class EmbeddingGenerator(ABC):
     """
-    Application-level embedding generator.
+    Application-level port for embedding generation with batching.
     
-    Uses an EmbeddingPort for the actual encoding and adds:
-    - Batch processing
-    - Chunk handling
-    - Error recovery
+    Consumers depend on this ABC; concrete implementation
+    (batch processing, error recovery, logging) lives in infrastructure.
     """
     
-    def __init__(self, port: EmbeddingPort, batch_size: int = 32):
-        """
-        Initialize the embedding generator.
-        
-        Args:
-            port: EmbeddingPort implementation
-            batch_size: Number of items to process in a single batch
-        """
-        self._port = port
-        self.batch_size = batch_size
+    @property
+    @abstractmethod
+    def embedding_dim(self) -> int:
+        """Get the embedding dimension."""
+        pass
     
     @property
+    @abstractmethod
     def port(self) -> EmbeddingPort:
         """Get the underlying embedding port."""
-        return self._port
+        pass
     
-    @property
-    def embedding_dim(self) -> int:
-        """Get the embedding dimension from the port."""
-        return self._port.embedding_dim
-    
+    @abstractmethod
     def generate_embeddings(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Generate embeddings for all chunks.
@@ -101,41 +87,9 @@ class EmbeddingGenerator(ABC):
         Returns:
             List of chunks with embeddings added
         """
-        if not chunks:
-            return []
-        
-        result_chunks = []
-        
-        for batch in self._batch_generator(chunks):
-            texts = [chunk["text"] for chunk in batch]
-            
-            try:
-                embeddings = self._port.encode_texts(texts)
-                
-                for i, chunk in enumerate(batch):
-                    enriched_chunk = chunk.copy()
-                    if i < len(embeddings):
-                        enriched_chunk["embedding"] = embeddings[i]
-                    else:
-                        logger.warning(
-                            "Embedding count mismatch: expected index %d but got %d embeddings",
-                            i, len(embeddings),
-                        )
-                        enriched_chunk["embedding"] = np.zeros(self.embedding_dim)
-                    result_chunks.append(enriched_chunk)
-                    
-            except Exception as e:
-                logger.error(
-                    "Embedding generation failed for batch of %d chunks: %s",
-                    len(batch), e,
-                )
-                for chunk in batch:
-                    enriched_chunk = chunk.copy()
-                    enriched_chunk["embedding"] = np.zeros(self.embedding_dim)
-                    result_chunks.append(enriched_chunk)
-        
-        return result_chunks
+        pass
     
+    @abstractmethod
     def generate_query_embedding(self, query: str) -> np.ndarray:
         """
         Generate an embedding for a search query.
@@ -146,22 +100,19 @@ class EmbeddingGenerator(ABC):
         Returns:
             Embedding vector for the query
         """
-        if not query:
-            raise ValueError("Query text is empty")
-        return self._port.encode_single(query)
+        pass
     
-    def _batch_generator(self, chunks: List[Dict[str, Any]]) -> Iterator[List[Dict[str, Any]]]:
-        """Split chunks into batches."""
-        for i in range(0, len(chunks), self.batch_size):
-            yield chunks[i:i + self.batch_size]
-    
+    @abstractmethod
     def test_connection(self) -> bool:
         """
         Test if the embedding service is available.
         
-        Delegates to the underlying port's test_connection method.
-        
         Returns:
             True if available, False otherwise
         """
-        return self._port.test_connection()
+        pass
+
+
+class EmbeddingGenerationError(Exception):
+    """Raised when embedding generation fails."""
+    pass

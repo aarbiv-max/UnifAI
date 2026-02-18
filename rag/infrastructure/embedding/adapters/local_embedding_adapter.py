@@ -6,7 +6,7 @@ from typing import List
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-from core.vector.domain.embedder import EmbeddingPort
+from core.vector.domain.embedder import EmbeddingPort, EmbeddingGenerationError
 
 logger = logging.getLogger(__name__)
 
@@ -49,17 +49,30 @@ class LocalEmbeddingAdapter(EmbeddingPort):
         if not texts:
             return []
         
-        embeddings = self._model.encode(texts, show_progress_bar=False)
-        
-        if isinstance(embeddings, np.ndarray) and embeddings.ndim == 2:
-            return [embeddings[i] for i in range(len(embeddings))]
-        return list(embeddings)
+        try:
+            embeddings = self._model.encode(texts, show_progress_bar=False)
+            
+            if isinstance(embeddings, np.ndarray) and embeddings.ndim == 2:
+                return [embeddings[i] for i in range(len(embeddings))]
+            return list(embeddings)
+        except EmbeddingGenerationError:
+            raise
+        except Exception as e:
+            logger.error(f"Error encoding texts locally: {e}")
+            raise EmbeddingGenerationError(str(e))
     
     def encode_single(self, text: str) -> np.ndarray:
         """Encode a single text."""
         if not text:
             raise ValueError("Text cannot be empty")
-        return self._model.encode(text)
+        
+        try:
+            return self._model.encode(text)
+        except EmbeddingGenerationError:
+            raise
+        except Exception as e:
+            logger.error(f"Error encoding text locally: {e}")
+            raise EmbeddingGenerationError(str(e))
     
     def test_connection(self) -> bool:
         """Local adapter is always available."""

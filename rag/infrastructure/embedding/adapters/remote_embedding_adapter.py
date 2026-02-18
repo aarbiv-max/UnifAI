@@ -5,9 +5,9 @@ from typing import List
 
 import numpy as np
 
-from global_utils.embedding import EmbeddingService, EmbeddingProcessingError
+from global_utils.embedding import EmbeddingService
 
-from core.vector.domain.embedder import EmbeddingPort
+from core.vector.domain.embedder import EmbeddingPort, EmbeddingGenerationError
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +49,11 @@ class RemoteEmbeddingAdapter(EmbeddingPort):
         try:
             embeddings = self._service.generate_embeddings(texts)
             return [np.array(e) for e in embeddings]
-        except EmbeddingProcessingError:
+        except EmbeddingGenerationError:
             raise
         except Exception as e:
             logger.error(f"Error generating embeddings: {e}")
-            raise EmbeddingProcessingError(str(e))
+            raise EmbeddingGenerationError(str(e))
     
     def encode_single(self, text: str) -> np.ndarray:
         """Encode a single text."""
@@ -63,11 +63,11 @@ class RemoteEmbeddingAdapter(EmbeddingPort):
         try:
             embedding = self._service.generate_single_embedding(text)
             return np.array(embedding)
-        except EmbeddingProcessingError:
+        except EmbeddingGenerationError:
             raise
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
-            raise EmbeddingProcessingError(str(e))
+            raise EmbeddingGenerationError(str(e))
     
     def test_connection(self) -> bool:
         """Test if remote embedding service is available."""
