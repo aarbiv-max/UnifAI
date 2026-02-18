@@ -414,23 +414,25 @@ def remote_services_health():
     should be enabled. Used by the /service.readiness.get endpoint.
     """
     from core.health.service import ServicesHealthService
-    from bootstrap.factories import DocumentConverterFactory
+    from bootstrap.factories import DocumentConverterFactory, EmbeddingPortFactory
     from config.app_config import AppConfig
     
     config = AppConfig.get_instance()
     
-    # Get the embedding port from the existing generator
     embedding_port = None
     if config.use_remote_embedding:
-        embedding_port = embedding_generator().port
+        embedding_port = EmbeddingPortFactory.create_remote(
+            base_url=config.embedding_service_url,
+            timeout=10,
+            model_name=config.embedding_service_model,
+            embedding_dim=config.embedding_dim,
+        )
     
-    # Create a docling port for health checking
-    # Uses shorter timeout since it's just a health check
     docling_port = None
     if config.use_remote_docling:
         docling_port = DocumentConverterFactory.create_remote(
             base_url=config.docling_service_url,
-            timeout=10,  # Short timeout for health checks
+            timeout=10,
         )
     
     return ServicesHealthService(

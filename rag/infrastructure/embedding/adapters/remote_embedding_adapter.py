@@ -53,7 +53,7 @@ class RemoteEmbeddingAdapter(EmbeddingPort):
             raise
         except Exception as e:
             logger.error(f"Error generating embeddings: {e}")
-            raise EmbeddingGenerationError(str(e))
+            raise EmbeddingGenerationError(str(e)) from e
     
     def encode_single(self, text: str) -> np.ndarray:
         """Encode a single text."""
@@ -67,7 +67,7 @@ class RemoteEmbeddingAdapter(EmbeddingPort):
             raise
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
-            raise EmbeddingGenerationError(str(e))
+            raise EmbeddingGenerationError(str(e)) from e
     
     def test_connection(self) -> bool:
         """Test if remote embedding service is available."""

@@ -59,7 +59,7 @@ class LocalEmbeddingAdapter(EmbeddingPort):
             raise
         except Exception as e:
             logger.error(f"Error encoding texts locally: {e}")
-            raise EmbeddingGenerationError(str(e))
+            raise EmbeddingGenerationError(str(e)) from e
     
     def encode_single(self, text: str) -> np.ndarray:
         """Encode a single text."""
@@ -72,7 +72,7 @@ class LocalEmbeddingAdapter(EmbeddingPort):
             raise
         except Exception as e:
             logger.error(f"Error encoding text locally: {e}")
-            raise EmbeddingGenerationError(str(e))
+            raise EmbeddingGenerationError(str(e)) from e
     
     def test_connection(self) -> bool:
         """Local adapter is always available."""

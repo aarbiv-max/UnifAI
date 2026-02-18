@@ -70,12 +70,6 @@ class EmbeddingGenerator(ABC):
         """Get the embedding dimension."""
         pass
     
-    @property
-    @abstractmethod
-    def port(self) -> EmbeddingPort:
-        """Get the underlying embedding port."""
-        pass
-    
     @abstractmethod
     def generate_embeddings(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
