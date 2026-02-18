@@ -31,6 +31,8 @@ ADMIN_CONFIG_TEMPLATE = AdminConfigTemplate(
                         "Slack channels to be excluded from ingestion."
                     ),
                     on_update_action="clean_restricted_slack_channels",
+                    on_update_target="rag",
+                    on_update_endpoint="/api/slack/clean-restricted-channels",
                     fields=[
                         FieldDefinition(
                             key="restricted_prefixes",

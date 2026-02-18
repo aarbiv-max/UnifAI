@@ -3,8 +3,8 @@ AdminConfigService — application service for admin configuration.
 
 Responsibilities:
   - GET: merge the static template with stored values from MongoDB.
-  - PUT: validate and persist a section's values, return the on_update_action
-         so callers (or future event bus) can dispatch side-effects.
+  - PUT: validate and persist a section's values, then dispatch the
+         on_update_action to downstream services via ActionDispatcher.
 """
 from typing import Any, Dict, Optional, Tuple
 
@@ -17,6 +17,7 @@ from admin_config.models import (
     SectionValue,
 )
 from admin_config.repository.repository import AdminConfigRepository
+from admin_config.action_dispatcher import ActionDispatcher
 from shared.logger import logger
 
 
@@ -26,9 +27,11 @@ class AdminConfigService:
         self,
         repository: AdminConfigRepository,
         template: AdminConfigTemplate,
+        action_dispatcher: ActionDispatcher,
     ):
         self._repo = repository
         self._template = template
+        self._dispatcher = action_dispatcher
 
     # ──────────────────── GET (template + stored values) ──────────────────
 
@@ -97,6 +100,13 @@ class AdminConfigService:
         self._repo.set(entry)
 
         logger.info("Admin config section '%s' updated", section_key)
+
+        self._dispatcher.dispatch(
+            action=section_def.on_update_action,
+            target=section_def.on_update_target,
+            endpoint=section_def.on_update_endpoint,
+        )
+
         return True, section_def.on_update_action
 
     # ──────────────────── helpers ─────────────────────────────────────────

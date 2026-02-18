@@ -89,6 +89,16 @@ class MongoSlackChannelRepository(SlackChannelRepository):
             logger.error(f"Error updating membership for channel {channel_id}: {e}")
             return False
 
+    def find_all(self, project_id: str) -> list:
+        """Return all channels for a project."""
+        docs = self._col.find({"project_id": project_id})
+        return [SlackChannel.from_dict(doc) for doc in docs]
+
+    def delete(self, channel_id: str) -> bool:
+        """Delete a single channel by ID."""
+        result = self._col.delete_one({"channel_id": channel_id})
+        return result.deleted_count > 0
+
     def delete_by_project(self, project_id: str) -> int:
         """Delete all channels for a project."""
         result = self._col.delete_many({"project_id": project_id})

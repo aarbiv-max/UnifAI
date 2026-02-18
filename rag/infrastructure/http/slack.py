@@ -4,6 +4,7 @@ from webargs import fields
 
 from bootstrap.app_container import (
     slack_connector,
+    slack_channel_service,
     vector_stats_service,
     retrieval_service,
     slack_stats_service,
@@ -182,5 +183,27 @@ def slack_events():
         
     except Exception as e:
         logger.error(f"Failed to handle Slack event: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@slack_bp.route("/clean-restricted-channels", methods=["POST"])
+def clean_restricted_channels():
+    """
+    Remove cached channels (and their embeddings) that now match
+    updated restriction rules.
+
+    Called by the backend ActionDispatcher when the
+    slack_channel_restrictions config section is updated.
+    """
+    try:
+        result = slack_channel_service().cleanup_restricted_channels()
+        return jsonify({
+            "status": "ok",
+            "removed_count": result.removed_count,
+            "removed_channels": result.removed_channels,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Failed to clean restricted channels: {e}")
         return jsonify({"error": str(e)}), 500
 

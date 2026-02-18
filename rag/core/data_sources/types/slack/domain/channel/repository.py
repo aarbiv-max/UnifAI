@@ -59,6 +59,16 @@ class SlackChannelRepository(ABC):
         ...
 
     @abstractmethod
+    def find_all(self, project_id: str) -> List[SlackChannel]:
+        """Return all channels for a project."""
+        ...
+
+    @abstractmethod
+    def delete(self, channel_id: str) -> bool:
+        """Delete a single channel by ID. Returns True if deleted."""
+        ...
+
+    @abstractmethod
     def delete_by_project(self, project_id: str) -> int:
         """Delete all channels for a project. Returns count deleted."""
         ...

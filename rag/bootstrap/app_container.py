@@ -136,6 +136,18 @@ def channel_restriction_checker():
     )
 
 
+@lru_cache(maxsize=1)
+def slack_channel_service():
+    """Slack channel service — channel-level ops (cleanup, etc.)."""
+    from core.data_sources.types.slack.channel_service import SlackChannelService
+    return SlackChannelService(
+        channel_repo=slack_channel_repository(),
+        restriction_checker=channel_restriction_checker(),
+        data_source_service=data_source_service(),
+        project_id="example-project",
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PROCESSORS (Domain layer - stateless data transformers)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -598,6 +610,7 @@ def clear_all_caches():
     # Platform backend
     backend_client.cache_clear()
     channel_restriction_checker.cache_clear()
+    slack_channel_service.cache_clear()
     # Repositories
     pipeline_repository.cache_clear()
     data_source_repository.cache_clear()

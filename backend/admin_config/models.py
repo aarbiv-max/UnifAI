@@ -31,13 +31,20 @@ class SectionDefinition(BaseModel):
     A logical group of fields.
 
     Each section maps to one document in the admin_config MongoDB collection.
-    `on_update_action` names a handler that downstream services can react to.
+
+    When values change, the optional ``on_update_*`` fields describe a
+    side-effect that should be dispatched:
+      - on_update_action: human-readable action name (also returned to UI)
+      - on_update_target: service key (resolved to a base URL at runtime)
+      - on_update_endpoint: path on that service to POST to
     """
     key: str
     title: str
     description: str = ""
     fields: List[FieldDefinition]
     on_update_action: Optional[str] = None
+    on_update_target: Optional[str] = None
+    on_update_endpoint: Optional[str] = None
 
 
 class CategoryDefinition(BaseModel):
