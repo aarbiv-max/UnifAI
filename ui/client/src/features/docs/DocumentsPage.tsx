@@ -107,20 +107,26 @@ export default function Documents() {
     />
   );
 
-  const selectedCount = Object.keys(rowSelection).length;
+  // Exclude any docs that started processing after being selected
+  const selectableSelection = Object.keys(rowSelection).reduce<RowSelectionState>((acc, id) => {
+    const doc = documents.find(d => d.source_id === id);
+    if (doc && !isEmbeddingActivelyProcessing(doc)) acc[id] = true;
+    return acc;
+  }, {});
+  const selectableCount = Object.keys(selectableSelection).length;
 
   const handleBulkDeleteClick = () => {
-    setBulkDeleteConfirm({ open: true, count: selectedCount });
+    setBulkDeleteConfirm({ open: true, count: selectableCount });
   };
 
   const viewButtons = (
     <div className="flex items-center space-x-4">
-        {selectedCount > 0 && (
+        {selectableCount > 0 && (
           <BulkDeleteButton
-            selectedCount={selectedCount}
+            selectedCount={selectableCount}
             onClick={handleBulkDeleteClick}
             disabled={bulkDeleteLoading || deleteLoading}
-            itemName={selectedCount === 1 ? "document" : "documents"}
+            itemName={selectableCount === 1 ? "document" : "documents"}
           />
         )}
         <UmamiTrack 
@@ -181,7 +187,11 @@ export default function Documents() {
   };
 
   const confirmBulkDelete = async () => {
-    await confirmBulkDeleteBase(rowSelection);
+    if (selectableCount === 0) {
+      setBulkDeleteConfirm({ open: false, count: 0 });
+      return;
+    }
+    await confirmBulkDeleteBase(selectableSelection);
   };
 
   const onActiveDocChange = () => {

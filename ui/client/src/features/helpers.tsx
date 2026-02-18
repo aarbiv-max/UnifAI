@@ -48,6 +48,9 @@ export function formatDate(dateStr: string): string {
   });
 }
 
+export const PROCESSING_DELETE_TOOLTIP = "Cannot delete while document is being processed";
+export const PROCESSING_SELECT_TOOLTIP = "Cannot select while document is being processed";
+
 // Helper function to check if a pipeline is actively processing
 export function isEmbeddingActivelyProcessing(source: EmbedChannel | Document): boolean {
   const activeStatuses = [

@@ -13,6 +13,8 @@ interface SelectionCheckboxProps {
   onCheckedChange: (checked: boolean) => void;
   ariaLabel?: string;
   align?: "left" | "center" | "right";
+  disabled?: boolean;
+  title?: string;
 }
 
 export function SelectionCheckbox({
@@ -20,6 +22,8 @@ export function SelectionCheckbox({
   onCheckedChange,
   ariaLabel = "Select",
   align = "left",
+  disabled = false,
+  title,
 }: SelectionCheckboxProps) {
   const alignmentClass = 
     align === "center" ? "justify-center" : 
@@ -27,7 +31,7 @@ export function SelectionCheckbox({
     "justify-start";
   
   return (
-    <div className={`flex items-center ${alignmentClass}`}>
+    <div className={`flex items-center ${alignmentClass}`} title={title}>
       <div 
         className="flex items-center"
         onClick={(e) => e.stopPropagation()}
@@ -36,6 +40,7 @@ export function SelectionCheckbox({
           checked={checked}
           onCheckedChange={(value) => onCheckedChange(value === true)}
           aria-label={ariaLabel}
+          disabled={disabled}
         />
       </div>
     </div>

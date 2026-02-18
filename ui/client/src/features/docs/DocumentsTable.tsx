@@ -3,7 +3,7 @@ import { FaEye, FaTrash, FaEdit } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { InlineLoader } from "@/components/shared/InlineLoader";
 import { Document } from "@/types";
-import { getFileIcon, fileByColors, isEmbeddingActivelyProcessing, getDataToDisplay } from "../helpers";
+import { getFileIcon, fileByColors, isEmbeddingActivelyProcessing, getDataToDisplay, PROCESSING_DELETE_TOOLTIP, PROCESSING_SELECT_TOOLTIP } from "../helpers";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { DocumentData } from "./DocumentData";
@@ -171,19 +171,20 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
         
         // Calculate if all filtered rows are selected
         const filteredRows = table.getFilteredRowModel().rows;
-        const isAllFilteredSelected = filteredRows.length > 0 && filteredRows.every(row => {
+        const selectableRows = filteredRows.filter(row => !isEmbeddingActivelyProcessing(row.original));
+        const isAllFilteredSelected = selectableRows.length > 0 && selectableRows.every(row => {
           return rowSelection[row.original.source_id];
         });
         
-        // Handle select all toggle for filtered rows
+        // Handle select all toggle for filtered rows (skip actively processing docs)
         const handleSelectAllChange = (checked: boolean) => {
           const newSelection = { ...rowSelection };
           if (checked) {
-            filteredRows.forEach(row => {
+            selectableRows.forEach(row => {
               newSelection[row.original.source_id] = true;
             });
           } else {
-            filteredRows.forEach(row => {
+            selectableRows.forEach(row => {
               delete newSelection[row.original.source_id];
             });
           }
@@ -202,6 +203,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       cell: ({ row }) => {
         const doc = row.original;
         const isActive = activeDoc?.pipeline_id === doc.pipeline_id;
+        const isProcessing = isEmbeddingActivelyProcessing(doc);
         
         // Handle individual row selection toggle
         const handleRowSelect = (checked: boolean) => {
@@ -241,7 +243,8 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
                 setConfirmDoc(doc);
                 setConfirmLoading(false);
               }}
-              disabled={deleteLoading || confirmLoading}
+              disabled={deleteLoading || confirmLoading || isProcessing}
+              title={isProcessing ? PROCESSING_DELETE_TOOLTIP : undefined}
             >
               <FaTrash className="h-3 w-3" />
             </Button>
@@ -250,6 +253,8 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
                 checked={rowSelection[doc.source_id] === true}
                 onCheckedChange={handleRowSelect}
                 ariaLabel={`Select document ${doc.source_name}`}
+                disabled={isProcessing}
+                title={isProcessing ? PROCESSING_SELECT_TOOLTIP : undefined}
               />
             )}
           </div>

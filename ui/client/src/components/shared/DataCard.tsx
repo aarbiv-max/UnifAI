@@ -116,12 +116,14 @@ export const DataCard: React.FC<DataCardProps> = ({
                       <div
                         key={idx}
                         onClick={(e) => e.stopPropagation()}
+                        title={action.disabled ? action.disabledTitle : undefined}
                       >
                         <Checkbox
                           checked={action.checked || false}
                           onCheckedChange={(checked) => {
                             action.onCheckboxChange?.(checked === true);
                           }}
+                          disabled={action.disabled || false}
                           aria-label="Select card"
                         />
                       </div>

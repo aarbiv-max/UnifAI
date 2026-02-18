@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { FaEye, FaEdit } from "react-icons/fa";
 import { DataCard } from "@/components/shared/DataCard";
-import { fileByColors, getDataToDisplay, getFileIcon } from "@/features/helpers";
+import { fileByColors, getDataToDisplay, getFileIcon, isEmbeddingActivelyProcessing, PROCESSING_SELECT_TOOLTIP } from "@/features/helpers";
 import { Document } from "@/types";
 import { RowSelectionState } from "@tanstack/react-table";
 import { DocumentData } from "./DocumentData";
@@ -58,6 +58,8 @@ const getActions = (
   rowSelection: RowSelectionState,
   onRowSelectionChange?: (selection: RowSelectionState) => void
 ) => {
+  const isProcessing = isEmbeddingActivelyProcessing(doc);
+
   const actions: any[] = [
     {
       icon: <FaEye />,
@@ -77,6 +79,8 @@ const getActions = (
       onClick: () => {},
       isCheckbox: true,
       checked: isSelected,
+      disabled: isProcessing,
+      disabledTitle: PROCESSING_SELECT_TOOLTIP,
       onCheckboxChange: (checked: boolean) => {
         const newSelection = { ...rowSelection };
         if (checked) {
