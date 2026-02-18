@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { useAuth, User } from '@/contexts/AuthContext';
+import { useAdminAccess } from '@/hooks/use-admin-access';
 
 export default function Sidebar() {
   const [location] = useLocation();
@@ -25,6 +26,7 @@ export default function Sidebar() {
   };
 
   const { user, logout } = useAuth();
+  const { isAdmin } = useAdminAccess();
 
   const getInitials = (name: string): string => {
     return name
@@ -217,15 +219,17 @@ export default function Sidebar() {
             status={null}
             isCollapsed={isCollapsed}
           />
-          <NavItem 
-            icon={<FaCogs className="sidebar-icon" />} 
-            label="Configuration" 
-            to="/configuration"
-            isActive={location === '/configuration'}
-            status={null}
-            isCollapsed={isCollapsed}
-            disabled={false}
-          />
+          {isAdmin && (
+            <NavItem 
+              icon={<FaCogs className="sidebar-icon" />} 
+              label="Configuration" 
+              to="/configuration"
+              isActive={location === '/configuration'}
+              status={null}
+              isCollapsed={isCollapsed}
+              disabled={false}
+            />
+          )}
           <NavItem 
             icon={<FaChartLine className="sidebar-icon" />} 
             label="Analytics" 

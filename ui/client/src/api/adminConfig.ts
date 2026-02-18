@@ -64,3 +64,15 @@ export async function updateAdminConfigSection(
   });
   return response.data;
 }
+
+/**
+ * Check whether the given username has admin access.
+ */
+export async function checkAdminAccess(
+  username: string,
+): Promise<{ is_admin: boolean }> {
+  const response = await backendApi.get('/admin-config/access.check', {
+    params: { username },
+  });
+  return response.data;
+}

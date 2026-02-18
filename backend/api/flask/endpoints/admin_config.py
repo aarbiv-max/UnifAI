@@ -2,11 +2,12 @@
 Admin Config API endpoints.
 
 Provides REST API for admin configuration:
-  GET  /api/admin-config/config.get          — full template merged with stored values
-  PUT  /api/admin-config/config.section.update — update one section's values
+  GET  /api/admin-config/config.get             — full template merged with stored values
+  PUT  /api/admin-config/config.section.update  — update one section's values
+  GET  /api/admin-config/access.check           — check if an email has admin access
 """
 from flask import Blueprint, jsonify, current_app
-from global_utils.helpers.apiargs import from_body
+from global_utils.helpers.apiargs import from_body, from_query
 from webargs import fields
 import logging
 
@@ -68,4 +69,27 @@ def update_section(section_key, values):
         return jsonify({"error": str(e)}), 404
     except Exception as e:
         logger.exception("Error updating admin config section '%s'", section_key)
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Access check — is the given email an admin?
+# ─────────────────────────────────────────────────────────────────────────────
+@admin_config_bp.route("/access.check", methods=["GET"])
+@from_query({
+    "username": fields.Str(required=True),
+})
+def access_check(username):
+    """
+    Check whether *username* is in the admin_usernames list.
+
+    Returns:
+        is_admin: bool
+    """
+    try:
+        svc = current_app.container.admin_config_service
+        is_admin = svc.is_admin(username)
+        return jsonify({"is_admin": is_admin}), 200
+    except Exception as e:
+        logger.exception("Error checking admin access for '%s'", username)
         return jsonify({"error": str(e)}), 500

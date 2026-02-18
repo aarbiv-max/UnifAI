@@ -109,6 +109,26 @@ class AdminConfigService:
 
         return True, section_def.on_update_action
 
+    # ──────────────────── access control ─────────────────────────────────
+
+    def is_admin(self, username: str) -> bool:
+        """Check if *username* is in the admin_usernames list."""
+        section_def = self._find_section("admin_users")
+        if section_def is None:
+            return False
+
+        entry = self._repo.get("admin_users")
+        if entry and entry.value:
+            admin_usernames = entry.value.get("admin_usernames", [])
+        else:
+            field_def = next(
+                (f for f in section_def.fields if f.key == "admin_usernames"),
+                None,
+            )
+            admin_usernames = field_def.default if field_def else []
+
+        return username.lower() in [u.lower() for u in admin_usernames]
+
     # ──────────────────── helpers ─────────────────────────────────────────
 
     def _find_section(self, key: str):
