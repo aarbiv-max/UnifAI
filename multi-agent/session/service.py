@@ -1,12 +1,12 @@
-from typing import Any, Dict, Iterator, List, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
+from datetime import datetime
 from .user_session_manager import UserSessionManager
 from .session_executor import SessionExecutor
 from .workflow_session import WorkflowSession
 from .dto import ChatHistoryItem
-from .models import SessionMeta
+from .models import SessionMeta, TimeSeriesPoint, SystemAnalyticsData
 from .exceptions import BlueprintNotFoundError
 from core.dto import GroupedCount
-
 
 class SessionService:
     """
@@ -155,3 +155,69 @@ class SessionService:
         Delete a session by run_id. Returns True if deleted, False if not found.
         """
         return self._manager.delete_session(run_id)
+
+# ---------- System-wide methods (for admin analytics) ----------
+
+    def count_system(self, since: Optional[datetime] = None) -> int:
+        """
+        Count all sessions system-wide (no user_id constraint).
+        
+        Args:
+            since: Optional cutoff datetime - only count sessions after this time.
+                   None means count all sessions.
+        """
+        return self._manager.count_system(since)
+
+    def get_distinct_users(self, since: Optional[datetime] = None) -> List[str]:
+        """
+        Get distinct user IDs from all sessions.
+        
+        Args:
+            since: Optional cutoff datetime - only include sessions after this time.
+                   None means include all sessions.
+        """
+        return self._manager.get_distinct_users(since)
+
+    def group_count_system(
+        self,
+        group_by: List[str],
+        since: Optional[datetime] = None
+    ) -> List[GroupedCount]:
+        """
+        Group all sessions by specified fields and return counts (system-wide).
+        No user_id constraint - for admin analytics.
+        
+        Args:
+            group_by: List of field names to group by
+            since: Optional cutoff datetime - only include sessions after this time.
+                   None means include all sessions.
+        """
+        return self._manager.group_count_system(group_by, since)
+
+    def get_session_activity_series(
+        self,
+        since: Optional[datetime] = None
+    ) -> List[TimeSeriesPoint]:
+        """
+        Get session activity data grouped by appropriate time intervals.
+        For admin analytics dashboards.
+        
+        Args:
+            since: Optional cutoff datetime. None means all-time data.
+        """
+        return self._manager.get_session_activity_series(since)
+
+    def get_system_analytics(
+        self,
+        since: Optional[datetime] = None
+    ) -> SystemAnalyticsData:
+        """
+        Get aggregated system analytics data for admin dashboards.
+        
+        Returns grouped session data for building user activity
+        and top blueprints views.
+        
+        Args:
+            since: Optional cutoff datetime. None means all-time data.
+        """
+        return self._manager.get_system_analytics(since)

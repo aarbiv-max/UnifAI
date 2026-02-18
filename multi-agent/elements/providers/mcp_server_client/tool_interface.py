@@ -9,7 +9,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from mcp.types import Tool, CallToolResult
 
-from .transport_manager import TransportManager, McpConnectionError
+from .transport import BaseTransportManager, McpConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +26,12 @@ class ToolInterface:
     while maintaining clean, readable method calls.
     """
     
-    def __init__(self, transport: TransportManager):
+    def __init__(self, transport: BaseTransportManager):
         """
         Initialize the tool interface with a transport manager.
         
         Args:
-            transport: TransportManager instance for server communication
+            transport: BaseTransportManager instance for server communication
         """
         self.transport = transport
     

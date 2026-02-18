@@ -49,7 +49,9 @@ spec:
           {{- end }}
           envFrom:
             - configMapRef:
-                name: multiagent-be-configmap     
+                name: multiagent-be-configmap
+            - configMapRef:
+                name: multiagent-be-security
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

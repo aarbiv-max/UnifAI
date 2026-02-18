@@ -11,6 +11,6 @@ class AppConfig(SharedConfig):
     hostname: str = "0.0.0.0"
     port: str = "8002"
     version: str = "1.0.0"
-
+    admin_allowed_users: list = []  # Populate with user_ids (usernames) to grant admin access
     # Engine
     engine_name: str = "langgraph"

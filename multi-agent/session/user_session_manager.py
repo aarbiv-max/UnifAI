@@ -1,4 +1,5 @@
-from typing import List, Mapping, Any, Dict
+from datetime import datetime
+from typing import List, Mapping, Any, Dict, Optional
 from session.repository.repository import SessionRepository
 from session.workflow_session_factory import WorkflowSessionFactory
 from session.workflow_session import WorkflowSession
@@ -7,7 +8,7 @@ from core.dto import GroupedCount
 from graph.state.graph_state import GraphState
 from session.status import SessionStatus
 from blueprints.service import BlueprintService
-from session.models import SessionMeta
+from session.models import SessionMeta, TimeSeriesPoint, SystemAnalyticsData
 from .exceptions import BlueprintNotFoundError
 
 
@@ -134,3 +135,35 @@ class UserSessionManager:
             List of GroupedCount DTOs with grouped field values and count.
         """
         return self._repo.group_count(user_id, group_by, filter)
+
+# ---------- Statistics (system-wide for admin analytics) ----------
+
+    def count_system(self, since: Optional[datetime] = None) -> int:
+        """Count all sessions system-wide (no user_id constraint)."""
+        return self._repo.count_system(since)
+
+    def get_distinct_users(self, since: Optional[datetime] = None) -> List[str]:
+        """Get distinct user IDs from all sessions."""
+        return self._repo.get_distinct_users(since)
+
+    def group_count_system(
+        self,
+        group_by: List[str],
+        since: Optional[datetime] = None
+    ) -> List[GroupedCount]:
+        """Group all sessions by specified fields and return counts (system-wide)."""
+        return self._repo.group_count_system(group_by, since)
+
+    def get_session_activity_series(
+        self,
+        since: Optional[datetime] = None
+    ) -> List[TimeSeriesPoint]:
+        """Get session activity data grouped by appropriate time intervals."""
+        return self._repo.get_session_activity_series(since)
+
+    def get_system_analytics(
+        self,
+        since: Optional[datetime] = None
+    ) -> SystemAnalyticsData:
+        """Get aggregated system analytics data for admin dashboards."""
+        return self._repo.get_system_analytics(since)

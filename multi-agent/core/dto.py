@@ -2,7 +2,7 @@
 Database-agnostic DTOs for repository operations.
 These models abstract away database-specific formats from business logic.
 """
-from typing import Dict, Any, List
+from typing import Dict, Any
 from pydantic import BaseModel, Field
 
 

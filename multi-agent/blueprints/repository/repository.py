@@ -38,6 +38,10 @@ class BlueprintRepository(ABC):
     def exists(self, blueprint_id: str) -> bool:
         """Return `True` if that ID is present in the store."""
 
+    @abstractmethod
+    def load_many(self, blueprint_ids: List[str]) -> List[BlueprintDocument]:
+        """Load multiple blueprint documents by their IDs in a single operation."""
+
     # ────────────────────────────── Listings / Stats ────────────────────
     @abstractmethod
     def list_ids(

@@ -43,7 +43,8 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
             return McpProvider.create_sync(
                 sse_endpoint=cfg.sse_endpoint,
                 tool_names=cfg.tool_names,
-                headers=headers
+                headers=headers,
+                transport_type=cfg.transport_type,
             )
         except Exception as e:
             raise PluginConfigurationError(
@@ -66,7 +67,8 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
             return await McpProvider.create_async(
                 sse_endpoint=cfg.sse_endpoint,
                 tool_names=cfg.tool_names,
-                headers=headers
+                headers=headers,
+                transport_type=cfg.transport_type,
             )
         except Exception as e:
             raise PluginConfigurationError(

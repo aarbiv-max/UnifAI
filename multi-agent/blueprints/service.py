@@ -71,6 +71,10 @@ class BlueprintService:
     def delete(self, blueprint_id: str) -> bool:
         return self._repo.delete(blueprint_id)
 
+    def load_many(self, blueprint_ids: List[str]) -> List[BlueprintDocument]:
+        """Load multiple blueprint documents by their IDs in a single operation."""
+        return self._repo.load_many(blueprint_ids)
+
     # ────────── Bulk listing / counting (optionally per user) ──────────
     def list_ids(self, *, user_id: str | None = None, **pg) -> List[str]:
         return self._repo.list_ids(user_id=user_id, **pg)
