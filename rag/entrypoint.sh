@@ -14,8 +14,9 @@ case "$ROLE" in
     ;;
     
   celery)
-    echo "🔧 Starting Slack Celery worker with tasks concurrently : $CELERY_WORKER"
-    exec venv/bin/celery -A infrastructure.celery.app worker -c $CELERY_WORKER --pool=solo --loglevel=info -Q $CELERY_QUEUES -n data_sources
+    CELERY_POOL="${CELERY_POOL:-threads}"
+    echo "🔧 Starting Celery worker: concurrency=$CELERY_WORKER, pool=$CELERY_POOL, queues=$CELERY_QUEUES"
+    exec venv/bin/celery -A infrastructure.celery.app worker -c $CELERY_WORKER --pool=$CELERY_POOL --loglevel=info -Q $CELERY_QUEUES -n data_sources
     ;;
 
   debug)
