@@ -23,6 +23,7 @@ class SlackConnector(DataConnector):
         self,
         config_manager: SlackConfigManager,
         channel_repo: SlackChannelRepository,
+        restriction_checker: ChannelRestrictionChecker,
         project_id: Optional[str] = None,
     ):
         """
@@ -31,6 +32,7 @@ class SlackConnector(DataConnector):
         Args:
             config_manager: Configuration manager for Slack
             channel_repo: Repository for Slack channel persistence
+            restriction_checker: Checker for channel restriction rules
             project_id: Optional project ID to use, defaults to the default project
         """
         super().__init__(config_manager)
@@ -49,8 +51,9 @@ class SlackConnector(DataConnector):
         if not self._project_id:
             raise ValueError("No project ID provided and no default project set")
         
-        # Injected repository
+        # Injected dependencies
         self._channel_repo = channel_repo
+        self._restriction_checker = restriction_checker
         
         # Get tokens for the project
         try:
@@ -205,6 +208,9 @@ class SlackConnector(DataConnector):
         cursor = None
         api_call_count = 0
         
+        # Refresh restriction rules from admin config before the batch
+        self._restriction_checker.refresh()
+        
         # Clear existing channels for this project to avoid duplicates
         self._channel_repo.delete_by_project(self._project_id)
         
@@ -225,7 +231,7 @@ class SlackConnector(DataConnector):
             batch_channels: List[SlackChannel] = []
             for channel in response.get('channels', []):
                 # AIA-Issue-011: Filter out restricted channels before saving
-                if ChannelRestrictionChecker.is_restricted(
+                if self._restriction_checker.is_restricted(
                     channel_name=channel.get("name", ""),
                     is_private=channel.get("is_private", False),
                     is_ext_shared=channel.get("is_ext_shared", False),
@@ -338,6 +344,9 @@ class SlackConnector(DataConnector):
         Returns:
             List of dictionaries containing channel_id, channel_name, and is_private
         """
+        # Refresh restriction rules from admin config before the fallback batch
+        self._restriction_checker.refresh()
+
         channels: List[SlackChannel] = []
         cursor = None
         api_call_count = 0
@@ -359,7 +368,7 @@ class SlackConnector(DataConnector):
             # Process channels from current page
             for channel in response.get('channels', []):
                 # AIA-Issue-011: Filter out restricted channels
-                if ChannelRestrictionChecker.is_restricted(
+                if self._restriction_checker.is_restricted(
                     channel_name=channel.get("name", ""),
                     is_private=channel.get("is_private", False),
                     is_ext_shared=channel.get("is_ext_shared", False),

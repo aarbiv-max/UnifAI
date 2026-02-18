@@ -3,6 +3,10 @@
 This module checks if Slack channels should be restricted from being
 saved/ingested into UnifAI based on AIA compliance requirements.
 
+Restriction rules (prefixes, suffixes, keywords) are fetched from
+the platform-backend via HTTP.  The backend owns the defaults —
+RAG has no hardcoded fallback values.
+
 Restricted channel categories:
 - ERG (Employee Resource Group) channels
 - Events channels
@@ -10,40 +14,62 @@ Restricted channel categories:
 - Channels with external members
 - Private/DM channels
 """
-from typing import List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from shared.logger import logger
 
+_EMPTY_RULES: Dict[str, List[str]] = {
+    "restricted_prefixes": [],
+    "restricted_suffixes": [],
+    "restricted_keywords": [],
+}
+
 
 class ChannelRestrictionChecker:
-    """Checks if Slack channels are restricted per AIA-Issue-011."""
+    """Checks if Slack channels are restricted per AIA-Issue-011.
 
-    RESTRICTED_PREFIXES: List[str] = [
-        "erg-",
-        "event-",
-        "events-",
-        "hr-",
-        "people-",
-        "confidential-",
-    ]
+    Rules are fetched from the platform-backend via the supplied
+    ``rules_reader`` callable.  Call ``refresh()`` before a batch
+    operation (e.g. channel fetch) so the checker picks up any
+    admin changes since last refresh.
+    """
 
-    RESTRICTED_SUFFIXES: List[str] = [
-        "-erg",
-        "-event",
-        "-events",
-        "-hr",
-        "-confidential",
-    ]
+    def __init__(self, rules_reader: Callable[[], Optional[Dict[str, Any]]]):
+        """
+        Args:
+            rules_reader: A callable that returns the rules dict
+                          (keys: restricted_prefixes, restricted_suffixes,
+                          restricted_keywords) or None if the backend
+                          is unreachable.
+        """
+        self._rules_reader = rules_reader
+        self._rules: Dict[str, List[str]] = dict(_EMPTY_RULES)
+        self.refresh()
 
-    RESTRICTED_KEYWORDS: List[str] = [
-        "human-resources",
-        "employee-relations",
-        "performance-review",
-    ]
+    def refresh(self) -> None:
+        """Reload rules from the platform-backend."""
+        try:
+            result = self._rules_reader()
+            if result:
+                self._rules = {
+                    "restricted_prefixes": result.get("restricted_prefixes", []),
+                    "restricted_suffixes": result.get("restricted_suffixes", []),
+                    "restricted_keywords": result.get("restricted_keywords", []),
+                }
+                logger.info("Channel restriction rules loaded from platform-backend")
+            else:
+                logger.warning(
+                    "Platform-backend returned no restriction rules; "
+                    "no channels will be restricted by name rules"
+                )
+                self._rules = dict(_EMPTY_RULES)
+        except Exception:
+            logger.exception("Failed to load restriction rules; keeping previous rules")
 
-    @classmethod
+    # ────────────────────────── public API ────────────────────────────────
+
     def is_restricted(
-        cls,
+        self,
         channel_name: str,
         is_private: bool = False,
         is_ext_shared: bool = False,
@@ -51,35 +77,24 @@ class ChannelRestrictionChecker:
         """
         Check if a channel is restricted from being saved/ingested.
 
-        Args:
-            channel_name: The name of the channel
-            is_private: Whether it's a private channel
-            is_ext_shared: Whether the channel has external members
-
         Returns:
             True if channel is RESTRICTED (should NOT be saved)
             False if channel is ALLOWED (can be saved)
         """
-        reason = cls.get_restriction_reason(channel_name, is_private, is_ext_shared)
+        reason = self.get_restriction_reason(channel_name, is_private, is_ext_shared)
         if reason:
             logger.info(f"Channel '{channel_name}' is restricted: {reason}")
             return True
         return False
 
-    @classmethod
     def get_restriction_reason(
-        cls,
+        self,
         channel_name: str,
         is_private: bool = False,
         is_ext_shared: bool = False,
     ) -> Optional[str]:
         """
         Get the reason why a channel is restricted, if any.
-
-        Args:
-            channel_name: The name of the channel
-            is_private: Whether it's a private channel
-            is_ext_shared: Whether the channel has external members
 
         Returns:
             Restriction reason string if restricted, None if allowed
@@ -95,17 +110,17 @@ class ChannelRestrictionChecker:
             return "Channels with external members are not allowed"
 
         # Rule 3: Block by prefix
-        for prefix in cls.RESTRICTED_PREFIXES:
+        for prefix in self._rules["restricted_prefixes"]:
             if name.startswith(prefix):
                 return f"Channel name starts with restricted prefix '{prefix}'"
 
         # Rule 4: Block by suffix
-        for suffix in cls.RESTRICTED_SUFFIXES:
+        for suffix in self._rules["restricted_suffixes"]:
             if name.endswith(suffix):
                 return f"Channel name ends with restricted suffix '{suffix}'"
 
         # Rule 5: Block by keyword
-        for keyword in cls.RESTRICTED_KEYWORDS:
+        for keyword in self._rules["restricted_keywords"]:
             if keyword in name:
                 return f"Channel name contains restricted keyword '{keyword}'"
 

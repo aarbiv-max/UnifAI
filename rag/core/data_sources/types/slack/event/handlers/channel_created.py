@@ -19,15 +19,22 @@ class ChannelCreatedEventHandler(SlackEventHandler):
     
     event_type = "channel_created"
     
-    def __init__(self, channel_repo: SlackChannelRepository, project_id: str):
+    def __init__(
+        self,
+        channel_repo: SlackChannelRepository,
+        restriction_checker: ChannelRestrictionChecker,
+        project_id: str,
+    ):
         """
         Initialize the handler with injected dependencies.
         
         Args:
             channel_repo: Repository for Slack channel persistence
+            restriction_checker: Checker for channel restriction rules
             project_id: Project ID to associate with channels
         """
         self._channel_repo = channel_repo
+        self._restriction_checker = restriction_checker
         self._project_id = project_id
     
     def handle(self, payload: Dict[str, Any]) -> None:
@@ -54,7 +61,9 @@ class ChannelCreatedEventHandler(SlackEventHandler):
                 return
 
             # AIA-Issue-011: Filter out restricted channels before saving
-            if ChannelRestrictionChecker.is_restricted(
+            # Refresh rules to pick up any recent admin changes
+            self._restriction_checker.refresh()
+            if self._restriction_checker.is_restricted(
                 channel_name=channel_info.get("name", ""),
                 is_private=channel_info.get("is_private", False),
                 is_ext_shared=channel_info.get("is_ext_shared", False),

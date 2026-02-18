@@ -507,7 +507,6 @@ const AddSourceSection = forwardRef<AddSourceSectionHandle, AddSourceSectionProp
               {filteredChannels.map(c => {
                 const isEmbedded = isChannelEmbedded(c);
                 const uniqueId = getChannelUniqueId(c);
-                const notMember = c.is_app_member === false || c.is_app_member === null;
                 return (
                   <div 
                     key={uniqueId} 

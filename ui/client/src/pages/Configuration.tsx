@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { FaUsers, FaKey, FaRobot, FaCog, FaLock, FaInfoCircle } from "react-icons/fa";
+import { FaUsers, FaKey, FaRobot, FaCog, FaLock, FaInfoCircle, FaShieldAlt } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip } from "@/components/ui/tooltip";
+import DataSourceRulesTab from "@/features/configuration/DataSourceRulesTab";
 
 export default function Configuration() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -43,6 +44,10 @@ export default function Configuration() {
                 <TabsTrigger value="embedding" className="data-[state=active]:bg-primary data-[state=active]:text-white">
                   <FaRobot className="mr-2" />
                   Embedding Settings
+                </TabsTrigger>
+                <TabsTrigger value="data-rules" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+                  <FaShieldAlt className="mr-2" />
+                  Data Source Rules
                 </TabsTrigger>
               </TabsList>
               
@@ -584,6 +589,10 @@ export default function Configuration() {
                     </CardContent>
                   </Card>
                 </div>
+              </TabsContent>
+              
+              <TabsContent value="data-rules">
+                <DataSourceRulesTab />
               </TabsContent>
             </Tabs>
           </motion.div>

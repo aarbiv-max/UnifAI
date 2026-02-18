@@ -119,6 +119,23 @@ def terms_approval_repository():
     return MongoTermsApprovalRepository(users_db()["terms_user_approval"])
 
 
+@lru_cache(maxsize=1)
+def backend_client():
+    """HTTP client for the platform-backend service."""
+    from infrastructure.http.backend_client import BackendClient
+    from config.app_config import AppConfig
+    return BackendClient(base_url=AppConfig.get_instance().backend_url)
+
+
+@lru_cache(maxsize=1)
+def channel_restriction_checker():
+    """Channel restriction checker — loads rules from platform-backend on refresh()."""
+    from core.data_sources.types.slack.domain.channel.restriction_checker import ChannelRestrictionChecker
+    return ChannelRestrictionChecker(
+        rules_reader=backend_client().get_slack_channel_restrictions,
+    )
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PROCESSORS (Domain layer - stateless data transformers)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -194,6 +211,7 @@ def slack_connector(project_id: str):
     return SlackConnector(
         config_manager=slack_config_manager(),
         channel_repo=slack_channel_repository(),
+        restriction_checker=channel_restriction_checker(),
         project_id=project_id,
     )
 
@@ -409,6 +427,7 @@ def channel_created_handler():
     from core.data_sources.types.slack.event.handlers.channel_created import ChannelCreatedEventHandler
     return ChannelCreatedEventHandler(
         channel_repo=slack_channel_repository(),
+        restriction_checker=channel_restriction_checker(),
         project_id="example-project",  # TODO: Get from config
     )
 
@@ -576,6 +595,9 @@ def clear_all_caches():
     users_db.cache_clear()
     file_storage.cache_clear()
     umami_client.cache_clear()
+    # Platform backend
+    backend_client.cache_clear()
+    channel_restriction_checker.cache_clear()
     # Repositories
     pipeline_repository.cache_clear()
     data_source_repository.cache_clear()

@@ -43,7 +43,13 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api2/, '/api'), // This rewrites /api2 to nothing
         // secure: false, // Only needed if this target is HTTPS and you have SSL issues
       },
-      // You can add more proxies here if needed
+      // Proxy for api4 — platform-backend (admin config, cross-cutting concerns)
+      '/api4': {
+        target: process.env.BACKEND_HOST,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api4/, '/api'), // This rewrites /api4 to /api
+        secure: false,
+      },
     }
   },
 

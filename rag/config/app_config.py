@@ -28,6 +28,8 @@ class AppConfig(SharedConfig):
     default_slack_bot_token: str = ""
     default_slack_user_token: str = ""
 
+    backend_url: str = "http://localhost:8003"
+
     # Flask Configuration
     frontend_url: str = "http://localhost:5000"
     upload_folder: str = "/app/shared"
