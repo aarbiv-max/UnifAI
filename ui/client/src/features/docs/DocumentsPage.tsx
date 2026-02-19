@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { FaTh, FaList } from "react-icons/fa";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Document } from "@/types";
 import { UploadTab } from "./UploadTab";
 import Sidebar from "@/components/layout/Sidebar";
@@ -50,7 +50,7 @@ export default function Documents() {
    * Build a human-readable message describing which services are unavailable.
    * @param detailed - If true, appends the upload-disabled notice.
    */
-  const getServiceUnavailableMessage = (detailed: boolean = false): string => {
+  const getServiceUnavailableMessage = useCallback((detailed: boolean = false): string => {
     const suffix = detailed ? ' Document upload is temporarily disabled.' : '';
     if (docling?.status === 'unhealthy' && embedding?.status === 'unhealthy') {
       return `Document processing and embedding services are currently unavailable.${suffix}`;
@@ -62,7 +62,7 @@ export default function Documents() {
       return `Embedding service is currently unavailable.${suffix}`;
     }
     return `Required services are currently unavailable.${suffix}`;
-  };
+  }, [docling, embedding]);
 
   // Track previous uploadEnabled state to detect changes
   const prevUploadEnabled = useRef<boolean | null>(null);
@@ -90,13 +90,12 @@ export default function Documents() {
     }
     
     prevUploadEnabled.current = uploadEnabled;
-  }, [uploadEnabled, healthLoading, docling, embedding, toast]);
+  }, [uploadEnabled, healthLoading, getServiceUnavailableMessage, toast]);
 
   const {
     bulkDeleteConfirm,
     setBulkDeleteConfirm,
     bulkDeleteLoading,
-    handleDeleteSelected: handleDeleteSelectedBase,
     confirmBulkDelete: confirmBulkDeleteBase,
   } = useBulkDelete({
     deleteFunction: deleteDocs,
