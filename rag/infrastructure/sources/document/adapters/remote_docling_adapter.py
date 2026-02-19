@@ -80,7 +80,10 @@ class RemoteDoclingAdapter(DocumentConverterPort):
     
     def test_connection(self) -> bool:
         """Test if remote docling service is available."""
-        return self._service.test_connection()
+        try:
+            return self._service.test_connection()
+        except Exception:
+            return False
     
     def _build_metadata(self, response, file_path: str = None) -> Dict[str, Any]:
         """Build metadata from response."""

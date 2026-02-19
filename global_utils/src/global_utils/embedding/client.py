@@ -100,7 +100,9 @@ class EmbeddingClient:
             raise EmbeddingTimeoutError(f"Request timed out: {e}")
         except httpx.HTTPStatusError as e:
             raise EmbeddingConnectionError(f"HTTP error {e.response.status_code}: {e}")
-    
+        except httpx.TransportError as e:
+            raise EmbeddingConnectionError(f"Transport error communicating with embedding service: {e}")
+
     def health_check(self) -> bool:
         """
         Check if the embedding service is healthy.

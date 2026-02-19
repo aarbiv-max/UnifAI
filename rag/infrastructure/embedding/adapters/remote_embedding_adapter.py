@@ -71,4 +71,7 @@ class RemoteEmbeddingAdapter(EmbeddingPort):
     
     def test_connection(self) -> bool:
         """Test if remote embedding service is available."""
-        return self._service.test_connection()
+        try:
+            return self._service.test_connection()
+        except Exception:
+            return False

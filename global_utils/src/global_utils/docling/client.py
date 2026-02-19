@@ -109,7 +109,9 @@ class DoclingClient:
             raise DoclingTimeoutError(f"Request timed out: {e}")
         except httpx.HTTPStatusError as e:
             raise DoclingConnectionError(f"HTTP error {e.response.status_code}: {e}")
-    
+        except httpx.TransportError as e:
+            raise DoclingConnectionError(f"Transport error communicating with docling service: {e}")
+
     def post_url(
         self, 
         document_url: str, 
@@ -161,7 +163,9 @@ class DoclingClient:
             raise DoclingTimeoutError(f"Request timed out: {e}")
         except httpx.HTTPStatusError as e:
             raise DoclingConnectionError(f"HTTP error {e.response.status_code}: {e}")
-    
+        except httpx.TransportError as e:
+            raise DoclingConnectionError(f"Transport error communicating with docling service: {e}")
+
     def health_check(self) -> bool:
         """
         Check if the docling service is healthy.

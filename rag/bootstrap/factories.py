@@ -1,7 +1,7 @@
 """Factory classes for creating adapter instances."""
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from core.vector.domain.embedder import EmbeddingGenerator
 from core.vector.domain.repository import VectorRepository
@@ -64,8 +64,13 @@ class DocumentConnectorFactory:
         if connector_type == "local":
             converter = DocumentConverterFactory.create_local()
         elif connector_type == "remote":
+            service_url = config.get("service_url")
+            if not service_url:
+                raise ValueError(
+                    "'service_url' is required for remote document connector type"
+                )
             converter = DocumentConverterFactory.create_remote(
-                base_url=config.get("service_url"),
+                base_url=service_url,
                 timeout=config.get("timeout", 300),
             )
         else:
@@ -83,7 +88,7 @@ class EmbeddingPortFactory:
     @staticmethod
     def create_local(
         model_name: str = "all-MiniLM-L6-v2",
-        device_name: str = None,
+        device_name: Optional[str] = None,
     ):
         """Create a local embedding adapter."""
         import torch
@@ -143,8 +148,13 @@ class EmbeddingGeneratorFactory:
                 device_name=config.get("device"),
             )
         elif generator_type == "remote":
+            service_url = config.get("service_url")
+            if not service_url:
+                raise ValueError(
+                    "'service_url' is required for remote embedding generator type"
+                )
             port = EmbeddingPortFactory.create_remote(
-                base_url=config.get("service_url"),
+                base_url=service_url,
                 timeout=config.get("timeout", 60),
                 model_name=config.get("model_name", "sentence-transformers/all-MiniLM-L6-v2"),
                 embedding_dim=config.get("embedding_dim", 384),

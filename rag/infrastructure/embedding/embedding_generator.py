@@ -42,9 +42,8 @@ class DefaultEmbeddingGenerator(EmbeddingGenerator):
         result_chunks = []
         
         for batch in self._batch_generator(chunks):
-            texts = [chunk["text"] for chunk in batch]
-            
             try:
+                texts = [chunk["text"] for chunk in batch]
                 embeddings = self._port.encode_texts(texts)
                 
                 for i, chunk in enumerate(batch):

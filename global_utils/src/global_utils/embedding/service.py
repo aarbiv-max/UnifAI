@@ -81,8 +81,9 @@ class EmbeddingService:
             embeddings = response.extract_embeddings()
             
             if len(embeddings) != len(texts):
-                logger.warning(
-                    f"Expected {len(texts)} embeddings but got {len(embeddings)}"
+                raise EmbeddingProcessingError(
+                    f"Expected {len(texts)} embeddings but got {len(embeddings)}: "
+                    "embeddings cannot be safely aligned to their source texts"
                 )
             
             logger.debug(f"Generated {len(embeddings)} embeddings")

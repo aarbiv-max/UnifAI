@@ -1,7 +1,7 @@
 """Local Embedding Adapter - uses SentenceTransformers directly."""
 
 import logging
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -22,18 +22,24 @@ class LocalEmbeddingAdapter(EmbeddingPort):
     def __init__(
         self,
         model_name: str = "all-MiniLM-L6-v2",
-        device: str = None,
+        device: Optional[str] = None,
     ):
         """
         Initialize with a SentenceTransformer model.
-        
+
         Args:
             model_name: Name of the SentenceTransformer model
-            device: Device to run on ("cuda", "cpu", or None for auto)
+            device: Device to run on ("cuda", "cpu", or None for auto-detect)
         """
         logger.info(f"Loading SentenceTransformer model: {model_name}")
         self._model = SentenceTransformer(model_name, device=device)
-        self._embedding_dim = self._model.get_sentence_embedding_dimension()
+        dim = self._model.get_sentence_embedding_dimension()
+        if dim is None:
+            raise ValueError(
+                f"Model '{model_name}' does not report an embedding dimension. "
+                "Ensure the model has a pooling layer that exposes its output size."
+            )
+        self._embedding_dim: int = dim
         logger.info(
             f"LocalEmbeddingAdapter initialized: model={model_name}, "
             f"dim={self._embedding_dim}"
