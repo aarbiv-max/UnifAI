@@ -189,24 +189,22 @@ def slack_events():
 @slack_bp.route("/clean-restricted-channels", methods=["POST"])
 def clean_restricted_channels():
     """
-    Reconcile channel restrictions after rules change.
-
-    Newly restricted channels are soft-deleted (``restricted=True``)
-    and their embeddings removed.  Previously restricted channels
-    whose rules no longer match are restored to the visible list.
+    Enqueue an async reconciliation of channel restrictions.
 
     Called by the backend ActionDispatcher when the
     slack_channel_restrictions config section is updated.
+    Returns 202 immediately; the actual work runs in a Celery worker.
     """
     try:
-        result = slack_channel_service().reconcile_restrictions()
+        from infrastructure.celery.workers.slack_restriction_tasks import reconcile_restrictions_task
+        task = reconcile_restrictions_task.apply_async(queue="slack_events_queue")
         return jsonify({
-            "status": "ok",
-            "newly_restricted": result.newly_restricted,
-            "newly_unrestricted": result.newly_unrestricted,
-        }), 200
+            "status": "accepted",
+            "task_id": task.id,
+            "message": "Reconciliation enqueued",
+        }), 202
 
     except Exception as e:
-        logger.error(f"Failed to reconcile channel restrictions: {e}")
+        logger.error(f"Failed to enqueue channel reconciliation: {e}")
         return jsonify({"error": str(e)}), 500
 

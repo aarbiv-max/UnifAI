@@ -13,6 +13,7 @@ celery = CeleryApp(
         "infrastructure.celery.workers.pipeline_tasks",
         "infrastructure.celery.workers.slack_event_tasks",
         "infrastructure.celery.workers.slack_sync_tasks",
+        "infrastructure.celery.workers.slack_restriction_tasks",
     ]
 ).app
 
