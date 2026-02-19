@@ -6,7 +6,7 @@ from yarl import URL
 from mcp.types import Tool, CallToolResult, CreateMessageRequestParams, CreateMessageResult, TextContent
 import anyio
 
-from .transport_manager import TransportManager, McpConnectionError
+from .transport import TransportFactory, McpConnectionError, McpTransportType, BaseTransportManager
 from .tool_interface import ToolInterface
 
 logger = logging.getLogger(__name__)
@@ -31,15 +31,19 @@ class McpServerClient:
     
     Attributes:
         tools: ToolInterface for clean tool operations
-        transport: TransportManager for connection handling
+        transport: BaseTransportManager for connection handling
         sse_endpoint: Server endpoint URL
         headers: Optional HTTP headers for authentication or custom metadata
+        transport_type: The transport protocol used for this connection
     """
+
+    _transport_factory = TransportFactory()
 
     def __init__(
         self,
         sse_endpoint: HttpUrl,
-        headers: Optional[Dict[str, str]] = None
+        headers: Optional[Dict[str, str]] = None,
+        transport_type: McpTransportType = McpTransportType.STREAMABLE_HTTP,
     ):
         """
         Initialize MCP server client.
@@ -51,15 +55,18 @@ class McpServerClient:
         Args:
             sse_endpoint: HTTP(S) URL of the MCP server endpoint
             headers: Optional HTTP headers for authentication or custom metadata
+            transport_type: Transport protocol to use (SSE or Streamable HTTP)
         """
         self.sse_endpoint = str(sse_endpoint)
         self.headers = headers or {}
+        self.transport_type = transport_type
 
-        # Initialize transport layer for server communication
-        self.transport = TransportManager(
-            self.sse_endpoint,
+        # Initialize transport layer via factory
+        self.transport: BaseTransportManager = self._transport_factory.create(
+            transport_type=self.transport_type,
+            endpoint=self.sse_endpoint,
             sampling_callback=self._default_sampling_callback,
-            headers=self.headers
+            headers=self.headers,
         )
 
         # Initialize clean tool interface
@@ -245,5 +252,6 @@ class McpServerClient:
         """
         return McpServerClient(
             sse_endpoint=self.sse_endpoint,
-            headers=self.headers
+            headers=self.headers,
+            transport_type=self.transport_type,
         )

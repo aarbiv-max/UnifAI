@@ -3,20 +3,28 @@ from .identifiers import Identifier
 from pydantic import Field, HttpUrl
 from elements.providers.common.base_config import ProviderBaseConfig
 from core.field_hints import ActionHint, HintType, SelectionType, SecretHint
+from .transport.enums import McpTransportType
 
 
 class McpProviderConfig(ProviderBaseConfig):
     """
-    Connects to a Model-Context-Protocol service via HTTP Streamable transport.
+    Connects to a Model-Context-Protocol service via SSE or Streamable HTTP transport.
     """
     type: Literal[Identifier.TYPE] = Identifier.TYPE
+    transport_type: McpTransportType = Field(
+        default=McpTransportType.STREAMABLE_HTTP,
+        description="Transport protocol to use for MCP server communication (sse or streamable http)"
+    )
     sse_endpoint: HttpUrl = Field(
-        description="Streamable HTTP endpoint for MCP server communication",
+        description="MCP server endpoint URL",
         json_schema_extra=ActionHint(
             action_uid="mcp.validate_connection",
             hint_type=HintType.VALIDATE,
             field_mapping="is_reachable",
-            dependencies={"bearer_token": "bearer_token"}
+            dependencies={
+                "bearer_token": "bearer_token",
+                "transport_type": "transport_type",
+            }
         ).to_hints()
     )
     bearer_token: Optional[str] = Field(
@@ -33,6 +41,10 @@ class McpProviderConfig(ProviderBaseConfig):
             selection_type=SelectionType.MANUAL,
             field_mapping="tool_names",
             multi_select=True,
-            dependencies={"sse_endpoint": "sse_endpoint", "bearer_token": "bearer_token"}
+            dependencies={
+                "sse_endpoint": "sse_endpoint",
+                "bearer_token": "bearer_token",
+                "transport_type": "transport_type",
+            }
         ).to_hints()
     )

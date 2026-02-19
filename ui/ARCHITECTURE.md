@@ -47,8 +47,11 @@ UnifAI UI is a modern React-based web application focused on **Agentic AI workfl
 - **React Context API** - Global contexts (Auth, Theme, Notifications, Project, Shared)
 
 ### Graph & Visualization
-- **ReactFlow 11.11.4** - Flow/graph visualization library for workflow builder
+- **ReactFlow 11.11.4** - Flow/graph visualization library for the **edit-mode** workflow builder (`NewGraph.tsx`, `use-graph-logic.ts`)
+- **JointJS (@joint/core + @joint/layout-directed-graph)** - SVG graph rendering library for **read-only / view-mode** workflow display (`GraphDisplay.tsx`, `useJointGraph` hook). Chosen for its lightweight rendering pipeline and auto-layout support when interactive editing is not required.
 - **Recharts 2.15.2** - Chart library for dashboard visualizations
+
+> **Note – dual graph library strategy:** ReactFlow is used wherever the user edits the graph (drag-and-drop nodes, connect edges, etc.). JointJS is used for the read-only display of saved blueprints (e.g. execution panel, overview modal) because it offers simple imperative control over layout and SVG injection without React node overhead. This split is intentional; both libraries must be maintained.
 
 ### Data Handling
 - **Axios 1.9.0** - HTTP client

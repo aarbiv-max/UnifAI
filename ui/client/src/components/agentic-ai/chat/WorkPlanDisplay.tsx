@@ -28,6 +28,7 @@ interface WorkPlanItemProps {
   action: string;
   isExpanded: boolean;
   onToggleExpansion: () => void;
+  displayName?: string;
 }
 
 
@@ -285,7 +286,8 @@ const WorkPlanItem: React.FC<WorkPlanItemProps> = memo(({
   planId, 
   action, 
   isExpanded, 
-  onToggleExpansion 
+  onToggleExpansion,
+  displayName 
 }) => {
   const workItems = Object.values(workPlan.items);
   const completedItems = workItems.filter(item => item.status === 'done').length;
@@ -318,7 +320,7 @@ const WorkPlanItem: React.FC<WorkPlanItemProps> = memo(({
             )}
             <div>
               <h3 className="text-sm font-semibold text-gray-100">
-                Orchestrator Plan
+                Orchestrator Plan{displayName ? ` (${displayName})` : ''}
               </h3>
               <p className="text-xs text-gray-400 mt-1 line-clamp-2">
                 {workPlan.summary}
@@ -439,6 +441,7 @@ export const WorkPlanDisplay: React.FC<WorkPlanDisplayProps> = memo(({ workPlanS
       action={workPlanSnapshot.action}
       isExpanded={workPlanSnapshot.isExpanded}
       onToggleExpansion={handleToggleExpansion}
+      displayName={workPlanSnapshot.display_name}
     />
   );
 }, (prevProps, nextProps) => {

@@ -86,6 +86,11 @@ export const WorkflowBannerMessages = {
   validationFailed: {
     variant: "error" as BannerVariant,
     title: "Workflow Unavailable",
+    message: "This workflow failed validation and cannot be used. Please fix the issues before continuing.",
+  },
+  validationFailedShared: {
+    variant: "error" as BannerVariant,
+    title: "Workflow Unavailable",
     message: "This workflow failed validation and cannot be used. Please contact the workflow owner.",
   },
   validating: {

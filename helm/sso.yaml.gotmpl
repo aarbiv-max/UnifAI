@@ -16,3 +16,9 @@ releases:
     values:
       - {{- toYaml .Values | nindent 8 }}
       - ./values/global-config.yaml
+    hooks:
+      - events: ["presync"]
+        showlogs: true
+        command: bash
+        args:
+        - "./scripts/sso-presync.sh"

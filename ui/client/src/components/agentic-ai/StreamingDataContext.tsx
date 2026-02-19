@@ -8,7 +8,7 @@ type StreamingContextType = {
   clearStream: () => void;
 };
 
-const StreamingDataContext = createContext<StreamingContextType | null>(null);
+export const StreamingDataContext = createContext<StreamingContextType | null>(null);
 
 export const StreamingDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const nodeListRef = useRef<Map<string, NodeEntry>>(new Map());

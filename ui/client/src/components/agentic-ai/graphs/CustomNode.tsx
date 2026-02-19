@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Handle, Position } from "reactflow";
 import { X, GitBranch, Trash2 } from "lucide-react";
 import { CustomNodeData } from "@/types/graph";
 import InnerRefElement from "./InnerRefElement";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "@/contexts/ThemeContext";
+import { deriveThemeColors } from "@/lib/colorUtils";
 
 interface CustomNodeProps {
   id: string;
@@ -13,6 +15,21 @@ interface CustomNodeProps {
 }
 
 const CustomNode: React.FC<CustomNodeProps> = ({ id, data, selected }) => {
+  const { primaryHex } = useTheme();
+
+  // Derive condition colors from the shared theme helper
+  const conditionColors = useMemo(() => {
+    const t = deriveThemeColors(primaryHex);
+    return {
+      text: t.conditionAccent,
+      iconBg: t.conditionAccent,
+      cardBg: t.conditionCardBg,
+      cardBorder: t.conditionCardBorder,
+      dragOverBorder: t.conditionAccent,
+      dragOverBg: t.conditionDragOverBg,
+    };
+  }, [primaryHex]);
+
   const handleDelete = () => {
     if (data.onDelete) {
       data.onDelete(id);
@@ -104,9 +121,8 @@ const CustomNode: React.FC<CustomNodeProps> = ({ id, data, selected }) => {
     <div
       className={`px-4 py-3 shadow-lg rounded-lg border-2 bg-gray-800 text-white min-w-[200px] ${
         selected ? "border-blue-500" : "border-gray-600"
-      } hover:border-gray-500 transition-colors ${
-        isDragOver ? 'border-orange-500 border-dashed bg-orange-900/20' : ''
-      }`}
+      } hover:border-gray-500 transition-colors`}
+      style={isDragOver ? { borderColor: conditionColors.dragOverBorder, borderStyle: "dashed", backgroundColor: conditionColors.dragOverBg } : undefined}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -138,16 +154,23 @@ const CustomNode: React.FC<CustomNodeProps> = ({ id, data, selected }) => {
       {/* Referenced conditions */}
       {referencedConditions.length > 0 && (
         <div className="mt-3 space-y-2">
-          <div className="flex items-center gap-2 text-xs font-medium text-orange-400">
+          <div className="flex items-center gap-2 text-xs font-medium" style={{ color: conditionColors.text }}>
             <GitBranch className="w-3 h-3" />
             Conditions
           </div>
           {referencedConditions.map((condition) => (
-            <Card key={condition.id} className="bg-orange-900/30 border-orange-700">
+            <Card
+              key={condition.id}
+              className="border"
+              style={{ backgroundColor: conditionColors.cardBg, borderColor: conditionColors.cardBorder }}
+            >
               <CardContent className="p-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-orange-600 flex items-center justify-center">
+                    <div
+                      className="w-4 h-4 rounded flex items-center justify-center"
+                      style={{ backgroundColor: conditionColors.iconBg }}
+                    >
                       <GitBranch className="w-2 h-2 text-white" />
                     </div>
                     <span className="text-xs text-white">{condition.label}</span>

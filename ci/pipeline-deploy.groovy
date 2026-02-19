@@ -118,15 +118,26 @@ def updateValuesYaml(String filePath , String version) {
 
 def updateDeployerEnv() {
     echo "🔄 updating deployer env with new values"
-    if(params.deploy_location == 'STAGING') {
-        def file_path = "./genie-cred-data/.env"
-        def key = "umami_website_name"
-        def newValue = "unifai-staging"
-        def content = readFile(file_path)
-        def newContent = content.replaceFirst(/(?m)^${key}=.*/, "${key}=${newValue}")
-        writeFile(file: file_path, text: newContent)     
+    if (params.deploy_location == 'PRODUCTION') {
+        updateEnvFile("./genie-cred-data/.env", "umami_website_name", "unifai-production")
+    } else if(params.deploy_location == 'STAGING') {
+        updateEnvFile("./genie-cred-data/.env", "umami_website_name", "unifai-staging")
     }
+
     echo "✅ Deployer env updated successfully"
+}
+
+
+def updateEnvFile(String filePath, String key, String value) {
+    if (!fileExists(filePath)) {
+        error "❌ File not found: ${filePath}"
+    }
+    
+    echo "🔧 Updating ${key} in ${filePath}..."
+    def content = readFile(filePath)
+    // Safe replacement
+    def newContent = content.replaceFirst(/(?m)^${key}=.*/, "${key}=${value}")
+    writeFile(file: filePath, text: newContent)
 }
 
 def deployModules(module){

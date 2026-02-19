@@ -34,7 +34,7 @@ FROM registry.access.redhat.com/ubi9/nginx-120 as serve
 
 USER root
 #Install debugging tools ( telnet is out-of-ubi9 for nginx ncat instead)
-RUN dnf update -y && dnf install -y vim less iputils nmap-ncat && dnf clean all
+RUN dnf update -y && dnf install -y vim less iputils && dnf clean all
 
 # Copy and set permissions for entrypoint.sh while still root
 COPY ui/deployment/entrypoint.sh /opt/app-root/src/entrypoint.sh

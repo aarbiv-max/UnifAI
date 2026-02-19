@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   ReactFlowProvider,
   ReactFlow,
@@ -20,6 +20,8 @@ import CustomEdge from "./CustomEdge";
 import BidirectionalOffsetEdge from "./BidirectionalOffsetEdge";
 import GraphHeader from "./GraphHeader";
 import * as yaml from 'js-yaml';
+import { useTheme } from "@/contexts/ThemeContext";
+import { deriveThemeColors } from "@/lib/colorUtils";
 
 const nodeTypes: NodeTypes = {
   custom: CustomNode,
@@ -30,8 +32,15 @@ const edgeTypes: EdgeTypes = {
   bidirectionalOffset: BidirectionalOffsetEdge,
 };
 
-// Helper function to detect and mark bidirectional edge pairs
-const processBidirectionalEdges = (edges: Edge[]): Edge[] => {
+/**
+ * Detect bidirectional edge pairs (A→B and B→A) and transform them into
+ * offset edges so they render as two visually separated paths.
+ *
+ * @param edges - The full list of graph edges.
+ * @param bidiColor - Stroke color for bidirectional edges.  Callers should
+ *   pass the theme-derived `primaryLight` color; the default is a fallback.
+ */
+const processBidirectionalEdges = (edges: Edge[], bidiColor: string = "#10B981"): Edge[] => {
   const edgeMap = new Map<string, Edge[]>();
   const processedEdges: Edge[] = [];
 
@@ -68,14 +77,14 @@ const processBidirectionalEdges = (edges: Edge[]): Edge[] => {
           pairId: edge2.id,
         },
         style: {
-          stroke: '#10B981',
+          stroke: bidiColor,
           strokeWidth: 2.5,
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 20,
           height: 20,
-          color: '#10B981',
+          color: bidiColor,
         },
       };
       
@@ -89,14 +98,14 @@ const processBidirectionalEdges = (edges: Edge[]): Edge[] => {
           pairId: edge1.id,
         },
         style: {
-          stroke: '#10B981',
+          stroke: bidiColor,
           strokeWidth: 2.5,
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 20,
           height: 20,
-          color: '#10B981',
+          color: bidiColor,
         },
       };
       
@@ -146,9 +155,56 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
   isGraphValid = false,
 }) => {
   const [showYamlDebug, setShowYamlDebug] = useState(false);
-  
+  const { primaryHex } = useTheme();
+
+  // Derive all edge colors from the shared theme helper (single call)
+  const { primary: edgeColor, primaryLight: bidiEdgeColor, conditionEdge: condEdgeColor } = useMemo(
+    () => deriveThemeColors(primaryHex),
+    [primaryHex],
+  );
+
   // Process edges to detect and transform bidirectional connections
-  const processedEdges = processBidirectionalEdges(edges);
+  const processedEdges = useMemo(
+    () => processBidirectionalEdges(edges, bidiEdgeColor),
+    [edges, bidiEdgeColor],
+  );
+
+  // Apply current theme colors to ALL edges so they react to primary color changes.
+  // Edges created in use-graph-logic have styles baked at creation time; this ensures
+  // the rendered colors always reflect the current theme.
+  const themedEdges = useMemo(() => processedEdges.map(edge => {
+    const isConditional = edge.data?.isConditional;
+    const isBidirectional = edge.type === 'bidirectionalOffset';
+
+    // Bidirectional edges already get themed via processBidirectionalEdges
+    if (isBidirectional) {
+      return {
+        ...edge,
+        type: edge.type || 'custom',
+        data: { ...edge.data, onDelete: onDeleteEdge },
+      };
+    }
+
+    // Conditional edges: use condition color + dashed
+    if (isConditional) {
+      return {
+        ...edge,
+        type: edge.type || 'custom',
+        style: { ...edge.style, stroke: condEdgeColor },
+        markerEnd: { type: MarkerType.ArrowClosed, color: condEdgeColor },
+        data: { ...edge.data, onDelete: onDeleteEdge },
+      };
+    }
+
+    // Regular edges: use primary color
+    return {
+      ...edge,
+      type: edge.type || 'custom',
+      style: { ...edge.style, stroke: edgeColor, strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20, color: edgeColor },
+      data: { ...edge.data, onDelete: onDeleteEdge },
+    };
+  }), [processedEdges, edgeColor, condEdgeColor, onDeleteEdge]);
 
   return (
     <div className="flex-1 relative">
@@ -190,14 +246,7 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
             <ReactFlowProvider>
               <ReactFlow
                 nodes={nodes}
-                edges={processedEdges.map(edge => ({
-                  ...edge,
-                  type: edge.type || 'custom',
-                  data: {
-                    ...edge.data,
-                    onDelete: onDeleteEdge,
-                  }
-                }))}
+                edges={themedEdges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
@@ -211,12 +260,12 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
                 defaultEdgeOptions={{
                   type: "custom",
                   animated: true,
-                  style: { stroke: "#8A2BE2", strokeWidth: 2 },
+                  style: { stroke: edgeColor, strokeWidth: 2 },
                   markerEnd: {
                     type: MarkerType.ArrowClosed,
                     width: 20,
                     height: 20,
-                    color: "#8A2BE2",
+                    color: edgeColor,
                   },
                 }}
               >

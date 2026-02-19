@@ -273,7 +273,7 @@ export default function PublicChat() {
                     size="sm"
                     className="h-6 w-6 p-0 text-primary hover:bg-primary/20"
                     onClick={handleNewChat}
-                    disabled={isCreatingSession}
+                    disabled={isCreatingSession || isSharingDisabled || !isBlueprintValid || isValidatingBlueprint}
                     title="Start new chat"
                   >
                     <Plus className="h-4 w-4" />
@@ -353,9 +353,9 @@ export default function PublicChat() {
               <div className="flex items-center justify-center h-full bg-background-dark">
                 <div className="max-w-md">
                   <WorkflowStatusBanner
-                    variant={WorkflowBannerMessages.validationFailed.variant}
-                    title={WorkflowBannerMessages.validationFailed.title}
-                    message={WorkflowBannerMessages.validationFailed.message}
+                    variant={WorkflowBannerMessages.validationFailedShared.variant}
+                    title={WorkflowBannerMessages.validationFailedShared.title}
+                    message={WorkflowBannerMessages.validationFailedShared.message}
                   />
                 </div>
               </div>

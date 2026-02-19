@@ -1,8 +1,9 @@
 multiagent_server:
+  replicaCount: 2
   resources: 
     limits:
-      cpu: '8'
-      memory: '16Gi'
+      cpu: '4'
+      memory: '8Gi'
     requests:
       cpu: '4'
       memory: '8Gi'
@@ -15,7 +16,7 @@ multiagent_server:
   env:
     BACKEND_ENV: "production" #options - production development
     ROLE: "flask" # options are flask celery debug
-    GUNICORN_WORKERS: "15"
-    GUNICORN_THREADS: "16"
+    GUNICORN_WORKERS: "9"
+    GUNICORN_THREADS: "8"
     GUNICORN_TIMEOUT: "600"
     VERSION: ""

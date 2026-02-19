@@ -34,6 +34,20 @@ export const getStatusConfig = (status: string) => {
   }
 };
 
+/**
+ * Get status color mapping for workflow execution statuses
+ * Used for chart colors in Analytics
+ */
+export function getWorkflowStatusColors(): Record<string, string> {
+  return {
+    COMPLETED: '#10B981',   // green-400
+    RUNNING: '#60A5FA',     // blue-400
+    FAILED: '#F87171',      // red-400
+    PENDING: '#9CA3AF',     // gray-400
+    CANCELLED: '#9CA3AF',   // gray-400
+  };
+}
+
 // Format timestamp for display
 export const formatTimestamp = (timestamp: string) => {
   return new Date(timestamp).toLocaleTimeString([], { 

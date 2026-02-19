@@ -162,8 +162,15 @@ class AuthManager:
                     # Don't clear session - token refresh failure doesn't mean session expired
                     return jsonify({'error': 'Token refresh failed'}), 401
             
+           # Get user and add permissions
+            user = session.get('user')
+            
+            # Add admin permission based on config (checks admin_allowed_users)
+            user['is_admin'] = self._check_admin_permission(user)
+          
+
             return jsonify({
-                'user': session.get('user'),
+                'user': user,
                 'authenticated': True
             })
         
@@ -253,6 +260,32 @@ class AuthManager:
             logger.error(f"Failed to refresh token: {str(e)}")
             return False
 
+    
+    def _check_admin_permission(self, user: dict) -> bool:
+        """
+        Check if user has admin permission (can access analytics and other admin features)
+        Based on admin_allowed_users configuration in app_config.py
+        
+        Checks user by username or user_id (sub) only.
+        """
+        if not user:
+            return False
+        
+        # Get allowed users from config
+        allowed_users = config.get('admin_allowed_users', [])
+        
+        if not allowed_users:
+            return False
+        
+        # Get username or user_id (sub)
+        username = user.get('username') or user.get('sub')
+        
+        # Check if username/user_id is in allowed list
+        if username and username in allowed_users:
+            return True
+        
+        return False
+        
 def require_auth(f):
     """Decorator to require authentication for routes"""
     @wraps(f)
