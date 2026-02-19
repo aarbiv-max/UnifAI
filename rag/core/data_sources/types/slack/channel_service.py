@@ -6,6 +6,8 @@ from typing import List
 from core.data_sources.service import DataSourceService
 from core.data_sources.types.slack.domain.channel.repository import SlackChannelRepository
 from core.data_sources.types.slack.domain.channel.restriction_checker import ChannelRestrictionChecker
+from core.pipeline.domain.model import PipelineStatus
+from core.pipeline.service import PipelineService
 from shared.logger import logger
 
 
@@ -24,11 +26,13 @@ class SlackChannelService:
         channel_repo: SlackChannelRepository,
         restriction_checker: ChannelRestrictionChecker,
         data_source_service: DataSourceService,
+        pipeline_service: PipelineService,
         project_id: str,
     ):
         self._channel_repo = channel_repo
         self._checker = restriction_checker
         self._ds_service = data_source_service
+        self._pipeline_svc = pipeline_service
         self._project_id = project_id
 
     def reconcile_restrictions(self) -> ReconcileResult:
@@ -67,8 +71,18 @@ class SlackChannelService:
 
     def _delete_embeddings(self, channel_id: str) -> None:
         """Delete source record, pipeline, and Qdrant vectors for a channel."""
-        if not self._ds_service.get_by_id(channel_id):
+        source = self._ds_service.get_by_id(channel_id)
+        if not source:
             return
-        self._ds_service.delete(channel_id)
+
+        self._pipeline_svc.update_status(source.pipeline_id, PipelineStatus.DELETING)
+
+        delete_result = self._ds_service.delete(channel_id)
+        if not delete_result.success:
+            logger.error("Embedding deletion failed for %s: %s", channel_id, delete_result.message)
+            self._pipeline_svc.update_status(source.pipeline_id, PipelineStatus.FAILED)
+            self._ds_service.update(channel_id, {
+                "type_data": {**(source.type_data or {}), "last_error": delete_result.message},
+            })
     
   

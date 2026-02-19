@@ -144,6 +144,7 @@ def slack_channel_service():
         channel_repo=slack_channel_repository(),
         restriction_checker=channel_restriction_checker(),
         data_source_service=data_source_service(),
+        pipeline_service=pipeline_service(),
         project_id="example-project",
     )
 

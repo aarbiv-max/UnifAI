@@ -43,8 +43,10 @@ export default function AdminConfigSection({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-config"] });
       queryClient.invalidateQueries({ queryKey: ["admin-access"] });
-      queryClient.invalidateQueries({ queryKey: ["availableSlackChannels"] });
-      queryClient.invalidateQueries({ queryKey: ["embeddedSlackChannels"] });
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["availableSlackChannels"] });
+        queryClient.invalidateQueries({ queryKey: ["embeddedSlackChannels"] });
+      }, 3000);
       toast({
         title: "Saved",
         description: `${section.title} updated successfully.`,

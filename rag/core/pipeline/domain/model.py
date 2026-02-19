@@ -15,6 +15,7 @@ class PipelineStatus(str, Enum):
     STORING = "STORING"
     ORCHESTRATING = "ORCHESTRATING"
     DONE = "DONE"
+    DELETING = "DELETING"
     FAILED = "FAILED"
     PAUSED = "PAUSED"
 
