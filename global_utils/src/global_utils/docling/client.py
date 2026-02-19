@@ -111,6 +111,9 @@ class DoclingClient:
             raise DoclingConnectionError(f"HTTP error {e.response.status_code}: {e}")
         except httpx.TransportError as e:
             raise DoclingConnectionError(f"Transport error communicating with docling service: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error in post_file: {e}", exc_info=True)
+            raise
 
     def post_url(
         self, 
@@ -165,6 +168,9 @@ class DoclingClient:
             raise DoclingConnectionError(f"HTTP error {e.response.status_code}: {e}")
         except httpx.TransportError as e:
             raise DoclingConnectionError(f"Transport error communicating with docling service: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error in post_url: {e}", exc_info=True)
+            raise
 
     def health_check(self) -> bool:
         """
