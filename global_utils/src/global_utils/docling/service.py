@@ -13,7 +13,7 @@ import logging
 from typing import Optional
 
 from global_utils.docling.client import DoclingClient
-from global_utils.docling.models import DoclingResponse
+from global_utils.docling.models import DoclingOutputFormat, DoclingResponse
 from global_utils.docling.exceptions import (
     DoclingProcessingError,
     DoclingValidationError,
@@ -52,12 +52,12 @@ class DoclingService:
             client: DoclingClient instance for HTTP communication
             image_export_mode: Default mode for image export (e.g., "placeholder")
             pdf_backend: Default PDF backend (e.g., "pypdfium2")
-            default_formats: Default output formats (defaults to ["md", "text"])
+            default_formats: Default output formats (defaults to MARKDOWN and TEXT)
         """
         self._client = client
         self.image_export_mode = image_export_mode
         self.pdf_backend = pdf_backend
-        self.default_formats = default_formats or ["md", "text"]
+        self.default_formats = default_formats or [DoclingOutputFormat.MARKDOWN, DoclingOutputFormat.TEXT]
         logger.info(
             f"DoclingService initialized: image_mode={image_export_mode}, "
             f"pdf_backend={pdf_backend}"

@@ -1,13 +1,22 @@
 """Docling DTOs (Data Transfer Objects)."""
 
+from enum import Enum
 from typing import Dict, Any, Optional, List
 from pydantic import AliasChoices, AliasPath, BaseModel, Field
 from global_utils.validators import CoercedStr
 
 
+class DoclingOutputFormat(str, Enum):
+    """Supported output formats for docling document conversion."""
+    MARKDOWN = "md"
+    TEXT = "text"
+
+
 class DoclingOptions(BaseModel):
     """Options for document conversion."""
-    to_formats: List[str] = Field(default_factory=lambda: ["md", "text"])
+    to_formats: List[DoclingOutputFormat] = Field(
+        default_factory=lambda: [DoclingOutputFormat.MARKDOWN, DoclingOutputFormat.TEXT]
+    )
     image_export_mode: Optional[str] = None
     pdf_backend: Optional[str] = None
 
