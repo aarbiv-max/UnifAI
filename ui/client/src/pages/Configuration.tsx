@@ -6,9 +6,9 @@ import StatusBar from "@/components/layout/StatusBar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FaLock } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useAdminAccess } from "@/hooks/use-admin-access";
+import { AccessDenied } from "@/components/shared/AccessDenied";
 import {
   getAdminConfig,
   type AdminConfigResponse,
@@ -33,18 +33,7 @@ export default function Configuration() {
   if (!isAdmin) {
     return (
       <PageShell sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
-        <Card className="bg-background-card shadow-card border-gray-800 max-w-lg mx-auto mt-20">
-          <CardContent className="p-8 text-center">
-            <FaLock className="mx-auto text-gray-500 w-10 h-10 mb-4" />
-            <h2 className="text-xl font-heading font-semibold mb-2">
-              Access Denied
-            </h2>
-            <p className="text-sm text-gray-400">
-              You do not have permission to access the configuration page.
-              Contact an administrator to request access.
-            </p>
-          </CardContent>
-        </Card>
+        <AccessDenied />
       </PageShell>
     );
   }
@@ -97,7 +86,7 @@ function AdminConfigTabs() {
     isError,
     error,
   } = useQuery<AdminConfigResponse>({
-    queryKey: ["admin-config"],
+    queryKey: ["admin_config"],
     queryFn: getAdminConfig,
     staleTime: 30 * 1000,
     refetchOnMount: true,

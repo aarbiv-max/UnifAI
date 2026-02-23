@@ -16,7 +16,7 @@ import {
 import StringListField from "./StringListField";
 
 /**
- * Renders a single admin-config section as a card with editable fields,
+ * Renders a single admin_config section as a card with editable fields,
  * save/reset buttons, and mutation handling.
  */
 export default function AdminConfigSection({
@@ -41,7 +41,7 @@ export default function AdminConfigSection({
     mutationFn: (vals: Record<string, unknown>) =>
       updateAdminConfigSection(section.key, vals),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+      queryClient.invalidateQueries({ queryKey: ["admin_config"] });
       queryClient.invalidateQueries({ queryKey: ["admin-access"] });
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ["availableSlackChannels"] });

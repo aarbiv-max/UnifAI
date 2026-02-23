@@ -10,14 +10,6 @@ export const backendApi = axios.create({
   withCredentials: true,
 });
 
-backendApi.interceptors.request.use(
-  (config) => {
-    config.withCredentials = true;
-    return config;
-  },
-  (error) => Promise.reject(error),
-);
-
 backendApi.interceptors.response.use(
   (response) => response,
   (error) => {

@@ -1,8 +1,8 @@
 """
 ActionDispatcher — fires HTTP POST to other services when
-an admin-config section is updated.
+an admin_config section is updated.
 
-Routing is defined in the admin-config template via
+Routing is defined in the admin_config template via
 ``on_update_target`` (service key) and ``on_update_endpoint`` (path).
 The dispatcher only needs a service-name → base-URL map so it can
 resolve full URLs at runtime.

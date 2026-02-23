@@ -2,9 +2,9 @@
 Admin Config API endpoints.
 
 Provides REST API for admin configuration:
-  GET  /api/admin-config/config.get             — full template merged with stored values
-  PUT  /api/admin-config/config.section.update  — update one section's values
-  GET  /api/admin-config/access.check           — check if an email has admin access
+  GET  /api/admin_config/config.get             — full template merged with stored values
+  PUT  /api/admin_config/config.section.update  — update one section's values
+  GET  /api/admin_config/access.check           — check if an email has admin access
 """
 from flask import Blueprint, jsonify, current_app
 from global_utils.helpers.apiargs import from_body, from_query

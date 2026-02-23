@@ -30,7 +30,7 @@ class BackendClient:
         """
         try:
             resp = requests.get(
-                f"{self._base_url}/api/admin-config/config.get",
+                f"{self._base_url}/api/admin_config/config.get",
                 timeout=self._timeout,
             )
             resp.raise_for_status()

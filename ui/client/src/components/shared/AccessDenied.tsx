@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { FaLock } from "react-icons/fa";
 import { useLocation } from "wouter";
 
-export function AccessDenied() {
+export function AccessDenied({ message }: { message?: string }) {
   const [, setLocation] = useLocation();
 
   return (
@@ -15,10 +15,10 @@ export function AccessDenied() {
           </div>
           <h3 className="text-xl font-heading font-semibold mb-2">Access Restricted</h3>
           <p className="text-sm text-gray-400 mb-6">
-            You don't have permission to access Analytics. Please contact your administrator if you need access.
+            {message ?? "You don't have permission to access this page. Please contact your administrator if you need access."}
           </p>
-          <Button 
-            onClick={() => setLocation('/get-to-know')} 
+          <Button
+            onClick={() => setLocation('/get-to-know')}
             className="bg-primary hover:bg-opacity-80"
           >
             Go to Home
@@ -28,4 +28,3 @@ export function AccessDenied() {
     </div>
   );
 }
-

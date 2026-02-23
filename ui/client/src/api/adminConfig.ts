@@ -47,7 +47,7 @@ export interface UpdateSectionResponse {
  * Fetch the full admin config template merged with stored values.
  */
 export async function getAdminConfig(): Promise<AdminConfigResponse> {
-  const response = await backendApi.get('/admin-config/config.get');
+  const response = await backendApi.get('/admin_config/config.get');
   return response.data;
 }
 
@@ -58,7 +58,7 @@ export async function updateAdminConfigSection(
   sectionKey: string,
   values: Record<string, unknown>,
 ): Promise<UpdateSectionResponse> {
-  const response = await backendApi.put('/admin-config/config.section.update', {
+  const response = await backendApi.put('/admin_config/config.section.update', {
     sectionKey,
     values,
   });
@@ -71,7 +71,7 @@ export async function updateAdminConfigSection(
 export async function checkAdminAccess(
   username: string,
 ): Promise<{ is_admin: boolean }> {
-  const response = await backendApi.get('/admin-config/access.check', {
+  const response = await backendApi.get('/admin_config/access.check', {
     params: { username },
   });
   return response.data;

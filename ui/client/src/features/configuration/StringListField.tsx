@@ -18,7 +18,7 @@ export default function StringListField({
   const [inputValue, setInputValue] = useState("");
 
   const addItem = () => {
-    const trimmed = inputValue.trim();
+    const trimmed = inputValue.trim().toLowerCase();
     if (!trimmed) return;
     if (value.includes(trimmed)) {
       setInputValue("");

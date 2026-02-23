@@ -11,6 +11,7 @@ from bootstrap.app_container import (
     slack_event_dispatch_service,
     slack_sync_service,
 )
+from infrastructure.celery.workers.slack_restriction_tasks import reconcile_restrictions_task
 from global_utils.helpers.apiargs import from_query
 from shared.logger import logger
 
@@ -196,7 +197,6 @@ def clean_restricted_channels():
     Returns 202 immediately; the actual work runs in a Celery worker.
     """
     try:
-        from infrastructure.celery.workers.slack_restriction_tasks import reconcile_restrictions_task
         task = reconcile_restrictions_task.apply_async(queue="slack_events_queue")
         return jsonify({
             "status": "accepted",
