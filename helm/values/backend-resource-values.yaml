@@ -1,0 +1,17 @@
+unifai_backend:
+  debug: false
+  replicaCount: 1
+  image:
+    repository: images.paas.redhat.com/unifai/backend
+    tag: "latest"
+    pullPolicy: Always
+  env:
+    BACKEND_ENV: "production"
+    VERSION: ""
+  resources:
+    limits:
+      cpu: 1
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi

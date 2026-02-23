@@ -32,12 +32,21 @@ releases:
       - ./values/global-config.yaml
 
 
+  - name: unifai-dataflow-celery-beat
+    chart: ./dataflow/unifai-dataflow-celery
+    wait: true
+    values:
+      - {{- toYaml .Values.unifai_dataflow_celery_beat | nindent 8 }}
+      - ./values/global-config.yaml
+
+
   - name: unifai-dataflow-config
     chart: ./dataflow/unifai-dataflow-config
     wait: true
     needs:
       - unifai-dataflow-server
       - unifai-dataflow-celery
+      - unifai-dataflow-celery-beat
     hooks:
       - events: ["postsync"]
         showlogs: true

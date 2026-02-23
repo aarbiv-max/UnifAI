@@ -18,6 +18,11 @@ case "$ROLE" in
     exec venv/bin/celery -A infrastructure.celery.app worker -c $CELERY_WORKER --pool=solo --loglevel=info -Q $CELERY_QUEUES -n data_sources
     ;;
 
+  celery-beat)
+    echo "🕐 Starting Celery Beat scheduler..."
+    exec venv/bin/celery -A infrastructure.celery.app beat --loglevel=info
+    ;;
+
   debug)
     echo "🐞 Debug mode activated — container will stay alive."
     tail -f /dev/null
@@ -25,7 +30,7 @@ case "$ROLE" in
 
   *)
     echo "❌ ERROR: Unknown ROLE \"$ROLE\""
-    echo "Valid roles are: flask, celery, debug"
+    echo "Valid roles are: flask, celery, celery-beat, debug"
     exit 1
     ;;
 esac
