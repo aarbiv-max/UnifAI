@@ -7,7 +7,6 @@ env:
   QDRANT_SNAPSHOTS_DIR: "/tmp/snapshots"
   BRANCH: ${{ inputs.target_branch || 'main' }}
   CLUSTER: ${{ inputs.target_cluster || 'PRE-PRODUCTION' }}
-  NAMESPACE: ${{ inputs.target_namespace || 'tag-ai--pipeline' }}
   BACKUP_REPO: ${{ vars.BACKUP_REPO_URL }}
   BACKUP_REPO_NAME: ${{ vars.BACKUP_REPO_NAME }}
 
@@ -23,11 +22,11 @@ on:
       target_cluster:
         description: 'Which cluster do you want to backup?'
         required: true
-        default: 'PRE-PRODUCTION'
-      target_namespace:
-        description: 'Which namespace do you want to backup?'
-        required: true
-        default: 'tag-ai--pipeline'
+        type: choice
+        default: 'PRODUCTION'
+        options:
+          - PRE-PRODUCTION
+          - PRODUCTION
 
 jobs:
 
@@ -42,15 +41,14 @@ jobs:
     outputs:
       BRANCH: ${{ steps.vars.outputs.branch }}
       CLUSTER: ${{ steps.vars.outputs.cluster }}
-      NAMESPACE: ${{ steps.vars.outputs.namespace }}
     steps:
 
       - id: vars
+        env:
+          INPUT_BRANCH: ${{ inputs.target_branch || 'main' }}
         run: |
-          echo "branch=${{ inputs.target_branch || 'GENIE-1071/backup_dbs' }}" >> $GITHUB_OUTPUT
-          echo "cluster=${{ inputs.target_cluster || 'PRE-PRODUCTION' }}" >> $GITHUB_OUTPUT
-          echo "namespace=${{ inputs.target_namespace || 'tag-ai--pipeline' }}" >> $GITHUB_OUTPUT
-
+          echo "branch=${INPUT_BRANCH}" >> $GITHUB_OUTPUT
+          echo "cluster=${{ inputs.target_cluster || 'PRODUCTION' }}" >> $GITHUB_OUTPUT
 
   backup_mongo:
     runs-on: linux
@@ -60,7 +58,7 @@ jobs:
     env:
       BRANCH: ${{ needs.setup_environment.outputs.BRANCH }}
       CLUSTER: ${{ needs.setup_environment.outputs.CLUSTER }}
-      NAMESPACE: ${{ needs.setup_environment.outputs.NAMESPACE }}
+      NAMESPACE: ${{ vars.NAMESPACE }}
       VERIFY_TLS: ${{ vars.VERIFY_TLS }}
       API_URL: ${{ vars.API_URL }}
       ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
@@ -119,3 +117,29 @@ jobs:
         run: |
           rm -rf /tmp/mongo_backup_*.tar.gz
           rm -rf /tmp/snapshots
+
+  analyze:
+    needs: [verify_agent_deps, setup_environment, backup_mongo, backup_qdrant, upload_to_gitlab]
+    if: always() && contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+
+      - name: Generate Token
+        id: generate_token
+        #uses: tibdex/github-app-token@v2
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.LOG_ANALYZER_APP_ID }}
+          private-key: ${{ secrets.LOG_ANALYZER_PRIVATE_KEY }}
+
+      - name: GitHub Actions Failure Analysis
+        uses: calebevans/gha-failure-analysis@v0.1.9
+        with:
+          llm-provider: gemini
+          llm-model: gemini-3-pro-preview
+          llm-api-key: ${{ secrets.GEMINI_API_KEY }}
+          github-token: ${{ steps.generate_token.outputs.token }}
+          post-pr-comment: false

@@ -1,10 +1,10 @@
 import os
 import subprocess
+import json
+import tempfile
 from datetime import datetime
 from kubernetes import client, config
 from kubernetes.stream import stream
-
-
 
 # Environment variables
 MONGO_POD = os.getenv("MONGO_POD")
@@ -43,14 +43,16 @@ def setup_k8s_connection():
         }],
         "current-context": CLUSTER
     }
-    
-    config.load_kube_config_from_dict(kube_config)
+    fd, kubeconfig_path = tempfile.mkstemp(suffix='.kubeconfig')
+    with os.fdopen(fd, 'w') as f:
+        json.dump(kube_config, f)
+    os.environ['KUBECONFIG'] = kubeconfig_path
+    config.load_kube_config(kubeconfig_path)
     print(f"✓ Connected to {CLUSTER}")
-    return client.CoreV1Api()
+    return client.CoreV1Api(), kubeconfig_path
 
-def check_k8s_connection():
+def check_k8s_connection(v1: client.CoreV1Api):
     """Verify connection by listing resources"""
-    v1 = client.CoreV1Api()
     apps_v1 = client.AppsV1Api()
     
     print("Checking pods and deployments...")
@@ -123,8 +125,8 @@ def compress_backup():
 
 if __name__ == "__main__":
     # Setup connection
-    setup_k8s_connection()
-    check_k8s_connection()
+    v1, kubeconfig_path = setup_k8s_connection()
+    check_k8s_connection(v1)
     
     # Run backup
     print("Starting MongoDB backup...")
@@ -133,4 +135,9 @@ if __name__ == "__main__":
     backup_mongodb()
     compress_backup()
     copy_backup_from_pod()
+    # remove kubeconfig file
+    try:
+        os.unlink(kubeconfig_path)
+    except OSError:
+        pass
     print("✓ Backup complete!")
