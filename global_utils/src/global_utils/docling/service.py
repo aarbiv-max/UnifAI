@@ -66,14 +66,12 @@ class DoclingService:
     def process_file(
         self, 
         file_path: str, 
-        to_formats: Optional[list] = None,
     ) -> DoclingResponse:
         """
         Process a local file through the docling service.
         
         Args:
             file_path: Path to the file to process
-            to_formats: Output formats (uses default_formats if not specified)
         
         Returns:
             DoclingResponse with extracted content
@@ -86,7 +84,7 @@ class DoclingService:
         if not os.path.exists(file_path):
             raise DoclingValidationError(f"File not found: {file_path}")
         
-        formats = to_formats or self.default_formats
+        formats = self.default_formats
         
         try:
             logger.info(f"Processing file: {file_path}")
@@ -118,14 +116,12 @@ class DoclingService:
     def process_url(
         self, 
         document_url: str, 
-        to_formats: Optional[list] = None,
     ) -> DoclingResponse:
         """
         Process a document from URL through the docling service.
         
         Args:
             document_url: URL of the document to process
-            to_formats: Output formats (uses default_formats if not specified)
         
         Returns:
             DoclingResponse with extracted content
@@ -137,7 +133,7 @@ class DoclingService:
         if not document_url:
             raise DoclingValidationError("Document URL cannot be empty")
         
-        formats = to_formats or self.default_formats
+        formats = self.default_formats
         
         try:
             logger.info(f"Processing URL: {document_url}")
