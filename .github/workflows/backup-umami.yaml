@@ -57,7 +57,7 @@ jobs:
         #     rm -rf /tmp/snapshots
 
     analyze:
-        needs: [verify_agent_deps, setup_environment, backup_umami]
+        needs: [backup_umami]
         if: always() && contains(needs.*.result, 'failure')
         runs-on: ubuntu-latest
         permissions:
