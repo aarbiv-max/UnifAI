@@ -18,6 +18,7 @@ NAMESPACE = os.getenv("NAMESPACE")
 ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 API_URL = os.getenv("API_URL")
 SKIP_VERIFY_TLS = bool(os.getenv("SKIP_VERIFY_TLS"))
+CLUSTER = os.getenv("CLUSTER")
 
 # PostgreSQL connection (used to build pg_dump command run on the pod)
 PGHOST = os.getenv("PGHOST", "localhost")
@@ -98,7 +99,7 @@ if __name__ == "__main__":
             raise SystemExit(f"Missing required env: {name}")
 
     with k8s_utils.k8s_connection(
-         NAMESPACE, API_URL, ACCESS_TOKEN, SKIP_VERIFY_TLS
+         CLUSTER, NAMESPACE, API_URL, ACCESS_TOKEN, SKIP_VERIFY_TLS
     ) as v1:
         k8s_utils.check_k8s_connection(v1, NAMESPACE)
 
