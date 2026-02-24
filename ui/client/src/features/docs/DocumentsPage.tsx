@@ -22,8 +22,7 @@ import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
 import { useRemoteServicesHealth } from '@/hooks/use-remote-services-health';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { ErrorDisplay } from '@/components/shared/ErrorDisplay';
 
 export default function Documents() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -44,7 +43,7 @@ export default function Documents() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { uploadEnabled, isLoading: healthLoading, docling, embedding } = useRemoteServicesHealth();
+  const { uploadEnabled, isLoading: healthLoading, docling, embedding, refresh, isRefetching } = useRemoteServicesHealth();
 
   /**
    * Build a human-readable message describing which services are unavailable.
@@ -291,13 +290,18 @@ export default function Documents() {
         <div className="flex-1 overflow-auto px-6 pb-6">
           {/* Service Unavailable Alert Banner */}
           {!uploadEnabled && !healthLoading && (
-            <Alert variant="destructive" className="mt-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Service Unavailable</AlertTitle>
-              <AlertDescription>
-                {getServiceUnavailableMessage(true)}
-              </AlertDescription>
-            </Alert>
+            <ErrorDisplay
+              variant="inline"
+              title="Service Unavailable"
+              errorMessage={getServiceUnavailableMessage(true)}
+              onRetry={refresh}
+              retryLabel="Check again"
+              isRetrying={isRefetching}
+              className="mt-4"
+              cardClassName="border-red-500/60 bg-red-950/40"
+              titleClassName="text-red-400 font-medium"
+              messageClassName="text-red-300"
+            />
           )}
 
           {showUploadModal ? (

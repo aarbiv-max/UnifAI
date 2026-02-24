@@ -77,14 +77,14 @@ class DoclingResponse(BaseModel):
         )
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary format."""
-        result = {}
-        if self.markdown:
-            result["markdown"] = self.markdown
-        if self.text:
-            result["text"] = self.text
-        if self.filename:
-            result["filename"] = self.filename
-        if self.metadata:
-            result["metadata"] = self.metadata
-        return result
+        """Convert to dictionary format, omitting empty/falsy values."""
+        return {
+            key: value
+            for key, value in {
+                "markdown": self.markdown,
+                "text": self.text,
+                "filename": self.filename,
+                "metadata": self.metadata,
+            }.items()
+            if value
+        }

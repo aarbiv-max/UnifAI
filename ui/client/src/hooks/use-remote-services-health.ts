@@ -23,6 +23,8 @@ export interface UseServicesHealthResult {
     error: string | null;
     /** Manually trigger a health check refresh */
     refresh: () => Promise<void>;
+    /** Whether a health check refresh is in progress */
+    isRefetching: boolean;
 }
 
 /**
@@ -49,7 +51,7 @@ export interface UseServicesHealthResult {
  * @returns UseServicesHealthResult with health status and controls
  */
 export function useRemoteServicesHealth(): UseServicesHealthResult {
-    const { data, isLoading, error, refetch } = useQuery({
+    const { data, isLoading, isFetching, error, refetch } = useQuery({
         queryKey: ['services-health'],
         queryFn: checkServicesHealth,
         refetchInterval: HEALTH_CHECK_INTERVAL_MS,
@@ -67,5 +69,6 @@ export function useRemoteServicesHealth(): UseServicesHealthResult {
         isLoading,
         error: error ? 'Failed to check services health' : null,
         refresh: async () => { await refetch(); },
+        isRefetching: isFetching,
     };
 }
