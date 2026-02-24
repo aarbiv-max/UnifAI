@@ -40,7 +40,9 @@ jobs:
               fetch-depth: 0
               ref: ${{ env.BRANCH }}
 
-        - name: Backup Umami Database
+        - name: Backup Umami 
+          environment:
+            name: ${{ env.ENVIRONMENT }}
           env:
             API_URL: ${{ vars.API_URL }}
             ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
