@@ -9,7 +9,7 @@ env:
 #   CLUSTER: ${{ inputs.target_cluster || 'PRE-PRODUCTION' }}
   BACKUP_REPO: ${{ vars.BACKUP_REPO_URL }}
   BACKUP_REPO_NAME: ${{ vars.BACKUP_REPO_NAME }}
-
+  ENVIRONMENT: "UMAMI"
 on:
  push:
     branches:
@@ -19,10 +19,23 @@ on:
 jobs:
     backup_umami:
         runs-on: linux
+        environment:
+            name: ${{ vars.ENVIRONMENT }}
+        env:
+            API_URL: ${{ vars.API_URL }}
+            ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+            SKIP_VERIFY_TLS: ${{ vars.SKIP_VERIFY_TLS }}
+            NAMESPACE: ${{ vars.NAMESPACE }}
+            PGHOST: ${{ vars.PGHOST }}
+            PGPORT: ${{ vars.PGPORT }}
+            PGUSER: ${{ vars.PGUSER }}
+            PGPASSWORD: ${{ secrets.PGPASSWORD }}
+            PGDATABASE: ${{ vars.PGDATABASE }}
+
         steps:
 
         - name: Backup Umami Database
-            run: python3 .github/scripts/backup_postgres.py
+          run: python3 .github/scripts/backup_postgres.py
 
     upload_to_gitlab:        
         runs-on: linux
@@ -30,8 +43,8 @@ jobs:
         steps:
 
         - name: Checkout Code
-            uses: actions/checkout@v4
-            with:
+          uses: actions/checkout@v4
+          with:
             fetch-depth: 0
             ref: ${{ env.BRANCH }}
 
@@ -53,16 +66,16 @@ jobs:
         steps:
 
         - name: Generate Token
-            id: generate_token
-            #uses: tibdex/github-app-token@v2
-            uses: actions/create-github-app-token@v2
-            with:
+          id: generate_token
+          #uses: tibdex/github-app-token@v2
+          uses: actions/create-github-app-token@v2
+          with:
             app-id: ${{ secrets.LOG_ANALYZER_APP_ID }}
             private-key: ${{ secrets.LOG_ANALYZER_PRIVATE_KEY }}
 
         - name: GitHub Actions Failure Analysis
-            uses: calebevans/gha-failure-analysis@v0.1.9
-            with:
+          uses: calebevans/gha-failure-analysis@v0.1.9
+          with:
             llm-provider: gemini
             llm-model: gemini-3-pro-preview
             llm-api-key: ${{ secrets.GEMINI_API_KEY }}
