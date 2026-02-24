@@ -1,0 +1,70 @@
+name: Backup Umami Database
+
+env:
+
+  username: "tag-ai"
+  POSTGRES_POD: "umami-db-0"
+  UMAMI_BACKUP_DIR: "/tmp/umami_backup"
+  BRANCH: ${{ inputs.target_branch || 'main' }}
+#   CLUSTER: ${{ inputs.target_cluster || 'PRE-PRODUCTION' }}
+  BACKUP_REPO: ${{ vars.BACKUP_REPO_URL }}
+  BACKUP_REPO_NAME: ${{ vars.BACKUP_REPO_NAME }}
+
+on:
+ push:
+    branches:
+      - GENIE-1308_umami_backup
+ workflow_dispatch:
+
+jobs:
+    backup_umami:
+        runs-on: linux
+        steps:
+
+        - name: Backup Umami Database
+            run: python3 .github/scripts/backup_postgres.py
+
+    upload_to_gitlab:        
+        runs-on: linux
+        needs: [setup_environment, verify_agent_deps, backup_qdrant, backup_mongo]
+        steps:
+
+        - name: Checkout Code
+            uses: actions/checkout@v4
+            with:
+            fetch-depth: 0
+            ref: ${{ env.BRANCH }}
+
+        # - name: Upload files to gitlab repo
+        #     run: python3 .github/scripts/upload_to_gitlab.py
+        
+        # - name: Clean up
+        #     run: |
+        #     rm -rf /tmp/mongo_backup_*.tar.gz
+        #     rm -rf /tmp/snapshots
+
+    analyze:
+        needs: [verify_agent_deps, setup_environment, backup_umami]
+        if: always() && contains(needs.*.result, 'failure')
+        runs-on: ubuntu-latest
+        permissions:
+        actions: read
+        contents: read
+        steps:
+
+        - name: Generate Token
+            id: generate_token
+            #uses: tibdex/github-app-token@v2
+            uses: actions/create-github-app-token@v2
+            with:
+            app-id: ${{ secrets.LOG_ANALYZER_APP_ID }}
+            private-key: ${{ secrets.LOG_ANALYZER_PRIVATE_KEY }}
+
+        - name: GitHub Actions Failure Analysis
+            uses: calebevans/gha-failure-analysis@v0.1.9
+            with:
+            llm-provider: gemini
+            llm-model: gemini-3-pro-preview
+            llm-api-key: ${{ secrets.GEMINI_API_KEY }}
+            github-token: ${{ steps.generate_token.outputs.token }}
+            post-pr-comment: false
