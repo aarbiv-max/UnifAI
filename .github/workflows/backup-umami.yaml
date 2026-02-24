@@ -5,7 +5,7 @@ env:
   username: "tag-ai"
   POSTGRES_POD: "umami-db-0"
   UMAMI_BACKUP_DIR: "/tmp/umami_backup"
-  BRANCH: ${{ inputs.target_branch || 'main' }}
+  BRANCH: #${{ inputs.target_branch || 'GENIE-1308_umami_backup' }}
 #   CLUSTER: ${{ inputs.target_cluster || 'PRE-PRODUCTION' }}
   BACKUP_REPO: ${{ vars.BACKUP_REPO_URL }}
   BACKUP_REPO_NAME: ${{ vars.BACKUP_REPO_NAME }}
