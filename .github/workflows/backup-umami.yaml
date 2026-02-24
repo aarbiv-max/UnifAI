@@ -39,7 +39,7 @@ jobs:
 
     upload_to_gitlab:        
         runs-on: linux
-        needs: [setup_environment, verify_agent_deps, backup_qdrant, backup_mongo]
+        needs: [backup_umami]
         steps:
 
         - name: Checkout Code
