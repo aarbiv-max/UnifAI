@@ -41,6 +41,16 @@ jobs:
               ref: ${{ env.BRANCH }}
 
         - name: Backup Umami Database
+          env:
+            API_URL: ${{ vars.API_URL }}
+            ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+            SKIP_VERIFY_TLS: ${{ vars.SKIP_VERIFY_TLS }}
+            NAMESPACE: ${{ vars.NAMESPACE }}
+            PGHOST: ${{ vars.PGHOST }}
+            PGPORT: ${{ vars.PGPORT }}
+            PGUSER: ${{ vars.PGUSER }}
+            PGPASSWORD: ${{ secrets.PGPASSWORD }}
+            PGDATABASE: ${{ vars.PGDATABASE }}
           run: python3 .github/scripts/backup_postgres.py
 
     upload_to_gitlab:        
