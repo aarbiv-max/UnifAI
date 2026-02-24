@@ -20,7 +20,7 @@ jobs:
     backup_umami:
         runs-on: linux
         environment:
-            name: ${{ vars.ENVIRONMENT }}
+            name: ${{ env.ENVIRONMENT }}
         env:
             API_URL: ${{ vars.API_URL }}
             ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
@@ -41,8 +41,6 @@ jobs:
               ref: ${{ env.BRANCH }}
 
         - name: Backup Umami 
-          environment:
-            name: ${{ env.ENVIRONMENT }}
           env:
             API_URL: ${{ vars.API_URL }}
             ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
