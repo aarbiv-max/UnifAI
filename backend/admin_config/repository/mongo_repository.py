@@ -5,7 +5,7 @@ Follows the RAG pattern: receives a ready-to-use pymongo Collection
 from the composition root (app_container), rather than creating its own client.
 """
 import pymongo
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from admin_config.models import AdminConfigEntry
@@ -45,7 +45,7 @@ class MongoAdminConfigRepository(AdminConfigRepository):
 
     def set(self, entry: AdminConfigEntry) -> bool:
         """Upsert a config entry."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         result = self._col.update_one(
             {"key": entry.key},
             {"$set": {
@@ -64,5 +64,5 @@ class MongoAdminConfigRepository(AdminConfigRepository):
         return AdminConfigEntry(
             key=doc["key"],
             value=doc.get("value", {}),
-            updated_at=doc.get("updated_at", datetime.utcnow()),
+            updated_at=doc.get("updated_at", datetime.now(timezone.utc)),
         )

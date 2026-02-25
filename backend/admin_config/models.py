@@ -7,7 +7,7 @@ Defines the structure for admin-configurable settings:
 The template is the static definition (field types, labels, defaults).
 Stored values live in MongoDB keyed by section key.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
@@ -72,7 +72,7 @@ class AdminConfigEntry(BaseModel):
     """One persisted config entry keyed by section key."""
     key: str
     value: Dict[str, Any] = Field(default_factory=dict)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ──────────────────────────────────────────────────────────────────────────────

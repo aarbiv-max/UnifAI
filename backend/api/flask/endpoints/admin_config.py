@@ -6,14 +6,30 @@ Provides REST API for admin configuration:
   PUT  /api/admin_config/config.section.update  — update one section's values
   GET  /api/admin_config/access.check           — check if an email has admin access
 """
-from flask import Blueprint, jsonify, current_app
+from flask import Blueprint, jsonify, current_app, request
 from global_utils.helpers.apiargs import from_body, from_query
+from global_utils.flask.decorators import require_admin_access
 from webargs import fields
 import logging
 
 logger = logging.getLogger(__name__)
 
 admin_config_bp = Blueprint("admin_config", __name__)
+
+
+def _get_current_user(req):
+    """Current user from X-Username/X-User-Id header or query (for UI/gateway)."""
+    return (
+        req.headers.get("X-Username")
+        or req.headers.get("X-User-Id")
+        or req.args.get("username")
+        or req.args.get("user_id")
+        or req.args.get("userId")
+    )
+
+
+def _is_admin(user_id):
+    return current_app.container.admin_config_service.is_admin(user_id)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -39,6 +55,7 @@ def get_config():
 #  Write — update one section
 # ─────────────────────────────────────────────────────────────────────────────
 @admin_config_bp.route("/config.section.update", methods=["PUT"])
+@require_admin_access(_get_current_user, _is_admin)
 @from_body({
     "section_key": fields.Str(data_key="sectionKey", required=True),
     "values": fields.Dict(required=True),
@@ -91,5 +108,5 @@ def access_check(username):
         is_admin = svc.is_admin(username)
         return jsonify({"is_admin": is_admin}), 200
     except Exception as e:
-        logger.exception("Error checking admin access for '%s'", username)
+        logger.exception("Error checking admin access")
         return jsonify({"error": str(e)}), 500
