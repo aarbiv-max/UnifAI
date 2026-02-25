@@ -230,19 +230,18 @@ class SlackConnector(DataConnector):
             # Process channels from current page
             batch_channels: List[SlackChannel] = []
             for channel in response.get('channels', []):
-                # AIA-Issue-011: Filter out restricted channels before saving
-                if self._restriction_checker.is_restricted(
+                # AIA-Issue-011: Label restricted channels instead of discarding them
+                restricted = self._restriction_checker.is_restricted(
                     channel_name=channel.get("name", ""),
                     is_private=channel.get("is_private", False),
                     is_ext_shared=channel.get("is_ext_shared", False),
-                ):
-                    continue
+                )
                 
-                channel_model = SlackChannel.from_slack_api(channel, self._project_id)
+                channel_model = SlackChannel.from_slack_api(channel, self._project_id, restricted=restricted)
                 channels.append(channel_model)
                 batch_channels.append(channel_model)
             
-            # Cache batch to MongoDB (only allowed channels)
+            # Cache batch to MongoDB (all channels, restricted ones are labeled)
             self._channel_repo.save_many(batch_channels)
             
             # Check if there are more pages

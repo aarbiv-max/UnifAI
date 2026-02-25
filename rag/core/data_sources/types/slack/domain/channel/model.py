@@ -21,6 +21,7 @@ class SlackChannel:
     is_private: bool
     is_app_member: bool
     last_updated: float
+    is_ext_shared: bool = False
     restricted: bool = False
 
     @classmethod
@@ -40,11 +41,12 @@ class SlackChannel:
             is_private=data.get("is_private", False),
             is_app_member=data.get("is_app_member", False),
             last_updated=data.get("last_updated", 0.0),
+            is_ext_shared=data.get("is_ext_shared", False),
             restricted=data.get("restricted", False),
         )
 
     @classmethod
-    def from_slack_api(cls, channel: Dict[str, Any], project_id: str) -> "SlackChannel":
+    def from_slack_api(cls, channel: Dict[str, Any], project_id: str, restricted: bool = False) -> "SlackChannel":
         """Create a SlackChannel from Slack API response."""
         is_private = channel.get("is_private", False)
         return cls(
@@ -55,6 +57,8 @@ class SlackChannel:
             is_private=is_private,
             is_app_member=bool(channel.get("is_member", False)),
             last_updated=time.time(),
+            is_ext_shared=channel.get("is_ext_shared", False),
+            restricted=restricted,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -67,6 +71,7 @@ class SlackChannel:
             "is_private": self.is_private,
             "is_app_member": self.is_app_member,
             "last_updated": self.last_updated,
+            "is_ext_shared": self.is_ext_shared,
             "restricted": self.restricted,
         }
 

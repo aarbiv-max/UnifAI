@@ -51,7 +51,11 @@ class SlackChannelService:
         result = ReconcileResult()
 
         for ch in channels:
-            should_restrict = self._checker.is_restricted(ch.channel_name)
+            should_restrict = self._checker.is_restricted(
+                ch.channel_name,
+                is_private=ch.is_private,
+                is_ext_shared=ch.is_ext_shared,
+            )
 
             if should_restrict and not ch.restricted:
                 self._channel_repo.set_restricted(ch.channel_id, True)

@@ -60,21 +60,18 @@ class ChannelCreatedEventHandler(SlackEventHandler):
                 logger.warning(f"No channel payload found for {self.event_type}")
                 return
 
-            # AIA-Issue-011: Filter out restricted channels before saving
-            # Refresh rules to pick up any recent admin changes
+            # AIA-Issue-011: Label restricted channels instead of discarding them
             self._restriction_checker.refresh()
-            if self._restriction_checker.is_restricted(
+            restricted = self._restriction_checker.is_restricted(
                 channel_name=channel_info.get("name", ""),
                 is_private=channel_info.get("is_private", False),
                 is_ext_shared=channel_info.get("is_ext_shared", False),
-            ):
-                logger.info(f"Skipping restricted channel from {self.event_type}: {typed.channel_id}")
-                return
+            )
+            if restricted:
+                logger.info(f"Channel from {self.event_type} is restricted, labeling: {typed.channel_id}")
 
-            # Create domain model from Slack API response
-            channel = SlackChannel.from_slack_api(channel_info, self._project_id)
+            channel = SlackChannel.from_slack_api(channel_info, self._project_id, restricted=restricted)
             
-            # Override last_updated with event timestamp if available
             if typed.event_ts:
                 channel = SlackChannel(
                     channel_id=channel.channel_id,
@@ -84,6 +81,8 @@ class ChannelCreatedEventHandler(SlackEventHandler):
                     is_private=channel.is_private,
                     is_app_member=channel.is_app_member,
                     last_updated=float(typed.event_ts),
+                    is_ext_shared=channel.is_ext_shared,
+                    restricted=channel.restricted,
                 )
 
             created = self._channel_repo.save(channel)
