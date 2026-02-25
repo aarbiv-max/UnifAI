@@ -12,20 +12,24 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import k8s_utils
 
-# Kubernetes / cluster (read once, pass into k8s_utils)
-POSTGRES_POD = os.getenv("POSTGRES_POD")
-NAMESPACE = os.getenv("NAMESPACE")
-ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
-API_URL = os.getenv("API_URL")
+# Kubernetes / cluster (read once, pass into k8s_utils; strip to avoid trailing newlines)
+def _env(key: str, default: str = None):
+    v = os.getenv(key, default)
+    return v.strip() if isinstance(v, str) else v
+
+POSTGRES_POD = _env("POSTGRES_POD")
+NAMESPACE = _env("NAMESPACE")
+ACCESS_TOKEN = _env("ACCESS_TOKEN")
+API_URL = _env("API_URL")
 SKIP_VERIFY_TLS = bool(os.getenv("SKIP_VERIFY_TLS"))
-CLUSTER = os.getenv("CLUSTER")
+CLUSTER = _env("CLUSTER")
 
 # PostgreSQL connection (used to build pg_dump command run on the pod)
-PGHOST = os.getenv("PGHOST", "localhost")
-PGPORT = os.getenv("PGPORT", "5432")
-PGUSER = os.getenv("PGUSER")
-PGPASSWORD = os.getenv("PGPASSWORD")
-PGDATABASE = os.getenv("PGDATABASE")
+PGHOST = _env("PGHOST", "localhost") or "localhost"
+PGPORT = _env("PGPORT", "5432") or "5432"
+PGUSER = _env("PGUSER")
+PGPASSWORD = _env("PGPASSWORD")
+PGDATABASE = _env("PGDATABASE")
 
 # Paths on the pod
 POD_BACKUP_FILE = "/tmp/umami_backup.sql"
@@ -89,6 +93,7 @@ if __name__ == "__main__":
     for var, name in [
         (POSTGRES_POD, "POSTGRES_POD"),
         (NAMESPACE, "NAMESPACE"),
+        (CLUSTER, "CLUSTER"),
         (API_URL, "API_URL"),
         (ACCESS_TOKEN, "ACCESS_TOKEN"),
         (PGUSER, "PGUSER"),

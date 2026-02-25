@@ -48,8 +48,6 @@ def setup_k8s_connection(
     fd, kubeconfig_path = tempfile.mkstemp(suffix='.kubeconfig')
     with os.fdopen(fd, 'w') as f:
         json.dump(kube_config, f)
-    print("kubeconfig:")
-    print(kube_config)
     os.environ['KUBECONFIG'] = kubeconfig_path
     config.load_kube_config(kubeconfig_path)
     print(f"✓ Connected to {cluster}")

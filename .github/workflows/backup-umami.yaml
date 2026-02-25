@@ -4,12 +4,13 @@ env:
 
   username: "tag-ai"
   POSTGRES_POD: "umami-db-0"
-  UMAMI_BACKUP_DIR: "/tmp/umami_backup"
   BRANCH: #${{ inputs.target_branch || 'GENIE-1308_umami_backup' }}
 #   CLUSTER: ${{ inputs.target_cluster || 'PRE-PRODUCTION' }}
   BACKUP_REPO: ${{ vars.BACKUP_REPO_URL }}
   BACKUP_REPO_NAME: ${{ vars.BACKUP_REPO_NAME }}
   ENVIRONMENT: "UMAMI"
+  BACKUP_SEARCH_DIR: "/tmp"
+  BACKUP_FILE_GLOB: "postgres_backup_*.sql.gz"
 on:
  push:
     branches:
@@ -53,6 +54,15 @@ jobs:
             PGPASSWORD: ${{ secrets.PGPASSWORD }}
             PGDATABASE: ${{ vars.PGDATABASE }}
           run: python3 .github/scripts/backup_postgres.py
+
+        - name: Upload backup to GitLab
+          env:
+            BACKUP_REPO: ${{ vars.BACKUP_REPO_URL }}
+            BACKUP_REPO_NAME: ${{ vars.BACKUP_REPO_NAME }}
+            BACKUP_SEARCH_DIR: "/tmp"
+            BACKUP_FILE_GLOB: "postgres_backup_*.sql.gz"
+            ENVIRONMENT: "UMAMI"
+          run: python3 .github/scripts/upload_backup_to_gitlab.py
 
     upload_to_gitlab:        
         runs-on: linux
