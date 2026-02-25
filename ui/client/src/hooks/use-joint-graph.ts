@@ -454,9 +454,8 @@ export function useJointGraph({
               Math.max(actualBbox.height + FIT_PADDING * 2, ch > 0 ? ch : 300),
             );
           }
-        } catch {
-          // Container may not be visible yet (e.g. carousel panel is collapsed).
-          // The ResizeObserver will handle fitting once it gains a valid size.
+        } catch (e) {
+          console.warn("[useJointGraph] initial fit: container may not be visible yet", e);
         }
 
         // All geometry is settled — unfreeze the paper so JointJS renders
@@ -506,11 +505,15 @@ export function useJointGraph({
     injectSvgDefs(paper.el, primaryNow);
 
     const linkColor = primaryNow.startsWith("#") ? primaryNow : `#${primaryNow}`;
-    for (const link of graph.getLinks()) {
-      if (conditionalLinkIdsRef.current.has(link.id as string)) continue;
-      link.attr("line/stroke", linkColor);
-      link.attr("line/sourceMarker/fill", linkColor);
-      link.attr("line/targetMarker/fill", linkColor);
+    try {
+      for (const link of graph.getLinks()) {
+        if (conditionalLinkIdsRef.current.has(link.id as string)) continue;
+        link.attr("line/stroke", linkColor);
+        link.attr("line/sourceMarker/fill", linkColor);
+        link.attr("line/targetMarker/fill", linkColor);
+      }
+    } catch (e) {
+      console.warn("[useJointGraph] theme update: SVGMatrix non-invertible (container likely collapsed)", e);
     }
   }, [primaryHex]);
 
@@ -549,9 +552,8 @@ export function useJointGraph({
           paper.translate(0, 0);
           paper.setDimensions(cw, ch);
           paper.transformToFitContent(SCALE_CONTENT_TO_FIT_OPTS);
-        } catch {
-          // Transition-related SVGMatrix error — safe to ignore; the next
-          // resize event (after the transition finishes) will succeed.
+        } catch (e) {
+          console.warn("[useJointGraph] resize refit: SVGMatrix error during CSS transition", e);
           return;
         }
 

@@ -30,7 +30,7 @@ The UnifAI Helm infrastructure provides **declarative Kubernetes deployments** u
 
 **Deployment Layers:**
 1. **Shared Resources**: MongoDB, RabbitMQ, Qdrant, SSO
-2. **Application Modules**: Dataflow, Multi-Agent, UI
+2. **Application Modules**: RAG, Multi-Agent, UI
 3. **Supporting Services**: Docling, vLLM serving engines
 
 ---
@@ -69,14 +69,14 @@ helm/
 │   ├── docling/                   # Document processing service
 │   ├── vllm-serving-engine/       # LLM serving infrastructure
 │   ├── shared-config/             # Shared ConfigMap definitions
-│   └── unifai-dataflow-shared-storage/  # PVC for dataflow
+│   └── unifai-rag-shared-storage/  # PVC for RAG
 │
-├── dataflow/                      # 📊 Data Pipeline Hub components
-│   ├── unifai-dataflow-server/    # Flask backend server
-│   ├── unifai-dataflow-celery/    # Celery worker pods
-│   ├── unifai-dataflow-config/    # ConfigMap for dataflow
-│   ├── unifai-dataflow-secrets/   # Secret templates
-│   └── unifai-dataflow-shared-storage/  # PVC definitions
+├── rag/                      # 📊 Data Pipeline Hub components
+│   ├── unifai-rag-server/    # Flask backend server
+│   ├── unifai-rag-celery/    # Celery worker pods
+│   ├── unifai-rag-config/    # ConfigMap for RAG
+│   ├── unifai-rag-secrets/   # Secret templates
+│   └── unifai-rag-shared-storage/  # PVC definitions
 │
 ├── multiagent/                    # 🤖 Multi-Agent System
 │   ├── be/                        # Backend service chart
@@ -89,7 +89,7 @@ helm/
 ├── values/                        # 📝 Value files (environment configs)
 │   ├── global-config.yaml         # Global environment variables
 │   ├── shared-resource-values.yaml  # Shared resources config
-│   ├── dataflow-resource-values.yaml  # Dataflow config
+│   ├── rag-resource-values.yaml   # RAG config
 │   ├── multiagent-resource-values.yaml  # Multi-agent config
 │   ├── ui-values.yaml             # UI config
 │   ├── sso-values.yaml            # SSO config
@@ -98,14 +98,14 @@ helm/
 │   └── vllm-*.yaml                # vLLM model-specific configs
 │
 ├── helmfile1.yaml.gotmpl          # 🔗 Shared resources orchestration
-├── dataflow.yaml.gotmpl           # 🔗 Dataflow deployment
+├── rag.yaml.gotmpl                # 🔗 RAG deployment
 ├── multiagent.yaml.gotmpl         # 🔗 Multi-agent deployment
 ├── ui.yaml.gotmpl                 # 🔗 UI deployment
 ├── sso.yaml.gotmpl                # 🔗 SSO deployment
 ├── shared-resources.yaml.gotmpl   # 🔗 Extended shared resources
 │
-├── dataflow-presync.sh            # 🪝 Dataflow pre-deployment hook
-├── dataflow-postsync.sh           # 🪝 Dataflow post-deployment hook
+├── rag-presync.sh                 # 🪝 RAG pre-deployment hook
+├── rag-postsync.sh           # 🪝 RAG post-deployment hook
 ├── postsync.sh                    # 🪝 Shared resources post-hook
 │
 ├── helmfile1.yaml                 # Static helmfile (if no templating)
@@ -115,10 +115,10 @@ helm/
 
 ### Chart Anatomy
 
-Standard Helm chart structure (example: `dataflow/unifai-dataflow-server/`):
+Standard Helm chart structure (example: `rag/unifai-rag-server/`):
 
 ```
-unifai-dataflow-server/
+unifai-rag-server/
 ├── Chart.yaml                     # Chart metadata (name, version, appVersion)
 ├── values.yaml                    # Default values
 ├── templates/
@@ -158,22 +158,22 @@ UnifAI uses a **3-tier deployment architecture**:
                               │
                               │ depends on
                               ▼
-┌──────────────────────────────────────────────────────────────┐
-│                TIER 2: Application Components                 │
-│  (dataflow.yaml, multiagent.yaml, sso.yaml)                  │
-│                                                               │
-│  ┌─────────────────┐   ┌──────────────┐   ┌──────────────┐ │
-│  │ Dataflow Server │   │ Multi-Agent  │   │     SSO      │ │
-│  │   (Deployment)  │   │  (Deployment)│   │ (Deployment) │ │
-│  └────────┬────────┘   └──────┬───────┘   └──────┬───────┘ │
-│           │                   │                   │          │
+┌─────────────────────────────────────────────────────────────┐
+│                TIER 2: Application Components               │
+│           (rag.yaml, multiagent.yaml, sso.yaml)             │
+│                                                             │
+│  ┌─────────────────┐   ┌──────────────┐   ┌──────────────┐  │
+│  │    RAG Server   │   │ Multi-Agent  │   │     SSO      │  │
+│  │   (Deployment)  │   │  (Deployment)│   │ (Deployment) │  │
+│  └────────┬────────┘   └──────┬───────┘   └──────┬───────┘  │
+│           │                   │                  │          │
 │  ┌────────┴────────┐   ┌──────┴───────┐          │          │
-│  │ Dataflow Celery │   │ MA Config    │          │          │
+│  │   RAG Celery    │   │ MA Config    │          │          │
 │  │   (Deployment)  │   │ (ConfigMap)  │          │          │
 │  └─────────────────┘   └──────────────┘          │          │
-│           │                                       │          │
+│           │                                      │          │
 │  ┌────────┴─────────┐                            │          │
-│  │ Dataflow Config  │                            │          │
+│  │ RAG Config       │                            │          │
 │  │   (ConfigMap)    │                            │          │
 │  └──────────────────┘                            │          │
 │  [Presync Hook: Create secrets]                  │          │
@@ -186,9 +186,9 @@ UnifAI uses a **3-tier deployment architecture**:
 │                      TIER 3: Frontend                         │
 │  (ui.yaml)                                                    │
 │                                                               │
-│  ┌─────────────────────────────────────────────────────────┐ │
+│  ┌─────────────────────────────────────────────────────────┐  │
 │  │  UI (Deployment) with Nginx                              │ │
-│  │  Routes: /api1 → Dataflow, /api2 → Multi-Agent          │ │
+│  │  Routes: /api1 → RAG, /api2 → Multi-Agent                │ │
 │  │          /api3 → SSO                                     │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │                              │                                │
@@ -206,9 +206,9 @@ MongoDB, RabbitMQ, Qdrant (parallel)
     │
     ├─> Shared Config (waits for all)
     │       │
-    │       ├─> Dataflow Server
-    │       │       ├─> Dataflow Celery
-    │       │       └─> Dataflow Config
+    │       ├─> RAG Server
+    │       │       ├─> RAG Celery
+    │       │       └─> RAG Config
     │       │
     │       ├─> Multi-Agent Backend
     │       │       └─> Multi-Agent Config
@@ -228,10 +228,10 @@ releases:
       - unifai-qdrant
       - unifai-rabbitmq
   
-  - name: unifai-dataflow-config
+  - name: unifai-rag-config
     needs:
-      - unifai-dataflow-server
-      - unifai-dataflow-celery
+      - unifai-rag-server
+      - unifai-rag-celery
 ```
 
 ---
@@ -242,13 +242,13 @@ releases:
 
 **Purpose:** Helmfile orchestrates multiple Helm chart deployments with dependency management.
 
-**Template Example: `dataflow.yaml.gotmpl`**
+**Template Example: `rag.yaml.gotmpl`**
 
 ```yaml
 environments:
   default:
     values:
-      - ./values/dataflow-resource-values.yaml
+      - ./values/rag-resource-values.yaml
 
 ---
 
@@ -257,71 +257,71 @@ helmDefaults:
   wait: false             # Don't wait by default
 
 releases:
-  - name: unifai-dataflow-server
-    chart: ./dataflow/unifai-dataflow-server
+  - name: unifai-rag-server
+    chart: ./rag/unifai-rag-server
     wait: true            # Override: wait for this release
     hooks:
       - events: ["presync"]
         showlogs: true
         command: bash
         args:
-          - "./dataflow-presync.sh"
+          - "./rag-presync.sh"
     values:
-      - {{- toYaml .Values.unifai_dataflow_server | nindent 8 }}
+      - {{- toYaml .Values.unifai_rag_server | nindent 8 }}
       - ./values/global-config.yaml
 
-  - name: unifai-dataflow-celery
-    chart: ./dataflow/unifai-dataflow-celery
+  - name: unifai-rag-celery
+    chart: ./rag/unifai-rag-celery
     version: "0.9.0"      # Pin specific chart version
     wait: true
     values:
-      - {{- toYaml .Values.unifai_dataflow_celery | nindent 8 }}
+      - {{- toYaml .Values.unifai_rag_celery | nindent 8 }}
       - ./values/global-config.yaml
 
-  - name: unifai-dataflow-config
-    chart: ./dataflow/unifai-dataflow-config
+  - name: unifai-rag-config
+    chart: ./rag/unifai-rag-config
     wait: true
     needs:                # Dependencies
-      - unifai-dataflow-server
-      - unifai-dataflow-celery
+      - unifai-rag-server
+      - unifai-rag-celery
     hooks:
       - events: ["postsync"]
         showlogs: true
         command: bash
         args:
-          - "./dataflow-postsync.sh"
+          - "./rag-postsync.sh"
 ```
 
 ### Helmfile Commands
 
 **Deploy all releases:**
 ```bash
-helmfile -f dataflow.yaml.gotmpl apply
+helmfile -f rag.yaml.gotmpl apply
 ```
 
 **Deploy specific release:**
 ```bash
-helmfile -f dataflow.yaml.gotmpl -l name=unifai-dataflow-server apply
+helmfile -f rag.yaml.gotmpl -l name=unifai-rag-server apply
 ```
 
 **Sync (deploy without hooks):**
 ```bash
-helmfile -f dataflow.yaml.gotmpl sync
+helmfile -f rag.yaml.gotmpl sync
 ```
 
 **Destroy (delete all releases):**
 ```bash
-helmfile -f dataflow.yaml.gotmpl destroy
+helmfile -f rag.yaml.gotmpl destroy
 ```
 
 **Diff (preview changes):**
 ```bash
-helmfile -f dataflow.yaml.gotmpl diff
+helmfile -f rag.yaml.gotmpl diff
 ```
 
 **Lint charts:**
 ```bash
-helmfile -f dataflow.yaml.gotmpl lint
+helmfile -f rag.yaml.gotmpl lint
 ```
 
 ---
@@ -332,14 +332,14 @@ helmfile -f dataflow.yaml.gotmpl lint
 
 ```yaml
 apiVersion: v2
-name: unifai-dataflow-server
+name: unifai-rag-server
 description: UnifAI Data Pipeline Hub Backend Server
 type: application
 version: 0.9.0          # Chart version (semantic versioning)
 appVersion: "2024.12.01"  # Application version (auto-updated by CI)
 keywords:
   - unifai
-  - dataflow
+  - rag
   - backend
 maintainers:
   - name: UnifAI Team
@@ -403,7 +403,7 @@ autoscaling:
 # OpenShift Route
 route:
   enabled: true
-  host: unifai-dataflow-server-tag-ai--pipeline.apps.example.com
+  host: unifai-rag-server-tag-ai--pipeline.apps.example.com
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
@@ -435,14 +435,14 @@ volumes:
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "unifai-dataflow-server.name" -}}
+{{- define "unifai-rag-server.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "unifai-dataflow-server.fullname" -}}
+{{- define "unifai-rag-server.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -458,9 +458,9 @@ Create a default fully qualified app name.
 {{/*
 Common labels
 */}}
-{{- define "unifai-dataflow-server.labels" -}}
-helm.sh/chart: {{ include "unifai-dataflow-server.chart" . }}
-{{ include "unifai-dataflow-server.selectorLabels" . }}
+{{- define "unifai-rag-server.labels" -}}
+helm.sh/chart: {{ include "unifai-rag-server.chart" . }}
+{{ include "unifai-rag-server.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -470,8 +470,8 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "unifai-dataflow-server.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "unifai-dataflow-server.name" . }}
+{{- define "unifai-rag-server.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "unifai-rag-server.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 ```
@@ -482,22 +482,22 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "unifai-dataflow-server.fullname" . }}
+  name: {{ include "unifai-rag-server.fullname" . }}
   labels:
-    {{- include "unifai-dataflow-server.labels" . | nindent 4 }}
+    {{- include "unifai-rag-server.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "unifai-dataflow-server.selectorLabels" . | nindent 6 }}
+      {{- include "unifai-rag-server.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
-        {{- include "unifai-dataflow-server.selectorLabels" . | nindent 8 }}
+        {{- include "unifai-rag-server.selectorLabels" . | nindent 8 }}
     spec:
       containers:
       - name: {{ .Chart.Name }}
@@ -534,14 +534,14 @@ spec:
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: {{ include "unifai-dataflow-server.fullname" . }}
+  name: {{ include "unifai-rag-server.fullname" . }}
   labels:
-    {{- include "unifai-dataflow-server.labels" . | nindent 4 }}
+    {{- include "unifai-rag-server.labels" . | nindent 4 }}
 spec:
   host: {{ .Values.route.host }}
   to:
     kind: Service
-    name: {{ include "unifai-dataflow-server.fullname" . }}
+    name: {{ include "unifai-rag-server.fullname" . }}
     weight: 100
   port:
     targetPort: http
@@ -569,16 +569,16 @@ Helm merges values in this order (later overrides earlier):
 **Example:**
 
 ```yaml
-# 1. Chart default (dataflow/unifai-dataflow-server/values.yaml)
+# 1. Chart default (rag/unifai-rag-server/values.yaml)
 replicaCount: 1
 
-# 2. Environment values (values/dataflow-resource-values.yaml)
-unifai_dataflow_server:
+# 2. Environment values (values/rag-resource-values.yaml)
+unifai_rag_server:
   replicaCount: 3
 
-# 3. Helmfile release values (dataflow.yaml.gotmpl)
+# 3. Helmfile release values (rag.yaml.gotmpl)
 releases:
-  - name: unifai-dataflow-server
+  - name: unifai-rag-server
     values:
       - replicaCount: 5  # This wins
 ```
@@ -590,7 +590,7 @@ releases:
 ```yaml
 env:
   FRONTEND_URL: "https://unifai-ui-tag-ai--pipeline.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
-  DATAPIPELINEHUB_HOST: "unifai-dataflow-server"
+  DATAPIPELINEHUB_HOST: "unifai-rag-server"
   DATAPIPELINEHUB_PORT: "13456"
   MULTIAGENT_HOST: "unifai-multiagent-be"
   MULTIAGENT_PORT: "8003"
@@ -601,7 +601,7 @@ env:
 
 ```yaml
 releases:
-  - name: unifai-dataflow-server
+  - name: unifai-rag-server
     values:
       - ./values/global-config.yaml  # Merged with component-specific values
 ```
@@ -616,10 +616,10 @@ envFrom:
 
 ### Component-Specific Values
 
-**File: `values/dataflow-resource-values.yaml`**
+**File: `values/rag-resource-values.yaml`**
 
 ```yaml
-unifai_dataflow_server:
+unifai_rag_server:
   replicaCount: 2
   image:
     repository: images.paas.redhat.com/unifai/backend
@@ -632,7 +632,7 @@ unifai_dataflow_server:
     ROLE: "flask"
     BACKEND_ENV: "production"
 
-unifai_dataflow_celery:
+unifai_rag_celery:
   replicaCount: 3
   image:
     repository: images.paas.redhat.com/unifai/backend
@@ -649,9 +649,9 @@ unifai_dataflow_celery:
 
 ```yaml
 releases:
-  - name: unifai-dataflow-server
+  - name: unifai-rag-server
     values:
-      - {{- toYaml .Values.unifai_dataflow_server | nindent 8 }}
+      - {{- toYaml .Values.unifai_rag_server | nindent 8 }}
 ```
 
 ---
@@ -671,7 +671,7 @@ Helmfile supports lifecycle hooks at release level:
 
 ### Presync Hook: Secret Creation
 
-**File: `dataflow-presync.sh`**
+**File: `rag-presync.sh`**
 
 ```bash
 #!/bin/bash
@@ -682,7 +682,7 @@ log_info() { echo -e "\033[0;32m[INFO]\033[0m $1"; }
 log_warn() { echo -e "\033[1;33m[WARN]\033[0m $1"; }
 log_error() { echo -e "\033[0;31m[ERROR]\033[0m $1"; }
 
-log_info "Starting presync hook for dataflow"
+log_info "Starting presync hook for RAG"
 
 # Validate environment variables
 MISSING_VARS=()
@@ -699,8 +699,8 @@ if [[ ${#MISSING_VARS[@]} -gt 0 ]]; then
 fi
 
 # Create Secret
-log_info "Creating/updating Secret 'unifai-dataflow-secrets'..."
-kubectl create secret generic unifai-dataflow-secrets \
+log_info "Creating/updating Secret 'unifai-rag-secrets'..."
+kubectl create secret generic unifai-rag-secrets \
     --from-literal=slack_bot_token="${default_slack_bot_token:-}" \
     --from-literal=slack_user_token="${default_slack_user_token:-}" \
     --dry-run=client -o yaml | kubectl apply -f -
@@ -712,18 +712,18 @@ log_info "✅ Presync hook completed successfully"
 
 ```yaml
 releases:
-  - name: unifai-dataflow-server
+  - name: unifai-rag-server
     hooks:
       - events: ["presync"]
         showlogs: true
         command: bash
         args:
-          - "./dataflow-presync.sh"
+          - "./rag-presync.sh"
 ```
 
 ### Postsync Hook: ConfigMap Creation
 
-**File: `dataflow-postsync.sh`**
+**File: `rag-postsync.sh`**
 
 ```bash
 #!/bin/bash
@@ -732,7 +732,7 @@ set -o pipefail
 
 log_info() { echo -e "\033[0;32m[INFO]\033[0m $1"; }
 
-log_info "Starting postsync hook for dataflow"
+log_info "Starting postsync hook for RAG"
 
 # Wait for service to be ready
 wait_for_port() {
@@ -752,19 +752,19 @@ wait_for_port() {
 }
 
 # Get service details
-DATAFLOW_PORT=$(wait_for_port "unifai-dataflow-server")
-DATAFLOW_IP=$(kubectl get svc unifai-dataflow-server -o jsonpath='{.metadata.name}')
+RAG_PORT=$(wait_for_port "unifai-rag-server")
+RAG_IP=$(kubectl get svc unifai-rag-server -o jsonpath='{.metadata.name}')
 
 # Create ConfigMap with service details
-log_info "Creating ConfigMap 'dataflow-config'..."
-kubectl create configmap dataflow-config \
-    --from-literal=DATAFLOW_HOST="$DATAFLOW_IP" \
-    --from-literal=DATAFLOW_PORT="$DATAFLOW_PORT" \
+log_info "Creating ConfigMap 'rag-config'..."
+kubectl create configmap rag-config \
+    --from-literal=RAG_HOST="$RAG_IP" \
+    --from-literal=RAG_PORT="$RAG_PORT" \
     --dry-run=client -o yaml | kubectl apply -f -
 
 # Initialize MongoDB collections (example)
 log_info "Initializing MongoDB collections..."
-kubectl exec -it deployment/unifai-dataflow-server -- \
+kubectl exec -it deployment/unifai-rag-server -- \
     python -c "from app import init_db; init_db()"
 
 log_info "✅ Postsync hook completed successfully"
@@ -842,7 +842,7 @@ kubectl wait --for=condition=Ready pods -l app=qdrant --timeout=300s
 kubectl wait --for=condition=Ready pods -l app=rabbitmq --timeout=300s
 
 # 4. Deploy application components
-helmfile -f dataflow.yaml.gotmpl apply
+helmfile -f rag.yaml.gotmpl apply
 helmfile -f multiagent.yaml.gotmpl apply
 helmfile -f sso.yaml.gotmpl apply
 
@@ -864,7 +864,7 @@ kubectl get routes
 
 ```bash
 # 1. Update values file with new image tag
-vim values/dataflow-resource-values.yaml
+vim values/rag-resource-values.yaml
 # Change: image.tag: latest → image.tag: 2024.12.01
 
 # 2. Login to cluster
@@ -872,11 +872,11 @@ oc login https://api.cluster.example.com:6443 --token=<token>
 oc project tag-ai--pipeline
 
 # 3. Apply updated configuration (rolling update)
-helmfile -f dataflow.yaml.gotmpl apply
+helmfile -f rag.yaml.gotmpl apply
 
 # 4. Monitor rollout
-kubectl rollout status deployment/unifai-dataflow-server
-kubectl rollout status deployment/unifai-dataflow-celery
+kubectl rollout status deployment/unifai-rag-server
+kubectl rollout status deployment/unifai-rag-celery
 
 # 5. Verify pods are running new version
 kubectl get pods -o jsonpath='{.items[*].spec.containers[*].image}'
@@ -890,10 +890,10 @@ kubectl get pods -o jsonpath='{.items[*].spec.containers[*].image}'
 
 ```bash
 # Remove single release
-helmfile -f dataflow.yaml.gotmpl -l name=unifai-dataflow-celery destroy
+helmfile -f rag.yaml.gotmpl -l name=unifai-rag-celery destroy
 
 # Remove entire helmfile
-helmfile -f dataflow.yaml.gotmpl destroy
+helmfile -f rag.yaml.gotmpl destroy
 ```
 
 ### Workflow 4: Debugging Deployment
@@ -902,18 +902,18 @@ helmfile -f dataflow.yaml.gotmpl destroy
 
 ```bash
 # 1. Check Helmfile diff
-helmfile -f dataflow.yaml.gotmpl diff
+helmfile -f rag.yaml.gotmpl diff
 
 # 2. Lint charts
-helmfile -f dataflow.yaml.gotmpl lint
+helmfile -f rag.yaml.gotmpl lint
 
 # 3. Template charts (dry-run)
-helm template ./dataflow/unifai-dataflow-server \
-    -f values/dataflow-resource-values.yaml \
+helm template ./rag/unifai-rag-server \
+    -f values/rag-resource-values.yaml \
     -f values/global-config.yaml
 
 # 4. Check pod logs
-kubectl logs -f deployment/unifai-dataflow-server
+kubectl logs -f deployment/unifai-rag-server
 
 # 5. Check events
 kubectl get events --sort-by='.lastTimestamp'
@@ -983,7 +983,7 @@ tolerations:
 
 ```bash
 # ✅ Always diff before apply
-helmfile -f dataflow.yaml.gotmpl diff
+helmfile -f rag.yaml.gotmpl diff
 
 # ✅ Use wait for critical resources
 helmfile -f helmfile1.yaml.gotmpl --wait apply
@@ -1017,7 +1017,7 @@ log_error "Failed to create secret"
 # ✅ Tag resources with labels
 labels:
   app: unifai
-  component: dataflow
+  component: rag
   version: "{{ .Chart.AppVersion }}"
 
 # ✅ Use PVC for persistent data
@@ -1048,7 +1048,7 @@ Error: hook "presync" failed: exit status 1
 
 ```bash
 # Check hook script locally
-bash -x dataflow-presync.sh
+bash -x rag-presync.sh
 
 # Verify environment variables
 echo $default_slack_bot_token

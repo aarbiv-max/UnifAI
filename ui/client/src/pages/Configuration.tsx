@@ -101,7 +101,7 @@ export default function Configuration() {
                         <div>
                           <Label htmlFor="webhook-url" className="text-sm">Webhook URL</Label>
                           <div className="flex mt-1">
-                            <Input id="webhook-url" value="https://api.dataflow.pro/webhooks/events" readOnly className="rounded-r-none bg-background-dark" />
+                            <Input id="webhook-url" value="https://api.rag.pro/webhooks/events" readOnly className="rounded-r-none bg-background-dark" />
                             <Button variant="outline" className="rounded-l-none border-l-0">Copy</Button>
                           </div>
                           <p className="text-xs text-gray-400 mt-1">Receive real-time updates via webhooks</p>
@@ -543,7 +543,7 @@ export default function Configuration() {
                             rows={4} 
                             className="w-full mt-2 p-3 rounded-md border border-gray-800 bg-background-dark resize-none"
                             placeholder="Enter text to test embedding generation..."
-                            defaultValue="DataFlow Pro is a modern data pipeline management tool that makes complex data operations feel intuitive and exciting."
+                            defaultValue="RAG Pro is a modern data pipeline management tool that makes complex data operations feel intuitive and exciting."
                           ></textarea>
                         </div>
                         

@@ -14,7 +14,7 @@ import { api as apiAuth } from "@/http/authClient";
 import axios from "@/http/axiosAgentConfig";
 
 // 🔹 Fixed list of modules
-const MODULE_NAMES = ["Dataflow", "MultiAgent", "UI", "SSO"];
+const MODULE_NAMES = ["RAG", "MultiAgent", "UI", "SSO"];
 
 export default function HelpPanel({ isOpen, onClose }: any) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -26,7 +26,7 @@ export default function HelpPanel({ isOpen, onClose }: any) {
   const [error, setError] = useState<string | null>(null);
 
   const clientMap: Record<string, typeof api> = {
-    Dataflow: api,
+    RAG: api,
     MultiAgent: axios,
     SSO: apiAuth,
   };

@@ -69,14 +69,10 @@ command: ["/bin/sh", "-c", "sleep infinity"]
 
 env:
   NGINX_PORT: "8443"
-  #NGINX_PORT: "8080"
-  #DATAPIPELINEHUB_PORT: "13456"
-  # DATAPIPELINEHUB_HOST: "unifai-dataflow-server"
-  #MULTIAGENT_PORT: "8080"
-  # MULTIAGENT_HOST: "unifai-multiagent-be"
+
 
 globalConfigMapNames:
-- unifai-dataflow-config
+- unifai-rag-config
 - multiagent-config 
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
