@@ -42,7 +42,7 @@ jobs:
 
         - name: Backup Umami 
           env:
-            CLUSTER: ${{ vars.CLUSTER || default('UMAMI')}}
+            CLUSTER: ${{ vars.CLUSTER || 'UMAMI'}}
             API_URL: ${{ vars.API_URL }}
             ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
             SKIP_VERIFY_TLS: ${{ vars.SKIP_VERIFY_TLS }}
