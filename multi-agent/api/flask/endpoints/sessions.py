@@ -1,3 +1,5 @@
+import asyncio
+
 from flask import Blueprint, jsonify, current_app, Response
 from global_utils.helpers.apiargs import from_body, from_query
 from webargs import fields
@@ -92,6 +94,49 @@ def execute_user_session(session_id, inputs, stream_mode, stream, scope, logged_
             "blueprint_id": e.blueprint_id,
             "session_id": e.session_id
         }), 410  # Gone
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@sessions_bp.route("/user.session.execute.temporal", methods=["POST"])
+@from_body({
+    "session_id": fields.Str(data_key="sessionId", required=True),
+    "inputs": fields.Dict(data_key="inputs", required=True),
+    "scope": fields.Str(data_key="scope", load_default="public"),
+    "logged_in_user": fields.Str(data_key="loggedInUser", required=False, load_default=lambda: "")
+})
+def execute_user_session_temporal(session_id, inputs, scope, logged_in_user):
+    """
+    Execute a session via Temporal (durable, retried, observable).
+    Returns the Temporal workflow run ID immediately.
+    """
+    from temporal.client import get_temporal_client
+    from temporal.workflows import AgentExecutionWorkflow
+    from temporal.models import ExecutionParams
+    from config.app_config import AppConfig
+
+    try:
+        cfg = AppConfig.get_instance()
+        params = ExecutionParams(
+            session_id=session_id,
+            inputs=inputs,
+            scope=scope,
+            logged_in_user=logged_in_user,
+        )
+
+        async def start_workflow():
+            client = await get_temporal_client()
+            handle = await client.start_workflow(
+                AgentExecutionWorkflow.run,
+                params,
+                id=f"session-{session_id}",
+                task_queue=cfg.temporal_task_queue,
+            )
+            return handle.id
+
+        workflow_id = asyncio.run(start_workflow())
+        return jsonify({"workflow_id": workflow_id, "session_id": session_id}), 202
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

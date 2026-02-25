@@ -20,6 +20,12 @@ case "$ROLE" in
   #   exec celery -A celery_app.init worker -c $CELERY_WORKER --pool=solo --loglevel=info -Q $CELERY_QUEUES -n multiagent
   #   ;;
 
+  temporal-worker)
+    echo "⏳ Starting Temporal Worker..."
+    . ~/venv/bin/activate
+    exec python -m temporal.worker
+    ;;
+
   debug)
     echo "🐞 Debug mode activated — container will stay alive."
     tail -f /dev/null
@@ -27,7 +33,7 @@ case "$ROLE" in
 
   *)
     echo "❌ ERROR: Unknown ROLE \"$ROLE\""
-    echo "Valid roles are: flask, celery, debug"
+    echo "Valid roles are: flask, temporal-worker, debug"
     exit 1
     ;;
 esac
