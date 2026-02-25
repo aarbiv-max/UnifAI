@@ -101,11 +101,18 @@ class AdminConfigService:
 
         logger.info("Admin config section '%s' updated", section_key)
 
-        self._dispatcher.dispatch(
-            action=section_def.on_update_action,
-            target=section_def.on_update_target,
-            endpoint=section_def.on_update_endpoint,
-        )
+        try:
+            self._dispatcher.dispatch(
+                action=section_def.on_update_action,
+                target=section_def.on_update_target,
+                endpoint=section_def.on_update_endpoint,
+            )
+        except Exception:
+            logger.exception(
+                "Dispatch failed for section '%s' action '%s'; "
+                "config was saved but side-effect did not execute",
+                section_key, section_def.on_update_action,
+            )
 
         return True, section_def.on_update_action
 
