@@ -102,6 +102,15 @@ jobs:
   upload_to_gitlab:        
     runs-on: linux
     needs: [setup_environment, verify_agent_deps, backup_qdrant, backup_mongo]
+    env:
+      BRANCH: ${{ needs.setup_environment.outputs.BRANCH }}
+      BACKUP_REPO: ${{ vars.BACKUP_REPO_URL }}
+      BACKUP_REPO_NAME: ${{ vars.BACKUP_REPO_NAME }}
+      BACKUP_SEARCH_DIR: "/tmp"
+      BACKUP_FILE_GLOB: "mongo_backup*"
+      BACKUP_DIR_SOURCE: "/tmp/snapshots"
+      BACKUP_DIR_DEST: "snapshots"
+      ENVIRONMENT: ${{ needs.setup_environment.outputs.CLUSTER }}
     steps:
 
       - name: Checkout Code

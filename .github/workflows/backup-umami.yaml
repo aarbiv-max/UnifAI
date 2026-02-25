@@ -55,14 +55,6 @@ jobs:
             PGDATABASE: ${{ vars.PGDATABASE }}
           run: python3 .github/scripts/backup_postgres.py
 
-        - name: Upload backup to GitLab
-          env:
-            BACKUP_REPO: ${{ vars.BACKUP_REPO_URL }}
-            BACKUP_REPO_NAME: ${{ vars.BACKUP_REPO_NAME }}
-            BACKUP_SEARCH_DIR: "/tmp"
-            BACKUP_FILE_GLOB: "postgres_backup_*.sql.gz"
-            ENVIRONMENT: "UMAMI"
-          run: python3 .github/scripts/upload_backup_to_gitlab.py
 
     upload_to_gitlab:        
         runs-on: linux
@@ -75,16 +67,17 @@ jobs:
             fetch-depth: 0
             ref: ${{ env.BRANCH }}
 
-        # - name: Upload files to gitlab repo
-        #     run: python3 .github/scripts/upload_to_gitlab.py
-        
-        # - name: Clean up
-        #     run: |
-        #     rm -rf /tmp/mongo_backup_*.tar.gz
-        #     rm -rf /tmp/snapshots
+        - name: Upload backup to GitLab
+          env:
+            BACKUP_REPO: ${{ vars.BACKUP_REPO_URL }}
+            BACKUP_REPO_NAME: ${{ vars.BACKUP_REPO_NAME }}
+            BACKUP_SEARCH_DIR: "/tmp"
+            BACKUP_FILE_GLOB: "postgres_backup_*.sql.gz"
+            ENVIRONMENT: "UMAMI"
+          run: python3 .github/scripts/upload_to_gitlab.py
 
     analyze:
-        needs: [backup_umami]
+        needs: [backup_umami, upload_to_gitlab]
         if: always() && contains(needs.*.result, 'failure')
         runs-on: ubuntu-latest
         permissions:
