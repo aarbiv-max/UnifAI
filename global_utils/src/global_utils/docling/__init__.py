@@ -24,7 +24,6 @@ from global_utils.docling.client import DoclingClient
 from global_utils.docling.service import DoclingService
 from global_utils.docling.models import (
     DoclingOptions,
-    DoclingRequest,
     DoclingResponse,
 )
 from global_utils.docling.exceptions import (
@@ -41,7 +40,6 @@ __all__ = [
     "DoclingService",
     # Models
     "DoclingOptions",
-    "DoclingRequest",
     "DoclingResponse",
     # Exceptions
     "DoclingError",

@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Dict, Any, Optional, List
 from pydantic import AliasChoices, AliasPath, BaseModel, Field
-from global_utils.validators import CoercedStr
+from global_utils.helpers.pydantic_helpers import CoercedStr
 
 
 class DoclingOutputFormat(str, Enum):
@@ -19,13 +19,6 @@ class DoclingOptions(BaseModel):
     )
     image_export_mode: Optional[str] = None
     pdf_backend: Optional[str] = None
-
-
-class DoclingRequest(BaseModel):
-    """Request model for docling conversion."""
-    file_path: Optional[str] = None
-    url: Optional[str] = None
-    options: DoclingOptions = Field(default_factory=DoclingOptions)
 
 
 class DoclingResponse(BaseModel):

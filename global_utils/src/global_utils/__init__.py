@@ -1,6 +1,6 @@
 """Global utilities package."""
 
-from global_utils.validators import CoercedStr, coerce_to_str
+from global_utils.helpers.pydantic_helpers import CoercedStr, coerce_to_str
 from global_utils.docling import (
     DoclingClient,
     DoclingService,
@@ -15,7 +15,7 @@ from global_utils.embedding import (
 )
 
 __all__ = [
-    # Validators
+    # Pydantic helpers
     "CoercedStr",
     "coerce_to_str",
     # Docling

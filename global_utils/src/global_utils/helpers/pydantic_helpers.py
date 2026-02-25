@@ -1,5 +1,5 @@
 """
-Pydantic validators and custom type aliases.
+Pydantic helpers and custom type aliases.
 """
 from __future__ import annotations
 from typing import Any, Annotated

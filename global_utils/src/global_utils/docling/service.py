@@ -120,16 +120,25 @@ class DoclingService:
         """
         Process a document from URL through the docling service.
         
+        Note: This functionality exists but is not yet fully implemented.
+        URL validation (format, scheme, network accessibility) and richer
+        error handling are planned for future iterations.
+        
         Args:
-            document_url: URL of the document to process
+            document_url: HTTP/HTTPS URL of the document. Must be accessible
+                from the Docling service's network (e.g. public URLs like arXiv,
+                S3 presigned URLs, or internal URLs reachable from the Docling
+                pod). file:// and localhost URLs are not supported.
         
         Returns:
             DoclingResponse with extracted content
             
         Raises:
-            DoclingValidationError: If URL is invalid
+            DoclingValidationError: If URL is empty or invalid
             DoclingProcessingError: If processing fails
         """
+        # Basic validation only. Full URL validation (format, scheme,
+        # network accessibility) not yet implemented - see docstring above.
         if not document_url:
             raise DoclingValidationError("Document URL cannot be empty")
         
