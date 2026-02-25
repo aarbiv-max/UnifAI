@@ -14,19 +14,27 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
     def accepts(self, cfg: McpProviderConfig, element_type: str) -> bool:
         return element_type == Identifier.TYPE
 
-    def _build_headers(self, bearer_token: Optional[str]) -> Optional[Dict[str, str]]:
+    def _build_headers(
+        self,
+        bearer_token: Optional[str],
+        additional_headers: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
-        Build HTTP headers from bearer token if provided.
+        Build HTTP headers from bearer token and any additional headers.
         
         Args:
             bearer_token: Optional bearer token for authentication
+            additional_headers: Optional extra headers to include
             
         Returns:
-            Headers dict with Authorization header, or None if no token
+            Merged headers dict, or None if no headers are needed
         """
+        headers: Dict[str, Any] = {}
         if bearer_token:
-            return {"Authorization": f"Bearer {bearer_token}"}
-        return None
+            headers["Authorization"] = f"Bearer {bearer_token}"
+        if additional_headers:
+            headers.update(additional_headers)
+        return headers if headers else None
 
     def create(self, cfg: McpProviderConfig, **kwargs: Any) -> McpProvider:
         """
@@ -36,8 +44,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         :raises PluginConfigurationError: if instantiation fails
         """
         try:
-            # Build headers from bearer_token if provided
-            headers = self._build_headers(cfg.bearer_token)
+            headers = self._build_headers(cfg.bearer_token, cfg.additional_headers)
             
             # Use the clean sync factory method which handles async internally
             return McpProvider.create_sync(
@@ -60,8 +67,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         :raises PluginConfigurationError: if instantiation fails
         """
         try:
-            # Build headers from bearer_token if provided
-            headers = self._build_headers(cfg.bearer_token)
+            headers = self._build_headers(cfg.bearer_token, cfg.additional_headers)
             
             # Use the async factory method directly for better performance
             return await McpProvider.create_async(

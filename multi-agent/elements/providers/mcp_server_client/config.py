@@ -1,4 +1,4 @@
-from typing import Literal, List, Optional
+from typing import Any, Dict, Literal, List, Optional
 from .identifiers import Identifier
 from pydantic import Field, HttpUrl
 from elements.providers.common.base_config import ProviderBaseConfig
@@ -24,6 +24,7 @@ class McpProviderConfig(ProviderBaseConfig):
             dependencies={
                 "bearer_token": "bearer_token",
                 "transport_type": "transport_type",
+                "additional_headers": "additional_headers",
             }
         ).to_hints()
     )
@@ -31,6 +32,10 @@ class McpProviderConfig(ProviderBaseConfig):
         default=None,
         description="Bearer token for MCP server authentication (sent as 'Authorization: Bearer <token>' header)",
         json_schema_extra=SecretHint(reason="API credentials should be masked").to_hints()
+    )
+    additional_headers: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional HTTP headers to include in MCP server requests"
     )
     tool_names: Optional[List[str]] = Field(
         default_factory=list,
@@ -45,6 +50,7 @@ class McpProviderConfig(ProviderBaseConfig):
                 "mcp_url": "mcp_url",
                 "bearer_token": "bearer_token",
                 "transport_type": "transport_type",
+                "additional_headers": "additional_headers",
             }
         ).to_hints()
     )

@@ -6,7 +6,7 @@ Validates MCP server connection reachability.
 
 import anyio
 import time
-from typing import Optional, Dict, Any
+from typing import Dict, Optional, Any
 
 from pydantic import HttpUrl, Field
 
@@ -31,6 +31,10 @@ class ValidateConnectionInput(BaseActionInput):
     transport_type: McpTransportType = Field(
         default=McpTransportType.STREAMABLE_HTTP,
         description="Transport protocol for MCP server communication"
+    )
+    additional_headers: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Additional HTTP headers to include in MCP server requests"
     )
 
 
@@ -122,6 +126,7 @@ class ValidateConnectionAction(BaseAction):
                 mcp_url=input_data.mcp_url,
                 bearer_token=input_data.bearer_token,
                 transport_type=input_data.transport_type,
+                additional_headers=input_data.additional_headers,
             )
             
             # Create provider using factory - validates connection by fetching tools during init
