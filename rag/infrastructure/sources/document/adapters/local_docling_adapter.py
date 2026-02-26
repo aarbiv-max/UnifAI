@@ -38,6 +38,10 @@ class LocalDoclingAdapter(DocumentConverterPort):
         )
         logger.info("LocalDoclingAdapter initialized")
     
+    @property
+    def is_remote(self) -> bool:
+        return False
+
     def convert_file(self, file_path: str) -> ConversionResult:
         """Convert a local file using docling library."""
         if not os.path.exists(file_path):

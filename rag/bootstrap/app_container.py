@@ -201,23 +201,14 @@ def slack_connector(project_id: str):
 @lru_cache(maxsize=1)
 def document_connector():
     """Document connector for PDF and other document formats.
-    
+
     Uses local docling library by default.
     Set USE_REMOTE_DOCLING=true to use the remote docling service.
     """
     from bootstrap.factories import DocumentConnectorFactory
     from config.app_config import AppConfig
-    
-    config = AppConfig.get_instance()
-    
-    if config.use_remote_docling:
-        return DocumentConnectorFactory.create({
-            "type": "remote",
-            "service_url": config.docling_service_url,
-            "timeout": config.docling_service_timeout,
-        })
-    else:
-        return DocumentConnectorFactory.create({"type": "local"})
+
+    return DocumentConnectorFactory.from_app_config(AppConfig.get_instance())
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -415,21 +406,15 @@ def remote_services_health():
 
     Reuses document_connector() and embedding_generator() - the same instances
     used by the pipeline - so health checks reflect actual runtime configuration.
+    Each port self-reports is_remote; no config flags are read here.
 
     Adding a new service (e.g. OCR, reranker) is a one-line registration.
     """
     from core.health.service import ServicesHealthService
-    from config.app_config import AppConfig
 
-    config = AppConfig.get_instance()
     service = ServicesHealthService()
-
-    # Reuse document_connector - same instance used by pipeline (same config, timeout)
-    service.register("docling", document_connector(), is_remote=config.use_remote_docling)
-
-    # Reuse embedding_generator - same instance used by pipeline (same config, timeout)
-    service.register("embedding", embedding_generator(), is_remote=config.use_remote_embedding)
-
+    service.register("docling", document_connector())
+    service.register("embedding", embedding_generator())
     return service
 
 
@@ -463,25 +448,14 @@ def slack_event_service():
 @lru_cache(maxsize=1)
 def embedding_generator():
     """Shared embedding generator.
-    
+
     Uses local SentenceTransformer by default.
     Set USE_REMOTE_EMBEDDING=true to use the remote embedding service.
     """
     from bootstrap.factories import EmbeddingGeneratorFactory
     from config.app_config import AppConfig
-    
-    config = AppConfig.get_instance()
-    
-    if config.use_remote_embedding:
-        return EmbeddingGeneratorFactory.create({
-            "type": "remote",
-            "service_url": config.embedding_service_url,
-            "timeout": config.embedding_service_timeout,
-            "model_name": config.embedding_service_model,
-            "embedding_dim": config.embedding_dim,
-        })
-    else:
-        return EmbeddingGeneratorFactory.create({"type": "local"})
+
+    return EmbeddingGeneratorFactory.from_app_config(AppConfig.get_instance())
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -12,7 +12,13 @@ class EmbeddingPort(ABC):
     This port defines the contract for generating vector embeddings from text.
     Implementations can be local (SentenceTransformers) or remote (HTTP service).
     """
-    
+
+    @property
+    @abstractmethod
+    def is_remote(self) -> bool:
+        """True if this adapter calls an external service; False if purely local."""
+        ...
+
     @property
     @abstractmethod
     def embedding_dim(self) -> int:
@@ -63,7 +69,13 @@ class EmbeddingGenerator(ABC):
     Consumers depend on this ABC; concrete implementation
     (batch processing, error recovery, logging) lives in infrastructure.
     """
-    
+
+    @property
+    @abstractmethod
+    def is_remote(self) -> bool:
+        """True if the underlying adapter calls an external service."""
+        ...
+
     @property
     @abstractmethod
     def embedding_dim(self) -> int:

@@ -42,6 +42,10 @@ class RemoteDoclingAdapter(DocumentConverterPort):
         self._estimated_chars_per_page = estimated_chars_per_page
         logger.info("RemoteDoclingAdapter initialized")
     
+    @property
+    def is_remote(self) -> bool:
+        return True
+
     def convert_file(self, file_path: str) -> ConversionResult:
         """Convert a local file using remote docling service."""
         try:

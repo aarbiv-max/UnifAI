@@ -5,11 +5,16 @@ from typing import Protocol
 
 class HealthCheckable(Protocol):
     """
-    Protocol for services that support health checks via test_connection().
+    Protocol for services that support health checks.
 
-    Both DocumentConverterPort and EmbeddingPort satisfy this protocol
+    Both DocumentConnector and DefaultEmbeddingGenerator satisfy this protocol
     structurally (duck typing) without needing to inherit from it.
     """
+
+    @property
+    def is_remote(self) -> bool:
+        """True if this service calls an external endpoint; False if purely local."""
+        ...
 
     def test_connection(self) -> bool:
         """

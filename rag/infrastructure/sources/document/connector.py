@@ -53,10 +53,15 @@ class DocumentConnector(DataConnector):
             f"DocumentConnector initialized with {type(converter).__name__}"
         )
 
+    @property
+    def is_remote(self) -> bool:
+        """True if the underlying converter calls an external service."""
+        return self._converter.is_remote
+
     def authenticate(self) -> bool:
         """No authentication required for document processing."""
         return True
-    
+
     def test_connection(self) -> bool:
         """Test if document processing is available."""
         return self._converter.test_connection()

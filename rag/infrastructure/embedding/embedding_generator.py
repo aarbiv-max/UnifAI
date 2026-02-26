@@ -1,4 +1,10 @@
-"""Default EmbeddingGenerator implementation."""
+"""
+Default EmbeddingGenerator implementation.
+
+Wraps an EmbeddingPort to add batch processing, error recovery, and logging.
+The concrete adapter (local SentenceTransformer or remote HTTP service) is
+injected at construction time; this class is adapter-agnostic.
+"""
 
 import time
 import logging
@@ -27,6 +33,10 @@ class DefaultEmbeddingGenerator(EmbeddingGenerator):
             f"dim={self.embedding_dim}, batch_size={batch_size}"
         )
     
+    @property
+    def is_remote(self) -> bool:
+        return self._port.is_remote
+
     @property
     def embedding_dim(self) -> int:
         return self._port.embedding_dim

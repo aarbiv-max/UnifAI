@@ -46,10 +46,14 @@ class LocalEmbeddingAdapter(EmbeddingPort):
         )
     
     @property
+    def is_remote(self) -> bool:
+        return False
+
+    @property
     def embedding_dim(self) -> int:
         """Get the embedding dimension."""
         return self._embedding_dim
-    
+
     def encode_texts(self, texts: List[str]) -> List[np.ndarray]:
         """Encode texts using local SentenceTransformer model."""
         if not texts:

@@ -21,7 +21,13 @@ class DocumentConverterPort(ABC):
     This port defines the contract for converting documents to text/markdown.
     Implementations can be local (docling library) or remote (HTTP service).
     """
-    
+
+    @property
+    @abstractmethod
+    def is_remote(self) -> bool:
+        """True if this adapter calls an external service; False if purely local."""
+        ...
+
     @abstractmethod
     def convert_file(self, file_path: str) -> ConversionResult:
         """

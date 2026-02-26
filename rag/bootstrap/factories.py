@@ -1,12 +1,28 @@
-"""Factory classes for creating adapter instances."""
+"""
+Factory classes for creating infrastructure instances.
+
+Each factory encapsulates construction details for a specific component:
+- DocumentConverterFactory / DocumentConnectorFactory  — document processing
+- EmbeddingPortFactory / EmbeddingGeneratorFactory     — embedding generation
+- VectorRepositoryFactory                              — vector storage
+
+The from_app_config() classmethods on DocumentConnectorFactory and
+EmbeddingGeneratorFactory encapsulate the local-vs-remote branching that
+would otherwise leak into the composition root (app_container.py).
+"""
+
+from __future__ import annotations
 
 import logging
-from typing import Dict, Any, Optional
+from typing import TYPE_CHECKING, Dict, Any, Optional
 
 from core.vector.domain.embedder import EmbeddingGenerator
 from core.vector.domain.repository import VectorRepository
 from core.connector.domain.base import DataConnector
 from core.connector.domain.document_converter import DocumentConverterPort
+
+if TYPE_CHECKING:
+    from config.app_config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +96,30 @@ class DocumentConnectorFactory:
             converter=converter,
             config_manager=config_manager,
         )
+
+
+    @classmethod
+    def from_app_config(cls, config: AppConfig) -> DataConnector:
+        """
+        Create the correct document connector based on AppConfig feature flags.
+
+        Encapsulates the use_remote_docling decision so the composition root
+        performs pure wiring without branching on configuration.
+
+        Args:
+            config: Application configuration with feature flags and service URLs.
+
+        Returns:
+            DocumentConnector wrapping RemoteDoclingAdapter if use_remote_docling
+            is True, otherwise wrapping LocalDoclingAdapter.
+        """
+        if config.use_remote_docling:
+            return cls.create({
+                "type": "remote",
+                "service_url": config.docling_service_url,
+                "timeout": config.docling_service_timeout,
+            })
+        return cls.create({"type": "local"})
 
 
 class EmbeddingPortFactory:
@@ -163,6 +203,32 @@ class EmbeddingGeneratorFactory:
             raise ValueError(f"Unknown generator type: {generator_type}")
         
         return DefaultEmbeddingGenerator(port=port, batch_size=batch_size)
+
+
+    @classmethod
+    def from_app_config(cls, config: AppConfig) -> EmbeddingGenerator:
+        """
+        Create the correct embedding generator based on AppConfig feature flags.
+
+        Encapsulates the use_remote_embedding decision so the composition root
+        performs pure wiring without branching on configuration.
+
+        Args:
+            config: Application configuration with feature flags and service URLs.
+
+        Returns:
+            DefaultEmbeddingGenerator wrapping RemoteEmbeddingAdapter if
+            use_remote_embedding is True, otherwise wrapping LocalEmbeddingAdapter.
+        """
+        if config.use_remote_embedding:
+            return cls.create({
+                "type": "remote",
+                "service_url": config.embedding_service_url,
+                "timeout": config.embedding_service_timeout,
+                "model_name": config.embedding_service_model,
+                "embedding_dim": config.embedding_dim,
+            })
+        return cls.create({"type": "local"})
 
 
 class VectorRepositoryFactory:
