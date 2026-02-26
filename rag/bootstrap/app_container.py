@@ -409,38 +409,28 @@ def terms_approval_service():
 def remote_services_health():
     """
     Services health service for checking external service availability.
-    
+
     Checks Docling and Embedding services to determine if document upload
     should be enabled. Used by the /service.readiness.get endpoint.
+
+    Reuses document_connector() and embedding_generator() - the same instances
+    used by the pipeline - so health checks reflect actual runtime configuration.
+
+    Adding a new service (e.g. OCR, reranker) is a one-line registration.
     """
     from core.health.service import ServicesHealthService
-    from bootstrap.factories import DocumentConverterFactory, EmbeddingPortFactory
     from config.app_config import AppConfig
-    
+
     config = AppConfig.get_instance()
-    
-    embedding_port = None
-    if config.use_remote_embedding:
-        embedding_port = EmbeddingPortFactory.create_remote(
-            base_url=config.embedding_service_url,
-            timeout=10,
-            model_name=config.embedding_service_model,
-            embedding_dim=config.embedding_dim,
-        )
-    
-    docling_port = None
-    if config.use_remote_docling:
-        docling_port = DocumentConverterFactory.create_remote(
-            base_url=config.docling_service_url,
-            timeout=10,
-        )
-    
-    return ServicesHealthService(
-        docling_port=docling_port,
-        embedding_port=embedding_port,
-        use_remote_docling=config.use_remote_docling,
-        use_remote_embedding=config.use_remote_embedding,
-    )
+    service = ServicesHealthService()
+
+    # Reuse document_connector - same instance used by pipeline (same config, timeout)
+    service.register("docling", document_connector(), is_remote=config.use_remote_docling)
+
+    # Reuse embedding_generator - same instance used by pipeline (same config, timeout)
+    service.register("embedding", embedding_generator(), is_remote=config.use_remote_embedding)
+
+    return service
 
 
 # ══════════════════════════════════════════════════════════════════════════════

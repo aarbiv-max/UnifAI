@@ -1,174 +1,150 @@
 """
 Services Health Service - Application layer service for checking external service health.
 
-This service checks the health of external services (Docling, Embedding) used for
-document processing. It follows hexagonal architecture by depending on ports (interfaces)
-rather than concrete implementations.
+This service checks the health of external services (Docling, Embedding, etc.) used for
+document processing. It uses a registry-based approach: services register themselves
+(name + port + remote flag), and a single check logic handles all of them.
+
+Follows hexagonal architecture by depending on the HealthCheckable protocol rather than
+concrete port types.
 
 Usage:
     from bootstrap.app_container import remote_services_health
-    
+
     service = remote_services_health()
     result = service.check_all()
-    
+
     if result.upload_enabled:
         # Safe to allow document uploads
         pass
+
+Adding a new service (e.g. OCR, reranker) is a one-line registration in app_container.
 """
 
 import logging
-from typing import Optional
+from typing import Dict, List, Optional
 
-from core.connector.domain.document_converter import DocumentConverterPort
-from core.vector.domain.embedder import EmbeddingPort
 from core.health.domain.model import ServiceHealthStatus, ServicesHealthResult
+from core.health.domain.port import HealthCheckable
 
 
 logger = logging.getLogger(__name__)
+
+# Local mode messages for common services
+_LOCAL_MESSAGES: Dict[str, str] = {
+    "docling": "Using local docling library",
+    "embedding": "Using local embedding model",
+}
 
 
 class ServicesHealthService:
     """
     Application service for checking health of external document processing services.
-    
-    This service receives ports (interfaces) via dependency injection and uses their
-    test_connection() methods to check availability. It doesn't know about concrete
-    adapter implementations (RemoteDoclingAdapter, LocalDoclingAdapter, etc.).
-    
-    Attributes:
-        _docling_port: Port for document conversion (optional, None if local mode)
-        _embedding_port: Port for embedding generation (optional, None if local mode)
-        _use_remote_docling: Whether remote docling is configured
-        _use_remote_embedding: Whether remote embedding is configured
+
+    Uses a registry pattern: services register via register(name, port, is_remote).
+    A single check() method handles all services uniformly. Adding new services
+    (OCR, reranker, etc.) requires only a one-line registration call.
     """
-    
-    def __init__(
+
+    def __init__(self):
+        """Initialize with empty registry. Services are registered via register()."""
+        self._services: Dict[str, tuple[Optional[HealthCheckable], bool]] = {}
+        logger.info("ServicesHealthService initialized with registry")
+
+    def register(
         self,
-        docling_port: Optional[DocumentConverterPort],
-        embedding_port: Optional[EmbeddingPort],
-        use_remote_docling: bool,
-        use_remote_embedding: bool,
-    ):
+        name: str,
+        port: Optional[HealthCheckable],
+        is_remote: bool,
+    ) -> None:
         """
-        Initialize the health service with dependency-injected ports.
-        
+        Register a service for health checks.
+
         Args:
-            docling_port: Document converter port (None if using local mode)
-            embedding_port: Embedding port (None if using local mode)
-            use_remote_docling: Whether remote docling service is configured
-            use_remote_embedding: Whether remote embedding service is configured
+            name: Service identifier (e.g. "docling", "embedding")
+            port: Port implementing test_connection() (None if local mode)
+            is_remote: True if remote service, False if local (no health check)
         """
-        self._docling_port = docling_port
-        self._embedding_port = embedding_port
-        self._use_remote_docling = use_remote_docling
-        self._use_remote_embedding = use_remote_embedding
-        
-        logger.info(
-            f"ServicesHealthService initialized: "
-            f"docling={'remote' if use_remote_docling else 'local'}, "
-            f"embedding={'remote' if use_remote_embedding else 'local'}"
-        )
-    
-    def check_docling_health(self) -> ServiceHealthStatus:
+        self._services[name] = (port, is_remote)
+        logger.debug(f"Registered health check: {name} (remote={is_remote})")
+
+    def check(self, name: str) -> ServiceHealthStatus:
         """
-        Check health of the Docling service.
-        
+        Check health of a single registered service.
+
         Returns:
-            ServiceHealthStatus with status 'local' if using local mode,
-            'healthy' if remote service is available, 'unhealthy' otherwise.
+            ServiceHealthStatus with status 'local' if not remote,
+            'healthy'/'unhealthy' if remote based on test_connection().
         """
-        if not self._use_remote_docling:
+        if name not in self._services:
             return ServiceHealthStatus(
-                service_name="docling",
+                service_name=name,
+                status="unhealthy",
+                mode="remote",
+                message="Service not registered",
+            )
+
+        port, is_remote = self._services[name]
+
+        if not is_remote:
+            local_msg = _LOCAL_MESSAGES.get(name, "Running locally")
+            return ServiceHealthStatus(
+                service_name=name,
                 status="local",
                 mode="local",
-                message="Using local docling library",
+                message=local_msg,
             )
-        
+
         try:
-            if self._docling_port is None:
+            if port is None:
                 return ServiceHealthStatus(
-                    service_name="docling",
+                    service_name=name,
                     status="unhealthy",
                     mode="remote",
-                    message="Docling port not configured",
+                    message=f"{name} port not configured",
                 )
-            
-            is_healthy = self._docling_port.test_connection()
+
+            is_healthy = port.test_connection()
             return ServiceHealthStatus(
-                service_name="docling",
+                service_name=name,
                 status="healthy" if is_healthy else "unhealthy",
                 mode="remote",
                 message="Service is available" if is_healthy else "Service is unavailable",
             )
         except Exception as e:
-            logger.error(f"Error checking docling health: {e}")
+            logger.error(f"Error checking {name} health: {e}")
             return ServiceHealthStatus(
-                service_name="docling",
+                service_name=name,
                 status="unhealthy",
                 mode="remote",
                 message=str(e),
             )
-    
-    def check_embedding_health(self) -> ServiceHealthStatus:
+
+    def check_all(
+        self,
+        required_for_upload: Optional[List[str]] = None,
+    ) -> ServicesHealthResult:
         """
-        Check health of the Embedding service.
-        
-        Returns:
-            ServiceHealthStatus with status 'local' if using local mode,
-            'healthy' if remote service is available, 'unhealthy' otherwise.
-        """
-        if not self._use_remote_embedding:
-            return ServiceHealthStatus(
-                service_name="embedding",
-                status="local",
-                mode="local",
-                message="Using local embedding model",
-            )
-        
-        try:
-            if self._embedding_port is None:
-                return ServiceHealthStatus(
-                    service_name="embedding",
-                    status="unhealthy",
-                    mode="remote",
-                    message="Embedding port not configured",
-                )
-            
-            is_healthy = self._embedding_port.test_connection()
-            return ServiceHealthStatus(
-                service_name="embedding",
-                status="healthy" if is_healthy else "unhealthy",
-                mode="remote",
-                message="Service is available" if is_healthy else "Service is unavailable",
-            )
-        except Exception as e:
-            logger.error(f"Error checking embedding health: {e}")
-            return ServiceHealthStatus(
-                service_name="embedding",
-                status="unhealthy",
-                mode="remote",
-                message=str(e),
-            )
-    
-    def check_all(self) -> ServicesHealthResult:
-        """
-        Check health of all external services.
-        
+        Check health of all registered services.
+
+        Args:
+            required_for_upload: Service names required for upload to be enabled.
+                Defaults to ["docling", "embedding"].
+
         Returns:
             ServicesHealthResult with status for each service and upload_enabled flag.
         """
-        docling_status = self.check_docling_health()
-        embedding_status = self.check_embedding_health()
-        
-        result = ServicesHealthResult(
-            docling=docling_status,
-            embedding=embedding_status,
+        statuses = {name: self.check(name) for name in self._services}
+        required = required_for_upload or ["docling", "embedding"]
+
+        result = ServicesHealthResult.from_statuses(
+            statuses=statuses,
+            required_for_upload=required,
         )
-        
+
         logger.debug(
-            f"Health check result: docling={docling_status.status}, "
-            f"embedding={embedding_status.status}, upload_enabled={result.upload_enabled}"
+            f"Health check result: {', '.join(f'{n}={s.status}' for n, s in statuses.items())}, "
+            f"upload_enabled={result.upload_enabled}"
         )
-        
+
         return result
