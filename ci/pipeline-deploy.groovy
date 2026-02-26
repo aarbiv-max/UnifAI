@@ -8,6 +8,7 @@ properties([
         choice(name: 'deploy_location', choices: ['STAGING', 'PRODUCTION'], description: 'Deployment environment'),
         choice(name: 'deploy_type', choices: ['FRESH_INSTALL', 'APPLICATION_UPGRADE'], description: 'Deployment type'),
         string(name: "VERSION", defaultValue: "", description: "DONT SET THIS VALUE!"),
+        string(name: "BACKEND_VERSION", defaultValue: "", description: "Image tag for backend"),
         string(name: "RAG_VERSION", defaultValue: "", description: "Image tag for rag"),
         string(name: "MA_VERSION", defaultValue: "", description: "Image tag for multi-agent"),
         string(name: "GUI_VERSION", defaultValue: "", description: "Image tag for UI"),
@@ -310,6 +311,13 @@ pipeline {
                                         updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/shared-resources/sso/", version)
                                         updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/sso-values.yaml", version)
                                         deployModules('sso')
+                                        break
+
+                                    case 'backend':
+                                        def version = params.BACKEND_VERSION?.trim() ?: params.VERSION?.trim()
+                                        updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/backend/", version)
+                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/backend-values.yaml", version)
+                                        deployModules('backend')
                                         break
 
                                     case 'rag':
