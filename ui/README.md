@@ -47,7 +47,7 @@ In order to run the UI locally, follow these steps:
       proxy: {
         // Proxy for api1
         '/api1': {
-          target: 'http://<dataflow_be_address>:<dataflow_be_port>',
+          target: 'http://<rag_be_address>:<rag_be_port>',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api1/, '/api'), // This rewrites /api1 to /api
           secure: false, // Set to true for production if target is HTTPS and has valid cert.

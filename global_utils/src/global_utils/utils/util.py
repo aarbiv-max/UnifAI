@@ -164,7 +164,7 @@ def to_snake_case(s: str) -> str:
     
     Examples:
         - SlackRetriever -> slack_retriever
-        - DocsDataflowRetriever -> docs_dataflow_retriever
+        - DocsRAGRetriever -> docs_rag_retriever
         - HTTPResponse -> http_response
     """
     # Insert underscore before uppercase letters that follow lowercase letters

@@ -12,7 +12,7 @@ from core.enums import ResourceCategory
 # Input/Output models for this action
 class GetToolsNamesInput(BaseActionInput):
     """Input for MCP tools discovery"""
-    sse_endpoint: HttpUrl
+    mcp_url: HttpUrl
     bearer_token: Optional[str] = Field(
         default=None,
         description="Bearer token for MCP server authentication"
@@ -72,7 +72,7 @@ class GetToolsNamesAction(BaseAction):
         try:
             # Create config from input data
             config = McpProviderConfig(
-                sse_endpoint=input_data.sse_endpoint,
+                mcp_url=input_data.mcp_url,
                 bearer_token=input_data.bearer_token,
                 transport_type=input_data.transport_type,
             )

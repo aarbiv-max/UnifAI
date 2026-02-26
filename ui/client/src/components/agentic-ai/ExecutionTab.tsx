@@ -1013,6 +1013,7 @@ export default function ExecutionTab({
                   validationResults={blueprintValidationResults}
                   isValidating={isValidatingBlueprint}
                   isLiveRequest={isLiveRequest}
+                  isGraphVisible={carouselMode !== 'chat'}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-400 text-sm">

@@ -86,7 +86,7 @@ class EarlyStoppingPolicy(Enum):
 
 class ExecutionDefaults:
     """Default values for execution configuration."""
-    MAX_EXECUTION_TIME = 300.0  # 5 minutes
+    MAX_EXECUTION_TIME = 600.0  # 10 minutes
     MAX_ACTIONS_PER_MINUTE = 60
     TIMEOUT_MESSAGE = "Agent execution timed out"
     MAX_CONSECUTIVE_ERRORS = 3
@@ -409,6 +409,7 @@ class ToolCategory(str, Enum):
     WORKSPACE = "workspace"
     DOMAIN = "domain"
     SUMMARIZATION = "summarization"
+    WEB = "web"
 
 
 class ToolNames:
@@ -436,6 +437,9 @@ class ToolNames:
     
     # Time tools
     TIME_GET_CURRENT = "time.get_current_time"
+
+    # Web tools
+    WEB_FETCH = "web_fetch"
 
 
 class ToolKeywords:

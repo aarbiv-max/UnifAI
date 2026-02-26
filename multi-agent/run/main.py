@@ -150,7 +150,7 @@ def save_resources(app):
                                            name="My mcp server Node",
                                            config={
                                                "type": "mcp_server",
-                                               "sse_endpoint": "http://localhost:8004"
+                                               "mcp_url": "http://localhost:8004"
                                            }).rid
 
     tool_rid = app.resources_service.create(user_id="alice",

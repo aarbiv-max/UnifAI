@@ -1410,7 +1410,7 @@ build: {
 **Proxy mapping:**
 ```nginx
 location /api1/ {
-  proxy_pass http://datapipeline_backend:port/api/;
+  proxy_pass http://rag_backend:port/api/;
 }
 
 location /api2/ {

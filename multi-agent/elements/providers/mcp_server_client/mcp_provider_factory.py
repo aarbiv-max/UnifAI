@@ -41,7 +41,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
             
             # Use the clean sync factory method which handles async internally
             return McpProvider.create_sync(
-                sse_endpoint=cfg.sse_endpoint,
+                mcp_url=cfg.mcp_url,
                 tool_names=cfg.tool_names,
                 headers=headers,
                 transport_type=cfg.transport_type,
@@ -65,7 +65,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
             
             # Use the async factory method directly for better performance
             return await McpProvider.create_async(
-                sse_endpoint=cfg.sse_endpoint,
+                mcp_url=cfg.mcp_url,
                 tool_names=cfg.tool_names,
                 headers=headers,
                 transport_type=cfg.transport_type,

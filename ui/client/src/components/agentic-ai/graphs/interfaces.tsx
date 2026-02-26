@@ -73,7 +73,7 @@ export interface ToolDefinition {
 
 export interface ProviderDefinition {
   config: {
-    sse_endpoint?: string;
+    mcp_url?: string;
     type: string;
     [key: string]: any;
   };
