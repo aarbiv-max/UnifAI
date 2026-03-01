@@ -17,6 +17,8 @@ Does NOT:
 
 from typing import Dict, List, Optional, Type
 
+from pydantic import BaseModel
+
 from catalog.element_registry import ElementRegistry
 from core.enums import ResourceCategory
 from elements.common.validator import (
@@ -58,6 +60,17 @@ class ElementValidationService:
         Builds ElementValidationResult from ValidatorReport + metadata.
         If no validator is defined, returns success with INFO message.
         """
+        # Fail fast on empty required fields before attempting network calls
+        required_errors = self._check_required_fields(config_meta.config)
+        if required_errors:
+            return ElementValidationResult(
+                is_valid=False,
+                element_rid=config_meta.rid,
+                element_type=config_meta.element_type,
+                name=config_meta.name,
+                messages=required_errors,
+            )
+
         # Get spec from registry
         spec = self._registry.get_spec(
             config_meta.category, 
@@ -111,6 +124,23 @@ class ElementValidationService:
             messages=report.messages,
             dependency_results=report.checked_dependencies,
         )
+
+    @staticmethod
+    def _check_required_fields(config: BaseModel) -> List[ValidationMessage]:
+        """Return error messages for any required fields that have empty values."""
+        errors = []
+        for field_name, field_info in type(config).model_fields.items():
+            if not field_info.is_required():
+                continue
+            value = getattr(config, field_name, None)
+            if value is None or value == "":
+                errors.append(ValidationMessage(
+                    severity=ValidationSeverity.ERROR,
+                    code=ValidationCode.MISSING_REQUIRED_FIELD.value,
+                    message=f"'{field_name}' is required",
+                    field=field_name,
+                ))
+        return errors
 
     def validate_ordered(
         self,
