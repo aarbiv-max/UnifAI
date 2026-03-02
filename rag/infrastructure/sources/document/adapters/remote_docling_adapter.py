@@ -6,7 +6,7 @@ from typing import Dict, Any
 
 from global_utils.docling import DoclingService, DoclingProcessingError
 
-from core.connector.domain.document_converter import (
+from core.data_sources.types.document.domain.document_converter import (
     ConversionResult,
     DocumentConverterPort,
     DocumentConversionError,

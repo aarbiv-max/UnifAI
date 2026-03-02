@@ -9,7 +9,7 @@ from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from pypdfium2 import PdfiumError
 
-from core.connector.domain.document_converter import (
+from core.data_sources.types.document.domain.document_converter import (
     ConversionResult,
     DocumentConverterPort,
     DocumentConversionError,

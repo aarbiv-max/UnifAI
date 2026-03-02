@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Dict, Any, Optional
 from core.vector.domain.embedder import EmbeddingGenerator
 from core.vector.domain.repository import VectorRepository
 from core.connector.domain.base import DataConnector
-from core.connector.domain.document_converter import DocumentConverterPort
+from core.data_sources.types.document.domain.document_converter import DocumentConverterPort
 
 if TYPE_CHECKING:
     from config.app_config import AppConfig
