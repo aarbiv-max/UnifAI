@@ -11,7 +11,6 @@ from openai import (
     AuthenticationError,
     PermissionDeniedError,
     BadRequestError,
-    NotFoundError,
     RateLimitError,
     APITimeoutError,
     APIConnectionError,
@@ -25,6 +24,7 @@ from elements.common.validator import (
     ValidationMessage,
     ValidationCode,
 )
+from elements.llms.common.validation_codes import LLMValidationCode
 from elements.llms.openai.config import OpenAIConfig
 
 
@@ -56,13 +56,21 @@ class OpenAILLMValidator(BaseElementValidator):
                 api_key=config.api_key,
                 timeout=context.timeout_seconds,
             )
-            client.models.retrieve(config.model_name)
-            
-            messages.append(self._info(
-                "MODEL_AVAILABLE",
-                f"Successfully connected and found model '{config.model_name}'",
-                field="model_name",
-            ))
+            available_models = client.models.list()
+            model_ids = {m.id for m in available_models.data}
+
+            if config.model_name in model_ids:
+                messages.append(self._info(
+                    LLMValidationCode.MODEL_AVAILABLE.value,
+                    f"Successfully connected and found model '{config.model_name}'",
+                    field="model_name",
+                ))
+            else:
+                messages.append(self._error(
+                    LLMValidationCode.MODEL_NOT_FOUND.value,
+                    f"Model '{config.model_name}' not found",
+                    field="model_name",
+                ))
 
         except (AuthenticationError, PermissionDeniedError):
             # 401, 403
@@ -78,17 +86,10 @@ class OpenAILLMValidator(BaseElementValidator):
                 "Bad request - check API key and configuration",
                 field="api_key",
             ))
-        except NotFoundError:
-            # 404
-            messages.append(self._error(
-                "MODEL_NOT_FOUND",
-                f"Model '{config.model_name}' not found",
-                field="model_name",
-            ))
         except RateLimitError:
             # 429
             messages.append(self._error(
-                "RATE_LIMITED",
+                LLMValidationCode.RATE_LIMITED.value,
                 "Rate limit exceeded",
                 field="base_url",
             ))
