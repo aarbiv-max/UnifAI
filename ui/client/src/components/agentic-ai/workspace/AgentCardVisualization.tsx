@@ -41,10 +41,10 @@ export const AgentCardVisualization: React.FC<AgentCardVisualizationProps> = ({
 }) => {
   if (isLoading) {
     return (
-      <Card className="bg-gradient-to-br from-blue-950/30 to-purple-950/30 border-blue-800/50">
+      <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/30">
         <CardContent className="pt-6">
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             <span className="ml-3 text-gray-400">Loading agent card...</span>
           </div>
         </CardContent>
@@ -68,12 +68,12 @@ export const AgentCardVisualization: React.FC<AgentCardVisualizationProps> = ({
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       {/* Agent Header Card */}
-      <Card className="bg-gradient-to-br from-blue-950/40 to-purple-950/40 border-blue-800/50 shadow-lg">
+      <Card className="bg-gradient-to-br from-primary/15 to-primary/5 border-primary/30 shadow-lg">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="bg-blue-500/20 p-2 rounded-lg border border-blue-500/30">
-                <Sparkles className="h-6 w-6 text-blue-400" />
+              <div className="bg-primary/20 p-2 rounded-lg border border-primary/30">
+                <Sparkles className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <CardTitle className="text-2xl font-bold text-white flex items-center gap-2">
@@ -85,7 +85,7 @@ export const AgentCardVisualization: React.FC<AgentCardVisualizationProps> = ({
                 </CardDescription>
               </div>
             </div>
-            <Badge variant="secondary" className="bg-blue-900/50 text-blue-300 border-blue-700">
+            <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/40">
               v{agentCard.version}
             </Badge>
           </div>
@@ -99,7 +99,7 @@ export const AgentCardVisualization: React.FC<AgentCardVisualizationProps> = ({
           
           {agentCard.skills && agentCard.skills.length > 0 && (
             <div className="mt-4 flex items-center gap-2">
-              <Layers className="h-4 w-4 text-purple-400" />
+              <Layers className="h-4 w-4 text-primary" />
               <span className="text-sm text-gray-400">
                 {agentCard.skills.length} skill{agentCard.skills.length !== 1 ? 's' : ''} available
               </span>
@@ -112,7 +112,7 @@ export const AgentCardVisualization: React.FC<AgentCardVisualizationProps> = ({
       {agentCard.skills && agentCard.skills.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2 px-1">
-            <Code2 className="h-5 w-5 text-purple-400" />
+            <Code2 className="h-5 w-5 text-primary" />
             <h3 className="text-lg font-semibold text-white">Available Skills</h3>
           </div>
           
@@ -144,10 +144,10 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, index }) => {
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <Badge variant="outline" className="bg-purple-950/30 text-purple-300 border-purple-700">
+                <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30">
                   #{index + 1}
                 </Badge>
-                <CardTitle className="text-lg font-mono text-blue-300">
+                <CardTitle className="text-lg font-mono text-primary">
                   {skill.name}
                 </CardTitle>
               </div>
@@ -185,7 +185,7 @@ const SkillCard: React.FC<SkillCardProps> = ({ skill, index }) => {
                 <Badge 
                   key={idx} 
                   variant="secondary" 
-                  className="bg-blue-950/30 text-blue-300 border-blue-800/50 text-xs"
+                  className="bg-primary/10 text-primary/80 border-primary/20 text-xs"
                 >
                   {tag}
                 </Badge>

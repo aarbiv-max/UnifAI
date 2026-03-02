@@ -15,7 +15,7 @@ class McpProviderConfig(ProviderBaseConfig):
         default=McpTransportType.STREAMABLE_HTTP,
         description="Transport protocol to use for MCP server communication (sse or streamable http)"
     )
-    sse_endpoint: HttpUrl = Field(
+    mcp_url: HttpUrl = Field(
         description="MCP server endpoint URL",
         json_schema_extra=ActionHint(
             action_uid="mcp.validate_connection",
@@ -42,7 +42,7 @@ class McpProviderConfig(ProviderBaseConfig):
             field_mapping="tool_names",
             multi_select=True,
             dependencies={
-                "sse_endpoint": "sse_endpoint",
+                "mcp_url": "mcp_url",
                 "bearer_token": "bearer_token",
                 "transport_type": "transport_type",
             }

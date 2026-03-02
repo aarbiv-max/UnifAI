@@ -134,6 +134,10 @@ export type GraphDisplayProps = {
   isValidating?: boolean;
   /** Enable live node status tracking from streaming data. */
   isLiveRequest?: boolean;
+  /** Whether the graph container is actually visible (not collapsed to zero
+   *  width by carousel mode). Drives re-application of node visuals after
+   *  the panel becomes visible again. Defaults to `true`. */
+  isGraphVisible?: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -151,6 +155,7 @@ export default function GraphDisplay({
   validationResults,
   isValidating = false,
   isLiveRequest = false,
+  isGraphVisible = true,
 }: GraphDisplayProps): React.ReactElement {
   // ── JointJS graph hook (imperative init, layout, SVG injection) ─────
   const { primaryHex } = useTheme();
@@ -200,9 +205,13 @@ export default function GraphDisplay({
   const applyNodeVisual = useCallback(
     (el: dia.Element, status: NodeStatus | undefined) => {
       const s = STATUS_STYLES[status ?? "IDLE"];
-      el.attr("body/stroke", s.stroke);
-      el.attr("body/strokeWidth", s.strokeWidth);
-      el.attr("body/filter", s.filter);
+      try {
+        el.attr("body/stroke", s.stroke);
+        el.attr("body/strokeWidth", s.strokeWidth);
+        el.attr("body/filter", s.filter);
+      } catch (e) {
+        console.warn("[GraphDisplay] applyNodeVisual: SVGMatrix non-invertible (container likely collapsed to zero width)", e);
+      }
     },
     [],
   );
@@ -294,6 +303,39 @@ export default function GraphDisplay({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLiveRequest]);
+
+  // Re-apply node status visuals when the graph transitions from hidden
+  // (e.g. chat carousel mode where the panel is collapsed to width:0) back
+  // to visible.  While hidden, el.attr() calls silently fail because the
+  // SVG transform matrix is non-invertible, so the elements carry stale
+  // visuals.  We use the explicit `isGraphVisible` prop from the parent
+  // (derived from carouselMode) instead of guessing visibility from pixel
+  // widths, which would be fragile if layout thresholds changed.
+  //
+  // The delay allows the CSS width transition to progress and the
+  // ResizeObserver in use-joint-graph.ts to re-fit the paper (10ms
+  // debounce) before we call el.attr().
+  const prevGraphVisibleRef = useRef(isGraphVisible);
+
+  useEffect(() => {
+    const wasHidden = !prevGraphVisibleRef.current;
+    prevGraphVisibleRef.current = isGraphVisible;
+
+    if (!wasHidden || !isGraphVisible) return;
+
+    const timer = setTimeout(() => {
+      const container = containerRef.current;
+      const graph = graphRef.current;
+      if (!container || !graph || container.clientWidth === 0) return;
+
+      const currentMap = nodeStatusMapRef.current;
+      for (const el of graph.getElements()) {
+        applyNodeVisual(el, currentMap[el.id as string] || "IDLE");
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [isGraphVisible, graphRef, containerRef, applyNodeVisual]);
 
   // ── Open resource details modal ────────────────────────────────────
 
@@ -387,8 +429,8 @@ export default function GraphDisplay({
         }
       }
       paper.transformToFitContent(SCALE_CONTENT_TO_FIT_OPTS);
-    } catch {
-      // SVGMatrix error — ignore, user can retry
+    } catch (e) {
+      console.warn("[GraphDisplay] handleFitToView: SVGMatrix error, user can retry", e);
       return;
     }
     syncTransform();

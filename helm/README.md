@@ -11,7 +11,7 @@ This guide provides instructions for deploying UnifAI components to Kubernetes/O
 UnifAI uses **Helmfile** to orchestrate the deployment of multiple Helm charts across different components:
 
 - **Shared Resources**: MongoDB, RabbitMQ, Qdrant, SSO (infrastructure layer)
-- **Dataflow Module**: Data Pipeline Hub backend and Celery workers
+- **RAG Module**: Data Pipeline Hub backend and Celery workers
 - **Multi-Agent Module**: Multi-Agent System backend
 - **UI Module**: React frontend with Nginx
 - **Optional Services**: Docling, vLLM serving engines
@@ -91,7 +91,7 @@ kubectl wait --for=condition=Ready pods -l app=qdrant --timeout=300s
 kubectl wait --for=condition=Ready pods -l app=rabbitmq --timeout=300s
 
 # 5. Deploy application components
-helmfile -f dataflow.yaml.gotmpl apply      # Dataflow module
+helmfile -f rag.yaml.gotmpl apply           # RAG module
 helmfile -f multiagent.yaml.gotmpl apply    # Multi-Agent module
 helmfile -f sso.yaml.gotmpl apply           # SSO module
 helmfile -f ui.yaml.gotmpl apply            # UI frontend
@@ -109,22 +109,22 @@ kubectl get routes
 
 ### Scenario 1: Update Single Component
 
-Update only the Dataflow backend with a new image version:
+Update only the RAG backend with a new image version:
 
 ```bash
 # 1. Edit values file
-vim values/dataflow-resource-values.yaml
+vim values/rag-resource-values.yaml
 
 # Update image tag:
-unifai_dataflow_server:
+unifai_rag_server:
   image:
     tag: 2024.12.01  # Change from 'latest' to specific version
 
 # 2. Apply changes (rolling update)
-helmfile -f dataflow.yaml.gotmpl apply
+helmfile -f rag.yaml.gotmpl apply
 
 # 3. Monitor rollout
-kubectl rollout status deployment/unifai-dataflow-server
+kubectl rollout status deployment/unifai-rag-server
 
 # 4. Verify new version
 kubectl get pods -o jsonpath='{.items[*].spec.containers[*].image}' | grep backend
@@ -138,17 +138,17 @@ Increase the number of Celery workers:
 
 ```bash
 # 1. Edit values file
-vim values/dataflow-resource-values.yaml
+vim values/rag-resource-values.yaml
 
 # Update replica count:
-unifai_dataflow_celery:
+unifai_rag_celery:
   replicaCount: 5  # Increase from 3 to 5
 
 # 2. Apply changes
-helmfile -f dataflow.yaml.gotmpl apply
+helmfile -f rag.yaml.gotmpl apply
 
 # 3. Verify scaling
-kubectl get pods -l app=unifai-dataflow-celery
+kubectl get pods -l app=unifai-rag-celery
 ```
 
 ### Scenario 3: Update Environment Variables
@@ -160,7 +160,7 @@ Change configuration without redeploying:
 kubectl edit configmap shared-config
 
 # 2. Restart pods to pick up new config
-kubectl rollout restart deployment/unifai-dataflow-server
+kubectl rollout restart deployment/unifai-rag-server
 kubectl rollout restart deployment/unifai-multiagent-be
 ```
 
@@ -170,10 +170,10 @@ Deploy to production with production-specific values:
 
 ```bash
 # 1. Create production values file
-cp values/dataflow-resource-values.yaml values/dataflow-production-values.yaml
+cp values/rag-resource-values.yaml values/rag-production-values.yaml
 
 # 2. Edit production values
-vim values/dataflow-production-values.yaml
+vim values/rag-production-values.yaml
 # Update:
 # - Resource limits (increase for production)
 # - Replica counts (increase for HA)
@@ -192,7 +192,7 @@ oc project unifai-production
 
 # 5. Deploy with production values
 helmfile -f helmfile1.yaml.gotmpl -e production apply
-helmfile -f dataflow.yaml.gotmpl -e production apply
+helmfile -f rag.yaml.gotmpl -e production apply
 # ... repeat for other components
 ```
 
@@ -203,12 +203,12 @@ helmfile -f dataflow.yaml.gotmpl -e production apply
 ```
 helm/
 ├── shared-resources/       # Infrastructure charts (MongoDB, RabbitMQ, etc.)
-├── dataflow/              # Dataflow module charts
+├── rag/                   # RAG module charts
 ├── multiagent/            # Multi-Agent module charts
 ├── ui/                    # UI frontend chart
 ├── values/                # Configuration value files
 ├── helmfile1.yaml.gotmpl  # Shared resources deployment
-├── dataflow.yaml.gotmpl   # Dataflow deployment
+├── rag.yaml.gotmpl        # RAG deployment
 ├── multiagent.yaml.gotmpl # Multi-Agent deployment
 ├── ui.yaml.gotmpl         # UI deployment
 └── *.sh                   # Lifecycle hooks (presync/postsync)
@@ -226,12 +226,12 @@ Configuration is managed through values files in the `values/` directory:
 
 | File | Purpose |
 |------|---------|
-| `global-config.yaml` | Global environment variables (URLs, service endpoints) |
+| `global-config.yaml`          | Global environment variables (URLs, service endpoints) |
 | `shared-resource-values.yaml` | MongoDB, RabbitMQ, Qdrant configuration |
-| `dataflow-resource-values.yaml` | Dataflow backend and Celery configuration |
+| `rag-resource-values.yaml`    | RAG backend and Celery configuration |
 | `multiagent-resource-values.yaml` | Multi-Agent backend configuration |
-| `ui-values.yaml` | UI frontend configuration |
-| `sso-values.yaml` | SSO service configuration |
+| `ui-values.yaml`              | UI frontend configuration |
+| `sso-values.yaml`             | SSO service configuration |
 
 ### Key Configuration Options
 
@@ -284,15 +284,15 @@ route:
 
 ### Slack Integration Secrets
 
-Required for Dataflow module Slack integration:
+Required for RAG module Slack integration:
 
 ```bash
 # Set environment variables before deployment
 export default_slack_bot_token="xoxb-your-bot-token"
 export default_slack_user_token="xoxp-your-user-token"
 
-# These are used by dataflow-presync.sh hook to create Secret
-helmfile -f dataflow.yaml.gotmpl apply
+# These are used by rag-presync.sh hook to create Secret
+helmfile -f rag.yaml.gotmpl apply
 ```
 
 ### Manual Secret Creation
@@ -300,8 +300,8 @@ helmfile -f dataflow.yaml.gotmpl apply
 If presync hooks don't run, create secrets manually:
 
 ```bash
-# Dataflow secrets
-kubectl create secret generic unifai-dataflow-secrets \
+# RAG secrets
+kubectl create secret generic unifai-rag-secrets \
     --from-literal=slack_bot_token="xoxb-..." \
     --from-literal=slack_user_token="xoxp-..."
 
@@ -340,7 +340,7 @@ kubectl get pvc
 
 ```bash
 # Check backend health endpoint
-curl https://unifai-dataflow-server-<namespace>.apps.cluster.example.com/api/health
+curl https://unifai-rag-server-<namespace>.apps.cluster.example.com/api/health
 
 # Check UI accessibility
 curl -I https://unifai-ui-<namespace>.apps.cluster.example.com
@@ -358,11 +358,11 @@ curl http://qdrant:6333/collections
 ### View Logs
 
 ```bash
-# Dataflow server logs
-kubectl logs -f deployment/unifai-dataflow-server
+# RAG server logs
+kubectl logs -f deployment/unifai-rag-server
 
 # Celery worker logs
-kubectl logs -f deployment/unifai-dataflow-celery
+kubectl logs -f deployment/unifai-rag-celery
 
 # Multi-Agent logs
 kubectl logs -f deployment/unifai-multiagent-be
@@ -371,7 +371,7 @@ kubectl logs -f deployment/unifai-multiagent-be
 kubectl logs -f deployment/unifai-ui
 
 # Tail logs from all pods with label
-kubectl logs -f -l app=unifai-dataflow-server
+kubectl logs -f -l app=unifai-rag-server
 ```
 
 ---
@@ -384,16 +384,16 @@ Update image version with zero downtime:
 
 ```bash
 # 1. Update values file with new image tag
-vim values/dataflow-resource-values.yaml
+vim values/rag-resource-values.yaml
 
 # 2. Preview changes
-helmfile -f dataflow.yaml.gotmpl diff
+helmfile -f rag.yaml.gotmpl diff
 
 # 3. Apply update (rolling update happens automatically)
-helmfile -f dataflow.yaml.gotmpl apply
+helmfile -f rag.yaml.gotmpl apply
 
 # 4. Watch rollout
-kubectl rollout status deployment/unifai-dataflow-server
+kubectl rollout status deployment/unifai-rag-server
 ```
 
 ### Rollback Deployment
@@ -402,13 +402,13 @@ Rollback to previous version:
 
 ```bash
 # Check rollout history
-kubectl rollout history deployment/unifai-dataflow-server
+kubectl rollout history deployment/unifai-rag-server
 
 # Rollback to previous revision
-kubectl rollout undo deployment/unifai-dataflow-server
+kubectl rollout undo deployment/unifai-rag-server
 
 # Rollback to specific revision
-kubectl rollout undo deployment/unifai-dataflow-server --to-revision=3
+kubectl rollout undo deployment/unifai-rag-server --to-revision=3
 ```
 
 ### Force Update
@@ -417,10 +417,10 @@ Force recreation of pods (useful for config changes):
 
 ```bash
 # Restart deployment
-kubectl rollout restart deployment/unifai-dataflow-server
+kubectl rollout restart deployment/unifai-rag-server
 
 # Or delete pods (they'll be recreated automatically)
-kubectl delete pods -l app=unifai-dataflow-server
+kubectl delete pods -l app=unifai-rag-server
 ```
 
 ---
@@ -431,10 +431,10 @@ kubectl delete pods -l app=unifai-dataflow-server
 
 ```bash
 # Remove single release
-helmfile -f dataflow.yaml.gotmpl -l name=unifai-dataflow-server destroy
+helmfile -f rag.yaml.gotmpl -l name=unifai-rag-server destroy
 
 # Remove entire module
-helmfile -f dataflow.yaml.gotmpl destroy
+helmfile -f rag.yaml.gotmpl destroy
 ```
 
 ### Remove All Components
@@ -444,14 +444,14 @@ helmfile -f dataflow.yaml.gotmpl destroy
 helmfile -f ui.yaml.gotmpl destroy
 helmfile -f sso.yaml.gotmpl destroy
 helmfile -f multiagent.yaml.gotmpl destroy
-helmfile -f dataflow.yaml.gotmpl destroy
+helmfile -f rag.yaml.gotmpl destroy
 helmfile -f helmfile1.yaml.gotmpl destroy
 
 # Manually delete PVCs (Helmfile doesn't delete PVCs by default)
 kubectl delete pvc --all
 
 # Manually delete secrets
-kubectl delete secret unifai-dataflow-secrets
+kubectl delete secret unifai-rag-secrets
 ```
 
 ---
@@ -466,7 +466,7 @@ kubectl delete secret unifai-dataflow-secrets
 ```bash
 kubectl get pods
 # NAME                          READY   STATUS    RESTARTS   AGE
-# unifai-dataflow-server-xxx    0/1     Pending   0          5m
+# unifai-rag-server-xxx    0/1     Pending   0          5m
 ```
 
 **Possible Causes:**
@@ -477,7 +477,7 @@ kubectl get pods
 **Solutions:**
 ```bash
 # Check why pod is pending
-kubectl describe pod unifai-dataflow-server-xxx
+kubectl describe pod unifai-rag-server-xxx
 
 # Check node resources
 kubectl top nodes
@@ -520,19 +520,19 @@ kubectl set image deployment/unifai-ui ui=images.paas.redhat.com/unifai/ui:2024.
 ```bash
 kubectl get pods
 # NAME                          READY   STATUS             RESTARTS   AGE
-# unifai-dataflow-server-xxx    0/1     CrashLoopBackOff   5          10m
+# unifai-rag-server-xxx    0/1     CrashLoopBackOff   5          10m
 ```
 
 **Solutions:**
 ```bash
 # Check logs for errors
-kubectl logs unifai-dataflow-server-xxx
+kubectl logs unifai-rag-server-xxx
 
 # Check previous container logs (if restarted)
-kubectl logs unifai-dataflow-server-xxx --previous
+kubectl logs unifai-rag-server-xxx --previous
 
 # Describe pod for events
-kubectl describe pod unifai-dataflow-server-xxx
+kubectl describe pod unifai-rag-server-xxx
 
 # Common issues:
 # - Missing environment variables
@@ -621,7 +621,7 @@ For detailed troubleshooting, see [ARCHITECTURE.md - Troubleshooting](./ARCHITEC
 
 1. **Update chart locally:**
    ```bash
-   cd dataflow/unifai-dataflow-server
+   cd rag/unifai-rag-server
    # Edit templates or values.yaml
    ```
 
@@ -642,14 +642,14 @@ For detailed troubleshooting, see [ARCHITECTURE.md - Troubleshooting](./ARCHITEC
 
 5. **Test deployment:**
    ```bash
-   helmfile -f dataflow.yaml.gotmpl diff
-   helmfile -f dataflow.yaml.gotmpl apply
+   helmfile -f rag.yaml.gotmpl diff
+   helmfile -f rag.yaml.gotmpl apply
    ```
 
 6. **Commit changes:**
    ```bash
    git add .
-   git commit -m "feat: update dataflow chart with new feature"
+   git commit -m "feat: update rag chart with new feature"
    git push origin feature/chart-update
    ```
 
@@ -658,7 +658,7 @@ For detailed troubleshooting, see [ARCHITECTURE.md - Troubleshooting](./ARCHITEC
 1. Create new chart directory
 2. Define Chart.yaml and values.yaml
 3. Create templates (deployment, service, route, etc.)
-4. Add to appropriate helmfile (e.g., `dataflow.yaml.gotmpl`)
+4. Add to appropriate helmfile (e.g., `rag.yaml.gotmpl`)
 5. Add values to corresponding values file
 6. Test deployment
 7. Update documentation

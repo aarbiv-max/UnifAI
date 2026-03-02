@@ -23,7 +23,7 @@ from core.field_hints import SecretHint
 # Input/Output models for this action
 class ValidateConnectionInput(BaseActionInput):
     """Input for MCP connection validation"""
-    sse_endpoint: HttpUrl
+    mcp_url: HttpUrl
     bearer_token: Optional[str] = Field(
         default=None,
         description="Bearer token for MCP server authentication"
@@ -119,7 +119,7 @@ class ValidateConnectionAction(BaseAction):
         try:
             # Create config from input data
             config = McpProviderConfig(
-                sse_endpoint=input_data.sse_endpoint,
+                mcp_url=input_data.mcp_url,
                 bearer_token=input_data.bearer_token,
                 transport_type=input_data.transport_type,
             )

@@ -24,13 +24,13 @@ class McpProxyTool(BaseTool):
     def __init__(
             self,
             mcp_tool_name: str,
-            sse_endpoint: HttpUrl,
+            mcp_url: HttpUrl,
             headers: Optional[Dict[str, str]] = None,
             transport_type: McpTransportType = McpTransportType.STREAMABLE_HTTP,
     ):
         self.name = mcp_tool_name
         self.mcp_tool_name = mcp_tool_name
-        self.sse_endpoint = sse_endpoint  # Store endpoint instead of client
+        self.mcp_url = mcp_url  # Store endpoint instead of client
         self.headers = headers or {}  # Store headers for authentication
         self.transport_type = transport_type  # Store transport protocol
         self._tool_info = None
@@ -87,7 +87,7 @@ class McpProxyTool(BaseTool):
         """
         # 1) Create fresh client in current event loop/portal with auth headers
         client = McpServerClient(
-            sse_endpoint=self.sse_endpoint,
+            mcp_url=self.mcp_url,
             headers=self.headers,
             transport_type=self.transport_type,
         )
@@ -186,7 +186,7 @@ class McpProxyTool(BaseTool):
     async def create_async(
         cls,
         mcp_tool_name: str,
-        sse_endpoint: HttpUrl,
+        mcp_url: HttpUrl,
         headers: Optional[Dict[str, str]] = None,
         transport_type: McpTransportType = McpTransportType.STREAMABLE_HTTP,
     ) -> "McpProxyTool":
@@ -195,7 +195,7 @@ class McpProxyTool(BaseTool):
         
         Args:
             mcp_tool_name: Name of the MCP tool to proxy
-            sse_endpoint: MCP server HTTP endpoint
+            mcp_url: MCP server HTTP endpoint
             headers: Optional HTTP headers for authentication
             transport_type: Transport protocol to use (SSE or Streamable HTTP)
             
@@ -203,13 +203,13 @@ class McpProxyTool(BaseTool):
             Fully initialized McpProxyTool instance
         """
         tool = cls(
-            mcp_tool_name, sse_endpoint,
+            mcp_tool_name, mcp_url,
             headers=headers, transport_type=transport_type,
         )
         
         # Initialize schema using a fresh client with headers
         client = McpServerClient(
-            sse_endpoint=sse_endpoint, headers=headers,
+            mcp_url=mcp_url, headers=headers,
             transport_type=transport_type,
         )
         async with client:
@@ -221,7 +221,7 @@ class McpProxyTool(BaseTool):
     def create_sync(
         cls,
         mcp_tool_name: str,
-        sse_endpoint: HttpUrl,
+        mcp_url: HttpUrl,
         headers: Optional[Dict[str, str]] = None,
         transport_type: McpTransportType = McpTransportType.STREAMABLE_HTTP,
     ) -> "McpProxyTool":
@@ -231,7 +231,7 @@ class McpProxyTool(BaseTool):
         
         Args:
             mcp_tool_name: Name of the MCP tool to proxy
-            sse_endpoint: MCP server HTTP endpoint
+            mcp_url: MCP server HTTP endpoint
             headers: Optional HTTP headers for authentication
             transport_type: Transport protocol to use (SSE or Streamable HTTP)
             
@@ -240,7 +240,7 @@ class McpProxyTool(BaseTool):
         """
         with get_async_bridge() as bridge:
             return bridge.run(cls.create_async(
-                mcp_tool_name, sse_endpoint,
+                mcp_tool_name, mcp_url,
                 headers, transport_type=transport_type,
             ))
 
@@ -248,7 +248,7 @@ class McpProxyTool(BaseTool):
     def create_with_cached_schema(
         cls,
         mcp_tool_name: str,
-        sse_endpoint: HttpUrl,
+        mcp_url: HttpUrl,
         tool_info,
         headers: Optional[Dict[str, str]] = None,
         transport_type: McpTransportType = McpTransportType.STREAMABLE_HTTP,
@@ -259,7 +259,7 @@ class McpProxyTool(BaseTool):
         
         Args:
             mcp_tool_name: Name of the MCP tool to proxy
-            sse_endpoint: MCP server HTTP endpoint
+            mcp_url: MCP server HTTP endpoint
             tool_info: Pre-fetched Tool object with schema information
             headers: Optional HTTP headers for authentication
             transport_type: Transport protocol to use (SSE or Streamable HTTP)
@@ -268,7 +268,7 @@ class McpProxyTool(BaseTool):
             Fully initialized McpProxyTool instance
         """
         tool = cls(
-            mcp_tool_name, sse_endpoint,
+            mcp_tool_name, mcp_url,
             headers=headers, transport_type=transport_type,
         )
         
@@ -285,5 +285,5 @@ class McpProxyTool(BaseTool):
         return (
             f"McpProxyTool(name='{self.name}', mcp_tool_name='{self.mcp_tool_name}', "
             f"transport={self.transport_type.value}, "
-            f"description='{desc}', endpoint='{self.sse_endpoint}')"
+            f"description='{desc}', endpoint='{self.mcp_url}')"
         )

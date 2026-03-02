@@ -14,7 +14,7 @@ replicaCount: 1
 
 env:
   MONGODB_IP: mongodb
-  #MONGO_URI: mongodb  # currently using that var but  we need to change to fit the dataflow vars to try to merge files.
+  #MONGO_URI: mongodb  # currently using that var but  we need to change to fit the rag vars to try to merge files.
   MONGODB_PORT: "27017"
   RABBITMQ_IP: rabbitmq
   RABBITMQ_PORT: "5672"

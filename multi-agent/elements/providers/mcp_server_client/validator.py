@@ -59,14 +59,14 @@ class McpProviderValidator(BaseElementValidator):
             messages.append(self._error(
                 ValidationCode.NETWORK_TIMEOUT.value,
                 str(e),
-                field="sse_endpoint",
+                field="mcp_url",
             ))
         except RuntimeError as e:
             # MCP library cancel scope bug - handle here only
             messages.append(self._error(
                 ValidationCode.ENDPOINT_UNREACHABLE.value,
                 f"Connection failed: {e}",
-                field="sse_endpoint",
+                field="mcp_url",
             ))
 
         return self._build_report(messages=messages)
@@ -89,15 +89,15 @@ class McpProviderValidator(BaseElementValidator):
             # Connection successful
             messages.append(self._info(
                 "CONNECTION_OK",
-                f"Successfully connected to MCP server at {config.sse_endpoint}",
-                field="sse_endpoint",
+                f"Successfully connected to MCP server at {config.mcp_url}",
+                field="mcp_url",
             ))
 
         except TimeoutError:
             messages.append(self._error(
                 ValidationCode.NETWORK_TIMEOUT.value,
                 f"Connection timed out after {context.timeout_seconds}s",
-                field="sse_endpoint",
+                field="mcp_url",
             ))
         except RuntimeError:
             # Let RuntimeError propagate to validate() for handling
@@ -106,5 +106,5 @@ class McpProviderValidator(BaseElementValidator):
             messages.append(self._error(
                 ValidationCode.ENDPOINT_UNREACHABLE.value,
                 f"Connection failed: {str(e)}",
-                field="sse_endpoint",
+                field="mcp_url",
             ))

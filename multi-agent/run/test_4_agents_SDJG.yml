@@ -21,7 +21,7 @@ display_description: |
 providers:
   - name: mcp
     type: mcp_server
-    sse_endpoint: http://10.46.254.131:8006/servers/mcp-atlassian/sse
+    mcp_url: http://10.46.254.131:8006/servers/mcp-atlassian/sse
 
 # ----------------------------
 # LLM Definitions
@@ -40,12 +40,12 @@ retrievers:
   - name: my_docs
     type: docs
     top_k_results: 5
-    api_url: https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/api/docs/query.match
+    api_url: https://unifai-rag-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/api/docs/query.match
 
   - name: my_slack
     type: slack
     top_k_results: 5
-    api_url: https://unifai-dataflow-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/api/slack/query.match
+    api_url: https://unifai-rag-server-tag-ai--pipeline.apps.stc-ai-e1-prod.rtc9.p1.openshiftapps.com/api/slack/query.match
 
 
 # ----------------------------
