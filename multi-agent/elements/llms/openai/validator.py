@@ -70,28 +70,27 @@ class OpenAILLMValidator(BaseElementValidator):
                 connect=min(5.0, context.timeout_seconds),
             )
 
-            http_client = httpx.Client(
+            with httpx.Client(
                 timeout=timeout,
                 verify=False,  # Skip SSL verification
-            )
-            
-            client = OpenAI(
-                base_url=str(config.base_url),
-                api_key=config.api_key,
-                http_client=http_client,
-            )
-            
-            model_ids = self._try_list_models(client)
-            if model_ids is not None:
-                # API supports /v1/models - verify model exists
-                self._validate_model_in_list(config.model_name, model_ids, messages)
-            else:
-                # API doesn't support /v1/models - fallback to completion test
-                logger.info(
-                    f"API at {config.base_url} doesn't support /v1/models, "
-                    "falling back to completion test"
+            ) as http_client:
+                client = OpenAI(
+                    base_url=str(config.base_url),
+                    api_key=config.api_key,
+                    http_client=http_client,
                 )
-                self._validate_via_completion(client, config.model_name, messages)
+                
+                model_ids = self._try_list_models(client)
+                if model_ids is not None:
+                    # API supports /v1/models - verify model exists
+                    self._validate_model_in_list(config.model_name, model_ids, messages)
+                else:
+                    # API doesn't support /v1/models - fallback to completion test
+                    logger.info(
+                        f"API at {config.base_url} doesn't support /v1/models, "
+                        "falling back to completion test"
+                    )
+                    self._validate_via_completion(client, config.model_name, messages)
             
         except (AuthenticationError, PermissionDeniedError):
             messages.append(self._error(
@@ -156,8 +155,7 @@ class OpenAILLMValidator(BaseElementValidator):
                 return None
             raise
         except Exception as e:
-            logger.error(f"Exception in _try_list_models: {type(e).__name__}: {e}")
-            logger.error(f"Falling back to completion test")
+            logger.exception("Exception in _try_list_models, falling back to completion test")
             return None
     
     def _validate_model_in_list(
@@ -217,9 +215,9 @@ class OpenAILLMValidator(BaseElementValidator):
                     field="model_name",
                 ))
             else:
-                messages.append(self._info(
-                    LLMValidationCode.MODEL_AVAILABLE.value,
-                    f"Successfully connected to API (model '{model_name}' accepted)",
+                messages.append(self._error(
+                    ValidationCode.NETWORK_ERROR.value,
+                    f"Bad request during model validation: {str(e)}",
                     field="model_name",
                 ))
 
