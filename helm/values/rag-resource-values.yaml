@@ -43,7 +43,7 @@ unifai_rag_celery:
     SHARED_STORAGE: "/app/shared"
     CELERY_QUEUES: "slack_queue,document_queue,slack_events_queue"
     CELERY_WORKER: 8
-    CELERY_POOL: "threads"
+    CELERY_POOL: "prefork"
     VERSION: ""
     DOCLING_SERVICE_URL: "https://docling-service-tag-ai--runtime-int.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
     EMBEDDING_SERVICE_URL: "https://embedding-service-tag-ai--runtime-int.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com"
