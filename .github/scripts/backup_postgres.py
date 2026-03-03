@@ -66,7 +66,7 @@ def backup_postgres():
     cmd = (
         f"PGPASSWORD='{_shell_escape(PGPASSWORD)}' pg_dump -h {_shell_escape(PGHOST)} "
         f"-p {PGPORT} -U {_shell_escape(PGUSER)} -d {_shell_escape(PGDATABASE)} "
-        f"--no-owner --no-acl | gzip > {POD_BACKUP_FILE}"
+        f"-Fc --no-owner --no-acl > {POD_BACKUP_FILE}"
     )
     k8s_utils.run_cmd_on_pod(POSTGRES_POD, NAMESPACE, ["sh", "-c", cmd])
     print("PostgreSQL backup completed")
