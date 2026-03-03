@@ -7,4 +7,5 @@ pymongo
 asyncio
 datamodel-code-generator
 pydantic
+pydantic-settings
 httpx>=0.25.0
