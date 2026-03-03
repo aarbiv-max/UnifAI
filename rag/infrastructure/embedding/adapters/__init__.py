@@ -1,13 +1,29 @@
 """Embedding adapters."""
 
-from infrastructure.embedding.adapters.local_embedding_adapter import (
-    LocalEmbeddingAdapter,
-)
-from infrastructure.embedding.adapters.remote_embedding_adapter import (
-    RemoteEmbeddingAdapter,
-)
-
 __all__ = [
     "LocalEmbeddingAdapter",
     "RemoteEmbeddingAdapter",
 ]
+
+# Adapter classes are loaded on demand rather than at import time.
+# This prevents heavy optional dependencies (e.g. sentence-transformers, torch)
+# from being imported when only the remote adapter is needed (and those packages are not installed).
+_ADAPTER_MAP = {
+    "LocalEmbeddingAdapter": (
+        "infrastructure.embedding.adapters.local_embedding_adapter",
+        "LocalEmbeddingAdapter",
+    ),
+    "RemoteEmbeddingAdapter": (
+        "infrastructure.embedding.adapters.remote_embedding_adapter",
+        "RemoteEmbeddingAdapter",
+    ),
+}
+
+
+def __getattr__(name: str):
+    if name in _ADAPTER_MAP:
+        module_path, attr = _ADAPTER_MAP[name]
+        import importlib
+        module = importlib.import_module(module_path)
+        return getattr(module, attr)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
