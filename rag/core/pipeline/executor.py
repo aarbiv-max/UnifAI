@@ -73,10 +73,7 @@ class PipelineExecutor:
         """
         source_type = handler.source_type
         vector_repo = self._vector_repository(f"{source_type.lower()}_data")
-        
-        # Capture timestamp before collection so that last_sync_at reflects
-        # the moment just before the Slack API call, avoiding a small gap
-        # where messages could be missed between collect and store.
+      
         started_at = datetime.now(timezone.utc)
         
         # Register pipeline

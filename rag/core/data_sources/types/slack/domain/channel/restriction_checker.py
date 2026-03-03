@@ -26,9 +26,8 @@ _EMPTY_RULES: Dict[str, List[str]] = {
 
 
 class ChannelRestrictionChecker:
-    """Checks if Slack channels are restricted per AIA-Issue-011.
-
-    Rules are fetched from the platform-backend via the supplied
+    """
+    Rules are fetched from the backend via the supplied
     ``rules_reader`` callable.  Call ``refresh()`` before a batch
     operation (e.g. channel fetch) so the checker picks up any
     admin changes since last refresh.
