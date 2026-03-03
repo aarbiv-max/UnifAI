@@ -6,6 +6,7 @@ Validator for OpenAI LLM - checks API connectivity and model availability.
 
 from typing import List
 
+import httpx
 from openai import (
     OpenAI,
     AuthenticationError,
@@ -51,26 +52,35 @@ class OpenAILLMValidator(BaseElementValidator):
         messages: List[ValidationMessage] = []
 
         try:
-            client = OpenAI(
-                base_url=str(config.base_url),
-                api_key=config.api_key,
+            timeout = httpx.Timeout(
                 timeout=context.timeout_seconds,
+                connect=min(5.0, context.timeout_seconds),
             )
-            available_models = client.models.list()
-            model_ids = {m.id for m in available_models.data}
 
-            if config.model_name in model_ids:
-                messages.append(self._info(
-                    LLMValidationCode.MODEL_AVAILABLE.value,
-                    f"Successfully connected and found model '{config.model_name}'",
-                    field="model_name",
-                ))
-            else:
-                messages.append(self._error(
-                    LLMValidationCode.MODEL_NOT_FOUND.value,
-                    f"Model '{config.model_name}' not found",
-                    field="model_name",
-                ))
+            with httpx.Client(
+                timeout=timeout,
+                verify=False,  # Skip SSL verification
+            ) as http_client:
+                client = OpenAI(
+                    base_url=str(config.base_url),
+                    api_key=config.api_key,
+                    http_client=http_client,
+                )
+                available_models = client.models.list()
+                model_ids = {m.id for m in available_models.data}
+
+                if config.model_name in model_ids:
+                    messages.append(self._info(
+                        LLMValidationCode.MODEL_AVAILABLE.value,
+                        f"Successfully connected and found model '{config.model_name}'",
+                        field="model_name",
+                    ))
+                else:
+                    messages.append(self._error(
+                        LLMValidationCode.MODEL_NOT_FOUND.value,
+                        f"Model '{config.model_name}' not found",
+                        field="model_name",
+                    ))
 
         except (AuthenticationError, PermissionDeniedError):
             # 401, 403
