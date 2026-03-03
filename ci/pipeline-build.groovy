@@ -234,7 +234,7 @@ pipeline {
                     def modulesToDeploy = modules.join(',')
 
                     echo "Triggering deployment pipeline with MODULES_TO_DEPLOY = ${modulesToDeploy}"
-                    build job: 'unifai-app-deployer-rag',
+                    build job: 'unifai-app-deployer',
                     parameters: [
                         string(name: 'PIPELINE_BRANCH', value: params.PIPELINE_BRANCH),
                         string(name: 'deploy_location', value: params.deploy_location),
