@@ -137,8 +137,9 @@ class DoclingService:
             DoclingValidationError: If URL is empty or invalid
             DoclingProcessingError: If processing fails
         """
-        # Basic validation only. Full URL validation (format, scheme,
-        # network accessibility) not yet implemented - see docstring above.
+        # TODO: Add full URL validation when network document ingestion is officially supported:
+        #   - Validate URL format and scheme (must be http:// or https://)
+        #   - Check that the URL is reachable from the Docling service's network
         if not document_url:
             raise DoclingValidationError("Document URL cannot be empty")
         
