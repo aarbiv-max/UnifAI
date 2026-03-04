@@ -103,6 +103,8 @@ class PipelineExecutor:
             # Step 3: Chunk & Embed
             current_step = PipelineStatus.CHUNKING_AND_EMBEDDING
             self._pipeline_svc.update_status(context.pipeline_id, current_step)
+            record = self._pipeline_svc.get(monitoring_pipeline_id)
+            context.metadata["chunk_offset"] = record.stats.chunks_generated if record else 0
             embeddings = handler.chunk_and_embed(context, processed)
             
             # Step 4: Store

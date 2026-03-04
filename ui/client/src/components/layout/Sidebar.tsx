@@ -226,7 +226,7 @@ export default function Sidebar() {
             isActive={location === '/configuration'}
             status={null}
             isCollapsed={isCollapsed}
-            disabled={true}
+            disabled={!isAdmin}
           />
           {user?.is_admin && (
           <NavItem 

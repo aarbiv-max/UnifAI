@@ -59,7 +59,7 @@ class SlackChunkerStrategy(ContentChunker):
             logger.info(f"Processing {len(content)} individual Slack messages for chunking")
             self._chunk_individual_messages(content, upload_by)
         
-        logger.info(f"Chunking complete. Generated {len(self._chunks)} chunks from Slack content")
+        logger.info(f"Completed chunking with {len(self._chunks)} total chunks generated")
         return self._chunks
     
     def _chunk_threads(self, threads: List[List[Dict[str, Any]]], upload_by) -> None:

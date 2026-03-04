@@ -78,11 +78,16 @@ export function getColumns(
       cell: (info) => {
         const channel = info.row.original;
         const isFailed = channel.status === PIPELINE_STATUS.FAILED;
-        // Try to extract a failure message if backend provides one
+        const isDeletionFailed = channel.status === PIPELINE_STATUS.DELETION_FAILED;
         const failureMessage = channel.type_data?.last_error;
-        if (!isFailed) {
+
+        if (!isFailed && !isDeletionFailed) {
           return <StatusBadge status={channel.status} />;
         }
+
+        const defaultMsg = isDeletionFailed
+          ? "Failed to delete restricted channel data. Please delete manually."
+          : "Embedding failed. Open the channel to view details and retry.";
 
         return (
           <TooltipProvider>
@@ -94,7 +99,7 @@ export function getColumns(
               </TooltipTrigger>
               <TooltipContent side="top" align="center" className="max-w-xs">
                 <p className="text-sm">
-                  {failureMessage || "Embedding failed. Open the channel to view details and retry."}
+                  {failureMessage || defaultMsg}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -117,6 +122,9 @@ export function getColumns(
             break;
           case PIPELINE_STATUS.FAILED:
             displayLabel = "Failed";
+            break;
+          case PIPELINE_STATUS.DELETION_FAILED:
+            displayLabel = "Deletion Failed";
             break;
           case PIPELINE_STATUS.ARCHIVED:
             displayLabel = "Archived";
@@ -162,6 +170,7 @@ export function getColumns(
           "Done",
           "Paused",
           "Failed",
+          "Deletion Failed",
           "Archived"
         ],
       },
@@ -279,16 +288,24 @@ export function getColumns(
       cell: (info) => {
         const ch = info.row.original;
         const isDeleting = deletingChannelId === ch.channel_id;
+        const isSyncing = activeEmbeddingIds.includes(ch.channel_id);
         return (
           <div className="flex justify-end space-x-2">
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
               <Button
                 variant="ghost"
                 size="sm"
-                className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all duration-200"
+                disabled={isSyncing || isEmbeddingActivelyProcessing(ch)}
+                className={cn(
+                  "p-2 rounded-lg transition-all duration-200",
+                  isSyncing || isEmbeddingActivelyProcessing(ch)
+                    ? "opacity-50 cursor-not-allowed text-muted-foreground"
+                    : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+                )}
                 onClick={() => onSyncClick(ch)}
+                title={isSyncing ? "Sync in progress…" : "Sync channel"}
               >
-                <FaSync className="h-4 w-4" />
+                <FaSync className={cn("h-4 w-4", isSyncing && "animate-spin")} />
               </Button>
             </motion.div>
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>

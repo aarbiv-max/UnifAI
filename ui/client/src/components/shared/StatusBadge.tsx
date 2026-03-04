@@ -55,6 +55,13 @@ export function StatusBadge({
           label: "Failed",
           isActive: false,
         };
+      case "DELETION_FAILED":
+        return {
+          bgColor: "bg-orange-500/15",
+          textColor: "text-orange-400",
+          label: "Deletion Failed",
+          isActive: false,
+        };
       case "ARCHIVED":
         return {
           bgColor: "bg-slate-600/10",
@@ -140,7 +147,7 @@ export function StatusBadge({
         textColor,
         isActive && "animate-pulse-glow border-emerald-400/30",
         !isActive && "border-current/20",
-        status === "FAILED" && errorMessage && "cursor-help",
+        (status === "FAILED" || status === "DELETION_FAILED") && errorMessage && "cursor-help",
       )}
     >
       <span
@@ -154,7 +161,7 @@ export function StatusBadge({
   );
 
   // Show tooltip with error message for failed status
-  if (status === "FAILED" && errorMessage) {
+  if ((status === "FAILED" || status === "DELETION_FAILED") && errorMessage) {
     return (
       <TooltipProvider>
         <Tooltip delayDuration={200}>

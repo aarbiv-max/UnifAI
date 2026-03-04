@@ -18,11 +18,14 @@ def reconcile_restrictions_task(self):
         summary = {
             "newly_restricted": result.newly_restricted,
             "newly_unrestricted": result.newly_unrestricted,
+            "failed_deletions": result.failed_deletions,
         }
         logger.info(
-            "Reconciliation complete — restricted %d, unrestricted %d",
+            "Reconciliation complete — restricted %d, unrestricted %d, "
+            "failed deletions %d",
             len(result.newly_restricted),
             len(result.newly_unrestricted),
+            len(result.failed_deletions),
         )
         return summary
     except Exception as e:

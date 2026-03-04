@@ -137,8 +137,9 @@ class SlackPipelineHandler(SourcePipelinePort):
         for thread in threads:
             chunks.extend(self._chunker.chunk_content(thread, upload_by=upload_by))
         
-        # Enrich with source metadata
-        for idx, chunk in enumerate(chunks):
+        # Enrich with source metadata, continuing chunk_index from previous syncs
+        chunk_offset = context.metadata.get("chunk_offset", 0)
+        for idx, chunk in enumerate(chunks, start=chunk_offset):
             chunk.setdefault("metadata", {}).update({
                 "source_id": context.source_id,
                 "source_type": self.source_type,

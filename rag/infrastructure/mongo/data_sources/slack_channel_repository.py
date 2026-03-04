@@ -64,12 +64,16 @@ class MongoSlackChannelRepository(SlackChannelRepository):
         ) > 0
 
     def save(self, channel: SlackChannel) -> bool:
-        """Save a channel."""
+        """Save or update a channel (upsert by channel_id)."""
         try:
-            self._col.insert_one(channel.to_dict())
+            self._col.update_one(
+                {"channel_id": channel.channel_id},
+                {"$set": channel.to_dict()},
+                upsert=True,
+            )
             return True
         except Exception as e:
-            logger.error(f"Error inserting channel {channel.channel_id}: {e}")
+            logger.error(f"Error saving channel {channel.channel_id}: {e}")
             return False
 
     def save_many(self, channels: List[SlackChannel]) -> None:
