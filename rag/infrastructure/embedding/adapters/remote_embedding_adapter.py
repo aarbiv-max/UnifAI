@@ -65,8 +65,8 @@ class RemoteEmbeddingAdapter(EmbeddingPort):
             raise ValueError("Text cannot be empty")
         
         try:
-            embedding = self._service.generate_single_embedding(text)
-            return np.array(embedding)
+            embeddings = self._service.generate_embeddings([text])
+            return np.array(embeddings[0])
         except EmbeddingGenerationError:
             raise
         except Exception as e:

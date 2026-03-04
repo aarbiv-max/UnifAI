@@ -95,29 +95,6 @@ class EmbeddingService:
             logger.error(f"Error generating embeddings: {e}")
             raise EmbeddingProcessingError(f"Failed to generate embeddings: {e}")
     
-    def generate_single_embedding(self, text: str) -> List[float]:
-        """
-        Generate embedding for a single text.
-        
-        Args:
-            text: Text string to embed
-            
-        Returns:
-            Embedding vector as a list of floats
-            
-        Raises:
-            EmbeddingValidationError: If text is empty
-            EmbeddingProcessingError: If embedding generation fails
-        """
-        if not text:
-            raise EmbeddingValidationError("Text cannot be empty")
-        
-        embeddings = self.generate_embeddings([text])
-        if not embeddings:
-            raise EmbeddingProcessingError("No embedding generated")
-        
-        return embeddings[0]
-    
     def test_connection(self) -> bool:
         """
         Test if the embedding service is accessible.
