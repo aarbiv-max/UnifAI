@@ -4,12 +4,7 @@ from typing import Protocol
 
 
 class HealthCheckable(Protocol):
-    """
-    Protocol for services that support health checks.
-
-    Both DocumentConnector and DefaultEmbeddingGenerator satisfy this protocol
-    structurally (duck typing) without needing to inherit from it.
-    """
+    """Protocol for services that support health checks."""
 
     @property
     def is_remote(self) -> bool:

@@ -7,12 +7,13 @@ import numpy as np
 
 from global_utils.embedding import EmbeddingService
 
+from core.health.domain.port import HealthCheckable
 from core.vector.domain.embedder import EmbeddingPort, EmbeddingGenerationError
 
 logger = logging.getLogger(__name__)
 
 
-class RemoteEmbeddingAdapter(EmbeddingPort):
+class RemoteEmbeddingAdapter(EmbeddingPort, HealthCheckable):
     """
     Adapter that uses remote embedding service for embedding generation.
     

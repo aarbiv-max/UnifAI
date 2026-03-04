@@ -6,12 +6,13 @@ from typing import List, Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+from core.health.domain.port import HealthCheckable
 from core.vector.domain.embedder import EmbeddingPort, EmbeddingGenerationError
 
 logger = logging.getLogger(__name__)
 
 
-class LocalEmbeddingAdapter(EmbeddingPort):
+class LocalEmbeddingAdapter(EmbeddingPort, HealthCheckable):
     """
     Adapter that uses local SentenceTransformers for embedding generation.
     

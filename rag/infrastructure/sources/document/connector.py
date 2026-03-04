@@ -10,6 +10,7 @@ import logging
 from typing import List, Optional
 
 from core.connector.domain.base import DataConnector
+from core.health.domain.port import HealthCheckable
 from core.data_sources.types.document.domain.document_converter import (
     DocumentConverterPort,
     DocumentConversionError,
@@ -20,7 +21,7 @@ from infrastructure.sources.document.config import DocConfigManager
 logger = logging.getLogger(__name__)
 
 
-class DocumentConnector(DataConnector):
+class DocumentConnector(DataConnector, HealthCheckable):
     """
     Unified document connector using port-based architecture.
 
