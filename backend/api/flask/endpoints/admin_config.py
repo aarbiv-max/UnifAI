@@ -18,19 +18,11 @@ admin_config_bp = Blueprint("admin_config", __name__)
 
 
 def _get_current_user(req):
-    """Current user from X-Username/X-User-Id header or query (for UI/gateway)."""
-    return (
-        req.headers.get("X-Username")
-        or req.headers.get("X-User-Id")
-        or req.args.get("username")
-        or req.args.get("user_id")
-        or req.args.get("userId")
-    )
-
+    """Current user from X-Username/X-User-Id header (set by gateway)."""
+    return req.headers.get("X-Username") or req.headers.get("X-User-Id")
 
 def _is_admin(user_id):
     return current_app.container.admin_config_service.is_admin(user_id)
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Read — template + stored values

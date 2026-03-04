@@ -86,7 +86,7 @@ export function getColumns(
         }
 
         const defaultMsg = isDeletionFailed
-          ? "Failed to delete restricted channel data. Please delete manually."
+          ? "Failed to delete channel data. Please try again."
           : "Embedding failed. Open the channel to view details and retry.";
 
         return (
