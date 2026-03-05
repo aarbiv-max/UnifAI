@@ -5,7 +5,7 @@ __all__ = [
     "RemoteDoclingAdapter",
 ]
 
-# Adapter classes are loaded on demand rather than at import time.
+# converters classes are loaded on demand rather than at import time.
 # This prevents heavy optional dependencies (e.g. docling) from being
 # imported when only the remote adapter is needed (and docling is not installed).
 _ADAPTER_MAP = {

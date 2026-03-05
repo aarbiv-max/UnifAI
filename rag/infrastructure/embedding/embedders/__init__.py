@@ -5,7 +5,7 @@ __all__ = [
     "RemoteEmbeddingAdapter",
 ]
 
-# Adapter classes are loaded on demand rather than at import time.
+# embedders classes are loaded on demand rather than at import time.
 # This prevents heavy optional dependencies (e.g. sentence-transformers, torch)
 # from being imported when only the remote adapter is needed (and those packages are not installed).
 _ADAPTER_MAP = {
