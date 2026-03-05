@@ -1,4 +1,4 @@
-"""Document conversion adapters."""
+"""Document converters."""
 
 __all__ = [
     "LocalDoclingAdapter",
@@ -10,11 +10,11 @@ __all__ = [
 # imported when only the remote adapter is needed (and docling is not installed).
 _ADAPTER_MAP = {
     "LocalDoclingAdapter": (
-        "infrastructure.sources.document.adapters.local_docling_adapter",
+        "infrastructure.sources.document.converters.local_docling_adapter",
         "LocalDoclingAdapter",
     ),
     "RemoteDoclingAdapter": (
-        "infrastructure.sources.document.adapters.remote_docling_adapter",
+        "infrastructure.sources.document.converters.remote_docling_adapter",
         "RemoteDoclingAdapter",
     ),
 }

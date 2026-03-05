@@ -30,7 +30,7 @@ class DocumentConverterFactory:
     @staticmethod
     def create_local() -> DocumentConverterPort:
         """Create a local docling adapter."""
-        from infrastructure.sources.document.adapters import LocalDoclingAdapter
+        from infrastructure.sources.document.converters import LocalDoclingAdapter
         return LocalDoclingAdapter()
     
     @staticmethod
@@ -42,7 +42,7 @@ class DocumentConverterFactory:
     ) -> DocumentConverterPort:
         """Create a remote docling adapter."""
         from global_utils.docling import DoclingClient, DoclingService
-        from infrastructure.sources.document.adapters import RemoteDoclingAdapter
+        from infrastructure.sources.document.converters import RemoteDoclingAdapter
         
         client = DoclingClient(base_url=base_url, timeout=timeout)
         service = DoclingService(
