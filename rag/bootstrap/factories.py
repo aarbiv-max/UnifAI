@@ -14,15 +14,12 @@ would otherwise leak into the composition root (app_container.py).
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Dict, Any, Optional
+from typing import Dict, Any, Optional
 
 from core.vector.domain.embedder import EmbeddingGenerator
 from core.vector.domain.repository import VectorRepository
 from core.connector.domain.base import DataConnector
 from core.data_sources.types.document.domain.document_converter import DocumentConverterPort
-
-if TYPE_CHECKING:
-    from config.app_config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +96,7 @@ class DocumentConnectorFactory:
 
 
     @classmethod
-    def from_app_config(cls, config: AppConfig) -> DataConnector:
+    def from_app_config(cls, config) -> DataConnector:
         """
         Create the correct document connector based on AppConfig feature flags.
 
@@ -206,7 +203,7 @@ class EmbeddingGeneratorFactory:
 
 
     @classmethod
-    def from_app_config(cls, config: AppConfig) -> EmbeddingGenerator:
+    def from_app_config(cls, config) -> EmbeddingGenerator:
         """
         Create the correct embedding generator based on AppConfig feature flags.
 
