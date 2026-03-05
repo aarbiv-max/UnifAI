@@ -1,7 +1,7 @@
 """
 Default EmbeddingGenerator implementation.
 
-Wraps an EmbeddingPort to add batch processing, error recovery, and logging.
+Wraps an EmbeddingPort to add batch processing and logging.
 The concrete adapter (local SentenceTransformer or remote HTTP service) is
 injected at construction time; this class is adapter-agnostic.
 """
@@ -20,9 +20,10 @@ logger = logging.getLogger(__name__)
 class DefaultEmbeddingGenerator(EmbeddingGenerator):
     """
     Concrete implementation of EmbeddingGenerator.
-    
-    Implements batch processing, error recovery, and logging
-    using an EmbeddingPort for the actual encoding.
+
+    Implements batch processing and logging using an EmbeddingPort for the
+    actual encoding. Any encoding failure propagates immediately so callers
+    are aware of the problem rather than silently receiving corrupted data.
     """
     
     def __init__(self, port: EmbeddingPort, batch_size: int = 32):
@@ -52,31 +53,14 @@ class DefaultEmbeddingGenerator(EmbeddingGenerator):
         result_chunks = []
         
         for batch in self._batch_generator(chunks):
-            try:
-                texts = [chunk["text"] for chunk in batch]
-                embeddings = self._port.encode_texts(texts)
-                
-                for i, chunk in enumerate(batch):
-                    enriched_chunk = chunk.copy()
-                    if i < len(embeddings):
-                        enriched_chunk["embedding"] = embeddings[i]
-                    else:
-                        logger.warning(
-                            "Embedding count mismatch: expected index %d but got %d embeddings",
-                            i, len(embeddings),
-                        )
-                        enriched_chunk["embedding"] = np.zeros(self.embedding_dim)
-                    result_chunks.append(enriched_chunk)
-                    
-            except Exception as e:
-                logger.error(
-                    "Embedding generation failed for batch of %d chunks: %s",
-                    len(batch), e,
-                )
-                for chunk in batch:
-                    enriched_chunk = chunk.copy()
-                    enriched_chunk["embedding"] = np.zeros(self.embedding_dim)
-                    result_chunks.append(enriched_chunk)
+            texts = [chunk["text"] for chunk in batch]
+            # TODO: consider adding retry logic here for transient remote failures
+            embeddings = self._port.encode_texts(texts)
+
+            for i, chunk in enumerate(batch):
+                enriched_chunk = chunk.copy()
+                enriched_chunk["embedding"] = embeddings[i]
+                result_chunks.append(enriched_chunk)
         
         elapsed_time = time.time() - start_time
         logger.info(f"Embedding generation completed in {elapsed_time:.2f} seconds")
