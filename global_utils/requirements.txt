@@ -7,3 +7,5 @@ pymongo
 asyncio
 datamodel-code-generator
 pydantic
+anyio
+jsonschema
