@@ -10,11 +10,11 @@ __all__ = [
 # from being imported when only the remote adapter is needed (and those packages are not installed).
 _ADAPTER_MAP = {
     "LocalEmbeddingAdapter": (
-        "infrastructure.embedding.adapters.local_embedding_adapter",
+        "infrastructure.embedding.embedders.local_embedding_adapter",
         "LocalEmbeddingAdapter",
     ),
     "RemoteEmbeddingAdapter": (
-        "infrastructure.embedding.adapters.remote_embedding_adapter",
+        "infrastructure.embedding.embedders.remote_embedding_adapter",
         "RemoteEmbeddingAdapter",
     ),
 }
