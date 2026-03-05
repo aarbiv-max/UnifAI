@@ -15,6 +15,9 @@ from admin_config.models import (
     FieldDefinition,
     SectionDefinition,
 )
+from config.app_config import AppConfig
+
+config = AppConfig.get_instance()
 
 ADMIN_CONFIG_TEMPLATE = AdminConfigTemplate(
     categories=[
@@ -38,7 +41,7 @@ ADMIN_CONFIG_TEMPLATE = AdminConfigTemplate(
                             label="Admin Usernames",
                             field_type="string_list",
                             description="SSO usernames (preferred_username) with admin access.",
-                            default=["labuyous", "mcarmi", "nrashti", "oodeh", "osabach", "sfiresht", "yhabushi"],
+                            default=config.admin_allowed_users,
                             placeholder="e.g. jdoe",
                         ),
                     ],

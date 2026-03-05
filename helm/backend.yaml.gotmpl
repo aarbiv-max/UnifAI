@@ -17,6 +17,11 @@ releases:
       - {{- toYaml .Values.unifai_backend | nindent 8 }}
       - ./values/global-config.yaml
     hooks:
+      - events: ["presync"]
+        showlogs: true
+        command: bash
+        args:
+          - "./scripts/backend-presync.sh"
       - events: ["postsync"]
         showlogs: true
         command: bash
