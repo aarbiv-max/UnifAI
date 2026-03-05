@@ -129,7 +129,7 @@ class EmbeddingPortFactory:
     ):
         """Create a local embedding adapter."""
         import torch
-        from infrastructure.embedding.adapters import LocalEmbeddingAdapter
+        from infrastructure.embedding.embedders import LocalEmbeddingAdapter
 
         resolved_device = device_name or ("cuda" if torch.cuda.is_available() else "cpu")
         return LocalEmbeddingAdapter(
@@ -146,7 +146,7 @@ class EmbeddingPortFactory:
     ):
         """Create a remote embedding adapter."""
         from global_utils.embedding import EmbeddingClient, EmbeddingService
-        from infrastructure.embedding.adapters import RemoteEmbeddingAdapter
+        from infrastructure.embedding.embedders import RemoteEmbeddingAdapter
         
         client = EmbeddingClient(base_url=base_url, timeout=timeout)
         service = EmbeddingService(client=client, model_name=model_name)
