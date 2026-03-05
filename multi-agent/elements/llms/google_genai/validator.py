@@ -24,6 +24,7 @@ from elements.common.validator import (
     ValidationMessage,
     ValidationCode,
 )
+from elements.llms.common.validation_codes import LLMValidationCode
 from elements.llms.google_genai.config import GoogleGenAIConfig
 
 
@@ -56,7 +57,7 @@ class GoogleGenAIValidator(BaseElementValidator):
             client.models.get(model=config.model_name)
             
             messages.append(self._info(
-                "MODEL_AVAILABLE",
+                LLMValidationCode.MODEL_AVAILABLE.value,
                 f"Successfully connected and found model '{config.model_name}'",
                 field="model_name",
             ))
@@ -70,13 +71,13 @@ class GoogleGenAIValidator(BaseElementValidator):
             ))
         except NotFound:
             messages.append(self._error(
-                "MODEL_NOT_FOUND",
+                LLMValidationCode.MODEL_NOT_FOUND.value,
                 f"Model '{config.model_name}' not found",
                 field="model_name",
             ))
         except ResourceExhausted:
             messages.append(self._error(
-                "RATE_LIMITED",
+                LLMValidationCode.RATE_LIMITED.value,
                 "Rate limit exceeded",
                 field="api_key",
             ))
@@ -96,13 +97,13 @@ class GoogleGenAIValidator(BaseElementValidator):
                 ))
             elif e.code == 404:
                 messages.append(self._error(
-                    "MODEL_NOT_FOUND",
+                    LLMValidationCode.MODEL_NOT_FOUND.value,
                     f"Model '{config.model_name}' not found",
                     field="model_name",
                 ))
             elif e.code == 429:
                 messages.append(self._error(
-                    "RATE_LIMITED",
+                    LLMValidationCode.RATE_LIMITED.value,
                     "Rate limit exceeded",
                     field="api_key",
                 ))
@@ -126,4 +127,3 @@ class GoogleGenAIValidator(BaseElementValidator):
             ))
 
         return self._build_report(messages=messages)
-

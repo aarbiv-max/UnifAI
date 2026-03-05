@@ -1,9 +1,6 @@
-"""Embedding infrastructure components."""
-
-from infrastructure.embedding.embedding_generator import DefaultEmbeddingGenerator
+"""Embedding adapters."""
 
 __all__ = [
-    "DefaultEmbeddingGenerator",
     "LocalEmbeddingAdapter",
     "RemoteEmbeddingAdapter",
 ]
