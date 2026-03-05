@@ -13,7 +13,7 @@ properties([
         string(name: "MA_VERSION", defaultValue: "", description: "Image tag for multi-agent"),
         string(name: "GUI_VERSION", defaultValue: "", description: "Image tag for UI"),
         string(name: "SSO_VERSION", defaultValue: "", description: "Image tag for SSO"),
-        string(name: "MODULES_TO_DEPLOY", defaultValue: "", description: "Comma-separated list of modules to update (e.g. rag,multiagent,ui,sso)"),
+        string(name: "MODULES_TO_DEPLOY", defaultValue: "", description: "Comma-separated list of modules to update (e.g. rag,multiagent,backend,ui,sso)"),
         booleanParam(name: 'debug_mode', defaultValue: false, description: 'debug the pods'),
     ])
 ])
@@ -151,7 +151,7 @@ def deployModules(module){
 def deleteRunningApplication(){
     echo("Removing running UnifAI application")
     cleanOldDataflow()
-    def charts = ["backend","rag", "multiagent", "shared-resources","ui", "sso"]
+    def charts = ["backend", "rag", "multiagent", "ui", "sso", "shared-resources"]
 
     charts.each { chart ->
         sh("podman exec -t helmfile bash -c 'helmfile destroy -f ${chart}.yaml.gotmpl --deleteWait'")
@@ -316,7 +316,7 @@ pipeline {
                                     case 'backend':
                                         def version = params.BACKEND_VERSION?.trim() ?: params.VERSION?.trim()
                                         updateChartVersions("${buildParams.DevRoot}/${params.BRANCH}/helm/backend/", version)
-                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/backend-values.yaml", version)
+                                        updateValuesYaml("${buildParams.DevRoot}/${params.BRANCH}/helm/values/backend-resource-values.yaml", version)
                                         deployModules('backend')
                                         break
 
