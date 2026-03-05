@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, Loader2, Sparkles, Info, Copy, RotateCcw, ThumbsUp, ThumbsDown, Check, Columns3, MessageSquare, Network, Maximize2, Minimize2 } from "lucide-react";
+import { Send, Trash2, Loader2, Sparkles, Info, Copy, RotateCcw, ThumbsUp, ThumbsDown, Check, Columns3, MessageSquare, Network, Maximize2, Minimize2, Paperclip, X, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -17,18 +17,26 @@ import axios from "../../../http/axiosAgentConfig";
 import { MarkdownComponents, preprocessText } from "./helpers/TextComponents";
 import { SessionPayload } from "../ExecutionTab";
 import { useStreamingData } from "../StreamingDataContext";
-import { Message, StreamLogEntry, WorkPlanSnapshot } from "./types";
+import { Message, MessageAttachmentMeta, StreamLogEntry, WorkPlanSnapshot } from "./types";
 import { StreamLogDisplay } from "./StreamLogDisplay";
 import { useToast } from "@/hooks/use-toast";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
 import WorkflowStatusBanner, { WorkflowBannerMessages } from '@/components/shared/WorkflowStatusBanner';
+import {
+  validateAttachmentFiles,
+  fileToBase64,
+  uploadAndProcessAttachments,
+  ATTACHMENT_ALLOWED_EXTENSIONS,
+  type AttachmentContent,
+} from "@/api/attachments";
 
 
 // Backend message format
 interface BackendMessage {
   content: string;
   role: "user" | "assistant";
+  attachments?: MessageAttachmentMeta[];
 }
 
 interface ChatInterfaceProps {
@@ -76,6 +84,11 @@ export default function ChatInterface({
   const { toast } = useToast();
   const [userPromptsMap, setUserPromptsMap] = useState<Record<string, string>>({});
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+  // Attachment state
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isProcessingAttachments, setIsProcessingAttachments] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ────────────────────────────────────────────────────────────────────────────────
   // Auto-expanding textarea configuration
@@ -180,6 +193,9 @@ export default function ChatInterface({
         // For AI messages, we might want to add finalAnswer if it's the last assistant message
         ...(msg.role === "assistant" && {
           finalAnswer: msg.content,
+        }),
+        ...(msg.attachments && msg.attachments.length > 0 && {
+          attachments: msg.attachments,
         }),
       }));
     },
@@ -511,6 +527,62 @@ export default function ChatInterface({
     }));
   }, []);
 
+  // ── Attachment handlers ────────────────────────────────────────────────
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || []);
+    if (!selected.length) return;
+
+    const { valid, errors } = validateAttachmentFiles(selected);
+    if (errors.length) {
+      toast({
+        title: "Invalid file(s)",
+        description: errors.map((err) => `${err.file_name}: ${err.message}`).join("\n"),
+        variant: "destructive",
+      });
+    }
+    if (valid.length) {
+      setPendingFiles((prev) => [...prev, ...valid]);
+    }
+    // Reset input so the same file can be re-selected
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [toast]);
+
+  const removePendingFile = useCallback((index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const processAndUploadAttachments = useCallback(
+    async (files: File[]): Promise<AttachmentContent[] | null> => {
+      if (!files.length) return null;
+
+      setIsProcessingAttachments(true);
+      try {
+        const encoded = await Promise.all(
+          files.map(async (file) => ({
+            name: file.name,
+            content: await fileToBase64(file),
+          }))
+        );
+        const response = await uploadAndProcessAttachments(encoded);
+        return response.attachments;
+      } catch (err: any) {
+        const errorMsg = err?.response?.data?.errors
+          ? err.response.data.errors.map((e: any) => `${e.file_name}: ${e.message}`).join("\n")
+          : "Failed to process attachments. Please try again.";
+        toast({
+          title: "Attachment Error",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        return null;
+      } finally {
+        setIsProcessingAttachments(false);
+      }
+    },
+    [toast]
+  );
+
   const getSessionState = async (sid: string) => {
     try {
       // Make API call to get the session state
@@ -538,7 +610,7 @@ export default function ChatInterface({
   // Cleanup → All intervals are properly cleared
   const handleSendMessage = async (messageToSend?: string) => {
     const messageContent = messageToSend || inputMessage;
-    if (messageContent.trim() === "") return;
+    if (messageContent.trim() === "" && pendingFiles.length === 0) return;
 
     // Check if flow is loaded (runId should not be empty or null)
     if (!runId || runId.trim() === "") {
@@ -550,15 +622,25 @@ export default function ChatInterface({
       return;
     }
 
-    // Add user message
+    // Capture and clear pending files before async work
+    const filesToProcess = [...pendingFiles];
+    const attachmentMetas: MessageAttachmentMeta[] = filesToProcess.map((f) => ({
+      filename: f.name,
+      extension: '.' + (f.name.split('.').pop()?.toLowerCase() || ''),
+      char_count: 0,
+    }));
+
+    // Add user message (with attachment metadata for display)
     const userMessage: Message = {
       id: Date.now().toString(),
       content: messageContent,
       sender: "user",
+      attachments: attachmentMetas.length > 0 ? attachmentMetas : undefined,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInputMessage("");
+    setPendingFiles([]);
     setIsTyping(true);
 
     // Reset textarea to compact state and focus
@@ -569,6 +651,17 @@ export default function ChatInterface({
         textareaRef.current.setSelectionRange(0, 0);
       }
     }, 0);
+
+    // Process attachments if any
+    let processedAttachments: AttachmentContent[] | null = null;
+    if (filesToProcess.length > 0) {
+      processedAttachments = await processAndUploadAttachments(filesToProcess);
+      if (!processedAttachments) {
+        // Processing failed, abort
+        setIsTyping(false);
+        return;
+      }
+    }
 
     // Create initial AI message for streaming (no streamLogs, managed separately)
     const streamingMessageId = (Date.now() + 1).toString();
@@ -594,7 +687,10 @@ export default function ChatInterface({
     try {
       const sessionPayload: SessionPayload = {
         sessionId: runId || "",
-        inputs: { user_prompt: messageContent },
+        inputs: {
+          user_prompt: messageContent,
+          ...(processedAttachments && { prompt_attachments: processedAttachments }),
+        },
         stream: true,
         scope: "public",
         loggedInUser: "default",
@@ -870,7 +966,22 @@ export default function ChatInterface({
 
     if (message.sender === "user") {
       return (
-        <div className="text-sm whitespace-pre-line">{message.content}</div>
+        <div>
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {message.attachments.map((att, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-primary/15 text-primary/90 border border-primary/25"
+                >
+                  <FileText className="h-3 w-3" />
+                  {att.filename}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="text-sm whitespace-pre-line">{message.content}</div>
+        </div>
       );
     }
 
@@ -1050,8 +1161,52 @@ export default function ChatInterface({
             <WorkflowStatusBanner {...WorkflowBannerMessages.validating} />
           )}
           
+          {/* Pending attachments preview */}
+          {pendingFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2 px-1">
+              {pendingFiles.map((file, idx) => (
+                <div
+                  key={`${file.name}-${idx}`}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-background-surface border border-gray-700 text-xs text-gray-300 group"
+                >
+                  <FileText className="h-3.5 w-3.5 text-primary/70 flex-shrink-0" />
+                  <span className="truncate max-w-[140px]">{file.name}</span>
+                  <button
+                    onClick={() => removePendingFile(idx)}
+                    className="ml-0.5 p-0.5 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                    type="button"
+                    title="Remove attachment"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Input area */}
           <div className="flex space-x-2 items-end">
+            {/* Hidden file input for attachments */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              multiple
+              accept={ATTACHMENT_ALLOWED_EXTENSIONS.join(',')}
+              onChange={handleFileSelect}
+            />
+            {/* Attachment button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isTyping || isProcessingAttachments || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
+              className="text-gray-400 hover:text-primary hover:bg-primary/10 mb-0 flex-shrink-0"
+              title="Attach document (PDF, DOCX, MD)"
+              type="button"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
             {/* Textarea container with expand/collapse icon */}
             <div className="relative flex-1">
               <Textarea
@@ -1100,10 +1255,14 @@ export default function ChatInterface({
             >
               <Button
                 onClick={() => handleSendMessage()}
-                disabled={inputMessage.trim() === "" || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
+                disabled={(inputMessage.trim() === "" && pendingFiles.length === 0) || isTyping || isProcessingAttachments || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
                 className="bg-primary hover:bg-[#7525c9] mb-0"
               >
-                <Send className="h-4 w-4" />
+                {isProcessingAttachments ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </UmamiTrack>
           </div>

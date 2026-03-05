@@ -12,8 +12,9 @@ from elements.nodes.common.workload import Task
 from elements.nodes.common.workload.thread import ThreadStatus
 from graph.state.graph_state import Channel
 from graph.state.state_view import StateView
-from elements.llms.common.chat.message import ChatMessage, Role
-from typing import ClassVar
+from elements.llms.common.chat.message import ChatMessage, MessageAttachment, Role
+from attachments.service import AttachmentService
+from typing import ClassVar, List, Dict, Any
 
 
 class UserQuestionNode(WorkloadCapableMixin, IEMCapableMixin, BaseNode):
@@ -29,12 +30,13 @@ class UserQuestionNode(WorkloadCapableMixin, IEMCapableMixin, BaseNode):
     """
 
     # Channel permissions - includes workload channels
-    READS: ClassVar[set[str]] = {Channel.USER_PROMPT, Channel.MESSAGES}
+    READS: ClassVar[set[str]] = {Channel.USER_PROMPT, Channel.MESSAGES, Channel.PROMPT_ATTACHMENTS}
     WRITES: ClassVar[set[str]] = {Channel.MESSAGES}
 
     def __init__(self, *, name: str = "user_question", **kwargs):
         super().__init__(**kwargs)
         self.name = name
+
     def run(self, state: StateView) -> StateView:
         """Main execution - initiate workflow for user query."""
         prompt = state[Channel.USER_PROMPT]
@@ -44,11 +46,20 @@ class UserQuestionNode(WorkloadCapableMixin, IEMCapableMixin, BaseNode):
 
         user_query = prompt.strip()
 
-        # Create thread, workspace, and initiate workflow
-        self._initiate_workflow(user_query, state)
+        # Check for attachments and augment the query
+        attachments_data = state.get(Channel.PROMPT_ATTACHMENTS, [])
+        attachment_metas = self._build_attachment_metadata(attachments_data)
+        augmented_query = self._augment_with_attachments(user_query, attachments_data)
 
-        # Promote to public conversation
-        user_message = ChatMessage(role=Role.USER, content=user_query)
+        # Create thread, workspace, and initiate workflow
+        self._initiate_workflow(augmented_query, state)
+
+        # Promote to public conversation (store original prompt, attach metadata)
+        user_message = ChatMessage(
+            role=Role.USER,
+            content=user_query,
+            attachments=attachment_metas or None,
+        )
         self.promote_to_messages(user_message)
 
         return state
@@ -120,4 +131,43 @@ class UserQuestionNode(WorkloadCapableMixin, IEMCapableMixin, BaseNode):
             print(f"🔄 [UserQuestion] Continued workflow in thread {thread.thread_id}")
         else:
             print(f"📝 [UserQuestion] Initiated new workflow {thread.thread_id}")
+
+    @staticmethod
+    def _build_attachment_metadata(
+        attachments_data: List[Dict[str, Any]],
+    ) -> List[MessageAttachment]:
+        """Convert raw attachment dicts into MessageAttachment metadata."""
+        return [
+            MessageAttachment(
+                filename=a["filename"],
+                extension=a["extension"],
+                char_count=a.get("char_count", 0),
+            )
+            for a in attachments_data
+        ]
+
+    @staticmethod
+    def _augment_with_attachments(
+        user_query: str,
+        attachments_data: List[Dict[str, Any]],
+    ) -> str:
+        """
+        If attachments are present, build an augmented prompt that includes
+        extracted document text as context for the LLM.
+        """
+        if not attachments_data:
+            return user_query
+
+        from attachments.models import AttachmentContent
+
+        contents = [
+            AttachmentContent(
+                filename=a["filename"],
+                extension=a["extension"],
+                text_content=a["text_content"],
+                char_count=a.get("char_count", 0),
+            )
+            for a in attachments_data
+        ]
+        return AttachmentService.build_augmented_prompt(user_query, contents)
 

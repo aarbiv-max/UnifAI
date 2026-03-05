@@ -21,6 +21,8 @@ from statistics.service import StatisticsService
 from validation.service import ElementValidationService
 from templates.repository.mongo_repository import MongoTemplateRepository
 from templates.service import TemplateService
+from attachments.processor import DocumentProcessor
+from attachments.service import AttachmentService
 from config.app_config import AppConfig
 from global_utils.utils.singleton import SingletonMeta
 
@@ -156,4 +158,25 @@ class AppContainer(metaclass=SingletonMeta):
             resources_service=self.resources_service,
         )
 
+        # Attachment service (document processing for prompt attachments)
+        docling_service = self._build_docling_service(cfg)
+        doc_processor = DocumentProcessor(docling_service=docling_service)
+        self.attachment_service = AttachmentService(
+            processor=doc_processor,
+            upload_dir=getattr(cfg, "attachment_upload_dir", None),
+        )
+
         self._initialized = True
+
+    @staticmethod
+    def _build_docling_service(cfg):
+        """Build Docling service if configured, otherwise return None."""
+        try:
+            docling_url = getattr(cfg, "docling_service_url", None)
+            if not docling_url:
+                return None
+            from global_utils.docling import DoclingClient, DoclingService
+            client = DoclingClient(base_url=docling_url)
+            return DoclingService(client, image_export_mode="placeholder")
+        except Exception:
+            return None

@@ -40,10 +40,20 @@ import {transformSessionData, sortSessionsByTimestamp} from "@/utils/sessionHelp
 import { useSessionManagement } from "@/hooks/use-session-management";
 
 
+export type PromptAttachment = {
+  filename: string;
+  extension: string;
+  text_content: string;
+  char_count: number;
+};
+
 export type SessionPayload = {
   sessionId: string;
-  inputs: {"user_prompt": string},
-  stream: boolean,
+  inputs: {
+    user_prompt: string;
+    prompt_attachments?: PromptAttachment[];
+  };
+  stream: boolean;
   scope: 'public' | 'private';
   loggedInUser: string;
 };

@@ -9,6 +9,7 @@ from api.flask.endpoints.health import health_bp
 from api.flask.endpoints.shares import shares_bp
 from api.flask.endpoints.statistics import statistics_bp
 from api.flask.endpoints.templates import templates_bp
+from api.flask.endpoints.attachments import attachments_bp
 
 
 def register_all_endpoints(app):
@@ -24,6 +25,7 @@ def register_all_endpoints(app):
         {"bp": shares_bp, "parent": 'shares', "route": ''},
         {"bp": statistics_bp, "parent": 'statistics', "route": ''},
         {"bp": templates_bp, "parent": 'templates', "route": ''},
+        {"bp": attachments_bp, "parent": 'attachments', "route": ''},
     ]
 
     # register all other blueprints in the app

@@ -27,6 +27,12 @@ class GraphState(BaseModel):
         default="", 
         json_schema_extra={'external': True, 'streamable': True}
     )
+
+    # Processed attachment contents for the current turn (last-writer-wins)
+    prompt_attachments: Annotated[List[Dict[str, Any]], lambda old, new: new] = Field(
+        default_factory=list,
+        json_schema_extra={'external': True, 'streamable': False}
+    )
     # merge dicts into a new dict:
     nodes_output: Annotated[Dict[str, str], merge_string_dicts] = Field(
         default_factory=dict,

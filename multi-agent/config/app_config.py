@@ -14,3 +14,6 @@ class AppConfig(SharedConfig):
     admin_allowed_users: list = []  # Populate with user_ids (usernames) to grant admin access
     # Engine
     engine_name: str = "langgraph"
+    # Attachments
+    docling_service_url: str = ""
+    attachment_upload_dir: str = ""

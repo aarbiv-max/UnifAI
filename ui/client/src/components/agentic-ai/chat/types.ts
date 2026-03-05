@@ -1,10 +1,17 @@
+export interface MessageAttachmentMeta {
+  filename: string;
+  extension: string;
+  char_count: number;
+}
+
 export interface Message {
   id: string;
   content: string;
   sender: 'user' | 'ai';
   finalAnswer?: string;
   streamLogs?: StreamLogEntry[];
-  workPlans?: WorkPlanSnapshot[]; // Add support for workplans
+  workPlans?: WorkPlanSnapshot[];
+  attachments?: MessageAttachmentMeta[];
 }
 
 export interface StreamLogEntry {

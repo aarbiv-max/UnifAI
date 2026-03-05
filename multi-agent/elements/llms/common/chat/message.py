@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from enum import Enum
 from typing import Optional, List, Dict, Any
 
@@ -24,6 +24,17 @@ class ToolCall:
 
 
 @dataclass(frozen=True)
+class MessageAttachment:
+    """Metadata about a document attached to a message."""
+    filename: str
+    extension: str
+    char_count: int
+
+    def to_dict(self) -> Dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     """
     Immutable message with optional tool call or tool result.
@@ -33,3 +44,4 @@ class ChatMessage:
     tool_calls: Optional[List[ToolCall]] = None  # for assistant messages
     tool_call_id: Optional[str] = None  # for tool messages
     additional_kwargs: Optional[Dict[str, Any]] = None  # for thought signatures etc.
+    attachments: Optional[List[MessageAttachment]] = None  # for user messages with attached docs
