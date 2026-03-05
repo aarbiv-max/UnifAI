@@ -235,17 +235,9 @@ export default function SlackIntegration() {
     const newChannels = urlParams.get('newChannels');
 
     if (newChannels) {
-      try {
-        const channelIds = JSON.parse(decodeURIComponent(newChannels));
-        if (Array.isArray(channelIds) && channelIds.length > 0) {
-          trackEmbeddingStart(channelIds);
-          window.history.replaceState({}, '', window.location.pathname);
-        }
-      } catch (error) {
-        // Silently handle URL parsing errors - not critical for user experience
-      }
+      window.history.replaceState({}, '', window.location.pathname);
     }
-  }, [trackEmbeddingStart]);
+  }, []);
 
   const handleRefresh = async () => {
     try {
