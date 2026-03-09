@@ -8,10 +8,11 @@ metadata:
     {{- with .Values.reports.storage.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- with .Values.reports.storage.annotations }}
   annotations:
+    "helm.sh/resource-policy": keep
+    {{- with .Values.reports.storage.annotations }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end }}
 spec:
   accessModes:
     {{- toYaml .Values.reports.storage.accessModes | nindent 4 }}
