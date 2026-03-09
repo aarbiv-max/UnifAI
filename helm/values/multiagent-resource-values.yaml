@@ -20,3 +20,11 @@ multiagent_server:
     GUNICORN_THREADS: "8"
     GUNICORN_TIMEOUT: "600"
     VERSION: ""
+    
+    # Redis Configuration (for session streaming)
+    REDIS_IP: "redis-master"
+    REDIS_PORT: "6379"
+    REDIS_DB: "0"
+    REDIS_PASSWORD: ""
+    REDIS_STREAM_MAXLEN: "5000"
+    REDIS_STREAM_TTL_SECONDS: "3600"

@@ -8,6 +8,7 @@ from session.repository.mongo_session_repository import MongoSessionRepository
 from session.user_session_manager import UserSessionManager
 from session.session_executor import SessionExecutor
 from session.service import SessionService
+from session.channels import RedisStreamReader, RedisClientFactory
 from resources.registry import ResourcesRegistry
 from resources.service import ResourcesService
 from resources.repository.mongo_repository import MongoResourceRepository
@@ -94,6 +95,10 @@ class AppContainer(metaclass=SingletonMeta):
             validation_service=self.validation_service,
         )
 
+        # Redis client (for session streaming)
+        self.redis_client = RedisClientFactory.create_from_config(cfg)
+        self.redis_stream_reader = RedisStreamReader(self.redis_client)
+
         # session orchestration
         self.session_factory = WorkflowSessionFactory(
             element_registry=self.element_registry,
@@ -112,7 +117,8 @@ class AppContainer(metaclass=SingletonMeta):
         )
         self.session_executor = SessionExecutor(
             session_manager=self.session_manager,
-            repository=self.session_repo
+            repository=self.session_repo,
+            redis_client=self.redis_client
         )
 
         self.session_service = SessionService(

@@ -6,9 +6,12 @@ from graph.state.graph_state import GraphState
 from core.context import set_current_context
 from core.channels import SessionChannel
 from engine.channels import LangGraphEmitter
-from session.channels import LocalSessionChannel
+from session.channels import LocalSessionChannel, RedisSessionChannel, RedisClient
 from .status import SessionStatus
 from .utils import derive_title
+import logging
+
+logger = logging.getLogger(__name__)
 
 SessionOrId = Union[WorkflowSession, str]
 
@@ -17,15 +20,21 @@ class SessionExecutor:
     """
     SRP: only handles "run" and "stream" of a WorkflowSession.
     Can accept either a WorkflowSession or a run_id string.
+    
+    Supports two streaming modes:
+      - Redis-backed streaming (default when Redis is available)
+      - Local streaming (fallback when Redis is unavailable)
     """
 
     def __init__(
             self,
             session_manager: UserSessionManager,
-            repository: SessionRepository
+            repository: SessionRepository,
+            redis_client: Optional[RedisClient] = None
     ):
         self._sessions = session_manager
         self._repo = repository
+        self._redis = redis_client
 
     def _pre_run(
             self,
@@ -100,7 +109,7 @@ class SessionExecutor:
             channel: Optional[SessionChannel] = None
     ) -> None:
         """
-        1) if streaming, cleanup channel from nodes and close channel
+        1) if streaming, cleanup channel from nodes and mark channel as failed
         2) mark context finished
         3) update status
         4) persist
@@ -108,7 +117,11 @@ class SessionExecutor:
         if streaming:
             session.cleanup_streaming()
             if channel:
-                channel.close()
+                # Use mark_failed if available (RedisSessionChannel)
+                if hasattr(channel, 'mark_failed'):
+                    channel.mark_failed(str(error))
+                else:
+                    channel.close()
         
         session.run_context = session.run_context.mark_finished()
         session.update_status(SessionStatus.FAILED)
@@ -174,10 +187,37 @@ class SessionExecutor:
     def _create_streaming_channel(self, session: WorkflowSession) -> SessionChannel:
         """
         Factory method for creating the streaming channel.
-        Override or extend for different channel types (e.g., Redis).
+        
+        Uses Redis-backed channel when available for:
+          - Persistent event storage
+          - Cross-worker visibility
+          - Client reconnection/replay capability
+        
+        The LangGraphEmitter is always created to enable HTTP streaming.
+        When Redis is available, it's passed to RedisSessionChannel for dual-emit.
+        
+        Falls back to local channel when Redis is unavailable.
         """
+        session_id = session.get_run_id()
         emitter = LangGraphEmitter()
+        
+        # Try Redis channel first
+        # Pass the emitter to enable HTTP streaming alongside Redis persistence
+        if RedisSessionChannel.is_redis_available(self._redis):
+            try:
+                channel = RedisSessionChannel.create(
+                    session_id=session_id,
+                    redis_client=self._redis,
+                    emitter=emitter
+                )
+                logger.debug(f"Created Redis streaming channel for session {session_id}")
+                return channel
+            except Exception as e:
+                logger.warning(f"Failed to create Redis channel for {session_id}: {e}. Falling back to local.")
+        
+        # Fallback to local channel (for development or when Redis is unavailable)
+        logger.debug(f"Created local streaming channel for session {session_id}")
         return LocalSessionChannel(
-            session_id=session.get_run_id(),
+            session_id=session_id,
             emitter=emitter
         )

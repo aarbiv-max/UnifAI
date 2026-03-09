@@ -11,6 +11,7 @@ gunicorn
 flask-cors
 PyYAML
 pymongo
+redis
 python-dotenv
 httptools
 mcp
