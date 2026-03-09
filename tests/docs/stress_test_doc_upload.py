@@ -252,6 +252,23 @@ class CeleryMonitor:
             logger.error(f"Error fetching task {task_id}: {e}")
             return None
 
+    def get_completed_task_ids(self) -> set:
+        """Return the set of task _id values that are already SUCCESS or FAILURE.
+
+        Used to take a baseline snapshot before triggering new work so the
+        monitor can ignore pre-existing completed tasks.
+        """
+        try:
+            collection = self.celery_db['celery_taskmeta']
+            cursor = collection.find(
+                {'status': {'$in': ['SUCCESS', 'FAILURE']}},
+                {'_id': 1},
+            )
+            return {doc['_id'] for doc in cursor}
+        except Exception as e:
+            logger.error(f"Error fetching completed task IDs: {e}")
+            return set()
+
 class UploadStats:
     """Tracks upload statistics"""
     
@@ -447,12 +464,24 @@ class StressTestRunner:
             logger.error(f"✗ Error triggering embedding pipeline: {e}")
             return False
     
-    def monitor_celery_tasks(self, start_timestamp: datetime):
-        """Monitor Celery tasks until completion or timeout"""
+    def monitor_celery_tasks(self, start_timestamp: datetime, baseline_task_ids: set = None):
+        """Monitor Celery tasks until completion or timeout.
+
+        Args:
+            start_timestamp: Only consider tasks with date_done >= this value.
+            baseline_task_ids: Task IDs that were already completed before the
+                current run.  These are excluded so the monitor only tracks
+                tasks created by the current trigger.
+        """
         logger.info("\n" + "="*80)
         logger.info("PHASE 2: MONITORING CELERY TASKS")
         logger.info("="*80)
         
+        if baseline_task_ids is None:
+            baseline_task_ids = set()
+        else:
+            logger.info(f"Excluding {len(baseline_task_ids)} pre-existing completed tasks from monitoring")
+
         self.embedding_stats.start_time = time.time()
         timeout = time.time() + self.config.CELERY_MONITOR_TIMEOUT
         
@@ -468,6 +497,12 @@ class StressTestRunner:
                 # Check if result.pipeline_id starts with 'document_' to identify relevant tasks
                 relevant_tasks = []
                 for task in tasks:
+                    task_id = task.get('_id')
+
+                    # Skip tasks that existed before this run
+                    if task_id in baseline_task_ids:
+                        continue
+
                     result = task.get('result', {})
                     if result:
                         # Handle both dict and JSON string results

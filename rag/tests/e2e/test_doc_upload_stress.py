@@ -154,6 +154,10 @@ class TestDocumentUploadStress(BaseE2ETest):
         runner.document_filenames = [fname for _, fname, _ in batch_pdf_documents]
         runner.celery_monitor = celery_monitor
 
+        # Snapshot completed tasks BEFORE triggering so the monitor
+        # only tracks tasks created by this trigger.
+        baseline_task_ids = celery_monitor.get_completed_task_ids()
+
         test_start = datetime.now(timezone.utc)
 
         async def _trigger():
@@ -168,7 +172,7 @@ class TestDocumentUploadStress(BaseE2ETest):
         import time
         time.sleep(10)
 
-        runner.monitor_celery_tasks(test_start)
+        runner.monitor_celery_tasks(test_start, baseline_task_ids=baseline_task_ids)
 
         # Print report
         empty_upload = UploadStats()
@@ -210,6 +214,10 @@ class TestDocumentUploadStress(BaseE2ETest):
         runner.document_filenames = [fname for _, fname, _ in batch_pdf_documents]
         runner.celery_monitor = celery_monitor
 
+        # Snapshot completed tasks BEFORE uploading so the monitor
+        # only tracks tasks created by this run.
+        baseline_task_ids = celery_monitor.get_completed_task_ids()
+
         test_start = datetime.now(timezone.utc)
 
         # Phase 1 + Phase 2 (upload then trigger embed)
@@ -234,7 +242,7 @@ class TestDocumentUploadStress(BaseE2ETest):
         if runner.upload_stats.successful_uploads > 0:
             import time
             time.sleep(10)
-            runner.monitor_celery_tasks(test_start)
+            runner.monitor_celery_tasks(test_start, baseline_task_ids=baseline_task_ids)
         else:
             pytest.skip(
                 "No successful uploads – skipping Celery monitoring phase. "
