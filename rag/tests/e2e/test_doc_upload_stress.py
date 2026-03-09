@@ -1,13 +1,11 @@
 """
 End-to-End Stress Test for Document Upload and Embedding Pipeline.
 
-Validates the RAG system's ability to handle concurrent document uploads and
-embedding pipeline execution under load.
+Validates the RAG system's ability to handle concurrent document uploads
+and embedding pipeline execution under load.
 
-Test Cases:
-1. test_concurrent_document_upload      - uploads N docs concurrently, checks success rate
-2. test_embedding_pipeline_execution    - triggers embed pipeline and monitors Celery tasks
-3. test_full_upload_and_embed_flow      - full end-to-end upload → embed → verify flow
+Mirrors the standalone stress_test_doc_upload.py script by calling
+runner.run() directly — same upload, embed, monitor, and report flow.
 
 Run with:
     pytest tests/e2e/test_doc_upload_stress.py -v -s
@@ -19,18 +17,10 @@ Run with:
 
 import asyncio
 import pytest
-from datetime import datetime, timezone
-from typing import List, Tuple
 
 from tests.base.base_e2e_test import BaseE2ETest
-from tests.factories.document_factory import DocumentFactory
 from tests.fixtures.common.api_fixtures import RagTestConfig
-from tests.docs.stress_test_doc_upload import (
-    CeleryMonitor,
-    EmbeddingStats,
-    StressTestRunner,
-    UploadStats,
-)
+from tests.docs.stress_test_doc_upload import StressTestRunner
 
 
 # =============================================================================
@@ -72,119 +62,11 @@ def _build_runner(rag_config: RagTestConfig) -> StressTestRunner:
 @pytest.mark.document
 @pytest.mark.rag
 class TestDocumentUploadStress(BaseE2ETest):
-    """End-to-end stress tests for RAG document upload and embedding pipeline.
+    """End-to-end stress test for RAG document upload and embedding pipeline.
 
-    Each test method targets one phase of the pipeline so that failures are
-    reported with fine-grained granularity (upload vs. embedding vs. full flow).
-
-    The ``batch_pdf_documents`` fixture is session-scoped so PDFs are
-    generated once and reused across all three tests.
+    Calls runner.run() directly — the exact same code path as the
+    standalone stress_test_doc_upload.py script.
     """
-
-    # ------------------------------------------------------------------
-    # Test 1 – Upload phase only
-    # ------------------------------------------------------------------
-
-    @pytest.mark.slow
-    def test_concurrent_document_upload(
-        self,
-        rag_config: RagTestConfig,
-        batch_pdf_documents: List[Tuple[int, str, bytes]],
-        capsys,
-    ):
-        """Upload all documents concurrently and assert success rate >= 95 %.
-
-        This test covers Phase 1 of the pipeline:
-        - Generates N unique PDF documents (via batch_pdf_documents fixture)
-        - Uploads them in batches of CONCURRENT_UPLOADS
-        - Asserts that at least 95 % of uploads succeed
-        - Asserts average upload time does not exceed 30 s
-        """
-        runner = _build_runner(rag_config)
-
-        # Pre-populate runner with the fixture's documents
-        runner.document_filenames = [fname for _, fname, _ in batch_pdf_documents]
-
-        # Run upload phase using the pre-generated docs directly
-        async def _upload():
-            import aiohttp
-
-            runner.upload_stats.start_time = __import__("time").time()
-            async with aiohttp.ClientSession() as session:
-                for i in range(0, len(batch_pdf_documents), rag_config.concurrent_uploads):
-                    batch = batch_pdf_documents[i: i + rag_config.concurrent_uploads]
-                    await runner.upload_batch(session, batch)
-            runner.upload_stats.end_time = __import__("time").time()
-
-        _run_async(_upload())
-
-        # Print report
-        empty_embed = EmbeddingStats()
-        with capsys.disabled():
-            print(self.build_report_lines(runner.upload_stats, empty_embed))
-
-        # Assertions
-        self.assert_upload_success_rate(runner.upload_stats, min_rate=95.0)
-        self.assert_avg_upload_time(runner.upload_stats, max_seconds=30.0)
-
-    # ------------------------------------------------------------------
-    # Test 2 – Embedding pipeline phase only
-    # ------------------------------------------------------------------
-
-    @pytest.mark.slow
-    def test_embedding_pipeline_execution(
-        self,
-        rag_config: RagTestConfig,
-        batch_pdf_documents: List[Tuple[int, str, bytes]],
-        celery_monitor,
-        capsys,
-    ):
-        """Trigger the embedding pipeline and assert Celery tasks complete.
-
-        This test covers Phase 2 of the pipeline:
-        - Assumes documents are already uploaded (or uploads them first if needed)
-        - Triggers PUT /api/pipelines/embed
-        - Monitors Celery tasks via MongoDB
-        - Asserts no task failures and success rate >= 95 %
-
-        Note: Run after test_concurrent_document_upload or ensure documents
-        exist in the system before running this test in isolation.
-        """
-        runner = _build_runner(rag_config)
-        runner.document_filenames = [fname for _, fname, _ in batch_pdf_documents]
-        runner.celery_monitor = celery_monitor
-
-        test_start = datetime.now(timezone.utc)
-
-        async def _trigger():
-            import aiohttp
-
-            async with aiohttp.ClientSession() as session:
-                await runner.trigger_embedding_pipeline(session)
-
-        _run_async(_trigger())
-
-        # Wait briefly for tasks to be queued before polling
-        import time
-        time.sleep(10)
-
-        runner.monitor_celery_tasks(test_start)
-
-        # Print report
-        empty_upload = UploadStats()
-        with capsys.disabled():
-            print(self.build_report_lines(empty_upload, runner.embedding_stats))
-
-        # Assertions
-        self.assert_embedding_tasks_completed(
-            runner.embedding_stats,
-            min_success=int(rag_config.num_documents * 0.95),
-            allow_failures=False,
-        )
-
-    # ------------------------------------------------------------------
-    # Test 3 – Full end-to-end flow
-    # ------------------------------------------------------------------
 
     @pytest.mark.slow
     def test_full_upload_and_embed_flow(
