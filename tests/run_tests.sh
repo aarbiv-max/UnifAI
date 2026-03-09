@@ -33,19 +33,16 @@ HOME_DIR="$HOME"
 TEST_EXIT=0
 
 # --------------------------------------------------------------------------
-# Serve reports after tests complete (if enabled)
+# Start report server in background (if enabled)
 # --------------------------------------------------------------------------
-serve_reports() {
-  if [ "$SERVE_REPORTS" = "true" ] && [ -n "$REPORTS_DIR" ] && [ -d "$REPORTS_DIR" ]; then
-    echo ""
-    echo "============================================"
-    echo "  Serving reports on port $SERVE_PORT"
-    echo "  Directory: $REPORTS_DIR"
-    echo "============================================"
-    cd "$REPORTS_DIR"
-    exec python3 -m http.server "$SERVE_PORT"
-  fi
-}
+if [ "$SERVE_REPORTS" = "true" ] && [ -n "$REPORTS_DIR" ] && [ -d "$REPORTS_DIR" ]; then
+  echo "Starting report server on port $SERVE_PORT (background)..."
+  cd "$REPORTS_DIR"
+  python3 -m http.server "$SERVE_PORT" &
+  SERVE_PID=$!
+  echo "Report server PID: $SERVE_PID"
+  cd "$HOME_DIR"
+fi
 
 # --------------------------------------------------------------------------
 # Test suites
@@ -171,9 +168,7 @@ esac
 echo ""
 echo "Tests exited with code: $TEST_EXIT"
 
-serve_reports
-
-# If serve_reports returned (reports disabled or server crashed),
-# keep the container alive so the Deployment doesn't restart and re-run tests.
+# Keep the container alive so the Deployment doesn't restart and re-run tests.
+# The report server (if enabled) is already running in the background.
 echo "Container staying alive. To re-run tests, delete this pod."
 tail -f /dev/null
