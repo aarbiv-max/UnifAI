@@ -5,7 +5,7 @@ Calls the RAG server's /service.readiness.get endpoint to verify that
 external services are up before running heavier e2e tests.
 
 Run with:
-    pytest tests/unit/test_service_health.py -v -s
+    pytest tests/smoke/test_service_health.py -v -s
 """
 
 import os

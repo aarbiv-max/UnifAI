@@ -25,17 +25,30 @@ class TestExtensionValidator:
     def validator(self):
         return ExtensionValidator(supported_extensions=SUPPORTED_EXTENSIONS)
 
-    def test_valid_extension_passes(self, validator):
-        ok, issue = validator.validate(source_name="report.pdf")
+    @pytest.mark.parametrize("filename", [
+        "report.pdf",
+        "REPORT.PDF",
+        "notes.docx",
+        "slide.pptx",
+        "readme.md",
+        "log.txt",
+    ])
+    def test_valid_extensions_pass(self, validator, filename):
+        ok, issue = validator.validate(source_name=filename)
         assert ok is True
         assert issue is None
 
-    def test_unsupported_extension_rejected(self, validator):
-        ok, issue = validator.validate(source_name="malware.exe")
+    @pytest.mark.parametrize("filename,expected_ext", [
+        ("malware.exe", ".exe"),
+        ("image.zip", ".zip"),
+        ("data.csv", ".csv"),
+    ])
+    def test_unsupported_extensions_rejected(self, validator, filename, expected_ext):
+        ok, issue = validator.validate(source_name=filename)
         assert ok is False
         assert issue is not None
         assert "not supported" in issue["message"]
-        assert ".exe" in issue["message"]
+        assert expected_ext in issue["message"]
 
     def test_no_extension_rejected(self, validator):
         ok, issue = validator.validate(source_name="readme")
@@ -44,11 +57,6 @@ class TestExtensionValidator:
 
     def test_empty_filename_passes(self, validator):
         ok, issue = validator.validate(source_name="")
-        assert ok is True
-        assert issue is None
-
-    def test_case_insensitive(self, validator):
-        ok, issue = validator.validate(source_name="REPORT.PDF")
         assert ok is True
         assert issue is None
 
@@ -78,36 +86,25 @@ class TestSizeValidator:
         assert ok is True
         assert issue is None
 
-    def test_file_over_limit_rejected(self, tmp_path):
-        max_bytes = 1024
+    @pytest.mark.parametrize("file_size,max_bytes,expected_ok", [
+        (1025, 1024, False),
+        (2048, 2048, True),
+        (600, 500, False),
+    ])
+    def test_size_boundary(self, tmp_path, file_size, max_bytes, expected_ok):
         validator = SizeValidator(max_file_size_bytes=max_bytes)
-        f = tmp_path / "big.pdf"
-        f.write_bytes(b"x" * (max_bytes + 1))
+        f = tmp_path / "boundary.pdf"
+        f.write_bytes(b"x" * file_size)
         ok, issue = validator.validate(doc_path=str(f))
-        assert ok is False
-        assert issue is not None
-        assert "exceeds" in issue["message"]
-
-    def test_file_at_exact_limit_passes(self, tmp_path):
-        max_bytes = 2048
-        validator = SizeValidator(max_file_size_bytes=max_bytes)
-        f = tmp_path / "exact.pdf"
-        f.write_bytes(b"x" * max_bytes)
-        ok, issue = validator.validate(doc_path=str(f))
-        assert ok is True
-        assert issue is None
+        assert ok is expected_ok
+        if not expected_ok:
+            assert issue is not None
+            assert "exceeds" in issue["message"]
 
     def test_nonexistent_file_passes(self, validator):
         ok, issue = validator.validate(doc_path="/no/such/file.pdf")
         assert ok is True
         assert issue is None
-
-    def test_custom_max_size(self, tmp_path):
-        validator = SizeValidator(max_file_size_bytes=500)
-        f = tmp_path / "medium.pdf"
-        f.write_bytes(b"x" * 600)
-        ok, issue = validator.validate(doc_path=str(f))
-        assert ok is False
 
     @patch("os.path.getsize", side_effect=OSError("disk error"))
     @patch("os.path.exists", return_value=True)
@@ -195,9 +192,13 @@ class TestNameDuplicateValidator:
 class TestDocValidatorsFactory:
 
     @pytest.fixture
-    def factory(self):
+    def dup_mock(self):
+        return MagicMock(spec=DuplicateValidator)
+
+    @pytest.fixture
+    def factory(self, dup_mock):
         return DocValidators(
-            duplicate_validator=MagicMock(spec=DuplicateValidator),
+            duplicate_validator=dup_mock,
             extension_validator=MagicMock(spec=ExtensionValidator),
             size_validator=MagicMock(spec=SizeValidator),
             name_duplicate_validator=MagicMock(spec=NameDuplicateValidator),
@@ -207,7 +208,7 @@ class TestDocValidatorsFactory:
         validators = factory.create_validators(skip_validation=False)
         assert len(validators) == 4
 
-    def test_skip_validation_returns_only_duplicate(self, factory):
+    def test_skip_validation_returns_only_duplicate(self, factory, dup_mock):
         validators = factory.create_validators(skip_validation=True)
         assert len(validators) == 1
-        assert isinstance(validators[0], MagicMock)
+        assert validators[0] is dup_mock

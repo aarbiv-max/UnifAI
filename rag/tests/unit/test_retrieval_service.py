@@ -1,5 +1,5 @@
 """Unit tests for RetrievalService (document search)."""
-from unittest.mock import MagicMock, create_autospec
+from unittest.mock import create_autospec
 
 import numpy as np
 import pytest
@@ -11,23 +11,27 @@ from core.vector.domain.repository import VectorRepository
 from infrastructure.retrieval.source_filter_resolver import SourceFilterResolver
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Module-level fixtures
+# ═══════════════════════════════════════════════════════════════════════════════
+
 @pytest.fixture
 def mock_embedder():
-    embedder = MagicMock(spec=EmbeddingGenerator)
+    embedder = create_autospec(EmbeddingGenerator, instance=True)
     embedder.generate_query_embedding.return_value = np.array([0.1, 0.2, 0.3])
     return embedder
 
 
 @pytest.fixture
 def mock_vector_repo():
-    repo = MagicMock(spec=VectorRepository)
+    repo = create_autospec(VectorRepository, instance=True)
     repo.search.return_value = []
     return repo
 
 
 @pytest.fixture
 def mock_resolver():
-    return MagicMock(spec=SourceFilterResolver)
+    return create_autospec(SourceFilterResolver, instance=True)
 
 
 @pytest.fixture
@@ -39,6 +43,10 @@ def service(mock_embedder, mock_vector_repo, mock_resolver):
         source_type="DOCUMENT",
     )
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tests
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.unit
 @pytest.mark.document

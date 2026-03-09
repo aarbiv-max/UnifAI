@@ -83,6 +83,12 @@ case "$SUITE" in
     pytest tests/e2e/ -v -s --tb=short --color=yes $LOG_ARGS $REPORT_ARGS $EXTRA_ARGS || TEST_EXIT=$?
     ;;
 
+  rag-smoke)
+    echo ">>> Running RAG smoke tests..."
+    cd "$HOME_DIR/rag"
+    pytest tests/smoke/ -v -s --tb=short --color=yes $LOG_ARGS $REPORT_ARGS $EXTRA_ARGS || TEST_EXIT=$?
+    ;;
+
   multi-agent)
     echo ">>> Running Multi-Agent tests..."
     cd "$HOME_DIR/multi-agent"
@@ -151,6 +157,7 @@ case "$SUITE" in
     echo "  all                  - Run everything"
     echo "  rag                  - All RAG tests"
     echo "  rag-unit             - RAG unit tests only"
+    echo "  rag-smoke            - RAG smoke tests only"
     echo "  rag-e2e              - RAG e2e tests only"
     echo "  multi-agent          - All multi-agent tests"
     echo "  multi-agent-e2e      - Multi-agent e2e tests only"

@@ -9,18 +9,28 @@ from core.pipeline.domain.repository import PipelineRepository
 from core.pipeline.service import PipelineService
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Module-level fixtures
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def mock_repo():
+    return create_autospec(PipelineRepository, instance=True)
+
+
+@pytest.fixture
+def service(mock_repo):
+    return PipelineService(pipeline_repo=mock_repo)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
 @pytest.mark.unit
 @pytest.mark.document
 @pytest.mark.pipeline
 class TestPipelineService:
-
-    @pytest.fixture
-    def mock_repo(self):
-        return create_autospec(PipelineRepository, instance=True)
-
-    @pytest.fixture
-    def service(self, mock_repo):
-        return PipelineService(pipeline_repo=mock_repo)
 
     # --- register ---
 

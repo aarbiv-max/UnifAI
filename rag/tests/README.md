@@ -15,24 +15,24 @@ This PR introduces a complete, containerised **pytest-based stress testing frame
 
 | Area | Description |
 |------|-------------|
-| **Test framework** | Built a full pytest test suite under `rag/tests/` with base classes, fixtures, factories, and organised `unit/` + `e2e/` directories |
+| **Test framework** | Built a full pytest test suite under `rag/tests/` with base classes, fixtures, factories, and organised `unit/`, `smoke/`, and `e2e/` directories |
 | **Stress test runner** | 730-line async stress test engine (`stress_test_doc_upload.py`) that uploads N documents concurrently, triggers the embedding pipeline, and monitors Celery tasks via MongoDB |
-| **Unit tests** | 77 isolated unit tests covering document validators, domain models, pipeline service, pipeline executor, document pipeline handler, data source service, and retrieval service — all using mocked dependencies with zero infrastructure required |
-| **Smoke tests** | Health-check tests that validate Docling, Embedding, and upload-readiness endpoints before running heavier tests |
+| **Unit tests** | 95 isolated unit tests covering document validators, domain models, pipeline service, pipeline executor, document pipeline handler, data source service, and retrieval service — all using `create_autospec` mocks against ABC port interfaces with zero infrastructure required. Tests use `pytest.mark.parametrize` for comprehensive boundary and status coverage. |
+| **Smoke tests** | Health-check tests in `tests/smoke/` that validate Docling, Embedding, and upload-readiness endpoints before running heavier tests |
 | **Helm chart** | `helm/unifai-tests/` — deploys a test-runner pod, PVC for reports, ClusterIP service, and OpenShift Route for browsing results |
 | **Docker image** | `tests/Dockerfile.pytest` — UBI9/Python 3.11 image with all RAG + multi-agent source, pytest plugins, and the test entrypoint |
-| **Test runner script** | `tests/run_tests.sh` — entrypoint supporting multiple test suites (`rag`, `rag-unit`, `rag-e2e`, `multi-agent`, `all`, `debug`) with optional HTML/JUnit report generation and a built-in HTTP report server |
+| **Test runner script** | `tests/run_tests.sh` — entrypoint supporting multiple test suites (`rag`, `rag-unit`, `rag-smoke`, `rag-e2e`, `multi-agent`, `all`, `debug`) with optional HTML/JUnit report generation and a built-in HTTP report server |
 | **Archive** | Previous standalone test scripts moved to `tests/archive/` for reference |
 
 ---
 
 ## Test Inventory
 
-### Total: **82 test functions** across 9 test files
+### Total: **100 test cases** across 9 test files
 
 ---
 
-#### Smoke Tests — `rag/tests/unit/test_service_health.py` (4 tests)
+#### Smoke Tests — `rag/tests/smoke/test_service_health.py` (4 tests)
 
 | # | Test | What it validates |
 |---|------|-------------------|
@@ -49,26 +49,23 @@ This PR introduces a complete, containerised **pytest-based stress testing frame
 
 ---
 
-#### Unit Tests — Document Validators — `rag/tests/unit/test_document_validators.py` (17 tests)
+#### Unit Tests — Document Validators — `rag/tests/unit/test_document_validators.py` (26 test cases)
 
 These tests cover the **upload gatekeepers** — the validators that decide whether a file upload should be accepted or rejected *before* any processing happens. All validators return `(bool, Optional[ValidationIssue])`.
 
 **ExtensionValidator** — checks if the uploaded file has a supported file type (e.g. `.pdf`, `.docx`):
 
-- **`test_valid_extension_passes`** — A file named `report.pdf` should be accepted because `.pdf` is in the supported list. Confirms the basic happy path works.
-- **`test_unsupported_extension_rejected`** — A file named `malware.exe` should be rejected because `.exe` is not supported. Confirms the validator actually blocks bad file types, and that the error message includes the rejected extension.
+- **`test_valid_extensions_pass[filename]`** — Parametrized across 6 filenames (`report.pdf`, `REPORT.PDF`, `notes.docx`, `slide.pptx`, `readme.md`, `log.txt`). Each should be accepted because its extension is in the supported list. Covers case-insensitivity and all supported types in a single parametrized test.
+- **`test_unsupported_extensions_rejected[filename-ext]`** — Parametrized across 3 unsupported extensions (`.exe`, `.zip`, `.csv`). Each should be rejected, and the error message should include the rejected extension.
 - **`test_no_extension_rejected`** — A filename like `readme` (no dot, no extension) should be rejected. Without an extension, we can't determine the file type.
 - **`test_empty_filename_passes`** — When no filename is provided at all (empty string), the validator shouldn't crash — it passes and lets other validators handle it. This tests defensive behavior.
-- **`test_case_insensitive`** — `REPORT.PDF` (uppercase) should be treated the same as `report.pdf`. Users shouldn't be rejected because their OS capitalizes file extensions.
 - **`test_issue_contains_supported_types`** — When a file is rejected, the error message should tell the user *which* file types are actually supported, so they know what to upload instead.
 
 **SizeValidator** — checks if a file exceeds the maximum allowed size (default 50 MB):
 
 - **`test_file_under_limit_passes`** — A 1 KB file should pass. Basic happy path.
-- **`test_file_over_limit_rejected`** — A file exceeding the limit should be rejected, and the error message should show the actual file size vs the max allowed (in MB).
-- **`test_file_at_exact_limit_passes`** — A file that is *exactly* at the limit (e.g. 2048 bytes with a 2048 limit) should pass. This is a boundary test — "at the limit" is not "over the limit."
+- **`test_size_boundary[file_size-max_bytes-expected]`** — Parametrized boundary test across 3 cases: file over limit (1025 vs 1024 → rejected), file at exact limit (2048 vs 2048 → passes), and custom max size (600 vs 500 → rejected). Consolidates three separate tests into a single parametrized test that clearly shows the boundary behavior — "at the limit" is not "over the limit."
 - **`test_nonexistent_file_passes`** — If the file path doesn't exist on disk, the validator shouldn't crash. It gracefully passes and lets other parts of the system handle the missing file.
-- **`test_custom_max_size`** — The validator accepts a configurable max size. This confirms that passing a custom threshold (e.g. 500 bytes) actually works.
 - **`test_os_error_passes_gracefully`** — If the OS throws an error when reading the file size (e.g. disk failure), the validator shouldn't crash the whole upload. It should **fail-open** (allow the upload) rather than block a potentially valid upload.
 
 **DuplicateValidator** — checks if the *content* (MD5 hash) of the file already exists in the system:
@@ -86,11 +83,11 @@ These tests cover the **upload gatekeepers** — the validators that decide whet
 **DocValidators factory** — assembles the correct list of validators depending on the upload flow:
 
 - **`test_full_validation_returns_all_four`** — When `skip_validation=False` (external API call), all 4 validators run in order: extension → size → name duplicate → MD5 duplicate. This is the full validation pipeline for API uploads that didn't pre-validate.
-- **`test_skip_validation_returns_only_duplicate`** — When `skip_validation=True` (UI flow where files were already pre-validated via `/docs/validate`), only the MD5 duplicate check runs. This is because content can only be checked after the file is uploaded.
+- **`test_skip_validation_returns_only_duplicate`** — When `skip_validation=True` (UI flow where files were already pre-validated via `/docs/validate`), only the MD5 duplicate check runs. The assertion verifies it returns the exact `duplicate_validator` instance (identity check with `is`), not just any mock.
 
 ---
 
-#### Unit Tests — Domain Models — `rag/tests/unit/test_domain_models.py` (9 tests)
+#### Unit Tests — Domain Models — `rag/tests/unit/test_domain_models.py` (18 test cases)
 
 These tests verify the **data structures** — making sure objects serialize and deserialize correctly and have sensible defaults. If these break, data gets corrupted silently when reading from or writing to MongoDB.
 
@@ -102,8 +99,8 @@ These tests verify the **data structures** — making sure objects serialize and
 
 **PipelineRecord:**
 
-- **`test_from_dict_valid_status`** — The string `"DONE"` from MongoDB should correctly map to the `PipelineStatus.DONE` enum value.
-- **`test_from_dict_invalid_status_defaults_to_pending`** — If the database contains a garbage status like `"BOGUS"`, the code should fall back to `PENDING` rather than crashing. This is defensive parsing for data integrity.
+- **`test_from_dict_valid_status[status]`** — Parametrized across 6 valid status strings (`DONE`, `PENDING`, `COLLECTING`, `PROCESSING`, `STORING`, `FAILED`). Each should correctly map to its corresponding `PipelineStatus` enum value. This exhaustive coverage catches any status that was added to the enum but not handled in `from_dict()`.
+- **`test_from_dict_invalid_status_defaults_to_pending[status]`** — Parametrized across 4 invalid status strings (`BOGUS`, `unknown`, `""`, `running`). Each should fall back to `PipelineStatus.PENDING` rather than crashing. This is defensive parsing for data integrity — ensures garbage values in MongoDB don't crash the system.
 - **`test_to_dict_serializes_status_as_string`** — When converting to a dict (for JSON/MongoDB), the status should be the string `"COLLECTING"`, not the Python enum object. Otherwise JSON serialization would fail.
 
 **DataSource:**
@@ -146,10 +143,8 @@ These tests cover `PipelineExecutor`, the **orchestrator** that runs the full pi
 
 **Failure at each pipeline step:**
 
-- **`test_failure_at_collect_records_error`** — If `collect()` throws an error, the executor should: record the error with `failed_at: COLLECTING`, and set the pipeline status to `FAILED`. This ensures failures at the first step are properly tracked.
-- **`test_failure_at_process_records_error`** — Same pattern but for the process step. The `failed_at` field should say `PROCESSING`, so operators know exactly where it broke.
-- **`test_failure_at_chunk_and_embed_records_error`** — Same for chunk_and_embed. `failed_at: CHUNKING_AND_EMBEDDING`.
-- **`test_failure_at_store_records_error`** — Same for the vector storage step. `failed_at: STORING`. Important because this is the step that talks to Qdrant, which may be down.
+- **`test_failure_at_handler_step_records_error[step-status]`** — Parametrized across 3 handler steps (`collect` → `COLLECTING`, `process` → `PROCESSING`, `chunk_and_embed` → `CHUNKING_AND_EMBEDDING`). If any handler step throws, the executor should record the error with the correct `failed_at` field and set the pipeline status to `FAILED`. Consolidates three separate tests into a parametrized test that clearly maps each step to its expected failure label.
+- **`test_failure_at_store_records_error`** — Same pattern but for the vector storage step (`failed_at: STORING`). Kept separate because the failure is on `vector_repo.store()` (an infrastructure call) rather than on a handler method.
 - **`test_failure_upserts_source_with_error_info`** — When a pipeline fails, the executor should still update the data source record, but with error information (`last_error` message and `failed_at` step) instead of a success summary. This is how the UI shows what went wrong to the user.
 
 **Cleanup guarantees:**
@@ -247,7 +242,7 @@ These tests cover `RetrievalService`, the search orchestrator that resolves filt
 │         ├── celery_monitor (MongoDB connection)                 │
 │         └── document_factory + batch_pdf_documents              │
 │                                                                 │
-│  3. Unit tests run first (smoke / health)                       │
+│  3. Smoke tests run first (tests/smoke/)                        │
 │     └── GET /health/service.readiness.get                       │
 │         ├── Assert HTTP 200                                     │
 │         ├── Assert Docling healthy                              │
@@ -302,12 +297,14 @@ rag/tests/
 │       └── document_fixtures.py         # document_factory, sample/batch PDF fixtures
 ├── factories/
 │   └── document_factory.py              # DocumentFactory — PDF generation via ReportLab
+├── smoke/
+│   └── test_service_health.py           # 4 smoke/health tests (HTTP, no mocks)
 ├── unit/
-│   ├── test_service_health.py           # 4 smoke/health tests
-│   ├── test_document_validators.py      # 17 document validator unit tests
-│   ├── test_domain_models.py            # 9 domain model serialization tests
+│   ├── conftest.py                      # Shared unit test fixtures (build_context)
+│   ├── test_document_validators.py      # 26 document validator unit tests (parametrized)
+│   ├── test_domain_models.py            # 18 domain model serialization tests (parametrized)
 │   ├── test_pipeline_service.py         # 9 pipeline CRUD/status tests
-│   ├── test_pipeline_executor.py        # 12 pipeline orchestration tests
+│   ├── test_pipeline_executor.py        # 12 pipeline orchestration tests (parametrized)
 │   ├── test_document_pipeline_handler.py # 12 document handler tests
 │   ├── test_data_source_service.py      # 11 data source service tests
 │   └── test_retrieval_service.py        # 7 retrieval/search tests
@@ -356,8 +353,9 @@ helm install unifai-tests ./helm/unifai-tests \
 
 | Suite | Command | Scope |
 |-------|---------|-------|
-| `rag` | `--set testSuite=rag` | All RAG tests (unit + e2e) |
-| `rag-unit` | `--set testSuite=rag-unit` | RAG unit/smoke tests only |
+| `rag` | `--set testSuite=rag` | All RAG tests (unit + smoke + e2e) |
+| `rag-unit` | `--set testSuite=rag-unit` | RAG unit tests only (no infrastructure needed) |
+| `rag-smoke` | `--set testSuite=rag-smoke` | RAG smoke tests only (health checks) |
 | `rag-e2e` | `--set testSuite=rag-e2e` | RAG e2e stress tests only |
 | `multi-agent` | `--set testSuite=multi-agent` | All multi-agent tests |
 | `all` | `--set testSuite=all` | Both RAG and multi-agent |
@@ -445,9 +443,10 @@ oc delete pvc unifai-tests-unifai-tests-reports
 | `rag/tests/fixtures/common/api_fixtures.py` | `RagTestConfig` + `celery_monitor` fixtures |
 | `rag/tests/fixtures/document/document_fixtures.py` | PDF document fixtures |
 | `rag/tests/factories/document_factory.py` | `DocumentFactory` for generating test PDFs |
-| `rag/tests/unit/test_service_health.py` | 4 service health smoke tests |
-| `rag/tests/unit/test_document_validators.py` | 17 document validator unit tests (extension, size, duplicate, name duplicate, factory) |
-| `rag/tests/unit/test_domain_models.py` | 9 domain model unit tests (PipelineStats, PipelineRecord, DataSource, PipelineStartResult) |
+| `rag/tests/smoke/test_service_health.py` | 4 service health smoke tests (moved from `unit/`) |
+| `rag/tests/unit/conftest.py` | Shared unit test fixtures (`build_context` factory) |
+| `rag/tests/unit/test_document_validators.py` | 26 document validator unit tests — parametrized extension and size boundary coverage |
+| `rag/tests/unit/test_domain_models.py` | 18 domain model unit tests — parametrized status enum coverage |
 | `rag/tests/unit/test_pipeline_service.py` | 9 pipeline service unit tests (register, update_status, get, delete) |
 | `rag/tests/unit/test_pipeline_executor.py` | 12 pipeline executor unit tests (status transitions, failure handling, cleanup guarantees) |
 | `rag/tests/unit/test_document_pipeline_handler.py` | 12 document handler unit tests (collect, process, chunk_and_embed, get_summary, cleanup) |
@@ -470,10 +469,10 @@ oc delete pvc unifai-tests-unifai-tests-reports
 When running the full `rag` test suite, you should see:
 
 ```
-87 passed
+100 passed
 ```
 
-All **87 tests** should pass. Zero failures, zero errors. If any test fails, it indicates a real issue — these tests do not have flaky behavior.
+All **100 test cases** should pass (including parametrized expansions). Zero failures, zero errors. If any test fails, it indicates a real issue — these tests do not have flaky behavior.
 
 ### Expected Output Per Test File
 
@@ -481,8 +480,8 @@ All **87 tests** should pass. Zero failures, zero errors. If any test fails, it 
 |-----------|-------|-----------------|----------------------|
 | `test_service_health.py` | 4 | All PASSED | The RAG server, Docling, or Embedding service is down or unreachable. Check pod health and network connectivity. |
 | `test_doc_upload_stress.py` | 1 | PASSED with upload success rate >= 95% and embedding success rate >= 95% | The upload endpoint or embedding pipeline is failing under load. Check RAG server logs and Celery worker logs. |
-| `test_document_validators.py` | 17 | All PASSED | A validator's accept/reject logic has changed. Check if the change was intentional — validators control what files users can upload. |
-| `test_domain_models.py` | 9 | All PASSED | A domain model's serialization or defaults have changed. This can silently corrupt data in MongoDB. Check `from_dict()` / `to_dict()` methods. |
+| `test_document_validators.py` | 26 | All PASSED | A validator's accept/reject logic has changed. Check if the change was intentional — validators control what files users can upload. Parametrized tests cover multiple extensions and size boundaries. |
+| `test_domain_models.py` | 18 | All PASSED | A domain model's serialization or defaults have changed. This can silently corrupt data in MongoDB. Parametrized tests cover all valid `PipelineStatus` values and multiple invalid status strings. |
 | `test_pipeline_service.py` | 9 | All PASSED | Pipeline record management (status tracking, registration, processing time) is broken. Check `PipelineService` and `PipelineRepository`. |
 | `test_pipeline_executor.py` | 12 | All PASSED | The pipeline orchestration flow is broken — status transitions, error handling, or cleanup guarantees may have regressed. This is critical: failures here can cause leaked temp files, missing error records, or silent pipeline failures. |
 | `test_document_pipeline_handler.py` | 12 | All PASSED | Document-specific pipeline logic has changed — connector calls, processor flags, metadata enrichment, or cleanup behavior. Check `DocumentPipelineHandler`. |
@@ -491,7 +490,7 @@ All **87 tests** should pass. Zero failures, zero errors. If any test fails, it 
 
 ### How to Read the Logs
 
-**Unit tests (77 tests)** — These run with mocked dependencies and require no infrastructure. They execute instantly. In the logs, you'll see:
+**Unit tests (95 test cases)** — These run with mocked dependencies and require no infrastructure. They execute instantly. Parametrized tests show as separate entries (e.g. `test_valid_extensions_pass[report.pdf]`, `test_valid_extensions_pass[REPORT.PDF]`). In the logs, you'll see:
 
 - `PASSED` next to each test name — this is the expected result.
 - Occasional `WARNING` log lines like `"Duplicate check failed for report.pdf, allowing upload: db down"` — these are **expected**. They come from the source code's fail-open error handling and confirm the test is exercising the real code path.
@@ -519,8 +518,11 @@ If any smoke test fails, do **not** proceed with the E2E stress test — the sys
 # All RAG tests (unit + smoke + e2e)
 helm install unifai-tests ./helm/unifai-tests --set testSuite=rag
 
-# Only unit tests (no infrastructure needed beyond the RAG server image)
+# Only unit tests (no infrastructure needed)
 helm install unifai-tests ./helm/unifai-tests --set testSuite=rag-unit
+
+# Only smoke tests (health checks)
+helm install unifai-tests ./helm/unifai-tests --set testSuite=rag-smoke
 
 # Only E2E stress tests
 helm install unifai-tests ./helm/unifai-tests --set testSuite=rag-e2e

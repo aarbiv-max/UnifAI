@@ -157,6 +157,8 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(pytest.mark.integration)
         elif "/e2e/" in path:
             item.add_marker(pytest.mark.e2e)
+        elif "/smoke/" in path:
+            item.add_marker(pytest.mark.smoke)
 
         # Domain markers from directory
         if "/document/" in path or "doc_upload" in path or "doc_embed" in path:

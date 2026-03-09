@@ -59,23 +59,32 @@ class TestPipelineStats:
 @pytest.mark.document
 class TestPipelineRecord:
 
-    def test_from_dict_valid_status(self):
+    @pytest.mark.parametrize("status_str,expected_enum", [
+        ("DONE", PipelineStatus.DONE),
+        ("PENDING", PipelineStatus.PENDING),
+        ("COLLECTING", PipelineStatus.COLLECTING),
+        ("PROCESSING", PipelineStatus.PROCESSING),
+        ("STORING", PipelineStatus.STORING),
+        ("FAILED", PipelineStatus.FAILED),
+    ])
+    def test_from_dict_valid_status(self, status_str, expected_enum):
         data = {
             "pipeline_id": "p1",
             "source_type": "DOCUMENT",
-            "status": "DONE",
+            "status": status_str,
             "created_at": datetime(2025, 1, 1),
             "last_updated": datetime(2025, 1, 2),
             "stats": {},
         }
         record = PipelineRecord.from_dict(data)
-        assert record.status == PipelineStatus.DONE
+        assert record.status == expected_enum
 
-    def test_from_dict_invalid_status_defaults_to_pending(self):
+    @pytest.mark.parametrize("invalid_status", ["BOGUS", "unknown", "", "running"])
+    def test_from_dict_invalid_status_defaults_to_pending(self, invalid_status):
         data = {
             "pipeline_id": "p2",
             "source_type": "DOCUMENT",
-            "status": "BOGUS",
+            "status": invalid_status,
         }
         record = PipelineRecord.from_dict(data)
         assert record.status == PipelineStatus.PENDING
