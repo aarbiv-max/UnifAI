@@ -6,6 +6,7 @@ Validator for OpenAI LLM - checks API connectivity and model availability.
 
 from typing import List
 
+import httpx
 from openai import (
     OpenAI,
     AuthenticationError,
@@ -38,6 +39,23 @@ class OpenAILLMValidator(BaseElementValidator):
     - Model availability
     """
 
+    def _validate_via_completion(
+        self,
+        client: OpenAI,
+        model_name: str,
+    ) -> None:
+        """
+        Validate model by making a minimal completion request.
+        
+        Used for OpenAI-compatible APIs that don't implement /v1/models/{id}.
+        Raises appropriate OpenAI exceptions on failure.
+        """
+        client.completions.create(
+            model=model_name,
+            prompt="test",
+            max_tokens=1,
+        )
+
     def validate(
         self,
         config: OpenAIConfig,
@@ -51,18 +69,29 @@ class OpenAILLMValidator(BaseElementValidator):
         messages: List[ValidationMessage] = []
 
         try:
-            client = OpenAI(
-                base_url=str(config.base_url),
-                api_key=config.api_key,
+            with httpx.Client(
+                verify=config.verify_ssl,
                 timeout=context.timeout_seconds,
-            )
-            client.models.retrieve(config.model_name)
-            
-            messages.append(self._info(
-                "MODEL_AVAILABLE",
-                f"Successfully connected and found model '{config.model_name}'",
-                field="model_name",
-            ))
+            ) as http_client:
+                client = OpenAI(
+                    base_url=str(config.base_url),
+                    api_key=config.api_key,
+                    timeout=context.timeout_seconds,
+                    http_client=http_client,
+                )
+                
+                try:
+                    client.models.retrieve(config.model_name)
+                except NotFoundError:
+                    # Many OpenAI-compatible APIs don't implement /v1/models/{id}
+                    # Fall back to a minimal completion request
+                    self._validate_via_completion(client, config.model_name)
+
+                messages.append(self._info(
+                    "MODEL_AVAILABLE",
+                    f"Successfully connected and found model '{config.model_name}'",
+                    field="model_name",
+                ))
 
         except (AuthenticationError, PermissionDeniedError):
             # 401, 403

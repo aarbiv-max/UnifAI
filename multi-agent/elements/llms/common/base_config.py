@@ -21,6 +21,10 @@ class BaseLLMConfig(BaseModel):
     base_url: HttpUrl = Field(
         description="Base URL for the OpenAI API"
     )
+    verify_ssl: bool = Field(
+        True,
+        description="Verify SSL certificates. Set to False for self-signed certs."
+    )
 
     class Config:
         extra = Extra.forbid
