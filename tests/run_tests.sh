@@ -5,6 +5,9 @@ SUITE="${1:-all}"
 shift 2>/dev/null || true
 EXTRA_ARGS="$@"
 
+LOG_LEVEL="${LOG_LEVEL:-INFO}"
+LOG_ARGS="--log-cli-level=${LOG_LEVEL}"
+
 REPORTS_DIR="${REPORTS_DIR:-}"
 REPORT_ARGS=""
 if [ -n "$REPORTS_DIR" ] && [ -d "$REPORTS_DIR" ]; then
@@ -17,6 +20,7 @@ echo "============================================"
 echo "  UnifAI Test Runner"
 echo "============================================"
 echo "  Suite       : $SUITE"
+echo "  Log level   : $LOG_LEVEL"
 echo "  Extra args  : ${EXTRA_ARGS:-<none>}"
 echo "  Reports dir : ${REPORTS_DIR:-<disabled>}"
 echo "============================================"
@@ -26,46 +30,62 @@ HOME_DIR="$HOME"
 
 case "$SUITE" in
 
+  debug)
+    echo ">>> Debug mode activated — container will stay alive."
+    echo ""
+    echo "Environment variables:"
+    env | sort
+    echo ""
+    echo "Python version : $(python3 --version)"
+    echo "Pytest version : $(pytest --version 2>&1 | head -1)"
+    echo ""
+    echo "Available test paths:"
+    [ -d "$HOME_DIR/rag/tests" ]         && echo "  - rag/tests/"
+    [ -d "$HOME_DIR/multi-agent/tests" ] && echo "  - multi-agent/tests/"
+    echo ""
+    tail -f /dev/null
+    ;;
+
   rag)
     echo ">>> Running RAG tests..."
     cd "$HOME_DIR/rag"
-    exec pytest tests/ -v --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
+    exec pytest tests/ -v --tb=short --color=yes $LOG_ARGS $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   rag-unit)
     echo ">>> Running RAG unit tests..."
     cd "$HOME_DIR/rag"
-    exec pytest tests/unit/ -v -s --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
+    exec pytest tests/unit/ -v -s --tb=short --color=yes $LOG_ARGS $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   rag-e2e)
     echo ">>> Running RAG e2e tests..."
     cd "$HOME_DIR/rag"
-    exec pytest tests/e2e/ -v -s --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
+    exec pytest tests/e2e/ -v -s --tb=short --color=yes $LOG_ARGS $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   multi-agent)
     echo ">>> Running Multi-Agent tests..."
     cd "$HOME_DIR/multi-agent"
-    exec pytest tests/ -v --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
+    exec pytest tests/ -v --tb=short --color=yes $LOG_ARGS $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   multi-agent-e2e)
     echo ">>> Running Multi-Agent e2e tests..."
     cd "$HOME_DIR/multi-agent"
-    exec pytest tests/e2e/ -v -s --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
+    exec pytest tests/e2e/ -v -s --tb=short --color=yes $LOG_ARGS $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   multi-agent-unit)
     echo ">>> Running Multi-Agent unit tests..."
     cd "$HOME_DIR/multi-agent"
-    exec pytest tests/unit/ -v --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
+    exec pytest tests/unit/ -v --tb=short --color=yes $LOG_ARGS $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   multi-agent-integration)
     echo ">>> Running Multi-Agent integration tests..."
     cd "$HOME_DIR/multi-agent"
-    exec pytest tests/integration/ -v --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
+    exec pytest tests/integration/ -v --tb=short --color=yes $LOG_ARGS $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   all)
@@ -78,7 +98,7 @@ case "$SUITE" in
     if [ -n "$REPORTS_DIR" ] && [ -d "$REPORTS_DIR" ]; then
       RAG_REPORT_ARGS="--html=${REPORTS_DIR}/report_rag_${TIMESTAMP}.html --self-contained-html --junitxml=${REPORTS_DIR}/junit_rag_${TIMESTAMP}.xml"
     fi
-    pytest tests/ -v --tb=short --color=yes $RAG_REPORT_ARGS $EXTRA_ARGS || RAG_EXIT=$?
+    pytest tests/ -v --tb=short --color=yes $LOG_ARGS $RAG_REPORT_ARGS $EXTRA_ARGS || RAG_EXIT=$?
     echo ""
 
     echo "--- Multi-Agent tests ---"
@@ -87,7 +107,7 @@ case "$SUITE" in
     if [ -n "$REPORTS_DIR" ] && [ -d "$REPORTS_DIR" ]; then
       MA_REPORT_ARGS="--html=${REPORTS_DIR}/report_multi-agent_${TIMESTAMP}.html --self-contained-html --junitxml=${REPORTS_DIR}/junit_multi-agent_${TIMESTAMP}.xml"
     fi
-    pytest tests/ -v --tb=short --color=yes $MA_REPORT_ARGS $EXTRA_ARGS || MA_EXIT=$?
+    pytest tests/ -v --tb=short --color=yes $LOG_ARGS $MA_REPORT_ARGS $EXTRA_ARGS || MA_EXIT=$?
     echo ""
 
     echo "============================================"
@@ -108,6 +128,7 @@ case "$SUITE" in
     echo "Usage: $0 <suite> [pytest-args...]"
     echo ""
     echo "Available suites:"
+    echo "  debug                - Log env and sleep infinity (for exec-in debugging)"
     echo "  all                  - Run everything"
     echo "  rag                  - All RAG tests"
     echo "  rag-unit             - RAG unit tests only"

@@ -4,8 +4,8 @@
 
 # Test suite to execute (passed as arg to run_tests.sh).
 # Options: all, rag, rag-unit, rag-e2e, multi-agent, multi-agent-unit,
-#          multi-agent-e2e, multi-agent-integration
-testSuite: "all"
+#          multi-agent-e2e, multi-agent-integration, debug
+testSuite: "rag"
 
 # Extra pytest CLI arguments appended after the suite name
 extraArgs: ""
@@ -29,6 +29,8 @@ env:
   MONGODB_HOST: "mongodb"
   MONGODB_PORT: "27017"
   MONGODB_DB: "celery"
+  # Pytest log level (--log-cli-level)
+  LOG_LEVEL: "INFO"
   # RAG stress test defaults
   NUM_DOCUMENTS: "10"
   CONCURRENT_UPLOADS: "10"
