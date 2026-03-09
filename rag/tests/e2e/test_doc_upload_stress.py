@@ -190,65 +190,27 @@ class TestDocumentUploadStress(BaseE2ETest):
     def test_full_upload_and_embed_flow(
         self,
         rag_config: RagTestConfig,
-        batch_pdf_documents: List[Tuple[int, str, bytes]],
-        celery_monitor,
         capsys,
     ):
         """Run the complete upload → embed → verify flow end-to-end.
 
-        This is the primary integration test that mirrors the original
-        stress_test_doc_upload.py script but executed within pytest so
-        results are captured as pass/fail.
-
-        Phases:
+        Calls runner.run() directly — the exact same code path as the
+        standalone stress_test_doc_upload.py script:
         1. Upload N PDFs concurrently
         2. Trigger embedding pipeline
-        3. Monitor Celery tasks until completion or timeout
-        4. Assert both phases met their success-rate thresholds
+        3. Wait 10 s for tasks to be queued
+        4. Monitor Celery tasks until completion or timeout
+        5. Print final report
         """
         runner = _build_runner(rag_config)
-        runner.document_filenames = [fname for _, fname, _ in batch_pdf_documents]
-        runner.celery_monitor = celery_monitor
 
-        test_start = datetime.now(timezone.utc)
+        _run_async(runner.run())
 
-        # Phase 1 + Phase 2 (upload then trigger embed)
-        async def _upload_and_embed():
-            import aiohttp
-
-            runner.upload_stats.start_time = __import__("time").time()
-            async with aiohttp.ClientSession() as session:
-                for i in range(0, len(batch_pdf_documents), rag_config.concurrent_uploads):
-                    batch = batch_pdf_documents[i: i + rag_config.concurrent_uploads]
-                    await runner.upload_batch(session, batch)
-
-            runner.upload_stats.end_time = __import__("time").time()
-
-            if runner.upload_stats.successful_uploads > 0:
-                async with aiohttp.ClientSession() as session:
-                    await runner.trigger_embedding_pipeline(session)
-
-        _run_async(_upload_and_embed())
-
-        # Phase 3 – monitor Celery tasks
-        if runner.upload_stats.successful_uploads > 0:
-            import time
-            time.sleep(10)
-            runner.monitor_celery_tasks(test_start)
-        else:
-            pytest.skip(
-                "No successful uploads – skipping Celery monitoring phase. "
-                "Ensure the RAG API is reachable at: "
-                f"{rag_config.api_base_url}"
-            )
-
-        # Print report
         with capsys.disabled():
             print(
                 self.build_report_lines(runner.upload_stats, runner.embedding_stats)
             )
 
-        # Assertions
         self.assert_full_flow_passed(
             upload_stats=runner.upload_stats,
             embedding_stats=runner.embedding_stats,
