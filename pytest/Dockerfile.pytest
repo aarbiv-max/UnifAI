@@ -1,0 +1,60 @@
+FROM --platform=linux/amd64 registry.access.redhat.com/ubi9/python-311
+
+USER root
+RUN dnf update --nobest -y && dnf install -y vim less iputils mesa-libGL && dnf clean all
+
+# --------------------------------------------------------------------------
+# Copy source trees
+# --------------------------------------------------------------------------
+ADD --chown=default:root --chmod=777 ./rag          $HOME/rag
+ADD --chown=default:root --chmod=777 ./multi-agent   $HOME/multi-agent
+ADD --chown=default:root --chmod=777 ./global_utils  $HOME/global_utils
+
+WORKDIR $HOME
+
+RUN chmod -R g+w .
+
+USER default
+
+# --------------------------------------------------------------------------
+# Virtual environment + dependencies
+# --------------------------------------------------------------------------
+RUN pip3 install --upgrade pip virtualenv
+RUN python3 -m venv --prompt "tests-venv" venv
+
+ENV VIRTUAL_ENV=$HOME/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Install shared package
+RUN pip install -e ./global_utils/
+
+# RAG application dependencies
+RUN pip install -e ./rag/
+
+# Multi-agent application dependencies
+RUN pip install -r ./multi-agent/requirements.txt
+
+# Test framework and utilities
+RUN pip install \
+    pytest \
+    pytest-asyncio \
+    pytest-mock \
+    pytest-html \
+    pytest-cov \
+    pytest-xdist \
+    pytest-timeout \
+    pytest-benchmark \
+    pytest-clarity \
+    pytest-sugar \
+    aiohttp \
+    reportlab \
+    requests \
+    pyyaml
+
+# --------------------------------------------------------------------------
+# Entrypoint
+# --------------------------------------------------------------------------
+COPY --chown=default:root --chmod=755 ./run_tests.sh $HOME/run_tests.sh
+
+ENTRYPOINT ["./run_tests.sh"]
+CMD ["all"]
