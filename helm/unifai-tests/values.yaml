@@ -35,6 +35,7 @@ env:
   NUM_DOCUMENTS: "10"
   CONCURRENT_UPLOADS: "10"
   UPLOAD_TIMEOUT: "300"
+  UPLOAD_MAX_RETRIES: "3"
 
 resources:
   limits:
