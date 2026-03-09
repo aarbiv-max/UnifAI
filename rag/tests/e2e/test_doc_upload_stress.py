@@ -18,7 +18,6 @@ Run with:
 """
 
 import asyncio
-import json
 import pytest
 from datetime import datetime, timezone
 from typing import List, Tuple
@@ -62,29 +61,6 @@ def _build_runner(rag_config: RagTestConfig) -> StressTestRunner:
         TEST_USER = rag_config.test_user
 
     return StressTestRunner(_Cfg())
-
-
-def _count_relevant_completed_tasks(monitor: CeleryMonitor, since: datetime) -> int:
-    """Count completed tasks with pipeline_id starting with 'document_'.
-
-    Uses the same filtering logic as monitor_celery_tasks so the count is
-    directly comparable.
-    """
-    tasks = monitor.get_recent_tasks(since)
-    count = 0
-    for task in tasks:
-        result = task.get('result', {})
-        if result:
-            if isinstance(result, str):
-                try:
-                    result = json.loads(result)
-                except json.JSONDecodeError:
-                    continue
-            if isinstance(result, dict):
-                pid = result.get('pipeline_id', '')
-                if isinstance(pid, str) and pid.startswith('document_'):
-                    count += 1
-    return count
 
 
 # =============================================================================
@@ -192,12 +168,6 @@ class TestDocumentUploadStress(BaseE2ETest):
         import time
         time.sleep(10)
 
-        # Count relevant tasks that already completed (from previous
-        # tests or auto-triggered embedding). Inflate NUM_DOCUMENTS so
-        # the monitor waits for baseline + expected NEW tasks.
-        baseline = _count_relevant_completed_tasks(celery_monitor, test_start)
-        runner.config.NUM_DOCUMENTS = rag_config.num_documents + baseline
-
         runner.monitor_celery_tasks(test_start)
 
         # Print report
@@ -264,13 +234,6 @@ class TestDocumentUploadStress(BaseE2ETest):
         if runner.upload_stats.successful_uploads > 0:
             import time
             time.sleep(10)
-
-            # Count relevant tasks that already completed (from auto-triggered
-            # embedding on upload). Inflate NUM_DOCUMENTS so the monitor waits
-            # for baseline + expected NEW tasks.
-            baseline = _count_relevant_completed_tasks(celery_monitor, test_start)
-            runner.config.NUM_DOCUMENTS = rag_config.num_documents + baseline
-
             runner.monitor_celery_tasks(test_start)
         else:
             pytest.skip(
