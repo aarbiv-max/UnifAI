@@ -7,9 +7,9 @@ import pytest
 from core.pipeline.domain.port import PipelineContext
 from core.data_sources.types.document.pipeline_handler import DocumentPipelineHandler
 from core.vector.domain.model import VectorChunk
-from core.connector.domain.base import DataConnector
-from core.processing.domain.base import DataProcessor
-from core.vector.domain.chunker import ContentChunker
+from infrastructure.sources.document.connector import DocumentConnector
+from core.data_sources.types.document.domain.processor import DocumentProcessor
+from infrastructure.sources.document.chunker import PDFChunkerStrategy
 from core.vector.domain.embedder import EmbeddingGenerator
 
 
@@ -19,17 +19,17 @@ from core.vector.domain.embedder import EmbeddingGenerator
 
 @pytest.fixture
 def mock_connector():
-    return create_autospec(DataConnector, instance=True)
+    return create_autospec(DocumentConnector, instance=True)
 
 
 @pytest.fixture
 def mock_processor():
-    return create_autospec(DataProcessor, instance=True)
+    return create_autospec(DocumentProcessor, instance=True)
 
 
 @pytest.fixture
 def mock_chunker():
-    return create_autospec(ContentChunker, instance=True)
+    return create_autospec(PDFChunkerStrategy, instance=True)
 
 
 @pytest.fixture
