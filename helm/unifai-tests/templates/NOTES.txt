@@ -1,0 +1,26 @@
+UnifAI Test Runner deployed.
+
+  Suite : {{ .Values.testSuite }}
+  Image : {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+Monitor the test Job:
+
+  oc get jobs -l app.kubernetes.io/name={{ include "unifai-tests.name" . }} -w
+  oc logs job/{{ include "unifai-tests.fullname" . }} -f
+
+{{- if .Values.reports.enabled }}
+
+Test reports (HTML / JUnit XML) are written to the PVC "{{ include "unifai-tests.reportsPvcName" . }}".
+{{- if .Values.reports.route.enabled }}
+
+Browse reports at the OpenShift Route:
+
+  oc get route {{ include "unifai-tests.fullname" . }}-reports -o jsonpath='{.spec.host}'
+{{- else }}
+
+Port-forward to view reports locally:
+
+  oc port-forward deploy/{{ include "unifai-tests.fullname" . }}-reports 8080:8080
+  open http://localhost:8080
+{{- end }}
+{{- end }}

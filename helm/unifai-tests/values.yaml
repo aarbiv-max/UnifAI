@@ -1,0 +1,100 @@
+# --------------------------------------------------------------------------
+# Test runner configuration
+# --------------------------------------------------------------------------
+
+# Test suite to execute (passed as arg to run_tests.sh).
+# Options: all, rag, rag-unit, rag-e2e, multi-agent, multi-agent-unit,
+#          multi-agent-e2e, multi-agent-integration
+testSuite: "all"
+
+# Extra pytest CLI arguments appended after the suite name
+extraArgs: ""
+
+image:
+  repository: images.paas.redhat.com/unifai/unifai-tests
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Environment variables injected into the test-runner container
+env:
+  # RAG service
+  API_BASE_URL: "http://unifai-rag-server:13456/api"
+  # Multi-Agent service
+  MULTIAGENT_BASE_URL: "http://unifai-multiagent-be:8003/api"
+  # MongoDB (shared by RAG Celery and Multi-Agent)
+  MONGODB_HOST: "mongodb"
+  MONGODB_PORT: "27017"
+  MONGODB_DB: "celery"
+  # RAG stress test defaults
+  NUM_DOCUMENTS: "10"
+  CONCURRENT_UPLOADS: "10"
+  UPLOAD_TIMEOUT: "300"
+
+# Job-level settings
+job:
+  # Maximum time (seconds) the Job is allowed to run before it is terminated
+  activeDeadlineSeconds: 3600
+  # Number of retries before marking the Job as failed
+  backoffLimit: 0
+  # Auto-delete completed/failed Job after this many seconds (0 = never)
+  ttlSecondsAfterFinished: 86400
+
+resources:
+  limits:
+    cpu: 2
+    memory: 4Gi
+  requests:
+    cpu: 1
+    memory: 2Gi
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# --------------------------------------------------------------------------
+# Report viewer (optional nginx that serves HTML/XML reports)
+# --------------------------------------------------------------------------
+reports:
+  enabled: true
+
+  storage:
+    size: 1Gi
+    className: ""
+    accessModes:
+      - ReadWriteOnce
+
+  viewer:
+    image:
+      repository: registry.access.redhat.com/ubi9/nginx-122
+      tag: latest
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  route:
+    enabled: true
+    host: ""

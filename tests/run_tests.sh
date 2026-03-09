@@ -5,12 +5,20 @@ SUITE="${1:-all}"
 shift 2>/dev/null || true
 EXTRA_ARGS="$@"
 
+REPORTS_DIR="${REPORTS_DIR:-}"
+REPORT_ARGS=""
+if [ -n "$REPORTS_DIR" ] && [ -d "$REPORTS_DIR" ]; then
+  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+  REPORT_ARGS="--html=${REPORTS_DIR}/report_${SUITE}_${TIMESTAMP}.html --self-contained-html --junitxml=${REPORTS_DIR}/junit_${SUITE}_${TIMESTAMP}.xml"
+fi
+
 echo ""
 echo "============================================"
 echo "  UnifAI Test Runner"
 echo "============================================"
 echo "  Suite       : $SUITE"
 echo "  Extra args  : ${EXTRA_ARGS:-<none>}"
+echo "  Reports dir : ${REPORTS_DIR:-<disabled>}"
 echo "============================================"
 echo ""
 
@@ -21,43 +29,43 @@ case "$SUITE" in
   rag)
     echo ">>> Running RAG tests..."
     cd "$HOME_DIR/rag"
-    exec pytest tests/ -v --tb=short --color=yes $EXTRA_ARGS
+    exec pytest tests/ -v --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   rag-unit)
     echo ">>> Running RAG unit tests..."
     cd "$HOME_DIR/rag"
-    exec pytest tests/unit/ -v -s --tb=short --color=yes $EXTRA_ARGS
+    exec pytest tests/unit/ -v -s --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   rag-e2e)
     echo ">>> Running RAG e2e tests..."
     cd "$HOME_DIR/rag"
-    exec pytest tests/e2e/ -v -s --tb=short --color=yes $EXTRA_ARGS
+    exec pytest tests/e2e/ -v -s --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   multi-agent)
     echo ">>> Running Multi-Agent tests..."
     cd "$HOME_DIR/multi-agent"
-    exec pytest tests/ -v --tb=short --color=yes $EXTRA_ARGS
+    exec pytest tests/ -v --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   multi-agent-e2e)
     echo ">>> Running Multi-Agent e2e tests..."
     cd "$HOME_DIR/multi-agent"
-    exec pytest tests/e2e/ -v -s --tb=short --color=yes $EXTRA_ARGS
+    exec pytest tests/e2e/ -v -s --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   multi-agent-unit)
     echo ">>> Running Multi-Agent unit tests..."
     cd "$HOME_DIR/multi-agent"
-    exec pytest tests/unit/ -v --tb=short --color=yes $EXTRA_ARGS
+    exec pytest tests/unit/ -v --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   multi-agent-integration)
     echo ">>> Running Multi-Agent integration tests..."
     cd "$HOME_DIR/multi-agent"
-    exec pytest tests/integration/ -v --tb=short --color=yes $EXTRA_ARGS
+    exec pytest tests/integration/ -v --tb=short --color=yes $REPORT_ARGS $EXTRA_ARGS
     ;;
 
   all)
@@ -66,12 +74,20 @@ case "$SUITE" in
 
     echo "--- RAG tests ---"
     cd "$HOME_DIR/rag"
-    pytest tests/ -v --tb=short --color=yes $EXTRA_ARGS || RAG_EXIT=$?
+    RAG_REPORT_ARGS=""
+    if [ -n "$REPORTS_DIR" ] && [ -d "$REPORTS_DIR" ]; then
+      RAG_REPORT_ARGS="--html=${REPORTS_DIR}/report_rag_${TIMESTAMP}.html --self-contained-html --junitxml=${REPORTS_DIR}/junit_rag_${TIMESTAMP}.xml"
+    fi
+    pytest tests/ -v --tb=short --color=yes $RAG_REPORT_ARGS $EXTRA_ARGS || RAG_EXIT=$?
     echo ""
 
     echo "--- Multi-Agent tests ---"
     cd "$HOME_DIR/multi-agent"
-    pytest tests/ -v --tb=short --color=yes $EXTRA_ARGS || MA_EXIT=$?
+    MA_REPORT_ARGS=""
+    if [ -n "$REPORTS_DIR" ] && [ -d "$REPORTS_DIR" ]; then
+      MA_REPORT_ARGS="--html=${REPORTS_DIR}/report_multi-agent_${TIMESTAMP}.html --self-contained-html --junitxml=${REPORTS_DIR}/junit_multi-agent_${TIMESTAMP}.xml"
+    fi
+    pytest tests/ -v --tb=short --color=yes $MA_REPORT_ARGS $EXTRA_ARGS || MA_EXIT=$?
     echo ""
 
     echo "============================================"
