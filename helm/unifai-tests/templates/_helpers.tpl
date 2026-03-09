@@ -51,22 +51,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Report viewer labels
-*/}}
-{{- define "unifai-tests.reportLabels" -}}
-{{ include "unifai-tests.labels" . }}
-app.kubernetes.io/component: report-viewer
-{{- end }}
-
-{{/*
-Report viewer selector labels
-*/}}
-{{- define "unifai-tests.reportSelectorLabels" -}}
-{{ include "unifai-tests.selectorLabels" . }}
-app.kubernetes.io/component: report-viewer
-{{- end }}
-
-{{/*
 PVC name for test reports
 */}}
 {{- define "unifai-tests.reportsPvcName" -}}

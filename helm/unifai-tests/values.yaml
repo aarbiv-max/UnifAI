@@ -36,15 +36,6 @@ env:
   CONCURRENT_UPLOADS: "10"
   UPLOAD_TIMEOUT: "300"
 
-# Job-level settings
-job:
-  # Maximum time (seconds) the Job is allowed to run before it is terminated
-  activeDeadlineSeconds: 3600
-  # Number of retries before marking the Job as failed
-  backoffLimit: 0
-  # Auto-delete completed/failed Job after this many seconds (0 = never)
-  ttlSecondsAfterFinished: 86400
-
 resources:
   limits:
     cpu: 2
@@ -69,29 +60,23 @@ tolerations: []
 affinity: {}
 
 # --------------------------------------------------------------------------
-# Report viewer (optional nginx that serves HTML/XML reports)
+# Test reports
+# When enabled, pytest writes HTML/XML reports to a PVC and the test-runner
+# pod starts a Python HTTP server after tests complete so reports are
+# browsable via the Route.
 # --------------------------------------------------------------------------
 reports:
   enabled: true
 
   storage:
     size: 1Gi
-    className: ""
+    className: aws-efs-tier-c1
     accessModes:
-      - ReadWriteOnce
-
-  viewer:
-    image:
-      repository: registry.access.redhat.com/ubi9/nginx-122
-      tag: latest
-      pullPolicy: IfNotPresent
-    resources:
-      limits:
-        cpu: 200m
-        memory: 256Mi
-      requests:
-        cpu: 100m
-        memory: 128Mi
+      - ReadWriteMany
+    annotations:
+      kubernetes.io/reclaimPolicy: Delete
+    labels:
+      paas.redhat.com/appcode: TAG-001
 
   service:
     type: ClusterIP

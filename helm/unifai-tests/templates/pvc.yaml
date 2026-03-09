@@ -5,6 +5,13 @@ metadata:
   name: {{ include "unifai-tests.reportsPvcName" . }}
   labels:
     {{- include "unifai-tests.labels" . | nindent 4 }}
+    {{- with .Values.reports.storage.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.reports.storage.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   accessModes:
     {{- toYaml .Values.reports.storage.accessModes | nindent 4 }}

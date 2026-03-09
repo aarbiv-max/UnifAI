@@ -3,14 +3,18 @@ UnifAI Test Runner deployed.
   Suite : {{ .Values.testSuite }}
   Image : {{ .Values.image.repository }}:{{ .Values.image.tag }}
 
-Monitor the test Job:
+Monitor tests:
 
-  oc get jobs -l app.kubernetes.io/name={{ include "unifai-tests.name" . }} -w
-  oc logs job/{{ include "unifai-tests.fullname" . }} -f
+  oc logs deploy/{{ include "unifai-tests.fullname" . }} -f
+
+Re-run tests (delete the pod and the Deployment recreates it):
+
+  oc delete pod -l app.kubernetes.io/name={{ include "unifai-tests.name" . }}
 
 {{- if .Values.reports.enabled }}
 
 Test reports (HTML / JUnit XML) are written to the PVC "{{ include "unifai-tests.reportsPvcName" . }}".
+After tests complete, reports are served on port {{ .Values.reports.service.port }}.
 {{- if .Values.reports.route.enabled }}
 
 Browse reports at the OpenShift Route:
@@ -20,7 +24,7 @@ Browse reports at the OpenShift Route:
 
 Port-forward to view reports locally:
 
-  oc port-forward deploy/{{ include "unifai-tests.fullname" . }}-reports 8080:8080
-  open http://localhost:8080
+  oc port-forward deploy/{{ include "unifai-tests.fullname" . }} {{ .Values.reports.service.port }}:{{ .Values.reports.service.port }}
+  open http://localhost:{{ .Values.reports.service.port }}
 {{- end }}
 {{- end }}

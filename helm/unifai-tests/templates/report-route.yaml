@@ -5,7 +5,7 @@ metadata:
   annotations:
     openshift.io/host.generated: "true"
   labels:
-    {{- include "unifai-tests.reportLabels" . | nindent 4 }}
+    {{- include "unifai-tests.labels" . | nindent 4 }}
   name: {{ include "unifai-tests.fullname" . }}-reports
 spec:
   {{- if .Values.reports.route.host }}

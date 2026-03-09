@@ -4,7 +4,7 @@ kind: Service
 metadata:
   name: {{ include "unifai-tests.fullname" . }}-reports
   labels:
-    {{- include "unifai-tests.reportLabels" . | nindent 4 }}
+    {{- include "unifai-tests.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.reports.service.type }}
   ports:
@@ -13,5 +13,5 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "unifai-tests.reportSelectorLabels" . | nindent 4 }}
+    {{- include "unifai-tests.selectorLabels" . | nindent 4 }}
 {{- end }}
