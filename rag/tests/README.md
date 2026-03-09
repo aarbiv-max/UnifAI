@@ -222,6 +222,138 @@ These tests cover `RetrievalService`, the search orchestrator that resolves filt
 
 ---
 
+## How Unit Tests Work — Mocking Strategy
+
+### Why mocks?
+
+The 95 unit tests run **without any infrastructure** — no MongoDB, no Qdrant, no Docling server, no Celery workers. They execute in under 2 seconds on any machine. This is possible because every external dependency is replaced with a **mock object** that simulates the dependency's behavior in memory.
+
+### The architecture that enables this
+
+The RAG codebase follows a **hexagonal (ports & adapters) architecture**. Each service depends on abstract interfaces (ports), not concrete implementations:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    PipelineExecutor                       │
+│                    (orchestrator)                         │
+│                                                          │
+│   Depends on:                                            │
+│   ├── PipelineService      (port: PipelineRepository)    │
+│   ├── MonitoringService    (port)                        │
+│   ├── DataSourceService    (port: DataSourceRepository)  │
+│   ├── VectorRepository     (port)                        │
+│   └── SourcePipelinePort   (port: handler interface)     │
+│                                                          │
+│   In production → real MongoDB, Qdrant, Docling          │
+│   In tests      → mock objects that return canned data   │
+└──────────────────────────────────────────────────────────┘
+```
+
+Because each dependency is injected through the constructor, the tests can pass in mocks instead of real implementations. The service under test doesn't know (or care) whether it's talking to a real database or a mock.
+
+### `create_autospec` vs plain `MagicMock`
+
+All unit tests use `create_autospec` instead of plain `MagicMock`. The difference is critical:
+
+| | `MagicMock()` | `create_autospec(RealClass)` |
+|---|---|---|
+| Accepts any method call | Yes — even misspelled ones | No — only methods that exist on `RealClass` |
+| Validates argument count | No | Yes — raises `TypeError` if wrong args |
+| Catches interface drift | No — tests keep passing even if the interface changes | Yes — tests fail if the real class changes |
+
+**Example:** If `PipelineService` renames `update_status()` to `set_status()`, a plain `MagicMock` test would still pass silently (calling a method that no longer exists). A `create_autospec` test would immediately fail with `AttributeError`, catching the drift.
+
+```python
+# What our tests do:
+from unittest.mock import create_autospec
+from core.pipeline.service import PipelineService
+
+mock_pipeline_svc = create_autospec(PipelineService, instance=True)
+```
+
+### Concrete example: testing the PipelineExecutor
+
+Here is how the executor test works end-to-end:
+
+**1. Create mocks for all dependencies:**
+
+```python
+@pytest.fixture
+def mock_pipeline_svc():
+    return create_autospec(PipelineService, instance=True)
+
+@pytest.fixture
+def mock_handler():
+    handler = create_autospec(SourcePipelinePort, instance=True)
+    handler.collect.return_value = {"text": "hello"}       # canned response
+    handler.process.return_value = {"text": "processed"}
+    handler.chunk_and_embed.return_value = [MagicMock()]
+    handler.get_summary.return_value = {"page_count": 1}
+    return handler
+```
+
+**2. Inject mocks into the real service:**
+
+```python
+@pytest.fixture
+def executor(mock_pipeline_svc, mock_monitoring_svc, mock_data_source_svc, mock_vector_repo):
+    return PipelineExecutor(
+        pipeline_service=mock_pipeline_svc,          # mock, not real
+        monitoring_service=mock_monitoring_svc,       # mock, not real
+        data_source_service=mock_data_source_svc,     # mock, not real
+        vector_repository=MagicMock(return_value=mock_vector_repo),
+    )
+```
+
+**3. Call the real method and verify what happened:**
+
+```python
+def test_happy_path_status_transitions(self, executor, mock_handler, mock_pipeline_svc, build_context):
+    ctx = build_context()
+    executor.execute(mock_handler, ctx)     # runs the REAL executor code
+
+    # Verify the executor called update_status in the correct order
+    status_calls = [c.args[1] for c in mock_pipeline_svc.update_status.call_args_list]
+    assert status_calls == [
+        PipelineStatus.COLLECTING,
+        PipelineStatus.PROCESSING,
+        PipelineStatus.CHUNKING_AND_EMBEDDING,
+        PipelineStatus.STORING,
+        PipelineStatus.DONE,
+    ]
+```
+
+The key insight: **`executor.execute()` runs the real production code**. The only things that are fake are the dependencies it calls. So we're testing the real orchestration logic — the real `if/else` branches, the real `try/finally` cleanup, the real status transitions — just without needing a real database or vector store.
+
+### What each mock pattern tests
+
+| Mock setup | What it simulates | What the test verifies |
+|---|---|---|
+| `mock.return_value = X` | Dependency returns a normal value | Service handles the result correctly |
+| `mock.side_effect = RuntimeError("boom")` | Dependency crashes | Service handles errors correctly (records error, sets FAILED, cleans up) |
+| `mock.assert_called_once_with(...)` | N/A (post-call check) | Service called the dependency with the correct arguments |
+| `mock.assert_not_called()` | N/A (post-call check) | Service correctly skipped calling the dependency (e.g. early exit) |
+
+### Fail-open testing (negative tests with expected WARNINGs)
+
+Some validators are designed to **fail open** — if the infrastructure fails, the validator allows the upload rather than blocking it. These tests simulate infrastructure failures:
+
+```python
+def test_checker_exception_passes_gracefully(self):
+    # Simulate: database is down
+    validator = self._make_validator(raises=RuntimeError("db down"))
+
+    ok, issue = validator.validate(source_name="report.pdf")
+
+    # The validator allows the upload despite the error
+    assert ok is True
+    assert issue is None
+```
+
+These tests produce WARNING logs like `"Duplicate check failed for report.pdf, allowing upload: db down"`. These warnings are **expected** — they come from the real validator code and confirm the fail-open path is exercised.
+
+---
+
 ## Test Execution Flow
 
 ```

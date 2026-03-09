@@ -65,12 +65,19 @@ def executor(mock_pipeline_svc, mock_monitoring_svc, mock_data_source_svc, mock_
 @pytest.mark.document
 @pytest.mark.pipeline
 class TestPipelineExecutor:
+    """Tests the PipelineExecutor orchestration: status transitions, error handling,
+    cleanup guarantees, and monitoring setup."""
 
     # ── Happy path ────────────────────────────────────────────────────────
 
     def test_happy_path_status_transitions(
         self, executor, mock_handler, mock_pipeline_svc, build_context,
     ):
+        """A successful execution must transition through all statuses in order.
+
+        Expected: COLLECTING → PROCESSING → CHUNKING_AND_EMBEDDING → STORING → DONE.
+        Logs: No warnings or errors.
+        """
         ctx = build_context()
         executor.execute(mock_handler, ctx)
 
@@ -88,6 +95,11 @@ class TestPipelineExecutor:
     def test_happy_path_stores_embeddings(
         self, executor, mock_handler, mock_vector_repo, build_context,
     ):
+        """After all pipeline stages succeed, embeddings must be persisted to vector storage.
+
+        Expected: vector_repo.store called once with the generated chunks.
+        Logs: No warnings or errors.
+        """
         ctx = build_context()
         executor.execute(mock_handler, ctx)
 
@@ -98,6 +110,11 @@ class TestPipelineExecutor:
     def test_happy_path_upserts_source_with_summary(
         self, executor, mock_handler, mock_data_source_svc, build_context,
     ):
+        """After success, the data source must be upserted with the handler's summary.
+
+        Expected: upsert_after_pipeline called once with all context fields and summary.
+        Logs: No warnings or errors.
+        """
         ctx = build_context()
         executor.execute(mock_handler, ctx)
 
@@ -120,6 +137,12 @@ class TestPipelineExecutor:
         self, executor, mock_handler, mock_monitoring_svc, mock_pipeline_svc,
         build_context, step_method, expected_failed_at,
     ):
+        """When a handler step raises, the error must be recorded with the correct failed_at stage
+        and the pipeline status must be set to FAILED.
+
+        Expected: record_error called with failed_at matching the step; status set to FAILED.
+        Logs: No warnings or errors (error is recorded via monitoring, not logged to console).
+        """
         getattr(mock_handler, step_method).side_effect = RuntimeError("boom")
         ctx = build_context()
 
@@ -140,6 +163,11 @@ class TestPipelineExecutor:
         self, executor, mock_handler, mock_monitoring_svc, mock_pipeline_svc,
         mock_vector_repo, build_context,
     ):
+        """When vector storage fails, the error must be recorded with failed_at='STORING'.
+
+        Expected: error_details['failed_at'] == 'STORING'.
+        Logs: No warnings or errors.
+        """
         mock_vector_repo.store.side_effect = RuntimeError("store boom")
         ctx = build_context()
 
@@ -156,6 +184,11 @@ class TestPipelineExecutor:
     def test_failure_upserts_source_with_error_info(
         self, executor, mock_handler, mock_data_source_svc, build_context,
     ):
+        """On failure, the data source must still be upserted with error details in the summary.
+
+        Expected: summary contains 'bad data' in last_error and failed_at='COLLECTING'.
+        Logs: No warnings or errors.
+        """
         mock_handler.collect.side_effect = ValueError("bad data")
         ctx = build_context()
 
@@ -173,6 +206,11 @@ class TestPipelineExecutor:
     def test_cleanup_always_called_on_success(
         self, executor, mock_handler, mock_monitoring_svc, build_context,
     ):
+        """Cleanup and monitoring teardown must run even when the pipeline succeeds.
+
+        Expected: handler.cleanup and finish_log_monitoring each called once.
+        Logs: No warnings or errors.
+        """
         ctx = build_context()
         executor.execute(mock_handler, ctx)
 
@@ -182,6 +220,11 @@ class TestPipelineExecutor:
     def test_cleanup_always_called_on_failure(
         self, executor, mock_handler, mock_monitoring_svc, build_context,
     ):
+        """Cleanup and monitoring teardown must run even when the pipeline fails.
+
+        Expected: handler.cleanup and finish_log_monitoring each called once despite the exception.
+        Logs: No warnings or errors.
+        """
         mock_handler.collect.side_effect = RuntimeError("fail")
         ctx = build_context()
 
@@ -194,6 +237,11 @@ class TestPipelineExecutor:
     # ── Exception propagation ─────────────────────────────────────────────
 
     def test_exception_re_raised(self, executor, mock_handler, build_context):
+        """Exceptions must not be swallowed -- they must propagate to the caller after cleanup.
+
+        Expected: TypeError('wrong type') is re-raised.
+        Logs: No warnings or errors.
+        """
         mock_handler.process.side_effect = TypeError("wrong type")
         ctx = build_context()
 
@@ -205,6 +253,11 @@ class TestPipelineExecutor:
     def test_monitoring_started_with_correct_pipeline_id(
         self, executor, mock_handler, mock_monitoring_svc, build_context,
     ):
+        """Monitoring must be started with a pipeline_id derived from source_type + source_id.
+
+        Expected: pipeline_id == 'document_src_1' (lowercase source_type + '_' + source_id).
+        Logs: No warnings or errors.
+        """
         ctx = build_context()
         executor.execute(mock_handler, ctx)
 

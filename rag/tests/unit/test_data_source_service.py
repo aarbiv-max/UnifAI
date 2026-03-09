@@ -59,8 +59,14 @@ def service(mock_source_repo, mock_pipeline_repo, mock_vector_repo):
 @pytest.mark.unit
 @pytest.mark.document
 class TestDataSourceServiceDelete:
+    """Tests the cascade-delete flow: vectors → pipelines → source record."""
 
     def test_delete_source_not_found(self, service, mock_source_repo):
+        """Deleting a non-existent source must fail with a 'not found' message.
+
+        Expected: success=False, message contains 'not found'.
+        Logs: No warnings or errors.
+        """
         mock_source_repo.find_by_id.return_value = None
 
         result = service.delete("missing")
@@ -69,6 +75,11 @@ class TestDataSourceServiceDelete:
         assert "not found" in result.message
 
     def test_delete_happy_path(self, service, mock_source_repo, mock_pipeline_repo, mock_vector_repo):
+        """Full cascade delete must remove vectors, pipeline records, and the source itself.
+
+        Expected: success=True, vectors_deleted=5, pipelines_deleted=1, source_deleted=True.
+        Logs: No warnings or errors.
+        """
         source = _make_source()
         mock_source_repo.find_by_id.return_value = source
         mock_vector_repo.delete_by_source_id.return_value = 5
@@ -83,6 +94,11 @@ class TestDataSourceServiceDelete:
         assert result.source_deleted is True
 
     def test_delete_vector_failure_aborts(self, service, mock_source_repo, mock_vector_repo):
+        """When vector storage (Qdrant) is down, deletion must abort and report the failure.
+
+        Expected: success=False, message contains 'Vector storage'.
+        Logs: No warnings or errors.
+        """
         source = _make_source()
         mock_source_repo.find_by_id.return_value = source
         mock_vector_repo.delete_by_source_id.side_effect = RuntimeError("qdrant down")
@@ -93,6 +109,11 @@ class TestDataSourceServiceDelete:
         assert "Vector storage" in result.message
 
     def test_delete_mongo_failure_partial(self, service, mock_source_repo, mock_pipeline_repo, mock_vector_repo):
+        """When MongoDB fails after vectors are deleted, the result must report partial deletion.
+
+        Expected: success=False, vectors_deleted=3, message contains 'Partial deletion'.
+        Logs: No warnings or errors.
+        """
         source = _make_source()
         mock_source_repo.find_by_id.return_value = source
         mock_vector_repo.delete_by_source_id.return_value = 3
@@ -105,6 +126,11 @@ class TestDataSourceServiceDelete:
         assert "Partial deletion" in result.message
 
     def test_delete_uses_correct_collection_name(self, service, mock_source_repo, mock_vector_repo):
+        """The vector repo factory must be called with the correct collection name for DOCUMENT type.
+
+        Expected: factory called with 'document_data'.
+        Logs: No warnings or errors.
+        """
         source = _make_source(source_type="DOCUMENT")
         mock_source_repo.find_by_id.return_value = source
         mock_vector_repo.delete_by_source_id.return_value = 0
@@ -123,8 +149,14 @@ class TestDataSourceServiceDelete:
 @pytest.mark.unit
 @pytest.mark.document
 class TestDataSourceServiceUpsert:
+    """Tests the upsert-after-pipeline flow that creates or updates a data source record."""
 
     def test_upsert_creates_new_source(self, service, mock_source_repo):
+        """When no existing source matches the pipeline, a new DataSource must be created and saved.
+
+        Expected: save called once with source_id='src_new' and type_data from the summary.
+        Logs: No warnings or errors.
+        """
         mock_source_repo.find_by_pipeline_id.return_value = None
 
         service.upsert_after_pipeline(
@@ -141,6 +173,12 @@ class TestDataSourceServiceUpsert:
         assert saved.type_data == {"page_count": 3}
 
     def test_upsert_updates_existing_source(self, service, mock_source_repo):
+        """When an existing source matches the pipeline, its type_data must be merged (not replaced)
+        and last_sync_at must be refreshed.
+
+        Expected: existing type_data keeps page_count=5, gains full_text='updated'; last_sync_at updated.
+        Logs: No warnings or errors.
+        """
         existing = _make_source(type_data={"page_count": 5})
         old_sync = existing.last_sync_at
         mock_source_repo.find_by_pipeline_id.return_value = existing
@@ -166,12 +204,23 @@ class TestDataSourceServiceUpsert:
 @pytest.mark.unit
 @pytest.mark.document
 class TestDataSourceServiceEnrich:
+    """Tests enriching data source listings with pipeline statistics."""
 
     def test_enrich_empty_list(self, service):
+        """Enriching an empty list must return an empty list without calling the repo.
+
+        Expected: result == [].
+        Logs: No warnings or errors.
+        """
         result = service.enrich_with_pipeline_stats([])
         assert result == []
 
     def test_enrich_with_pipeline_stats(self, service, mock_pipeline_repo):
+        """When a matching pipeline record exists, its status and stats must be injected.
+
+        Expected: status='DONE', chunks_generated=10.
+        Logs: No warnings or errors.
+        """
         source = _make_source()
         record = PipelineRecord(
             pipeline_id="pipe_1",
@@ -190,6 +239,11 @@ class TestDataSourceServiceEnrich:
         assert result[0]["pipeline_stats"]["chunks_generated"] == 10
 
     def test_enrich_without_pipeline_stats(self, service, mock_pipeline_repo):
+        """When no pipeline record exists for a source, status and stats must be None.
+
+        Expected: status=None, pipeline_stats=None.
+        Logs: No warnings or errors.
+        """
         source = _make_source()
         mock_pipeline_repo.get_stats_batch.return_value = {}
 
@@ -206,8 +260,14 @@ class TestDataSourceServiceEnrich:
 @pytest.mark.unit
 @pytest.mark.document
 class TestDataSourceServiceUpdate:
+    """Tests partial updates to existing data source records."""
 
     def test_update_existing_source(self, service, mock_source_repo):
+        """Updating an existing source must apply the fields and persist.
+
+        Expected: result is True, source_name changed to 'renamed.pdf', save called.
+        Logs: No warnings or errors.
+        """
         source = _make_source()
         mock_source_repo.find_by_id.return_value = source
 
@@ -218,6 +278,11 @@ class TestDataSourceServiceUpdate:
         mock_source_repo.save.assert_called_once()
 
     def test_update_nonexistent_source(self, service, mock_source_repo):
+        """Updating a non-existent source must return False without saving.
+
+        Expected: result is False, save not called.
+        Logs: No warnings or errors.
+        """
         mock_source_repo.find_by_id.return_value = None
 
         result = service.update("missing", {"source_name": "x"})

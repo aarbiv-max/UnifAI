@@ -31,10 +31,16 @@ def service(mock_repo):
 @pytest.mark.document
 @pytest.mark.pipeline
 class TestPipelineService:
+    """Tests the PipelineService CRUD operations and status management."""
 
     # --- register ---
 
     def test_register_creates_new_record(self, service, mock_repo):
+        """Registering a new pipeline ID must create a record with PENDING status.
+
+        Expected: record saved with pipeline_id='p1', source_type='DOCUMENT', status=PENDING.
+        Logs: No warnings or errors.
+        """
         mock_repo.find_by_id.return_value = None
 
         record = service.register("p1", "DOCUMENT")
@@ -45,6 +51,11 @@ class TestPipelineService:
         mock_repo.save.assert_called_once()
 
     def test_register_existing_updates_timestamp(self, service, mock_repo):
+        """Re-registering an existing pipeline must update its last_updated timestamp without creating a new record.
+
+        Expected: last_updated > old_time; save called with the existing record.
+        Logs: No warnings or errors.
+        """
         old_time = datetime(2025, 1, 1)
         existing = PipelineRecord(
             pipeline_id="p1",
@@ -63,6 +74,11 @@ class TestPipelineService:
     # --- update_status ---
 
     def test_update_status_success(self, service, mock_repo):
+        """Updating status on an existing record must change the status and persist.
+
+        Expected: result is True, record.status == COLLECTING, save called.
+        Logs: No warnings or errors.
+        """
         record = PipelineRecord(
             pipeline_id="p1",
             source_type="DOCUMENT",
@@ -79,6 +95,11 @@ class TestPipelineService:
         mock_repo.save.assert_called_once()
 
     def test_update_status_calculates_processing_time_on_done(self, service, mock_repo):
+        """Transitioning to DONE must calculate the total processing time from created_at.
+
+        Expected: stats.processing_time > 0.
+        Logs: No warnings or errors.
+        """
         created = datetime(2025, 1, 1, 0, 0, 0)
         record = PipelineRecord(
             pipeline_id="p1",
@@ -95,6 +116,11 @@ class TestPipelineService:
         assert record.stats.processing_time > 0
 
     def test_update_status_no_processing_time_on_other_statuses(self, service, mock_repo):
+        """Transitioning to any status other than DONE must not calculate processing time.
+
+        Expected: stats.processing_time == 0.0.
+        Logs: No warnings or errors.
+        """
         record = PipelineRecord(
             pipeline_id="p1",
             source_type="DOCUMENT",
@@ -110,6 +136,11 @@ class TestPipelineService:
         assert record.stats.processing_time == 0.0
 
     def test_update_status_from_string(self, service, mock_repo):
+        """Status can be passed as a plain string and must be converted to the enum.
+
+        Expected: record.status == PipelineStatus.PROCESSING after passing "PROCESSING" as string.
+        Logs: No warnings or errors.
+        """
         record = PipelineRecord(
             pipeline_id="p1",
             source_type="DOCUMENT",
@@ -124,6 +155,11 @@ class TestPipelineService:
         assert record.status == PipelineStatus.PROCESSING
 
     def test_update_status_nonexistent_returns_false(self, service, mock_repo):
+        """Updating status on a non-existent pipeline must return False without saving.
+
+        Expected: result is False, save not called.
+        Logs: No warnings or errors.
+        """
         mock_repo.find_by_id.return_value = None
 
         result = service.update_status("missing", PipelineStatus.DONE)
@@ -134,11 +170,21 @@ class TestPipelineService:
     # --- get / delete ---
 
     def test_get_delegates_to_repo(self, service, mock_repo):
+        """get() must delegate directly to the repository's find_by_id.
+
+        Expected: find_by_id called once with 'p1'.
+        Logs: No warnings or errors.
+        """
         mock_repo.find_by_id.return_value = MagicMock()
         service.get("p1")
         mock_repo.find_by_id.assert_called_once_with("p1")
 
     def test_delete_delegates_to_repo(self, service, mock_repo):
+        """delete() must delegate directly to the repository and return the deleted count.
+
+        Expected: result == 1, delete called once with 'p1'.
+        Logs: No warnings or errors.
+        """
         mock_repo.delete.return_value = 1
         result = service.delete("p1")
         assert result == 1
