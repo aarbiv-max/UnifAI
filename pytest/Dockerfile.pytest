@@ -54,7 +54,7 @@ RUN pip install \
 # --------------------------------------------------------------------------
 # Entrypoint
 # --------------------------------------------------------------------------
-COPY --chown=default:root --chmod=755 ./run_tests.sh $HOME/run_tests.sh
+COPY --chown=default:root --chmod=755 ./pytest/run_tests.sh $HOME/run_tests.sh
 
 ENTRYPOINT ["./run_tests.sh"]
 CMD ["all"]
