@@ -24,6 +24,12 @@ case "$SUITE" in
     exec pytest tests/ -v --tb=short --color=yes $EXTRA_ARGS
     ;;
 
+  rag-unit)
+    echo ">>> Running RAG unit tests..."
+    cd "$HOME_DIR/rag"
+    exec pytest tests/unit/ -v -s --tb=short --color=yes $EXTRA_ARGS
+    ;;
+
   rag-e2e)
     echo ">>> Running RAG e2e tests..."
     cd "$HOME_DIR/rag"
@@ -88,6 +94,7 @@ case "$SUITE" in
     echo "Available suites:"
     echo "  all                  - Run everything"
     echo "  rag                  - All RAG tests"
+    echo "  rag-unit             - RAG unit tests only"
     echo "  rag-e2e              - RAG e2e tests only"
     echo "  multi-agent          - All multi-agent tests"
     echo "  multi-agent-e2e      - Multi-agent e2e tests only"
