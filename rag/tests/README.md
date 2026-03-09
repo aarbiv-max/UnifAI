@@ -460,3 +460,73 @@ oc delete pvc unifai-tests-unifai-tests-reports
 | `tests/README.md` | Test infrastructure documentation |
 | `helm/unifai-tests/*` | Helm chart (deployment, PVC, service, route, values) |
 | `tests/archive/*` | Archived previous test scripts |
+
+---
+
+## Expected Results and How to Evaluate
+
+### Quick Summary
+
+When running the full `rag` test suite, you should see:
+
+```
+87 passed
+```
+
+All **87 tests** should pass. Zero failures, zero errors. If any test fails, it indicates a real issue — these tests do not have flaky behavior.
+
+### Expected Output Per Test File
+
+| Test File | Tests | Expected Result | What a Failure Means |
+|-----------|-------|-----------------|----------------------|
+| `test_service_health.py` | 4 | All PASSED | The RAG server, Docling, or Embedding service is down or unreachable. Check pod health and network connectivity. |
+| `test_doc_upload_stress.py` | 1 | PASSED with upload success rate >= 95% and embedding success rate >= 95% | The upload endpoint or embedding pipeline is failing under load. Check RAG server logs and Celery worker logs. |
+| `test_document_validators.py` | 17 | All PASSED | A validator's accept/reject logic has changed. Check if the change was intentional — validators control what files users can upload. |
+| `test_domain_models.py` | 9 | All PASSED | A domain model's serialization or defaults have changed. This can silently corrupt data in MongoDB. Check `from_dict()` / `to_dict()` methods. |
+| `test_pipeline_service.py` | 9 | All PASSED | Pipeline record management (status tracking, registration, processing time) is broken. Check `PipelineService` and `PipelineRepository`. |
+| `test_pipeline_executor.py` | 12 | All PASSED | The pipeline orchestration flow is broken — status transitions, error handling, or cleanup guarantees may have regressed. This is critical: failures here can cause leaked temp files, missing error records, or silent pipeline failures. |
+| `test_document_pipeline_handler.py` | 12 | All PASSED | Document-specific pipeline logic has changed — connector calls, processor flags, metadata enrichment, or cleanup behavior. Check `DocumentPipelineHandler`. |
+| `test_data_source_service.py` | 11 | All PASSED | Data source CRUD or cascade delete logic is broken. Failures in delete tests may indicate data consistency issues (e.g. orphaned vectors in Qdrant). |
+| `test_retrieval_service.py` | 7 | All PASSED | Search/retrieval logic has changed — filter resolution, scope filtering, or result mapping. Users may get wrong search results or see other users' private documents. |
+
+### How to Read the Logs
+
+**Unit tests (77 tests)** — These run with mocked dependencies and require no infrastructure. They execute instantly. In the logs, you'll see:
+
+- `PASSED` next to each test name — this is the expected result.
+- Occasional `WARNING` log lines like `"Duplicate check failed for report.pdf, allowing upload: db down"` — these are **expected**. They come from the source code's fail-open error handling and confirm the test is exercising the real code path.
+- `INFO` log lines like `"Collecting document: /tmp/report.pdf"` or `"Filter resolved to empty set - returning no results"` — also **expected**. These come from the source code's logger and confirm the mocks are wired correctly.
+
+**Smoke tests (4 tests)** — These make real HTTP calls to the running RAG server. They verify:
+
+- The readiness endpoint responds with HTTP 200
+- Docling reports `status: healthy`
+- Embedding reports `status: healthy`
+- `upload_enabled` is `true`
+
+If any smoke test fails, do **not** proceed with the E2E stress test — the system is not ready.
+
+**E2E stress test (1 test)** — This runs the full upload-and-embed flow. In the logs, look for:
+
+- **PHASE 1: DOCUMENT UPLOAD** — All documents should upload successfully. Look for `"Progress: N/N successful, 0 failed"`.
+- **Embedding pipeline triggered** — Should show `"pipeline_workflow_started"` with the correct number of tasks.
+- **PHASE 2: MONITORING CELERY TASKS** — All tasks should complete with `SUCCESS` status. Look for `"All Celery tasks completed!"`.
+- **STRESS TEST FINAL REPORT** — Upload success rate and embedding success rate should both be >= 95%. Look for `"STRESS TEST PASSED"`.
+
+### Running Specific Test Subsets
+
+```bash
+# All RAG tests (unit + smoke + e2e)
+helm install unifai-tests ./helm/unifai-tests --set testSuite=rag
+
+# Only unit tests (no infrastructure needed beyond the RAG server image)
+helm install unifai-tests ./helm/unifai-tests --set testSuite=rag-unit
+
+# Only E2E stress tests
+helm install unifai-tests ./helm/unifai-tests --set testSuite=rag-e2e
+
+# Run a specific test file or test name
+helm install unifai-tests ./helm/unifai-tests \
+  --set testSuite=rag \
+  --set extraArgs="-k test_pipeline_executor"
+```
