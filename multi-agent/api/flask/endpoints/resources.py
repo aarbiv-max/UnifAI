@@ -6,6 +6,30 @@ from resources.errors import ResourceInUseError
 resources_bp = Blueprint("resources", __name__)
 
 
+def _enrich_in_use_error(error: ResourceInUseError) -> dict:
+    """Resolve IDs in a ResourceInUseError to {id, name} dicts for the UI."""
+    bp_svc = current_app.container.blueprint_service
+    res_svc = current_app.container.resources_service
+
+    bp_details = []
+    for bp_id in error.by_blueprints:
+        try:
+            bp_doc = bp_svc.get_blueprint_draft_doc(bp_id)
+            bp_details.append({"id": bp_id, "name": bp_doc.spec_dict.get("name", bp_id)})
+        except Exception:
+            bp_details.append({"id": bp_id, "name": bp_id})
+
+    res_details = []
+    for res_id in error.by_resources:
+        try:
+            res = res_svc.get(res_id)
+            res_details.append({"id": res_id, "name": res.name, "category": res.category})
+        except Exception:
+            res_details.append({"id": res_id, "name": res_id})
+
+    return {"blueprints": bp_details, "resources": res_details}
+
+
 @resources_bp.route("/resource.save", methods=["POST"])
 @from_body({
     "user_id": fields.Str(data_key="userId", required=True),
@@ -112,13 +136,53 @@ def delete_resource(resource_id):
     # TODO: Add authorization check - verify user has permission to delete this resource
     svc = current_app.container.resources_service
     try:
+        resource = svc.get(resource_id)
+    except KeyError:
+        return jsonify({"error": f"Resource not found: {resource_id}"}), 404
+
+    try:
         svc.delete(resource_id)
         return jsonify({"status": "deleted"}), 200
     except ResourceInUseError as e:
-        # The resource is referenced by blueprints or other resources
-        return jsonify({"error": str(e),
-                        "blueprints": e.by_blueprints,
-                        "resources": e.by_resources}), 400
+        return jsonify({
+            "error": str(e),
+            "code": "RESOURCE_IN_USE",
+            "category": resource.category,
+            **_enrich_in_use_error(e),
+        }), 409
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@resources_bp.route("/resource.force-delete", methods=["POST"])
+@from_body({
+    "resource_id": fields.Str(data_key="resourceId", required=True),
+    "mode": fields.Str(required=True),
+    "replacement_id": fields.Str(data_key="replacementId", required=False, load_default=None),
+})
+def force_delete_resource(resource_id, mode, replacement_id=None):
+    """
+    Force-delete a resource that is currently in use.
+
+    Modes:
+      - replace:  swap all references to replacementId, then delete (LLMs, Conditions)
+      - detach:   remove all references from dependents, then delete (Tools, Providers, Retrievers)
+      - cascade:  delete the resource and all blueprints that reference it (Agents)
+    """
+    svc = current_app.container.resources_service
+    try:
+        if mode == "replace":
+            if not replacement_id:
+                return jsonify({"error": "replacementId is required for replace mode"}), 400
+            svc.replace_and_delete(resource_id, replacement_id)
+        elif mode == "detach":
+            svc.detach_and_delete(resource_id)
+        elif mode == "cascade":
+            svc.cascade_delete(resource_id)
+        else:
+            return jsonify({"error": f"Unknown mode: {mode}"}), 400
+
+        return jsonify({"status": "deleted"}), 200
     except KeyError as e:
         return jsonify({"error": f"Resource not found: {e}"}), 404
     except Exception as e:

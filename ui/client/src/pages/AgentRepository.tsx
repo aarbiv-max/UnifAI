@@ -8,6 +8,7 @@ import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { CategorySidebar } from '../components/agentic-ai/workspace/CategorySidebar';
 import { ElementGrid } from '../components/agentic-ai/workspace/ElementGrid';
 import { ElementForm } from '../components/agentic-ai/workspace/ElementForm';
+import { ResourceInUseModal, InUseData } from '../components/agentic-ai/workspace/ResourceInUseModal';
 import { ElementType, ElementInstance } from '../types/workspace';
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
@@ -21,6 +22,12 @@ export default function UserWorkspace() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [elementToDelete, setElementToDelete] = useState<ElementInstance | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [showInUseModal, setShowInUseModal] = useState(false);
+  const [inUseData, setInUseData] = useState<InUseData | null>(null);
+  const [replacementOptions, setReplacementOptions] = useState<Array<{ rid: string; name: string; type: string }>>([]);
+  const [isLoadingReplacements, setIsLoadingReplacements] = useState(false);
+
   const {
     categories,
     elementInstances,
@@ -31,8 +38,10 @@ export default function UserWorkspace() {
     fetchElementInstances,
     fetchElementSchema,
     fetchElementActions,
+    fetchResourcesForCategory,
     saveElement,
-    deleteElement
+    deleteElement,
+    forceDeleteElement,
   } = useWorkspaceData();
 
   // Fetch element instances when element type is selected
@@ -84,14 +93,31 @@ export default function UserWorkspace() {
 
     setIsDeleting(true);
     try {
-      await deleteElement(elementToDelete.rid);
-      // Refresh instances
-      await fetchElementInstances(selectedElementType.category, selectedElementType.type);
-      setShowDeleteModal(false);
-      setElementToDelete(null);
+      const result = await deleteElement(elementToDelete.rid);
+      if (result.deleted) {
+        await fetchElementInstances(selectedElementType.category, selectedElementType.type);
+        setShowDeleteModal(false);
+        setElementToDelete(null);
+      } else if ('inUse' in result && result.inUse) {
+        setShowDeleteModal(false);
+        setInUseData({
+          category: result.category,
+          blueprints: result.blueprints,
+          resources: result.resources,
+        });
+        setShowInUseModal(true);
+
+        if (result.category === "llms" || result.category === "conditions") {
+          setIsLoadingReplacements(true);
+          const options = await fetchResourcesForCategory(result.category);
+          setReplacementOptions(
+            options.filter((o: { rid: string }) => o.rid !== elementToDelete.rid)
+          );
+          setIsLoadingReplacements(false);
+        }
+      }
     } catch (error) {
       console.error('Error deleting element:', error);
-      // Error handling is done in the deleteElement function via toast
     } finally {
       setIsDeleting(false);
     }
@@ -100,6 +126,28 @@ export default function UserWorkspace() {
   const cancelDeleteElement = () => {
     setShowDeleteModal(false);
     setElementToDelete(null);
+  };
+
+  const handleForceDelete = async (
+    mode: "replace" | "detach" | "cascade",
+    replacementId?: string,
+  ) => {
+    if (!elementToDelete || !selectedElementType) return;
+    const success = await forceDeleteElement(elementToDelete.rid, mode, replacementId);
+    if (success) {
+      setShowInUseModal(false);
+      setInUseData(null);
+      setElementToDelete(null);
+      setReplacementOptions([]);
+      await fetchElementInstances(selectedElementType.category, selectedElementType.type);
+    }
+  };
+
+  const closeInUseModal = () => {
+    setShowInUseModal(false);
+    setInUseData(null);
+    setElementToDelete(null);
+    setReplacementOptions([]);
   };
 
   return (
@@ -232,6 +280,18 @@ export default function UserWorkspace() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {inUseData && (
+        <ResourceInUseModal
+          open={showInUseModal}
+          onClose={closeInUseModal}
+          elementName={elementToDelete?.name || "Element"}
+          inUseData={inUseData}
+          replacementOptions={replacementOptions}
+          isLoadingReplacements={isLoadingReplacements}
+          onForceDelete={handleForceDelete}
+        />
+      )}
     </div>
   );
 }

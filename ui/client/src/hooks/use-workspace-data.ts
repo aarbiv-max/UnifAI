@@ -381,17 +381,75 @@ export const useWorkspaceData = () => {
     [toast, USER_ID],
   );
 
-  // Delete element using Resources API
+  // Delete element using Resources API.
+  // Returns { deleted: true } on success, or { inUse: true, ...data } when the
+  // resource is still referenced by other elements/workflows.
   const deleteElement = useCallback(
-    async (rid: string) => {
+    async (rid: string): Promise<
+      | { deleted: true }
+      | { deleted: false; inUse: true; category: string; blueprints: any[]; resources: any[] }
+      | { deleted: false; inUse: false }
+    > => {
       try {
         setIsLoading(true);
         setError(null);
 
         await axios.delete(`/resources/resource.delete?resourceId=${rid}`);
-        
+
         removeResource(rid);
-        
+
+        toast({
+          title: "Success",
+          description: "Element deleted successfully",
+        });
+        return { deleted: true };
+      } catch (err: any) {
+        if (err.response?.status === 409 && err.response?.data?.code === "RESOURCE_IN_USE") {
+          return {
+            deleted: false,
+            inUse: true,
+            category: err.response.data.category,
+            blueprints: err.response.data.blueprints || [],
+            resources: err.response.data.resources || [],
+          };
+        }
+
+        const errorMessage =
+          err.response?.data?.error || "Failed to delete element";
+        setError(errorMessage);
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        console.error("Error deleting element:", err);
+        return { deleted: false, inUse: false };
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [toast],
+  );
+
+  // Force-delete an element that is in use, using one of three modes.
+  const forceDeleteElement = useCallback(
+    async (
+      rid: string,
+      mode: "replace" | "detach" | "cascade",
+      replacementId?: string,
+    ) => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        await axios.post("/resources/resource.force-delete", {
+          resourceId: rid,
+          mode,
+          ...(replacementId ? { replacementId } : {}),
+        });
+
+        removeResource(rid);
+
         toast({
           title: "Success",
           description: "Element deleted successfully",
@@ -406,7 +464,7 @@ export const useWorkspaceData = () => {
           description: errorMessage,
           variant: "destructive",
         });
-        console.error("Error deleting element:", err);
+        console.error("Error force-deleting element:", err);
         return false;
       } finally {
         setIsLoading(false);
@@ -436,6 +494,7 @@ export const useWorkspaceData = () => {
     fetchResourceById,
     saveElement,
     deleteElement,
+    forceDeleteElement,
     refetchCategories: fetchCategories,
   };
 };
