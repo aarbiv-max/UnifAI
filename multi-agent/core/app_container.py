@@ -1,4 +1,4 @@
-t pufrom catalog.element_registry import ElementRegistry
+from catalog.element_registry import ElementRegistry
 from catalog.service import CatalogService
 from blueprints.repository.mongo_blueprint_repository import MongoBlueprintRepository
 from blueprints.service import BlueprintService
