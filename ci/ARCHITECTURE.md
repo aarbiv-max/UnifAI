@@ -149,7 +149,7 @@ Builds container images for UnifAI components and optionally triggers deployment
 | `VERSION` | String | `yyyy.MM.dd` | Image version tag (auto-generated daily) |
 | `build_sso_image` | Boolean | `false` | Build SSO backend image |
 | `build_gui` | Boolean | `false` | Build UI (frontend) image |
-| `build_dataflow_backend` | Boolean | `false` | Build Data Pipeline Hub backend |
+| `build_rag_backend` | Boolean | `false` | Build Data Pipeline Hub backend |
 | `build_multiagent_backend` | Boolean | `false` | Build Multi-Agent System backend |
 | `set_image_candidate` | Boolean | `false` | Also tag images as `latest` |
 | `deploy_unifai` | Boolean | `false` | ⚠️ **CRITICAL**: Trigger deployment after build |
@@ -188,7 +188,7 @@ stage("Build Images") {
     parallel(
         "SSO": { if (params.build_sso_image) buildDockerImage("shared-resources/sso-backend") },
         "UI": { if (params.build_gui) buildDockerImage("ui") },
-        "Dataflow": { if (params.build_dataflow_backend) buildDockerImage("backend") },
+        "RAG": { if (params.build_rag_backend) buildDockerImage("backend") },
         "MultiAgent": { if (params.build_multiagent_backend) buildDockerImage("multi-agent") }
     )
 }
@@ -311,11 +311,11 @@ Deploys UnifAI application to OpenShift clusters using Helmfile.
 | `deploy_location` | Choice | `STAGING` | Target environment |
 | `deploy_type` | Choice | `FRESH_INSTALL` | Deployment strategy |
 | `VERSION` | String | _(empty)_ | ⚠️ **Auto-set by build pipeline** |
-| `DF_VERSION` | String | _(empty)_ | Override: Dataflow image tag |
+| `RAG_VERSION` | String | _(empty)_ | Override: RAG image tag |
 | `MA_VERSION` | String | _(empty)_ | Override: Multi-Agent image tag |
 | `GUI_VERSION` | String | _(empty)_ | Override: UI image tag |
 | `SSO_VERSION` | String | _(empty)_ | Override: SSO image tag |
-| `MODULES_TO_DEPLOY` | String | _(empty)_ | Comma-separated list (e.g., `dataflow,multiagent`) |
+| `MODULES_TO_DEPLOY` | String | _(empty)_ | Comma-separated list (e.g., `rag,multiagent`) |
 | `debug_mode` | Boolean | `false` | Enable debug settings in pods |
 
 #### Deployment Strategies
@@ -333,7 +333,7 @@ stage("Fresh Install") {
     sh "helmfile -f helmfile1.yaml.gotmpl apply"
     
     // 3. Deploy application components
-    sh "helmfile -f dataflow.yaml.gotmpl apply"
+    sh "helmfile -f rag.yaml.gotmpl apply"
     sh "helmfile -f multiagent.yaml.gotmpl apply"
     sh "helmfile -f ui.yaml.gotmpl apply"
     sh "helmfile -f sso.yaml.gotmpl apply"
@@ -342,7 +342,7 @@ stage("Fresh Install") {
 
 **Deployment Order:**
 1. **Shared Resources** (helmfile1): MongoDB, Qdrant, RabbitMQ, Shared Config
-2. **Dataflow Module**: Backend server, Celery workers, Config
+2. **RAG Module**: Backend server, Celery workers, Config
 3. **Multi-Agent Module**: Backend server
 4. **UI Module**: Frontend application
 5. **SSO Module**: Authentication service
@@ -354,8 +354,8 @@ stage("Fresh Install") {
 ```groovy
 stage("Application Upgrade") {
     // Update only specified modules
-    if (modulesToDeploy.contains("dataflow")) {
-        sh "helmfile -f dataflow.yaml.gotmpl apply"
+    if (modulesToDeploy.contains("rag")) {
+        sh "helmfile -f rag.yaml.gotmpl apply"
     }
     if (modulesToDeploy.contains("multiagent")) {
         sh "helmfile -f multiagent.yaml.gotmpl apply"
@@ -407,7 +407,7 @@ stage("Update Chart Versions") {
     updateChartVersions("${WORKSPACE}/helm", params.VERSION)
     
     // Update values.yaml with image tags
-    updateValuesYaml("${WORKSPACE}/helm/values/dataflow-resource-values.yaml", params.DF_VERSION)
+    updateValuesYaml("${WORKSPACE}/helm/values/rag-resource-values.yaml", params.RAG_VERSION)
     updateValuesYaml("${WORKSPACE}/helm/values/multiagent-resource-values.yaml", params.MA_VERSION)
     updateValuesYaml("${WORKSPACE}/helm/values/ui-values.yaml", params.GUI_VERSION)
     updateValuesYaml("${WORKSPACE}/helm/values/sso-values.yaml", params.SSO_VERSION)
@@ -424,7 +424,7 @@ stage("Deploy Application") {
         if (params.deploy_type == "FRESH_INSTALL") {
             // Fresh installation
             sh "helmfile -f helmfile1.yaml.gotmpl apply"  // Shared resources
-            sh "helmfile -f dataflow.yaml.gotmpl apply"   // Dataflow
+            sh "helmfile -f rag.yaml.gotmpl apply"   // rag
             sh "helmfile -f multiagent.yaml.gotmpl apply" // Multi-Agent
             sh "helmfile -f ui.yaml.gotmpl apply"         // UI
             sh "helmfile -f sso.yaml.gotmpl apply"        // SSO
@@ -635,8 +635,8 @@ stage("Build Images") {
                 buildDockerImage("ui")
             }
         },
-        "Dataflow Backend": {
-            if (params.build_dataflow_backend) {
+        "RAG Backend": {
+            if (params.build_rag_backend) {
                 buildDockerImage("backend")
             }
         },
@@ -740,7 +740,7 @@ podman tag myimage:1.2.3 myimage:latest
 ### 2. **Build Optimization**
 ```groovy
 // ✅ Build only changed components
-if (params.build_dataflow_backend) {
+if (params.build_rag_backend) {
     buildDockerImage("backend")
 }
 
@@ -856,7 +856,7 @@ kubectl get events -n tag-ai--pipeline --sort-by='.lastTimestamp'
 kubectl delete pod <pod-name> --grace-period=0 --force
 
 # Restart deployment
-helmfile -f dataflow.yaml.gotmpl apply
+helmfile -f rag.yaml.gotmpl apply
 ```
 
 #### 4. **Version Mismatch**
@@ -873,31 +873,31 @@ Expected: backend:2024.12.01
 podman search images.paas.redhat.com/unifai/backend --list-tags
 
 # Force pull new image
-kubectl set image deployment/unifai-dataflow-server backend=images.paas.redhat.com/unifai/backend:2024.12.01
+kubectl set image deployment/unifai-rag-server backend=images.paas.redhat.com/unifai/backend:2024.12.01
 
 # Or delete pods to force recreation
-kubectl delete pods -l app=unifai-dataflow-server
+kubectl delete pods -l app=unifai-rag-server
 ```
 
 #### 5. **Secret Issues**
 
 **Symptom:** Deployment fails due to missing secrets
 ```
-Error: secret "unifai-dataflow-secrets" not found
+Error: secret "unifai-rag-secrets" not found
 ```
 
 **Solution:**
 ```bash
 # Check if secret exists
-kubectl get secret unifai-dataflow-secrets
+kubectl get secret unifai-rag-secrets
 
 # Recreate secret (from presync hook)
 export default_slack_bot_token="xoxb-..."
 export default_slack_user_token="xoxp-..."
-bash dataflow-presync.sh
+bash rag-presync.sh
 
 # Or manually create
-kubectl create secret generic unifai-dataflow-secrets \
+kubectl create secret generic unifai-rag-secrets \
     --from-literal=slack_bot_token="xoxb-..." \
     --from-literal=slack_user_token="xoxp-..."
 ```
@@ -954,7 +954,7 @@ Branch: main
 VERSION: 2024.12.01 (auto-generated)
 build_sso_image: true
 build_gui: true
-build_dataflow_backend: true
+build_rag_backend: true
 build_multiagent_backend: true
 set_image_candidate: true  # Tag as 'latest'
 deploy_unifai: true
@@ -1009,7 +1009,7 @@ debug_mode: false
 deploy_location: STAGING
 deploy_type: FRESH_INSTALL
 VERSION: 2024.12.01
-(DF_VERSION, MA_VERSION, GUI_VERSION, SSO_VERSION: empty, uses VERSION)
+(RAG_VERSION, MA_VERSION, GUI_VERSION, SSO_VERSION: empty, uses VERSION)
 MODULES_TO_DEPLOY: (empty)
 debug_mode: true  # For testing
 ```

@@ -90,7 +90,7 @@ def execute_action(uid, input_data, context):
     {
         "uid": "mcp.validate_connection",
         "inputData": {
-            "sse_endpoint": "http://localhost:3000/sse"
+            "mcp_url": "http://localhost:3000/sse"
         },
         "context": {
             "element_config": {...}

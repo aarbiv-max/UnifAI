@@ -1,9 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { BlueprintValidationResult, ElementValidationResult } from '@/types/validation';
 import { useToast } from '@/hooks/use-toast';
 import { useAgenticAI } from '@/contexts/AgenticAIContext';
 
 export interface UseBlueprintValidationOptions {
+  /** The currently selected blueprint ID. Kept in sync with
+   *  latestBlueprintIdRef during render so that stale promise
+   *  continuations that resolve between a render and its effects
+   *  are immediately rejected. */
+  activeBlueprintId?: string | null;
   /** Callback when validation state changes */
   onValidationChange?: (isValid: boolean, validationResult: BlueprintValidationResult | null, isValidating: boolean) => void;
   /** Whether to show toast notifications on validation failure */
@@ -34,6 +39,7 @@ export function useBlueprintValidation(
   options: UseBlueprintValidationOptions = {}
 ): UseBlueprintValidationResult {
   const { 
+    activeBlueprintId,
     onValidationChange, 
     showToastOnFailure = true,
     skipCache = false,
@@ -46,28 +52,55 @@ export function useBlueprintValidation(
   const [validationResults, setValidationResults] = useState<Record<string, ElementValidationResult>>({});
   const [isValid, setIsValid] = useState<boolean>(true);
 
+  // Track the latest requested blueprintId so stale responses are discarded.
+  const latestBlueprintIdRef = useRef<string | null>(null);
+
+  // Synchronize the ref with the caller's active blueprint during render.
+  // This is critical: useEffect runs AFTER render, but stale promise
+  // continuations can resolve BETWEEN a render and its effects. Without
+  // this, a response for the previous blueprint could slip through the
+  // latestBlueprintIdRef guard and briefly apply invalid state to the
+  // newly-selected blueprint.
+  if (activeBlueprintId !== undefined) {
+    latestBlueprintIdRef.current = activeBlueprintId;
+  }
+
   const clearValidation = useCallback(() => {
+    latestBlueprintIdRef.current = null;
     setValidationResults({});
     setIsValid(true);
+    setIsValidating(false);
     onValidationChange?.(true, null, false);
   }, [onValidationChange]);
 
   const validate = useCallback(async (blueprintId: string) => {
+    // Mark this blueprintId as the one we care about; any in-flight request
+    // for a different id will be ignored when its response arrives.
+    latestBlueprintIdRef.current = blueprintId;
+
     // Check if we have a cache hit (valid result within TTL)
     const isCacheHit = !skipCache && isBlueprintValidationCacheHit(blueprintId);
     
-    // Only show loading state if we're actually going to fetch from API (no cache hit)
+    // Always clear stale results from the previous flow to prevent them
+    // from leaking into the UI while the new result (cached or not) resolves.
+    setValidationResults({});
+    setIsValid(true);
+
     if (!isCacheHit) {
       setIsValidating(true);
-      setValidationResults({});
-      setIsValid(true); // Assume valid until proven otherwise
       onValidationChange?.(true, null, true);
+    } else {
+      onValidationChange?.(true, null, false);
     }
     
     try {
       // Return cached result if valid and within 60 minutes (unless skipCache is true)
       // validateBlueprintWithCache handles all caching internally (both blueprint-level and element-level)
       const result = await validateBlueprintWithCache({ blueprintId }, skipCache);
+
+      // Discard result if user switched to a different blueprint while we were waiting
+      if (latestBlueprintIdRef.current !== blueprintId) return;
+
       setValidationResults(result.element_results || {});
       setIsValid(result.is_valid);
       
@@ -84,6 +117,9 @@ export function useBlueprintValidation(
         });
       }
     } catch (error) {
+      // Discard error if user already moved on to a different blueprint
+      if (latestBlueprintIdRef.current !== blueprintId) return;
+
       console.error("Error validating blueprint:", error);
       setIsValid(false);
       
@@ -98,7 +134,10 @@ export function useBlueprintValidation(
         });
       }
     } finally {
-      setIsValidating(false);
+      // Only clear the loading spinner if this is still the active request
+      if (latestBlueprintIdRef.current === blueprintId) {
+        setIsValidating(false);
+      }
     }
   }, [
     skipCache,

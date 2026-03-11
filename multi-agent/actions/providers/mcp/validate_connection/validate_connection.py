@@ -15,6 +15,7 @@ from actions.common.action_models import BaseActionInput, BaseActionOutput, Acti
 from elements.providers.mcp_server_client.mcp_provider_factory import McpProviderFactory
 from elements.providers.mcp_server_client.config import McpProviderConfig
 from elements.providers.mcp_server_client.identifiers import Identifier
+from elements.providers.mcp_server_client.transport.enums import McpTransportType
 from core.enums import ResourceCategory
 from core.field_hints import SecretHint
 
@@ -22,10 +23,14 @@ from core.field_hints import SecretHint
 # Input/Output models for this action
 class ValidateConnectionInput(BaseActionInput):
     """Input for MCP connection validation"""
-    sse_endpoint: HttpUrl
+    mcp_url: HttpUrl
     bearer_token: Optional[str] = Field(
         default=None,
         description="Bearer token for MCP server authentication"
+    )
+    transport_type: McpTransportType = Field(
+        default=McpTransportType.STREAMABLE_HTTP,
+        description="Transport protocol for MCP server communication"
     )
 
 
@@ -114,8 +119,9 @@ class ValidateConnectionAction(BaseAction):
         try:
             # Create config from input data
             config = McpProviderConfig(
-                sse_endpoint=input_data.sse_endpoint,
-                bearer_token=input_data.bearer_token
+                mcp_url=input_data.mcp_url,
+                bearer_token=input_data.bearer_token,
+                transport_type=input_data.transport_type,
             )
             
             # Create provider using factory - validates connection by fetching tools during init

@@ -633,7 +633,7 @@ Content-Type: application/json
   "type": "mcp_server",
   "name": "My MCP Server",
   "config": {
-    "sse_endpoint": "http://localhost:8007/mcp"
+    "mcp_url": "http://localhost:8007/mcp"
   },
   "timeoutSeconds": 10.0
 }

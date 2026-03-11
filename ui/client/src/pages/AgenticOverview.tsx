@@ -18,8 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Workflow, Database, Zap, TrendingUp } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import ReactFlowGraph from "@/components/agentic-ai/graphs/ReactFlowGraph";
-import { ReactFlowProvider } from "reactflow";
+import GraphDisplay from "@/components/agentic-ai/graphs/GraphDisplay";
 
 // Custom hooks
 import { useAgenticData } from "@/hooks/use-agentic-data";
@@ -252,19 +251,17 @@ export default function AgenticOverview() {
           </DialogHeader>
           <div className="flex-1 overflow-hidden p-6 min-h-0">
             {selectedWorkflow && (
-              <ReactFlowProvider>
-                <div className="h-full w-full">
-                  <ReactFlowGraph
-                    blueprintId={selectedWorkflow.blueprint_id}
-                    height="100%"
-                    showControls={true}
-                    showMiniMap={true}
-                    showBackground={true}
-                    interactive={false}
-                    isLiveRequest={false}
-                  />
-                </div>
-              </ReactFlowProvider>
+              <div className="h-full w-full">
+                <GraphDisplay
+                  blueprintId={selectedWorkflow.blueprint_id}
+                  specDict={selectedWorkflow.spec_dict}
+                  height="100%"
+                  showBackground={true}
+                  interactive={true}
+                  centerInView={true}
+                  animated={true}
+                />
+              </div>
             )}
           </div>
         </DialogContent>

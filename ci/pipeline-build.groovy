@@ -8,7 +8,7 @@ properties([
         // 🛠️ Image Build Parameters
         booleanParam(name: 'build_sso_image', defaultValue: false, description: 'Create image for sso-backend and sso-nginx'),
         booleanParam(name: 'build_gui', defaultValue: false, description: 'Create image for UI'),
-        booleanParam(name: 'build_dataflow_backend', defaultValue: false, description: 'Create image for dataflow backend'),
+        booleanParam(name: 'build_rag_backend', defaultValue: false, description: 'Create image for rag backend'),
         booleanParam(name: 'build_multiagent_backend', defaultValue: false, description: 'Create image for multiagent backend'),
         booleanParam(name: 'set_image_candidate', defaultValue: false, description: 'Set images with latest tag'),
         
@@ -164,8 +164,8 @@ pipeline {
                         }
                     }
                 }
-                stage('build_dataflow_image') {
-                    when { expression { params.build_dataflow_backend } }
+                stage('build_rag_image') {
+                    when { expression { params.build_rag_backend } }
                     steps {
                         script {
                             def component = "rag"
@@ -228,7 +228,7 @@ pipeline {
                 script {
                     def modules = []
                     if (params.build_sso_image) modules << 'sso'
-                    if (params.build_dataflow_backend) modules << 'dataflow'
+                    if (params.build_rag_backend) modules << 'rag'
                     if (params.build_multiagent_backend) modules << 'multiagent'
                     if (params.build_gui) modules << 'ui'
                     def modulesToDeploy = modules.join(',')

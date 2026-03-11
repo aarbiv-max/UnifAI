@@ -1,4 +1,4 @@
-from catalog.element_registry import ElementRegistry
+t pufrom catalog.element_registry import ElementRegistry
 from catalog.service import CatalogService
 from blueprints.repository.mongo_blueprint_repository import MongoBlueprintRepository
 from blueprints.service import BlueprintService
@@ -135,6 +135,9 @@ class AppContainer(metaclass=SingletonMeta):
             cloner=self.share_cloner
         )
 
+        # Statistics service (user-specific dashboard stats AND system-wide analytics)
+        # System-wide analytics uses session_service's system-wide methods
+        # No separate analytics repository needed - follows composition pattern
         self.statistics_service = StatisticsService(
             blueprint_service=self.blueprint_service,
             session_service=self.session_service,

@@ -1,6 +1,6 @@
 from typing import Dict, List, Any, Optional
 from mcp.types import Tool, CallToolResult
-from .transport_manager import TransportManager
+from .transport import BaseTransportManager
 
 
 class McpToolError(Exception):
@@ -22,7 +22,7 @@ class ToolRegistry:
         - Always call registry.get_tools() or registry.call_tool() inside an `await health.ensure_connected()`
     """
 
-    def __init__(self, transport: TransportManager):
+    def __init__(self, transport: BaseTransportManager):
         self.transport = transport
         self._tools_cache: Optional[List[Tool]] = None
 

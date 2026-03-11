@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,14 @@ import { ElementType } from "../../../types/workspace";
 import { maskSecretValue } from "../../../utils/maskSecretFields";
 import { XCircle } from "lucide-react";
 import {getArrayDisplayText, getArrayFieldMode, getValidRefOptions,} from "./arrayFieldHelpers";
+
+/** Resolved string enum definition from $defs */
+interface ResolvedStringEnum {
+  type: "string";
+  enum: string[];
+  title?: string;
+  description?: string;
+}
 
 interface FieldRendererProps {
   fieldName: string;
@@ -38,6 +47,7 @@ interface FieldRendererProps {
   isArrayWithRefItems: (fieldSchema: any) => boolean;
   getArrayItemsSchema: (fieldSchema: any) => any;
   extractCategoryFromField: (fieldSchema: any) => string | null;
+  resolveSchemaRef?: (ref: string) => any | null;
   onInputChange: (field: string, value: any) => void;
   onArrayChange?: (field: string, index: number, value: any) => void;
   onAddArrayItem?: (field: string) => void;
@@ -120,6 +130,36 @@ const NumberFieldInput: React.FC<NumberFieldInputProps> = ({
   );
 };
 
+/**
+ * Checks if a $ref (pydantic mode) resolves to a string enum definition.
+ * Returns the resolved enum definition if found, null otherwise.
+ */
+export const getStringEnumFromRef = (
+  fieldSchema: any,
+  resolveSchemaRef?: (ref: string) => any | null
+): ResolvedStringEnum | null => {
+  if (!resolveSchemaRef || !fieldSchema.$ref) {
+    return null;
+  }
+
+  const resolved = resolveSchemaRef(fieldSchema.$ref);
+  if (!resolved) {
+    return null;
+  }
+
+  // Check if resolved definition is a string enum
+  if (resolved.type === "string" && Array.isArray(resolved.enum) && resolved.enum.length > 0) {
+    return {
+      type: "string",
+      enum: resolved.enum,
+      title: resolved.title,
+      description: resolved.description,
+    };
+  }
+
+  return null;
+};
+
 export const FieldRenderer: React.FC<FieldRendererProps> = ({
   fieldName,
   fieldSchema,
@@ -138,6 +178,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   isArrayWithRefItems,
   getArrayItemsSchema,
   extractCategoryFromField,
+  resolveSchemaRef,
   onInputChange,
   onArrayChange,
   onAddArrayItem,
@@ -453,6 +494,91 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
         )}
 
         {/* Population - rendered once for all modes that need it */}
+        {populateHint && (
+          <FieldPopulation
+            fieldName={fieldName}
+            populateHint={populateHint}
+            elementActions={elementActions}
+            selectedElementType={elementType}
+            formData={formData}
+            onPopulateResult={onPopulateResult}
+            hideUI={populateHint.selection_type === 'automatic'}
+            autoTrigger={areDependenciesValid}
+            currentValue={value}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Handle string enum fields (from $ref to $defs with type: "string" and enum)
+  const stringEnumDef = getStringEnumFromRef(fieldSchema, resolveSchemaRef);
+  
+  if (stringEnumDef) {
+    const enumOptions = stringEnumDef.enum;
+    const enumTitle = stringEnumDef.title;
+
+    return (
+      <div key={fieldName} className="space-y-2">
+        <Label htmlFor={fieldName} className="flex items-center flex-wrap gap-1">
+          {fieldName} {isRequired && <span className="text-red-400">*</span>}
+          {enumTitle && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              {enumTitle}
+            </Badge>
+          )}
+          {validationHint && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              validation
+            </Badge>
+          )}
+          {populateHint && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              populate
+            </Badge>
+          )}
+          {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
+        </Label>
+        
+        {fieldSchema.description && (
+          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+        )}
+
+        <RadioGroup
+          value={value || ""}
+          onValueChange={(newValue) => {
+            onInputChange(fieldName, newValue);
+          }}
+          className={`flex flex-wrap gap-4 ${hasFieldError ? 'border border-red-500 rounded-md p-2' : ''}`}
+        >
+          {enumOptions.map((option: string) => (
+            <div key={option} className="flex items-center space-x-2">
+              <RadioGroupItem value={option} id={`${fieldName}-${option}`} />
+              <Label
+                htmlFor={`${fieldName}-${option}`}
+                className="font-normal cursor-pointer"
+              >
+                {option}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+
+        {/* Validation component for string enum fields */}
+        {validationHint && (
+          <FieldValidation
+            fieldName={fieldName}
+            fieldValue={value}
+            validationHint={validationHint}
+            elementActions={elementActions}
+            selectedElementType={elementType}
+            isRequired={isRequired}
+            configValues={formData}
+            onValidationChange={onValidationChange}
+          />
+        )}
+
+        {/* Population component for string enum fields */}
         {populateHint && (
           <FieldPopulation
             fieldName={fieldName}

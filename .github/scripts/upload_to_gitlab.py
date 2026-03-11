@@ -11,6 +11,11 @@ BACKUP_REPO_NAME = os.getenv("BACKUP_REPO_NAME")
 #MONGO_BACKUP_FILE = os.getenv("MONGO_BACKUP_FILE")
 QDRANT_SNAPSHOTS_DIR = os.getenv("QDRANT_SNAPSHOTS_DIR")
 
+class GitProgress(RemoteProgress):
+    def update(self, op_code, cur_count, max_count=None, message=''):
+        print(f"Git progress: {message} {cur_count}/{max_count if max_count else '?'}")
+
+
 
 def find_mongo_backup_file(path: str ) -> list[str]:
     """
@@ -52,7 +57,7 @@ def upload_to_gitlab():
     try:
         # Clone repository
         print("Cloning gitlab repo")
-        repo = Repo.clone_from(BACKUP_REPO, BACKUP_REPO_NAME, depth=1)
+        repo = Repo.clone_from(BACKUP_REPO, BACKUP_REPO_NAME, depth=1, progress=GitProgress())
         print("Cloned gitlab repo")
         
         #delete older mongo backups
@@ -105,7 +110,7 @@ def upload_to_gitlab():
         
         # Push
         origin = repo.remote(name='origin')
-        origin.push()
+        origin.push(progress=GitProgress())
         print("Pushed changes to gitlab repo")
     except FileNotFoundError as e:
         print(f"File not found: {e}")

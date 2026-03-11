@@ -2,9 +2,7 @@ from flask import Blueprint, jsonify, current_app, request
 from global_utils.helpers.apiargs import from_body, from_query
 from webargs import fields
 import yaml
-import json
 import logging
-from bson import json_util
 from werkzeug.exceptions import BadRequest
 from typing import Optional
 from blueprints.exceptions import (
@@ -93,7 +91,8 @@ def _extract_blueprint_data(
 def available_doc_list(user_id):
     try:
         svc = current_app.container.blueprint_service
-        return jsonify(svc.list_draft_docs(user_id=user_id)), 200
+        docs = svc.list_draft_docs(user_id=user_id)
+        return jsonify([doc.model_dump(mode="json") for doc in docs]), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -117,12 +116,35 @@ def available_blueprint_summaries(user_id):
 
 @blueprints_bp.route("/available.blueprints.resolved.get", methods=["GET"])
 @from_query({
-    "user_id": fields.Str(data_key="userId", required=True)
+    "user_id": fields.Str(data_key="userId", required=True),
+    "blueprint_id": fields.Str(data_key="blueprintId", required=False, load_default=None),
+    "skip": fields.Int(data_key="skip", required=False, load_default=0),
+    "limit": fields.Int(data_key="limit", required=False, load_default=100),
+    "sort_desc": fields.Bool(data_key="sortDesc", required=False, load_default=True),
 })
-def available_resolved_doc_list(user_id):
+def available_resolved_doc_list(user_id, blueprint_id=None, skip=0, limit=100, sort_desc=True):
     try:
         svc = current_app.container.blueprint_service
-        return jsonify(svc.list_resolved_docs(user_id=user_id)), 200
+
+        # Single blueprint by ID
+        if blueprint_id:
+            resolved = svc.get_resolved_doc(blueprint_id=blueprint_id)
+            return jsonify(resolved.model_dump(mode="json")), 200
+
+        # Paginated list
+        total = svc.count(user_id=user_id)
+        items = svc.list_resolved_docs(
+            user_id=user_id, skip=skip, limit=limit, sort_desc=sort_desc
+        )
+        return jsonify({
+            "items": [item.model_dump(mode="json") for item in items],
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }), 200
+
+    except BlueprintNotFoundError as e:
+        return jsonify({"error": str(e)}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -169,6 +191,39 @@ def save_blueprint(blueprint_raw=None, user_id="alice", metadata=None):
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
+@blueprints_bp.route("/blueprint.update", methods=["PUT"])
+@from_body({
+    "blueprint_id": fields.Str(data_key="blueprintId", required=True),
+    "blueprint_raw": fields.Str(data_key="blueprintRaw", required=True),
+})
+def update_blueprint(blueprint_id, blueprint_raw):
+    """Update an existing blueprint in-place, keeping the same ID."""
+    try:
+        parsed = _extract_blueprint_data(
+            json_field_value=blueprint_raw,
+            field_name="blueprint_raw"
+        )
+
+        svc = current_app.container.blueprint_service
+        success = svc.update_draft(blueprint_id=blueprint_id, draft_dict=parsed)
+
+        if not success:
+            return jsonify({"status": "error", "error": "Failed to update blueprint"}), 500
+
+        return jsonify({
+            "status": "success",
+            "blueprint_id": blueprint_id,
+        }), 200
+
+    except BlueprintNotFoundError as e:
+        return jsonify({"status": "error", "error": str(e)}), 404
+    except BadRequest as e:
+        return jsonify({"status": "error", "error": str(e)}), 400
+    except Exception as e:
+        logger.exception(f"Unexpected error updating blueprint {blueprint_id}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
 @blueprints_bp.route("/blueprint.info.get", methods=["GET"])
 @from_query({
     "blueprint_id": fields.Str(data_key="blueprintId", required=True)
@@ -180,7 +235,7 @@ def get_blueprint_info(blueprint_id):
     try:
         svc = current_app.container.blueprint_service
         doc = svc.get_blueprint_draft_doc(blueprint_id)
-        return json.loads(json_util.dumps(doc)), 200
+        return jsonify(doc.model_dump(mode="json")), 200
     except BlueprintNotFoundError as e:
         return jsonify({"error": str(e)}), 404
     except KeyError:

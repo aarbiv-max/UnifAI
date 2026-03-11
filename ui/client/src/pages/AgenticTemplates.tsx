@@ -18,7 +18,7 @@ import { TemplateListItem, TemplateFormData } from '@/types/templates';
 type ViewMode = 'catalog' | 'detail';
 
 export default function AgenticTemplates() {
-  const [, setLocation] = useLocation();
+  const [, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('catalog');
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -76,8 +76,8 @@ export default function AgenticTemplates() {
 
   const handleNavigateToWorkflow = useCallback(() => {
     resetInstantiation();
-    setLocation('/agentic-ai');
-  }, [resetInstantiation, setLocation]);
+    navigate('/agentic-ai');
+  }, [resetInstantiation, navigate]);
 
   const handleNavigateToChat = useCallback(async () => {
     if (!instantiationResult?.blueprint_id || !user) {
@@ -94,7 +94,7 @@ export default function AgenticTemplates() {
       // Create a new chat session with the blueprint
       await createSession({ blueprintId: instantiationResult.blueprint_id, userId: user.username });
       resetInstantiation();
-      setLocation('/agentic-chats');
+      navigate('/agentic-chats');
     } catch (err) {
       console.error('Error creating chat session:', err);
       toast({
@@ -105,7 +105,7 @@ export default function AgenticTemplates() {
     } finally {
       setIsCreatingSession(false);
     }
-  }, [instantiationResult, user, resetInstantiation, setLocation, toast]);
+  }, [instantiationResult, user, resetInstantiation, navigate, toast]);
 
   const handleCloseProgress = useCallback(() => {
     resetInstantiation();

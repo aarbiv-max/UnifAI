@@ -1,4 +1,4 @@
-from typing import Any, Dict, Generic, List, TypeVar
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 from uuid import uuid4
 from datetime import datetime
 from pydantic import BaseModel, Field, Extra
@@ -118,3 +118,23 @@ class BlueprintSpec(BaseModel):
 
     class Config:
         extra = Extra.forbid
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Blueprint document (DB-level wrapper returned by APIs)
+# ─────────────────────────────────────────────────────────────────────────────
+class BlueprintDocument(BaseModel):
+    """
+    Represents a stored blueprint document as returned by the API.
+    Wraps the spec_dict together with its database-level metadata.
+    """
+    blueprint_id: str
+    user_id: str
+    created_at: Any = None
+    updated_at: Any = None
+    spec_dict: Dict[str, Any]
+    rid_refs: List[str] = []
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    class Config:
+        extra = Extra.ignore  # silently drop extra Mongo fields like _id

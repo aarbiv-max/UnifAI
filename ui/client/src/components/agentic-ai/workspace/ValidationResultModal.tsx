@@ -13,7 +13,7 @@
  * - Shows element type, RID, and human-readable name for context
  * 
  * Used by:
- * - ReactFlowGraph nodes to show validation details when clicking on validation indicators
+ * - GraphDisplay nodes to show validation details when clicking on validation indicators
  * - Workspace components to display resource validation status
  * - Any component that needs to present detailed validation feedback to users
  */

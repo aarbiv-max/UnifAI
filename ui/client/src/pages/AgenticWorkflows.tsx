@@ -14,11 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 // Agentic AI components
 import AgentFlowGraph from "@/components/agentic-ai/AgentFlowGraph";
 import NewGraph from "../workspace/NewGraph";
-import { SavedBlueprintInfo } from "@/hooks/use-graph-logic";
+import type { SavedBlueprintInfo } from "@/hooks/use-graph-creation-logic";
 import axios from "../http/axiosAgentConfig";
 
-// Create a ReactFlow provider wrapper
-import { ReactFlowProvider } from "reactflow";
 import { FlowObject } from "@/components/agentic-ai/graphs/interfaces";
 import { BlueprintValidationResult } from "@/types/validation";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
@@ -38,6 +36,7 @@ export default function AgenticWorkflows() {
   const [builtGraphName, setBuiltGraphName] = useState<string | null>(null);
   const [selectedGraphId, setSelectedGraphId] = useState<string | null>(null);
   const [showGraphBuilder, setShowGraphBuilder] = useState(false);
+  const [editingBlueprintId, setEditingBlueprintId] = useState<string | null>(null);
   const [isLoadingFlow, setIsLoadingFlow] = useState(false);
   const [isFlowValid, setIsFlowValid] = useState<boolean>(true);
   const [isValidatingFlow, setIsValidatingFlow] = useState<boolean>(false);
@@ -97,24 +96,26 @@ export default function AgenticWorkflows() {
     }
   };
 
-  const handleBuildGraph = () => {
+  const handleOpenGraphBuilder = (flow?: FlowObject) => {
+    setEditingBlueprintId(flow?.id ?? null);
     setShowGraphBuilder(true);
   };
 
-  const handleBackToFlowConfig = useCallback((savedBlueprint?: SavedBlueprintInfo) => {
+  const handleBackToFlowConfig = useCallback((_savedBlueprint?: SavedBlueprintInfo) => {
     setShowGraphBuilder(false);
+    setEditingBlueprintId(null);
     
-    // If a blueprint was just saved, select it in the workflow list
-    if (savedBlueprint) {
-      // Create a minimal FlowObject to select the newly saved blueprint
-      // The WorkflowsPanel will fetch the full data and match by ID
+    if (_savedBlueprint?.blueprintId) {
       setSelectedFlow({
-        id: savedBlueprint.blueprintId,
-        name: savedBlueprint.name,
-        description: savedBlueprint.description,
+        id: _savedBlueprint.blueprintId,
+        name: _savedBlueprint.name,
+        description: _savedBlueprint.description,
         icon: null,
-        flow: { nodes: [], edges: [] },
-      } as FlowObject);
+      });
+    } else {
+      // Going back without saving (new build or edit) — clear selection so
+      // WorkflowsPanel remounts cleanly and auto-selects a flow.
+      setSelectedFlow(null);
     }
   }, []);
 
@@ -130,7 +131,10 @@ export default function AgenticWorkflows() {
 
         <main className="flex-1 overflow-y-auto bg-background-dark">
           {showGraphBuilder ? (
-            <NewGraph onBack={handleBackToFlowConfig} />
+            <NewGraph
+              onBack={handleBackToFlowConfig}
+              editBlueprintId={editingBlueprintId}
+            />
           ) : (
             <div className="p-6">
               <motion.div
@@ -146,7 +150,9 @@ export default function AgenticWorkflows() {
                     <div className="flex gap-2">
                       <SimpleTooltip 
                         content={
-                          !isFlowValid && !isValidatingFlow ? (
+                          !selectedFlow ? (
+                            <p>Select a workflow first</p>
+                          ) : !isFlowValid && !isValidatingFlow ? (
                             <p>Cannot load workflow: Validation failed. Fix the issues before loading.</p>
                           ) : isValidatingFlow ? (
                             <p>Validating workflow...</p>
@@ -161,13 +167,13 @@ export default function AgenticWorkflows() {
                             variant="outline"
                             size="sm"
                             onClick={handleLoadFlow}
-                            disabled={isLoadingFlow || !isFlowValid || isValidatingFlow}
+                            disabled={isLoadingFlow || !isFlowValid || isValidatingFlow || !selectedFlow}
                             className={`${
-                              !isFlowValid && !isValidatingFlow
-                                ? 'bg-gray-600 text-gray-400 border-gray-600' 
-                                : isValidatingFlow
-                                ? 'bg-gray-600 text-gray-300 border-gray-600'
-                                : 'bg-primary hover:bg-[#7525c9] text-white'
+                              !selectedFlow || isValidatingFlow
+                              ? 'bg-gray-600 text-gray-300 border-gray-600'
+                              : !isFlowValid
+                              ? 'bg-gray-600 text-gray-400 border-gray-600' 
+                              : 'bg-primary hover:bg-primary/80 text-white'
                             } flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             {isValidatingFlow ? (
@@ -187,7 +193,7 @@ export default function AgenticWorkflows() {
                           <Button
                             className="bg-primary hover:bg-opacity-80 flex items-center gap-2"
                             size="sm"
-                            onClick={handleBuildGraph}
+                            onClick={() => handleOpenGraphBuilder()}
                           >
                             <Plus className="h-4 w-4" />
                             Build Workflow
@@ -209,6 +215,7 @@ export default function AgenticWorkflows() {
                   selectedFlow={selectedFlow}
                   setSelectedFlow={setSelectedFlow}
                   onValidationChange={handleValidationChange}
+                  onFlowEdit={handleOpenGraphBuilder}
                 />
               </motion.div>
             </div>

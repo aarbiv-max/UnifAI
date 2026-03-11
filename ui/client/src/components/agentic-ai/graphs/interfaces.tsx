@@ -1,8 +1,4 @@
 // Define types for node data
-import {
-  Node,
-  Edge,
-} from 'reactflow';
 
 export interface NodeData {
   label: string;
@@ -73,7 +69,7 @@ export interface ToolDefinition {
 
 export interface ProviderDefinition {
   config: {
-    sse_endpoint?: string;
+    mcp_url?: string;
     type: string;
     [key: string]: any;
   };
@@ -112,10 +108,6 @@ export interface FlowObject {
   name: string;
   description: string;
   icon: React.ReactNode;
-  flow: {
-    nodes: Node<NodeData>[];
-    edges: Edge[];
-  };
 }
 
 // Additional interfaces for the graph builder
