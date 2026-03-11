@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft, BlueprintDocument
+from blueprints.models.blueprint import BlueprintSpec, BlueprintDraft, BlueprintDocument, BlueprintSummary
 from blueprints.repository.repository import BlueprintRepository
 from blueprints.resolver import BlueprintResolver
 from blueprints.validation.collector import BlueprintConfigCollector

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
-from blueprints.models.blueprint import BlueprintDraft, BlueprintDocument
+from blueprints.models.blueprint import BlueprintDraft, BlueprintDocument, BlueprintSummary
 
 
 class BlueprintRepository(ABC):

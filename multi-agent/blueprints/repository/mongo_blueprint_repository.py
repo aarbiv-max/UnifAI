@@ -2,7 +2,7 @@ import pymongo
 from uuid import uuid4
 from datetime import datetime
 from typing import List, Dict, Any
-from blueprints.models.blueprint import BlueprintDraft, BlueprintDocument
+from blueprints.models.blueprint import BlueprintDraft, BlueprintDocument, BlueprintSummary
 from .repository import BlueprintRepository
 from core.enums import ResourceCategory
 from global_utils.utils.util import get_mongo_url
