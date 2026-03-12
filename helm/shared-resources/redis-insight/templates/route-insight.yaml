@@ -1,0 +1,14 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: redis-insight-route
+  labels:
+    paas.redhat.com/appcode: TAG-001
+spec:
+  to:
+    kind: Service
+    name: redis-insight-svc
+    weight: 100
+  port:
+    targetPort: http
+  wildcardPolicy: None
