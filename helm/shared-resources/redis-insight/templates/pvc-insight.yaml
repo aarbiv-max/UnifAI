@@ -8,7 +8,6 @@ metadata:
   annotations:
     kubernetes.io/reclaimPolicy: Delete
     "helm.sh/resource-policy": keep
-  labels:
 spec:
   accessModes:
     - ReadWriteOnce
