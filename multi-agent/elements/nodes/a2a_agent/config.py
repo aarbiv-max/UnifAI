@@ -8,6 +8,7 @@ from typing import Optional, Literal
 from a2a.types import AgentCard
 from .identifiers import Identifier
 from core.ref.models import RetrieverRef
+from core.models import Secret
 from core.field_hints import ActionHint, HintType, SelectionType, SecretHint
 
 
@@ -29,7 +30,7 @@ class A2AAgentNodeConfig(NodeBaseConfig):
         ).to_hints()
     )
 
-    bearer_token: Optional[str] = Field(
+    bearer_token: Optional[Secret] = Field(
         default=None,
         description="Bearer token for authentication (will be sent as 'Authorization: Bearer <token>' header)",
         json_schema_extra=SecretHint(

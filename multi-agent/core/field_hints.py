@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Type, Union
+from typing import Dict, Any, Optional, Union
 from pydantic import BaseModel, Field
 from enum import Enum
 
@@ -223,21 +223,3 @@ def combine_hints(*hints: Union[ActionHint, ApiHint, HiddenHint, SecretHint]) ->
     
     return combined
 
-
-def strip_secret_fields(model_cls: Type[BaseModel], cfg_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Return a copy of cfg_dict with all SecretHint-marked fields set to empty string.
-
-    Inspects the Pydantic model's field-level json_schema_extra to find fields
-    annotated with SecretHint — the same metadata the UI uses for masking.
-    Any new field tagged with SecretHint is automatically covered.
-    """
-    result = dict(cfg_dict)
-    for field_name, field_info in model_cls.model_fields.items():
-        extra = field_info.json_schema_extra
-        if not isinstance(extra, dict):
-            continue
-        if "secret" in extra.get("hints", {}):
-            if field_name in result:
-                result[field_name] = ""
-    return result

@@ -17,7 +17,6 @@ from elements.providers.mcp_server_client.config import McpProviderConfig
 from elements.providers.mcp_server_client.identifiers import Identifier
 from elements.providers.mcp_server_client.transport.enums import McpTransportType
 from core.enums import ResourceCategory
-from core.field_hints import SecretHint
 
 
 # Input/Output models for this action
