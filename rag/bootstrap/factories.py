@@ -38,7 +38,7 @@ class DocumentConverterFactory:
         base_url: str,
         timeout: int = 300,
         image_export_mode: str = "placeholder",
-        pdf_backend: str = "pypdfium2",
+        pdf_backend: str = "dlparse_v4",
     ) -> DocumentConverterPort:
         """Create a remote docling adapter."""
         from global_utils.docling import DoclingClient, DoclingService
