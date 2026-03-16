@@ -20,6 +20,7 @@ from core.ref import RefRemapper
 from core.ref.models import Ref
 from core.enums import ResourceCategory, SystemNodeType
 from templates.errors import MaterializationError
+from core.secret import dump_with_secrets
 from templates.instantiation.models import CollectedResource, MaterializationResult
 
 
@@ -118,7 +119,7 @@ class ResourceMaterializer:
                 category=item.category,
                 type=item.bp_resource.type or "",
                 name=f"{item.bp_resource.name or item.bp_resource.type}_{suffix}",
-                cfg_dict=item.bp_resource.config.model_dump(mode="json"),
+                cfg_dict=dump_with_secrets(item.bp_resource.config),
                 nested_refs=[],
             )
             self._resources.save_resource(resource)

@@ -1,7 +1,7 @@
 from typing import Literal, Dict, Any, Optional
 from pydantic import Field, Extra
 from pydantic import BaseModel
-from core.models import Secret
+from core.secret import Secret
 from core.field_hints import SecretHint
 from .identifiers import Identifier
 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, Extra, HttpUrl
-from core.models import Secret
+from core.secret import Secret
 from core.field_hints import SecretHint
 
 

@@ -36,7 +36,7 @@ class GoogleGenAIFactory(BaseFactory[GoogleGenAIConfig, GoogleGenAILLM]):
         try:
             llm = GoogleGenAILLM(
                 model_name=cfg.model_name,
-                api_key=cfg.api_key,
+                api_key=cfg.api_key.get_secret_value(),
                 temperature=cfg.temperature,
                 max_tokens=cfg.max_tokens,
                 top_p=cfg.top_p,

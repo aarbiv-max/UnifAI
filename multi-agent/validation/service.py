@@ -17,7 +17,7 @@ Does NOT:
 
 from typing import Dict, List, Optional, Type
 
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 from catalog.element_registry import ElementRegistry
 from core.enums import ResourceCategory
@@ -133,7 +133,8 @@ class ElementValidationService:
             if not field_info.is_required():
                 continue
             value = getattr(config, field_name, None)
-            if value is None or value == "":
+            raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+            if raw is None or raw == "":
                 errors.append(ValidationMessage(
                     severity=ValidationSeverity.ERROR,
                     code=ValidationCode.MISSING_REQUIRED_FIELD.value,

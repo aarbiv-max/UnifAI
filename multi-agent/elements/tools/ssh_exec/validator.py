@@ -31,7 +31,7 @@ class SshExecToolValidator(BaseElementValidator):
                 hostname=config.host,
                 port=config.port,
                 username=config.username,
-                password=config.password,
+                password=config.password.get_secret_value(),
                 look_for_keys=False,
                 allow_agent=False,
                 timeout=context.timeout_seconds,

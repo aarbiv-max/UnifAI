@@ -51,7 +51,7 @@ class GoogleGenAIValidator(BaseElementValidator):
 
         try:
             # Create client with API key
-            client = genai.Client(api_key=config.api_key)
+            client = genai.Client(api_key=config.api_key.get_secret_value())
             
             # Try to get the model
             client.models.get(model=config.model_name)

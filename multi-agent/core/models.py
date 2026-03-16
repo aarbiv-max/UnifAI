@@ -1,26 +1,6 @@
 from dataclasses import dataclass
-from typing import Annotated, Any, Dict, Set, Type
-from pydantic import BaseModel
+from typing import Any, Dict, Set
 from core.enums import ResourceCategory
-
-
-class _SecretMeta:
-    """Marker for fields that contain sensitive data (API keys, tokens, passwords).
-    Used by strip_secret_fields to identify which values to redact during sharing."""
-    pass
-
-
-Secret = Annotated[str, _SecretMeta()]
-
-
-def strip_secret_fields(model_cls: Type[BaseModel], cfg_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Return a copy of *cfg_dict* with all Secret-typed fields set to empty string."""
-    result = dict(cfg_dict)
-    for field_name, field_info in model_cls.model_fields.items():
-        if any(isinstance(m, _SecretMeta) for m in field_info.metadata):
-            if field_name in result:
-                result[field_name] = ""
-    return result
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,7 @@ from catalog.element_registry import ElementRegistry
 from resources.models import Resource, ResourceQuery
 from core.enums import ResourceCategory
 from core.ref import RefWalker
+from core.secret import dump_with_secrets
 from core.dto import GroupedCount
 from elements.common.validator import ElementValidationResult, ValidationContext
 from resources.validation.resolver import DependencyResolver
@@ -47,7 +48,7 @@ class ResourcesService:
             category=category,
             type=type,
             name=name,
-            cfg_dict=cfg_model.model_dump(mode="json"),
+            cfg_dict=dump_with_secrets(cfg_model),
             nested_refs=nested_refs,
         )
         return self._store.create(doc)
@@ -81,7 +82,7 @@ class ResourcesService:
         nested_refs = list(RefWalker.external_rids(cfg_model))
 
         # 3. build a *new* Resource (immutability) or mutate doc
-        doc.cfg_dict = cfg_model.model_dump(mode="json")
+        doc.cfg_dict = dump_with_secrets(cfg_model)
         doc.nested_refs = nested_refs
         
         # 4. update name if provided

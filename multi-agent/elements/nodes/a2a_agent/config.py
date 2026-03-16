@@ -8,7 +8,7 @@ from typing import Optional, Literal
 from a2a.types import AgentCard
 from .identifiers import Identifier
 from core.ref.models import RetrieverRef
-from core.models import Secret
+from core.secret import Secret
 from core.field_hints import ActionHint, HintType, SelectionType, SecretHint
 
 

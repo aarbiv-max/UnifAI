@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 from elements.common.base_factory import BaseFactory
 from elements.common.exceptions import PluginConfigurationError
+from core.secret import Secret
 from .config import McpProviderConfig
 from .mcp_provider import McpProvider
 from .identifiers import Identifier
@@ -14,7 +15,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
     def accepts(self, cfg: McpProviderConfig, element_type: str) -> bool:
         return element_type == Identifier.TYPE
 
-    def _build_headers(self, bearer_token: Optional[str]) -> Optional[Dict[str, str]]:
+    def _build_headers(self, bearer_token: Optional[Secret]) -> Optional[Dict[str, str]]:
         """
         Build HTTP headers from bearer token if provided.
         
@@ -25,7 +26,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
             Headers dict with Authorization header, or None if no token
         """
         if bearer_token:
-            return {"Authorization": f"Bearer {bearer_token}"}
+            return {"Authorization": f"Bearer {bearer_token.get_secret_value()}"}
         return None
 
     def create(self, cfg: McpProviderConfig, **kwargs: Any) -> McpProvider:

@@ -2,7 +2,7 @@ from typing import Literal, List, Optional
 from .identifiers import Identifier
 from pydantic import Field, HttpUrl
 from elements.providers.common.base_config import ProviderBaseConfig
-from core.models import Secret
+from core.secret import Secret
 from core.field_hints import ActionHint, HintType, SelectionType, SecretHint
 from .transport.enums import McpTransportType
 

@@ -1,7 +1,7 @@
 from typing import Literal
 from pydantic import Field
 from elements.tools.common.base_config import BaseToolConfig
-from core.models import Secret
+from core.secret import Secret
 from core.field_hints import SecretHint
 from .identifiers import Identifier
 
