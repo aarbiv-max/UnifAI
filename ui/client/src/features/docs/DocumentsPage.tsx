@@ -10,10 +10,12 @@ import { DocumentFilters } from "./DocumentFilters";
 import { DocumentTable } from "./DocumentsTable";
 import { PageLoader } from "@/components/shared/PageLoader";
 import { DocumentGrid } from "./DocumentGrid";
-import { deleteDocs, fetchDocumentDetails, fetchDocuments } from "@/api/docs";
+import { deleteDocs, fetchDocumentDetails, fetchDocuments, checkDocUsage, detachDocsFromRetrievers, RetrieverUsage } from "@/api/docs";
 import { RowSelectionState } from "@tanstack/react-table";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { DocInUseModal } from "./DocInUseModal";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { isEmbeddingActivelyProcessing } from "@/features/helpers";
 import { BulkDeleteButton } from "@/components/shared/BulkDeleteButton";
 import { useBulkDelete } from "@/hooks/use-bulk-delete";
@@ -41,8 +43,16 @@ export default function Documents() {
   const [gridPageIndex, setGridPageIndex] = useState(0);
   const gridPageSize = 15;
 
+  const [bulkInUse, setBulkInUse] = useState<{
+    open: boolean;
+    docIds: string[];
+    docNames: string[];
+    retrievers: RetrieverUsage[];
+  }>({ open: false, docIds: [], docNames: [], retrievers: [] });
+
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { uploadEnabled, isLoading: healthLoading, docling, embedding, refresh, isRefetching } = useRemoteServicesHealth();
 
   /**
@@ -158,8 +168,27 @@ export default function Documents() {
 
   const selectedCount = Object.keys(rowSelection).length;
 
-  const handleBulkDeleteClick = () => {
-    setBulkDeleteConfirm({ open: true, count: selectedCount });
+  const handleBulkDeleteClick = async () => {
+    const selectedIds = Object.keys(rowSelection);
+    try {
+      const usage = await checkDocUsage(selectedIds);
+      if (usage.in_use) {
+        const selectedNames = selectedIds.map((id) => {
+          const doc = documents.find((d) => d.source_id === id);
+          return doc?.source_name || id;
+        });
+        setBulkInUse({
+          open: true,
+          docIds: selectedIds,
+          docNames: selectedNames,
+          retrievers: usage.retrievers,
+        });
+      } else {
+        setBulkDeleteConfirm({ open: true, count: selectedCount });
+      }
+    } catch {
+      setBulkDeleteConfirm({ open: true, count: selectedCount });
+    }
   };
 
   const viewButtons = (
@@ -399,6 +428,39 @@ export default function Documents() {
           }
         }}
         onConfirm={confirmBulkDelete}
+      />
+
+      {/* Bulk Delete In-Use Modal */}
+      <DocInUseModal
+        open={bulkInUse.open}
+        onClose={() => setBulkInUse({ open: false, docIds: [], docNames: [], retrievers: [] })}
+        docNames={bulkInUse.docNames}
+        retrievers={bulkInUse.retrievers}
+        currentUser={user?.username || ""}
+        onConfirmDelete={async () => {
+          try {
+            setDeleteLoading(true);
+            await detachDocsFromRetrievers(bulkInUse.docIds);
+            await deleteDocs(bulkInUse.docIds);
+            queryClient.invalidateQueries({ queryKey: ['documents'] });
+            toast({
+              title: "Documents Deleted",
+              description: `Successfully deleted ${bulkInUse.docIds.length} document${bulkInUse.docIds.length > 1 ? 's' : ''} and removed from retrievers.`,
+              variant: "default",
+            });
+            setRowSelection({});
+            setBulkInUse({ open: false, docIds: [], docNames: [], retrievers: [] });
+          } catch (error) {
+            console.error("Bulk delete with detach failed:", error);
+            toast({
+              title: "Deletion Failed",
+              description: error instanceof Error ? error.message : "Failed to delete documents.",
+              variant: "destructive",
+            });
+          } finally {
+            setDeleteLoading(false);
+          }
+        }}
       />
     </div>
   );

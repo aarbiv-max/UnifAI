@@ -6,14 +6,16 @@ import { Document } from "@/types";
 import { getFileIcon, fileByColors, isEmbeddingActivelyProcessing, getDataToDisplay } from "../helpers";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { DocInUseModal } from "./DocInUseModal";
 import { DocumentData } from "./DocumentData";
 import { PIPELINE_STATUS } from "@/constants/pipelineStatus";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { RowSelectionState } from "@tanstack/react-table";
 import { SelectionCheckbox } from "@/components/shared/SelectionCheckbox";
-import { getSupportedFileExtensions } from "@/api/docs";
+import { getSupportedFileExtensions, checkDocUsage, detachDocsFromRetrievers, RetrieverUsage } from "@/api/docs";
 import { EditDocumentModal } from "./EditDocumentModal";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface DocumentTableProps {
   documents: Document[];
@@ -50,6 +52,10 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
   const [confirmDoc, setConfirmDoc] = useState<Document | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [editDoc, setEditDoc] = useState<Document | null>(null);
+  const [checkingUsage, setCheckingUsage] = useState(false);
+  const [inUseDoc, setInUseDoc] = useState<Document | null>(null);
+  const [inUseRetrievers, setInUseRetrievers] = useState<RetrieverUsage[]>([]);
+  const { user } = useAuth();
 
   // Fetch document details when activeDoc changes
   useEffect(() => {
@@ -237,11 +243,25 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
               variant="ghost"
               size="icon"
               className="h-6 w-6 p-0"
-              onClick={() => {
-                setConfirmDoc(doc);
-                setConfirmLoading(false);
+              onClick={async () => {
+                setCheckingUsage(true);
+                try {
+                  const usage = await checkDocUsage([doc.source_id]);
+                  if (usage.in_use) {
+                    setInUseDoc(doc);
+                    setInUseRetrievers(usage.retrievers);
+                  } else {
+                    setConfirmDoc(doc);
+                    setConfirmLoading(false);
+                  }
+                } catch {
+                  setConfirmDoc(doc);
+                  setConfirmLoading(false);
+                } finally {
+                  setCheckingUsage(false);
+                }
               }}
-              disabled={deleteLoading || confirmLoading}
+              disabled={deleteLoading || confirmLoading || checkingUsage}
             >
               <FaTrash className="h-3 w-3" />
             </Button>
@@ -257,7 +277,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       },
       meta: { align: "right" },
     },
-  ], [activeDoc, setActiveDoc, rowSelection, onRowSelectionChange, fileTypeFilterOptions]);
+  ], [activeDoc, setActiveDoc, rowSelection, onRowSelectionChange, fileTypeFilterOptions, checkingUsage]);
 
   return (
     <div className="w-full">
@@ -295,6 +315,32 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
               setConfirmLoading(true);
               await onDeleteConfirmed?.(confirmDoc.source_id);
               setConfirmDoc(null);
+            } catch (err) {
+              console.error("Delete failed:", err);
+            } finally {
+              setConfirmLoading(false);
+            }
+          }}
+        />
+      )}
+
+      {inUseDoc && (
+        <DocInUseModal
+          open={true}
+          onClose={() => {
+            setInUseDoc(null);
+            setInUseRetrievers([]);
+          }}
+          docNames={[inUseDoc.source_name]}
+          retrievers={inUseRetrievers}
+          currentUser={user?.username || ""}
+          onConfirmDelete={async () => {
+            try {
+              setConfirmLoading(true);
+              await detachDocsFromRetrievers([inUseDoc.source_id]);
+              await onDeleteConfirmed?.(inUseDoc.source_id);
+              setInUseDoc(null);
+              setInUseRetrievers([]);
             } catch (err) {
               console.error("Delete failed:", err);
             } finally {

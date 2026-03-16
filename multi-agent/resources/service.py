@@ -93,6 +93,24 @@ class ResourcesService:
     def delete(self, rid: str) -> None:
         self._store.delete(rid)
 
+    def replace_and_delete(self, rid: str, replacement_rid: str) -> None:
+        self._store.replace_and_delete(rid, replacement_rid)
+
+    def detach_and_delete(self, rid: str) -> None:
+        self._store.detach_and_delete(rid)
+
+    def cascade_delete(self, rid: str) -> None:
+        self._store.cascade_delete(rid)
+
+    # ---------- doc-in-retriever ----------
+    def find_doc_usage(self, doc_ids: List[str]) -> List[Resource]:
+        """Return all retrievers whose docs list references any of the given doc IDs."""
+        return self._store.find_doc_usage(doc_ids)
+
+    def remove_docs_from_retrievers(self, doc_ids: List[str]) -> int:
+        """Remove doc entries from retriever configs. Returns count of modified retrievers."""
+        return self._store.remove_docs_from_retrievers(doc_ids)
+
     # ---------- READ ----------
     def get(self, rid: str) -> Resource:
         """Get a single resource by ID."""

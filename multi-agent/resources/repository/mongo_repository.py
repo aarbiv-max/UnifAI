@@ -14,6 +14,7 @@ class MongoResourceRepository(ResourceRepository):
         self._client = pymongo.MongoClient(mongo_uri)
         self.col = self._client[db_name][coll_name]
         self.col.create_index("nested_refs")
+        self.col.create_index("cfg_dict.docs.id")
         self.col.create_index(
             [("user_id", 1), ("category", 1), ("type", 1), ("name", 1)],
             name="uq_user_cat_type_name",
@@ -102,6 +103,13 @@ class MongoResourceRepository(ResourceRepository):
     def list_nested_usage(self, rid: str) -> List[str]:
         cur = self.col.find({"nested_refs": rid}, {"_id": 1})
         return [doc["_id"] for doc in cur]
+
+    def find_by_doc_ref(self, doc_ids: List[str]) -> List[Resource]:
+        cur = self.col.find({
+            "category": "retrievers",
+            "cfg_dict.docs": {"$elemMatch": {"id": {"$in": doc_ids}}},
+        })
+        return [Resource(**doc) for doc in cur]
 
     def exists(self, rid: str) -> bool:
         return self.col.count_documents({"_id": rid}, limit=1) == 1

@@ -125,6 +125,55 @@ def delete_resource(resource_id):
         return jsonify({"error": str(e)}), 500
 
 
+@resources_bp.route("/doc.usage.get", methods=["GET"])
+@from_query({
+    "doc_ids": fields.Str(data_key="docIds", required=True),
+})
+def get_doc_usage(doc_ids):
+    """
+    Check whether one or more documents (by source_id) are referenced
+    in any retriever's docs list.
+
+    Query param docIds is a comma-separated string of source IDs.
+    Returns a list of retrievers grouped as own / others relative to
+    the requesting user.
+    """
+    svc = current_app.container.resources_service
+    try:
+        ids = [d.strip() for d in doc_ids.split(",") if d.strip()]
+        if not ids:
+            return jsonify({"retrievers": [], "in_use": False}), 200
+
+        resources = svc.find_doc_usage(ids)
+        retrievers = [
+            {"rid": r.rid, "name": r.name, "user_id": r.user_id}
+            for r in resources
+        ]
+        return jsonify({
+            "retrievers": retrievers,
+            "in_use": len(retrievers) > 0,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@resources_bp.route("/doc.detach", methods=["POST"])
+@from_body({
+    "doc_ids": fields.List(fields.Str(), data_key="docIds", required=True),
+})
+def detach_docs(doc_ids):
+    """
+    Remove document references from every retriever that uses them.
+    Called before actually deleting the documents from the RAG service.
+    """
+    svc = current_app.container.resources_service
+    try:
+        modified = svc.remove_docs_from_retrievers(doc_ids)
+        return jsonify({"modified_retrievers": modified}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @resources_bp.route("/resource.schema", methods=["GET"])
 def get_resource_schema():
     """Get the JSON schema for Resource model."""

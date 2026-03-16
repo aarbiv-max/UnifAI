@@ -46,6 +46,109 @@ class ResourcesRegistry:
                                      by_resources=nested_res)
         self._repo.delete(rid)
 
+
+    # ---------- force-delete variants ----------
+    def replace_and_delete(self, rid: str, replacement_rid: str) -> None:
+        """Replace all references to rid with replacement_rid, then delete rid."""
+        if not self._repo.exists(replacement_rid):
+            raise KeyError(f"Replacement resource not found: {replacement_rid}")
+
+        mapping = {rid: replacement_rid}
+
+        for dep_rid in self._repo.list_nested_usage(rid):
+            doc = self._repo.get(dep_rid)
+            doc.cfg_dict = RefRemapper.remap(doc.cfg_dict, mapping)
+            doc.nested_refs = list({replacement_rid if r == rid else r for r in doc.nested_refs})
+            doc.version += 1
+            doc.updated = datetime.utcnow()
+            self._repo.update(doc)
+
+        for bp_id in self._bp_repo.list_direct_usage(rid):
+            self._update_blueprint_refs(bp_id, remap=mapping)
+
+        self._repo.delete(rid)
+
+    def detach_and_delete(self, rid: str) -> None:
+        """Remove all references to rid from dependents, then delete rid."""
+        for dep_rid in self._repo.list_nested_usage(rid):
+            doc = self._repo.get(dep_rid)
+            doc.cfg_dict = _remove_ref_from_dict(doc.cfg_dict, rid)
+            doc.nested_refs = [r for r in doc.nested_refs if r != rid]
+            doc.version += 1
+            doc.updated = datetime.utcnow()
+            self._repo.update(doc)
+
+        for bp_id in self._bp_repo.list_direct_usage(rid):
+            self._update_blueprint_refs(bp_id, remove_rid=rid)
+
+        self._repo.delete(rid)
+
+    def cascade_delete(self, rid: str) -> None:
+        """Delete the resource and all blueprints that reference it."""
+        for bp_id in self._bp_repo.list_direct_usage(rid):
+            self._bp_repo.delete(bp_id)
+
+        for dep_rid in self._repo.list_nested_usage(rid):
+            doc = self._repo.get(dep_rid)
+            doc.cfg_dict = _remove_ref_from_dict(doc.cfg_dict, rid)
+            doc.nested_refs = [r for r in doc.nested_refs if r != rid]
+            doc.version += 1
+            doc.updated = datetime.utcnow()
+            self._repo.update(doc)
+
+        self._repo.delete(rid)
+
+    def _update_blueprint_refs(
+        self,
+        bp_id: str,
+        *,
+        remap: Dict[str, str] | None = None,
+        remove_rid: str | None = None,
+    ) -> None:
+        """
+        Update a blueprint's spec_dict and rid_refs after a ref change.
+        Follows the same parse→walk→save pattern as BlueprintService.update_draft.
+        """
+        bp_doc = self._bp_repo.load(bp_id)
+        spec = bp_doc.spec_dict
+
+        if remap:
+            spec = RefRemapper.remap(spec, remap)
+            spec = _dedup_catalogue(spec)
+
+        if remove_rid:
+            spec = _remove_ref_from_catalogue(spec, remove_rid)
+
+        draft = BlueprintDraft(**spec)
+        rid_refs = list(RefWalker.external_rids(draft))
+        self._bp_repo.update(blueprint_id=bp_id, spec=draft, rid_refs=rid_refs)
+
+    # ---------- doc-in-retriever helpers ----------
+    def find_doc_usage(self, doc_ids: list[str]) -> list[Resource]:
+        """Return all retrievers (any user) whose docs list references any of the given doc IDs."""
+        return self._repo.find_by_doc_ref(doc_ids)
+
+    def remove_docs_from_retrievers(self, doc_ids: list[str]) -> int:
+        """
+        Remove doc entries from every retriever's cfg_dict.docs list
+        where the doc id matches any of the given doc_ids.
+        Returns the number of retrievers that were modified.
+        """
+        doc_id_set = set(doc_ids)
+        affected = self._repo.find_by_doc_ref(doc_ids)
+        modified = 0
+        for res in affected:
+            docs_list = res.cfg_dict.get("docs") or []
+            cleaned = [d for d in docs_list if d.get("id") not in doc_id_set]
+            if len(cleaned) == len(docs_list):
+                continue
+            res.cfg_dict["docs"] = cleaned or None
+            res.version += 1
+            res.updated = datetime.utcnow()
+            self._repo.update(res)
+            modified += 1
+        return modified
+
     # ---------- read ----------
     def get(self, rid: str) -> Resource:
         return self._repo.get(rid)

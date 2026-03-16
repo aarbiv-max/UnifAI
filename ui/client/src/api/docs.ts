@@ -1,4 +1,5 @@
 import { api } from '@/http/queryClient';
+import agentApi from '@/http/axiosAgentConfig';
 import type { Document } from '@/types';
 
 /**
@@ -132,3 +133,26 @@ export async function fetchDocumentDetails(sourceId: string): Promise<Document> 
     );
     return response.data.source;
 };
+
+export interface RetrieverUsage {
+    rid: string;
+    name: string;
+    user_id: string;
+}
+
+export interface DocUsageResponse {
+    retrievers: RetrieverUsage[];
+    in_use: boolean;
+}
+
+export async function checkDocUsage(docIds: string[]): Promise<DocUsageResponse> {
+    const response = await agentApi.get<DocUsageResponse>(
+        '/resources/doc.usage.get',
+        { params: { docIds: docIds.join(',') } }
+    );
+    return response.data;
+}
+
+export async function detachDocsFromRetrievers(docIds: string[]): Promise<void> {
+    await agentApi.post('/resources/doc.detach', { docIds });
+}

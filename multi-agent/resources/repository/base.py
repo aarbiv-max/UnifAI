@@ -62,6 +62,15 @@ class ResourceRepository(ABC):
     def exists(self, rid: str) -> bool: ...
 
     @abstractmethod
+    def find_by_doc_ref(self, doc_ids: List[str]) -> List[Resource]:
+        """
+        Return resources whose cfg_dict.docs array contains entries
+        with an 'id' matching any of the given doc_ids.
+        Searches across ALL users (not filtered by user_id).
+        """
+        ...
+
+    @abstractmethod
     def group_count(
         self, 
         user_id: str, 
