@@ -16,7 +16,6 @@ class PhaseIterationLimits(BaseModel):
     Uses Pydantic for validation and clean configuration management.
     """
     planning: int = Field(default=10, ge=1, description="Maximum iterations for planning phase")
-    allocation: int = Field(default=10, ge=1, description="Maximum iterations for allocation phase")
     execution: int = Field(default=10, ge=1, description="Maximum iterations for execution phase")
     monitoring: int = Field(default=10, ge=1, description="Maximum iterations for monitoring phase")
     synthesis: int = Field(default=10, ge=1, description="Maximum iterations for synthesis phase")
@@ -45,7 +44,6 @@ class PhaseIterationState(BaseModel):
     Immutable design with proper state management.
     """
     planning: int = Field(default=0, ge=0, description="Current planning phase iterations")
-    allocation: int = Field(default=0, ge=0, description="Current allocation phase iterations")
     execution: int = Field(default=0, ge=0, description="Current execution phase iterations")
     monitoring: int = Field(default=0, ge=0, description="Current monitoring phase iterations")
     synthesis: int = Field(default=0, ge=0, description="Current synthesis phase iterations")

@@ -2,15 +2,15 @@
 Plan and Execute agent strategy.
 
 This strategy implements a phased approach where the agent:
-1. Plans work by creating/updating a WorkPlan
-2. Allocates work items to local/remote execution
-3. Executes local work items
-4. Monitors progress and responses
-5. Synthesizes results
+1. Plans work and delegates REMOTE items
+2. Executes LOCAL work items
+3. Monitors progress and responses
+4. Synthesizes results
 
 Each phase exposes different tools to enforce clean separation of concerns.
 """
 
+import logging
 from typing import List, Dict, Any, Optional, Callable
 from enum import Enum
 from mas.elements.llms.common.chat.message import ChatMessage, Role
@@ -23,6 +23,8 @@ from ..constants import (
 )
 from ..phases.phase_protocols import PhaseState, WorkPlanStatus
 from ..phases.unified_phase_provider import PhaseProvider  # Uses PhaseProvider abstraction
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -58,7 +60,6 @@ class PlanAndExecuteStrategy(AgentStrategy):
         max_steps: int = StrategyDefaults.MAX_STEPS,
         system_message: Optional[str] = None,
         max_planning_iterations: int = 3,
-        max_allocation_iterations: int = 3,
         phase_provider: Optional[PhaseProvider] = None
     ):
         """
@@ -71,7 +72,6 @@ class PlanAndExecuteStrategy(AgentStrategy):
             max_steps: Maximum total steps before stopping
             system_message: System message from node (takes priority)
             max_planning_iterations: Max iterations in planning phase
-            max_allocation_iterations: Max iterations in allocation phase
             phase_provider: Unified provider for all phase-related concerns
         """
         super().__init__(
@@ -83,7 +83,6 @@ class PlanAndExecuteStrategy(AgentStrategy):
         )
         
         self.max_planning_iterations = max_planning_iterations
-        self.max_allocation_iterations = max_allocation_iterations
         self._phase_iterations = 0
         self._no_progress_count = 0
         
@@ -149,27 +148,37 @@ class PlanAndExecuteStrategy(AgentStrategy):
         """
         # Visual banner at start of FIRST think call
         if self._step_count == 0:
-            print(f"\n{'='*80}")
-            print(f"🧠 LLM INTERACTION #1 - BEGINNING ORCHESTRATION CYCLE")
-            print(f"📍 Starting Phase: {self._current_phase.upper()}")
-            print(f"{'='*80}\n")
+            logger.debug(
+                "\n%s\nLLM INTERACTION #1 - BEGINNING ORCHESTRATION CYCLE\n"
+                "Starting Phase: %s\n%s\n",
+                "=" * 80,
+                self._current_phase.upper(),
+                "=" * 80,
+            )
         else:
-            print(f"📍 Phase: {self._current_phase}")
+            logger.debug("Phase: %s", self._current_phase)
         
         try:
+            # Invalidate cached snapshot so this iteration gets fresh workspace state
+            if hasattr(self._phase_provider, 'begin_iteration'):
+                self._phase_provider.begin_iteration()
+
             # Store current phase before update
             old_phase = self._current_phase
             
             # Determine current phase based on context
             self._update_phase()
-            
-            # Detect phase transition
+
+            # Phase transition invalidates snapshot (tools may have changed state)
             self._phase_changed = (old_phase != self._current_phase)
-            
-            # Phase transition detected
             if self._phase_changed:
-                print(f"   └─ Phase Transition: {old_phase} → {self._current_phase}")
-                # Note: Messages will be filtered to clean slate in build_context()
+                logger.debug("Phase transition: %s -> %s", old_phase, self._current_phase)
+                if hasattr(self._phase_provider, 'begin_iteration'):
+                    self._phase_provider.begin_iteration()
+
+            # Signal tiered context to the phase provider
+            if hasattr(self._phase_provider, 'set_phase_changed'):
+                self._phase_provider.set_phase_changed(self._phase_changed)
             
             # Build phase-specific context
             context = self.build_context(messages)
@@ -178,7 +187,7 @@ class PlanAndExecuteStrategy(AgentStrategy):
             tools = self.get_tools_for_phase(self._current_phase)
             
             # Get LLM response
-            print(f"🧠 [STRATEGY] Thinking in phase {self._current_phase}")
+            logger.debug("[STRATEGY] Thinking in phase %s", self._current_phase)
             response = self.llm_chat(context, tools)
             
             # Parse response
@@ -200,27 +209,47 @@ class PlanAndExecuteStrategy(AgentStrategy):
                         metadata={"phase": self._current_phase}
                     ))
             elif isinstance(result, AgentFinish):
-                # Agent wants to finish - ask provider if we can
                 can_finish = self._phase_provider.can_finish_now(self._current_phase)
-                
-                if not can_finish:
-                    # Provider says can't finish - continue (will trigger phase update)
-                    # Recursive call will run _update_phase() which cascades to next phase
-                    return self.think(messages)
-                else:
-                    # Provider allows finish
+
+                if can_finish:
                     steps.append(AgentStep(StepType.FINISH, result))
+                else:
+                    # LLM says "done" but cycle isn't finished.
+                    # Try a phase update — if it moves to a new phase, continue there.
+                    # If it stays in the same phase, we're stuck: force terminal.
+                    old_phase = self._current_phase
+                    self._update_phase()
+
+                    if self._current_phase == old_phase:
+                        # Stuck: LLM has nothing to do, phase won't change.
+                        # Force to terminal phase so the cycle can complete.
+                        terminal = self._phase_provider.get_supported_phases()[-1]
+                        if hasattr(self._phase_provider, 'is_terminal_phase'):
+                            for p in self._phase_provider.get_supported_phases():
+                                if self._phase_provider.is_terminal_phase(p):
+                                    terminal = p
+                                    break
+                        logger.debug("Stuck in %s — forcing terminal phase %s", old_phase, terminal)
+                        self._current_phase = terminal
+
+                    self._phase_changed = True
+                    return self.think(messages)
             
             # Success - reset error count
             self._error_count = 0
             self.increment_step_count()
             self._phase_iterations += 1
-            
+
+            # Invalidate cached snapshot so the next should_continue() →
+            # can_finish_now() check loads post-tool-execution state.
+            if hasattr(self._phase_provider, 'end_iteration'):
+                self._phase_provider.end_iteration()
+
             return steps
             
         except ParseError as e:
             # Add error feedback to messages for next iteration
-            print(f"⚠️  [STRATEGY] Parse error in phase {self._current_phase}: {e}")
+            logger.warning("[STRATEGY] Parse error in phase %s: %s", self._current_phase, e)
             
             from ..constants import ErrorMessages
             error_feedback = ChatMessage(
@@ -242,8 +271,12 @@ class PlanAndExecuteStrategy(AgentStrategy):
         except Exception as e:
             # Fatal strategy error
             import traceback
-            print(f"❌ [STRATEGY] Fatal error in phase {self._current_phase}: {e}")
-            print(f"📍 Traceback:\n{traceback.format_exc()}")
+            logger.error(
+                "[STRATEGY] Fatal error in phase %s: %s\nTraceback:\n%s",
+                self._current_phase,
+                e,
+                traceback.format_exc(),
+            )
             
             error_feedback = ChatMessage(
                 role=Role.SYSTEM,
@@ -291,10 +324,9 @@ class PlanAndExecuteStrategy(AgentStrategy):
         context = []
         
         # [1] SYSTEM: Core role + phase guidance
+        # _build_phase_prompt() already includes self.system_message as the base,
+        # so we must NOT prepend it again here.
         system_content = self._build_phase_prompt()
-        if self.system_message:
-            system_content = f"{self.system_message}\n\n{system_content}"
-        
         context.append(ChatMessage(role=Role.SYSTEM, content=system_content))
         
         # [2] SYSTEM: Phase-specific static context (adjacent nodes, etc.)
@@ -330,12 +362,11 @@ class PlanAndExecuteStrategy(AgentStrategy):
         """
         Get phase-specific static context from provider.
         
-        Strategy doesn't know what context each phase needs.
-        Provider decides (e.g., adjacent nodes for ALLOCATION/MONITORING).
-        
-        Returns:
-            List of SYSTEM messages with static reference material
+        Only sent on phase entry to avoid repeating unchanged data
+        (e.g., adjacent nodes) on every continuation call.
         """
+        if not self._phase_changed:
+            return []
         if hasattr(self._phase_provider, 'get_phase_static_context'):
             return self._phase_provider.get_phase_static_context(self._current_phase)
         return []
@@ -506,7 +537,7 @@ class PlanAndExecuteStrategy(AgentStrategy):
         messages.clear()
         messages.extend(user_messages)
         
-        print(f"🧹 [STRATEGY] Cleared phase messages (kept {len(user_messages)} USER messages)")
+        logger.debug("[STRATEGY] Cleared phase messages (kept %d USER messages)", len(user_messages))
     
     
     def _build_phase_prompt(self) -> str:
