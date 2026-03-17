@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "multiagent.fullname" . }}
+  name: {{ include "multiagent-temporal-worker.fullname" . }}
   labels:
-    {{- include "multiagent.labels" . | nindent 4 }}
+    {{- include "multiagent-temporal-worker.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "multiagent.selectorLabels" . | nindent 6 }}
+      {{- include "multiagent-temporal-worker.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -18,7 +18,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "multiagent.labels" . | nindent 8 }}
+        {{- include "multiagent-temporal-worker.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -27,7 +27,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "multiagent.serviceAccountName" . }}
+      serviceAccountName: {{ include "multiagent-temporal-worker.serviceAccountName" . }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -49,9 +49,9 @@ spec:
           {{- end }}
           envFrom:
             - configMapRef:
-                name: multiagent-be-configmap
-            - configMapRef:
-                name: multiagent-be-security
+                name: multiagent-temporal-worker-configmap
+            # - configMapRef:
+            #     name: multiagent-be-security
             - configMapRef:
                 name: {{ .Values.globalConfigMapName }}
           ports:
@@ -61,18 +61,17 @@ spec:
 
           {{- if ne .Values.env.ROLE "debug"}}
           livenessProbe:
-            httpGet:
-              path: /api/health/
-              port: {{ .Values.service.port }}
+            exec:
+              command: ["pgrep", "-f", "temporal-worker"]
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+            failureThreshold: 3
           readinessProbe:
-            httpGet:
-              path: /api/health/
-              port: {{ .Values.service.port }}
+            exec:
+              command: ["pgrep", "-f", "temporal-worker"]
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
-
+            failureThreshold: 3
           {{- end }}
 
           {{- with .Values.resources }}
