@@ -17,5 +17,5 @@ class AppConfig(SharedConfig):
     temporal_task_queue: str = "graph-engine"
     # Redis streaming tuning
     redis_stream_ttl: int = 3600
-    redis_stream_block_ms: int = 5000
+    redis_stream_block_ms: int = 100
     redis_stream_batch_size: int = 50

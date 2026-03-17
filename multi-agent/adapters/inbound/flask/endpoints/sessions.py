@@ -69,10 +69,12 @@ def execute_user_session(session_id, inputs, stream_mode, stream, scope, logged_
         for chunk in with_heartbeats(stream_iter):
             yield json.dumps(chunk, default=pydantic_encoder) + "\n"
 
-    return Response(
+    resp = Response(
         generate(),
-        mimetype="application/x-ndjson"
+        mimetype="application/x-ndjson",
     )
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
 
     # except BlueprintNotFoundError as e:
     #     return jsonify({
@@ -237,7 +239,9 @@ def subscribe_session(session_id):
         finally:
             reader.close()
 
-    return Response(
+    resp = Response(
         generate(),
         mimetype="application/x-ndjson",
     )
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
