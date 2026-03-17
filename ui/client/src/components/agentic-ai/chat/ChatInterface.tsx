@@ -77,6 +77,25 @@ export default function ChatInterface({
   const [userPromptsMap, setUserPromptsMap] = useState<Record<string, string>>({});
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
+  // Prompt history for arrow-key navigation (persisted in sessionStorage)
+  const PROMPT_HISTORY_KEY = "unifai_prompt_history";
+  const [promptHistory, setPromptHistory] = useState<string[]>(() => {
+    try {
+      const stored = sessionStorage.getItem(PROMPT_HISTORY_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+  const historyIndexRef = useRef<number>(-1);
+  const draftRef = useRef<string>("");
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(PROMPT_HISTORY_KEY, JSON.stringify(promptHistory));
+    } catch { /* storage full or unavailable */ }
+  }, [promptHistory]);
+
   // ────────────────────────────────────────────────────────────────────────────────
   // Auto-expanding textarea configuration
   // ────────────────────────────────────────────────────────────────────────────────
@@ -561,6 +580,10 @@ export default function ChatInterface({
     setInputMessage("");
     setIsTyping(true);
 
+    setPromptHistory((prev) => [...prev, messageContent]);
+    historyIndexRef.current = -1;
+    draftRef.current = "";
+
     // Reset textarea to compact state and focus
     setTimeout(() => {
       resetTextareaHeight();
@@ -638,9 +661,62 @@ export default function ChatInterface({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) { // Allow Shift+Enter for new lines
-      e.preventDefault(); // Prevent default Enter behavior (new line)
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
       handleSendMessage();
+      return;
+    }
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    if (e.key === "ArrowUp" && promptHistory.length > 0) {
+      const cursorAtStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0;
+      if (!cursorAtStart && historyIndexRef.current === -1) return;
+
+      e.preventDefault();
+
+      if (historyIndexRef.current === -1) {
+        draftRef.current = inputMessage;
+        historyIndexRef.current = promptHistory.length - 1;
+      } else if (historyIndexRef.current > 0) {
+        historyIndexRef.current -= 1;
+      }
+
+      const historyEntry = promptHistory[historyIndexRef.current];
+      setInputMessage(historyEntry);
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = historyEntry.length;
+          textareaRef.current.selectionEnd = historyEntry.length;
+        }
+      }, 0);
+    }
+
+    if (e.key === "ArrowDown" && historyIndexRef.current !== -1) {
+      e.preventDefault();
+
+      if (historyIndexRef.current < promptHistory.length - 1) {
+        historyIndexRef.current += 1;
+        const historyEntry = promptHistory[historyIndexRef.current];
+        setInputMessage(historyEntry);
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = historyEntry.length;
+            textareaRef.current.selectionEnd = historyEntry.length;
+          }
+        }, 0);
+      } else {
+        historyIndexRef.current = -1;
+        setInputMessage(draftRef.current);
+        setTimeout(() => {
+          if (textareaRef.current) {
+            const len = draftRef.current.length;
+            textareaRef.current.selectionStart = len;
+            textareaRef.current.selectionEnd = len;
+          }
+        }, 0);
+      }
     }
   };
 
@@ -659,6 +735,8 @@ export default function ChatInterface({
     streamLogDataRef.current = {};
     setUserPromptsMap({});
     setCopiedMessageId(null);
+    historyIndexRef.current = -1;
+    draftRef.current = "";
     stopStreamingLogs();
   };
 
