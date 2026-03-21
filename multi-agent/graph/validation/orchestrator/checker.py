@@ -450,22 +450,22 @@ class OrchestratorPatternChecker:
         graph_analyzer: GraphAnalyzer
     ) -> bool:
         """
-        Check if worker has path back to orchestrator.
+        Check if worker has a forward path back to orchestrator.
         
-        Uses GraphAnalyzer to check AFTER dependencies (return paths).
-        BFS follows 'after' edges to find return path.
+        Uses GraphAnalyzer.adjacency (outgoing edges) for BFS traversal.
+        A return path exists when following forward edges from the worker
+        eventually reaches the orchestrator (e.g. via orch.after containing
+        the worker, which creates an adjacency edge worker → orch).
         """
-        worker_step = graph_analyzer.plan.get_step(worker_uid)
-        if not worker_step:
+        neighbors = graph_analyzer.adjacency.get(worker_uid, set())
+        if not neighbors:
             return False
         
-        # Direct return
-        if orch_uid in worker_step.after:
+        if orch_uid in neighbors:
             return True
         
-        # Indirect return via BFS on AFTER edges
         visited = {worker_uid}
-        queue = list(worker_step.after)
+        queue = list(neighbors)
         
         while queue:
             current_uid = queue.pop(0)
@@ -477,9 +477,8 @@ class OrchestratorPatternChecker:
                 continue
             
             visited.add(current_uid)
-            current_step = graph_analyzer.plan.get_step(current_uid)
-            if current_step:
-                queue.extend(current_step.after)
+            for neighbor in graph_analyzer.adjacency.get(current_uid, set()):
+                queue.append(neighbor)
         
         return False
 

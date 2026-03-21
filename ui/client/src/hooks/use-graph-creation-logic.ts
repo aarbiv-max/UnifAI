@@ -816,6 +816,7 @@ export const useGraphCreationLogic = (options: UseGraphCreationLogicOptions = {}
           const newYamlNode = {
             rid: nodeRid,
             name: block.workspaceData?.name || block.label,
+            type: block.workspaceData?.type || block.type,
             config: block.workspaceData?.config || {},
           };
 
