@@ -356,10 +356,18 @@ export function reconstructBlueprintGraph(
   const plan: YamlFlowPlanStep[] = specDict.plan || [];
   const specConditions: YamlFlowCondition[] = specDict.conditions || [];
 
+  const enrichedNodes: YamlFlowNode[] = specNodes.map((node) => ({
+    ...node,
+    type:
+      node.type ||
+      (node.config as Record<string, unknown> | undefined)?.type as string ||
+      undefined,
+  }));
+
   const yamlFlow: YamlFlowState = {
     name,
     description,
-    nodes: specNodes,
+    nodes: enrichedNodes,
     plan,
     conditions: specConditions,
   };

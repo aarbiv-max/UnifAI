@@ -813,11 +813,15 @@ export const useGraphCreationLogic = (options: UseGraphCreationLogicOptions = {}
             (node) => node.rid === nodeRid,
           );
 
+          const nodeConfig = block.workspaceData?.config || {};
           const newYamlNode = {
             rid: nodeRid,
             name: block.workspaceData?.name || block.label,
-            type: block.workspaceData?.type || block.type,
-            config: block.workspaceData?.config || {},
+            type:
+              block.workspaceData?.type ||
+              block.type ||
+              (nodeConfig as Record<string, unknown>).type as string,
+            config: nodeConfig,
           };
 
           const newPlanStep = {
