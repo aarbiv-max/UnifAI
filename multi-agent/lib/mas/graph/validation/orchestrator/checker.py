@@ -278,24 +278,8 @@ class OrchestratorPatternChecker:
         Uses FinalizerAnalyzer to identify finalization nodes.
         """
         if not orch.branches:
-            # No branches at all - definitely missing finalize
-            issue = OrchestratorIssue(
-                issue_type=OrchestratorIssueType.MISSING_FINALIZE,
-                orchestrator_uid=orch.uid,
-                related_node_uid=None,
-                description=f"Top-level orchestrator '{orch.uid}' has no branches (needs finalize path)"
-            )
-            issues.append(issue)
-            
-            messages.append(ValidationMessage(
-                text=f"Top-level orchestrator '{orch.uid}' has no branches - needs completion strategy",
-                severity=MessageSeverity.ERROR,
-                code=MessageCode.ORCHESTRATOR_MISSING_FINALIZE,
-                context={
-                    "orchestrator_uid": orch.uid,
-                    "fix": "Add branch to final_answer_node or terminal node"
-                }
-            ))
+            # No branches yet — router may be auto-attached but edges not drawn.
+            # Skip; branches will be validated once the user connects edges.
             return
         
         # Check if any branch leads to finalization

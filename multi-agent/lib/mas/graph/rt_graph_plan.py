@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import List, Dict, Optional, Iterator, Any
 from mas.session.domain.session_registry import SessionRegistry
 from mas.core.element_card_builder import ElementCardBuilder
@@ -138,15 +139,17 @@ class RTGraphPlan:
 
         # ------------------------------------------------------------------ #
         # 3. Bind node & condition callables + inject context
+        # Deep-copy each instance so that multiple steps sharing the same
+        # rid get independent objects (prevents set_context overwrites).
         # ------------------------------------------------------------------ #
 
-        node_func = self._session.get_instance(ResourceCategory.NODE, step.rid)
+        node_func = deepcopy(self._session.get_instance(ResourceCategory.NODE, step.rid))
         if hasattr(node_func, "set_context"):
             node_func.set_context(step_context)
 
         condition_func = None
         if step.condition:
-            condition_func = self._session.get_instance(ResourceCategory.CONDITION, step.condition.rid)
+            condition_func = deepcopy(self._session.get_instance(ResourceCategory.CONDITION, step.condition.rid))
             if hasattr(condition_func, "set_context"):
                 condition_func.set_context(step_context)
 

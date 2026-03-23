@@ -17,8 +17,6 @@ export default function NewGraph({ onBack }: NewGraphProps) {
     nodes,
     edges,
     buildingBlocksData,
-    conditionsData,
-    allBlocksData,
     isLoadingBlocks,
     yamlFlow,
     handleNodesChange,
@@ -49,33 +47,18 @@ export default function NewGraph({ onBack }: NewGraphProps) {
     const usedIds = new Set<string>();
     
     nodes.forEach(node => {
-      // 1. Track the node itself by workspaceData.rid
       if (node.data?.workspaceData?.rid) {
-        const matchingBlock = [...buildingBlocksData, ...conditionsData].find(
+        const matchingBlock = buildingBlocksData.find(
           block => block.workspaceData?.rid === node.data.workspaceData?.rid
         );
         if (matchingBlock) {
           usedIds.add(matchingBlock.id);
         }
       }
-      
-      // 2. Track any conditions attached to this node
-      if (node.data?.referencedConditions && Array.isArray(node.data.referencedConditions)) {
-        node.data.referencedConditions.forEach((condition: any) => {
-          if (condition.workspaceData?.rid) {
-            const matchingCondition = conditionsData.find(
-              block => block.workspaceData?.rid === condition.workspaceData.rid
-            );
-            if (matchingCondition) {
-              usedIds.add(matchingCondition.id);
-            }
-          }
-        });
-      }
     });
     
     return usedIds;
-  }, [nodes, buildingBlocksData, conditionsData]);
+  }, [nodes, buildingBlocksData]);
 
   const handleSaveGraph = async () => {
     setSaveModalOpen(true);
@@ -91,7 +74,6 @@ export default function NewGraph({ onBack }: NewGraphProps) {
       <div className="w-80 h-full">
         <BuildingBlocksSidebar
           buildingBlocks={buildingBlocksData}
-          conditions={conditionsData}
           isLoading={isLoadingBlocks}
           onDragStart={onDragStart}
           usedElementIds={usedElementIds}

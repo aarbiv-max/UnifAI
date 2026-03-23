@@ -4,6 +4,7 @@ from ..router_condition_factory import RouterDirectConditionFactory
 from ..router import RouterDirectCondition
 from ..identifiers import Identifier, META
 from mas.core.enums import ResourceCategory
+from mas.core.field_hints import HiddenHint
 from typing import ClassVar
 
 
@@ -18,3 +19,4 @@ class RouterDirectConditionElementSpec(BaseElementSpec):
     reads = RouterDirectCondition.READS
     tags = META.tags
     output_schema = RouterDirectCondition.get_output_schema()
+    hints = [HiddenHint(reason="System-managed router condition").model_dump(mode="json")]

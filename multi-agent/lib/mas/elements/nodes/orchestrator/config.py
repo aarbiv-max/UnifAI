@@ -3,7 +3,7 @@ from pydantic import Field
 from typing import Optional, List, Literal
 from .identifiers import Identifier
 from mas.core.ref.models import LLMRef, ToolRef
-from mas.core.field_hints import ApiHint, HintType, SelectionType
+from mas.core.field_hints import ApiHint, HiddenHint, HintType, SelectionType
 
 
 class OrchestratorNodeConfig(NodeBaseConfig):
@@ -39,4 +39,9 @@ class OrchestratorNodeConfig(NodeBaseConfig):
     max_rounds: int = Field(
         100,
         description="Maximum planning/execution rounds per orchestration cycle"
+    )
+    router_direct: bool = Field(
+        default=True,
+        description="Automatically attach a router_direct condition for graph routing",
+        json_schema_extra=HiddenHint(reason="System-managed routing flag").to_hints()
     )

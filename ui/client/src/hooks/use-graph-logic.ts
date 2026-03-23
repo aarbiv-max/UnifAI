@@ -658,16 +658,19 @@ export const useGraphLogic = (options: UseGraphLogicOptions = {}) => {
       // Comment out connection feasibility check for now
       // if (isConnectionFeasible(params)) {
 
-      // Check if source node has a condition attached
+      // Check if source node has a condition attached or uses router_direct
       const sourceNode = nodes.find((node) => node.id === params.source);
       const hasCondition =
         sourceNode?.data?.referencedConditions &&
         sourceNode.data.referencedConditions.length > 0;
+      const isRouterDirect =
+        sourceNode?.data?.workspaceData?.config?.router_direct === true;
 
-      if (hasCondition) {
-        // Get condition type and existing branches
-        const condition = sourceNode.data.referencedConditions[0];
-        const conditionType = condition.workspaceData?.type || condition.type;
+      if (hasCondition || isRouterDirect) {
+        const condition = hasCondition ? sourceNode.data.referencedConditions[0] : null;
+        const conditionType = condition
+          ? condition.workspaceData?.type || condition.type
+          : "router_direct";
 
         // Get existing edges from this source to determine existing branches
         const existingEdges = edges.filter(
@@ -1135,21 +1138,17 @@ export const useGraphLogic = (options: UseGraphLogicOptions = {}) => {
     setYamlFlow((prevFlow) => {
       const sourceNode = nodes.find((node) => node.id === params.source);
       const condition = sourceNode?.data?.referencedConditions?.[0];
+      const isRouterDirect =
+        sourceNode?.data?.workspaceData?.config?.router_direct === true;
 
       const updatedPlan = prevFlow.plan.map((step) => {
-        if (step.uid === params.source && condition) {
-          // Get existing branches or initialize empty object
+        if (step.uid === params.source && (condition || isRouterDirect)) {
           const existingBranches = step.branches || {};
-
-          // Add new branch mapping based on condition type
           let newBranches = { ...existingBranches };
 
           if (branchConfig.conditionType === "router_direct") {
-            // For direct routing, map direct output to target step
             newBranches[params.target!] = params.target!;
           } else if (branchConfig.conditionType === "router_boolean") {
-            // For symbolic routing, map symbolic output to target step
-            // Convert boolean values to actual booleans for router_boolean
             let branchKey =
               branchConfig.branch === "true"
                 ? true
@@ -1161,30 +1160,48 @@ export const useGraphLogic = (options: UseGraphLogicOptions = {}) => {
 
           return {
             ...step,
-            exit_condition: condition.workspaceData?.rid || condition.id,
+            exit_condition: condition
+              ? condition.workspaceData?.rid || condition.id
+              : "router_direct",
             branches: newBranches,
           };
         }
         return step;
       });
 
-      // Add condition definition if not exists
-      const conditionRid = condition?.workspaceData?.rid || condition?.id;
-      const conditionExists = (prevFlow.conditions || []).some(
-        (cond) => cond.rid === `$ref:${conditionRid}`,
-      );
-
       let updatedConditions = prevFlow.conditions || [];
-      if (condition && !conditionExists) {
-        updatedConditions = [
-          ...updatedConditions,
-          {
-            rid: `$ref:${conditionRid}`,
-            name: condition.workspaceData?.name || condition.label,
-            type: condition.workspaceData?.type,
-            config: condition.workspaceData?.config,
-          },
-        ];
+
+      if (condition) {
+        const conditionRid = condition.workspaceData?.rid || condition.id;
+        const conditionExists = updatedConditions.some(
+          (cond) => cond.rid === `$ref:${conditionRid}`,
+        );
+        if (!conditionExists) {
+          updatedConditions = [
+            ...updatedConditions,
+            {
+              rid: `$ref:${conditionRid}`,
+              name: condition.workspaceData?.name || condition.label,
+              type: condition.workspaceData?.type,
+              config: condition.workspaceData?.config,
+            },
+          ];
+        }
+      } else if (isRouterDirect) {
+        const rdExists = updatedConditions.some(
+          (cond) => cond.rid === "router_direct",
+        );
+        if (!rdExists) {
+          updatedConditions = [
+            ...updatedConditions,
+            {
+              rid: "router_direct",
+              name: "Router Direct",
+              type: "router_direct",
+              config: { type: "router_direct" },
+            },
+          ];
+        }
       }
 
       return {
