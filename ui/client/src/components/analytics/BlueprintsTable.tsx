@@ -1,15 +1,15 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FaRocket } from "react-icons/fa";
 import { useMemo } from "react";
 import { generateColorPalette } from "@/lib/colorUtils";
 import { AnalyticCard } from "./AnalyticCard";
+import { formatDuration, getSuccessRateColor } from "./analyticsHelpers";
+import { formatRelativeTimestamp } from "@/utils";
+import type { BlueprintUsage } from "@/types/systemStats";
 
 interface BlueprintsTableProps {
-  blueprints: Array<{
-    blueprint_name: string;
-    run_count: number;
-    unique_users: number;
-  }>;
+  blueprints: BlueprintUsage[];
   colors: Record<string, string>;
 }
 
@@ -29,7 +29,10 @@ export function BlueprintsTable({ blueprints, colors }: BlueprintsTableProps) {
             <TableRow>
               <TableHead>Blueprint Name</TableHead>
               <TableHead className="text-right">Total Runs</TableHead>
-              <TableHead className="text-right">Unique Users</TableHead>
+              <TableHead className="text-right">Avg Duration</TableHead>
+              <TableHead className="text-right">Last Run</TableHead>
+              <TableHead className="text-right">Success Rate</TableHead>
+              <TableHead className="text-right">Users</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -38,19 +41,54 @@ export function BlueprintsTable({ blueprints, colors }: BlueprintsTableProps) {
                 const color = colorPalette[idx % colorPalette.length];
                 return (
                   <TableRow key={idx} className="hover:bg-muted/50">
-                    <TableCell className="font-medium text-sm max-w-[300px] truncate">
+                    <TableCell className="font-medium text-sm max-w-[200px] truncate" title={bp.blueprint_name}>
                       {bp.blueprint_name}
                     </TableCell>
                     <TableCell className="text-right text-sm font-semibold" style={{ color }}>
                       {bp.run_count}
                     </TableCell>
-                    <TableCell className="text-right text-sm">{bp.unique_users}</TableCell>
+                    <TableCell className="text-right text-sm text-gray-400">
+                      {formatDuration(bp.avg_duration_seconds)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-gray-400">
+                      {bp.last_run_at ? formatRelativeTimestamp(bp.last_run_at) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right text-sm">
+                      <span className={getSuccessRateColor(bp.success_rate ?? 0)}>
+                        {(bp.success_rate ?? 0).toFixed(1)}%
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-sm">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help underline decoration-dotted decoration-gray-500">
+                              {bp.unique_users}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-xs">
+                            <div className="text-xs">
+                              <p className="font-semibold mb-1">Users who ran this workflow:</p>
+                              <div className="max-h-32 overflow-y-auto">
+                                {bp.user_list && bp.user_list.length > 0 ? (
+                                  bp.user_list.map((user, i) => (
+                                    <div key={i} className="text-gray-300 truncate">{user}</div>
+                                  ))
+                                ) : (
+                                  <div className="text-gray-400">No user data</div>
+                                )}
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={3} className="text-center py-6 text-gray-400">
+                <TableCell colSpan={6} className="text-center py-6 text-gray-400">
                   No blueprint data available
                 </TableCell>
               </TableRow>

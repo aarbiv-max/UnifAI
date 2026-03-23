@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import GlassPanel from "@/components/ui/GlassPanel";
 import { StatCard } from "@/components/ui/stat-card";
 import { 
-  FaUsers, FaRocket, FaChartLine, FaCheckCircle, 
-  FaFire, FaSync
+  FaUsers, FaRocket, FaChartLine, FaCheckCircle, FaSync
 } from "react-icons/fa";
 import type { ReactNode } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -139,11 +138,11 @@ export default function Analytics() {
       iconBgColor: `${colors.success}33`,
     },
     {
-      key: 'active-users',
-      icon: <FaFire className="w-4 h-4" />,
-      title: 'Active Users',
-      value: analytics?.active_users?.length || 0,
-      subtext: timeRange === 'today' ? 'Users active today' : 'Users in selected period',
+      key: 'avg-runs-per-user',
+      icon: <FaChartLine className="w-4 h-4" />,
+      title: 'Avg Runs/User',
+      value: analytics?.total_stats?.avg_runs_per_user?.toFixed(1) || '0',
+      subtext: 'Average engagement',
       iconColor: colors.warning,
       iconBgColor: `${colors.warning}33`,
     },

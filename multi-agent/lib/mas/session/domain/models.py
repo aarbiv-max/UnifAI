@@ -5,6 +5,22 @@ from pydantic import BaseModel, Field
 from mas.core.dto import GroupedCount
 
 
+class BlueprintExecutionStats(BaseModel):
+    """
+    Pre-aggregated execution statistics for a single blueprint.
+    
+    Returned by the repository layer with raw metrics computed via
+    database aggregation. The service layer transforms these into
+    BlueprintUsage models with additional fields (name lookup, success rate %).
+    """
+    blueprint_id: str = Field(..., description="Blueprint identifier")
+    total_runs: int = Field(0, description="Total number of executions")
+    completed_runs: int = Field(0, description="Number of COMPLETED executions")
+    last_run: Optional[str] = Field(None, description="ISO timestamp of most recent execution")
+    avg_duration_ms: Optional[float] = Field(None, description="Average duration in milliseconds")
+    users: List[str] = Field(default_factory=list, description="List of user IDs who ran this blueprint")
+
+
 class TimeSeriesPoint(BaseModel):
     """
     Single data point in a time series.
@@ -36,6 +52,9 @@ class SystemAnalyticsData(BaseModel):
     - Blueprint perspective: which users ran each blueprint?
     Both views are derived from the same (user_id, blueprint_id) grouping.
 
+    The blueprint_stats field provides pre-aggregated execution metrics
+    per blueprint (duration, success rate, last run, users list).
+
     Implementations should optimize for efficiency (e.g., batching
     multiple aggregations into a single database operation).
     """
@@ -46,6 +65,10 @@ class SystemAnalyticsData(BaseModel):
     user_blueprint_counts: List[GroupedCount] = Field(
         default_factory=list,
         description="Sessions grouped by user_id and blueprint_id (used for both user and blueprint views)"
+    )
+    blueprint_stats: List[BlueprintExecutionStats] = Field(
+        default_factory=list,
+        description="Per-blueprint aggregated execution metrics"
     )
 
 

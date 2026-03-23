@@ -29,6 +29,10 @@ export interface BlueprintUsage {
   blueprint_name: string;
   run_count: number;
   unique_users: number;
+  avg_duration_seconds?: number;
+  last_run_at?: string;
+  success_rate: number;
+  user_list: string[];
 }
 
 export interface TimeSeriesData {

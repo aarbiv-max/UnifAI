@@ -5,6 +5,7 @@ from mas.blueprints.service import BlueprintService
 from mas.session.service import SessionService
 from mas.resources.service import ResourcesService
 from mas.core.dto import GroupedCount
+from mas.session.domain.models import BlueprintExecutionStats
 from global_utils.utils.time_utils import format_utc_iso
 from .models import (
     StatisticsResponse, ResourceCategoryStats, SystemStatsResponse,
@@ -263,7 +264,7 @@ class StatisticsService:
         
         # Build top blueprints list from analytics data
         top_blueprints = self._build_blueprint_usage_list(
-            analytics.user_blueprint_counts,
+            analytics.blueprint_stats,
             limit=10
         )
         
@@ -373,60 +374,46 @@ class StatisticsService:
 
     def _build_blueprint_usage_list(
         self,
-        blueprint_counts: List[GroupedCount],
+        blueprint_stats: List[BlueprintExecutionStats],
         limit: int = 10
     ) -> List[BlueprintUsage]:
         """
-        Build a list of BlueprintUsage models from grouped count data.
+        Transform BlueprintExecutionStats into BlueprintUsage models.
+        
+        Adds blueprint name lookup and calculates derived metrics (success rate %).
         
         Args:
-            blueprint_counts: Sessions grouped by blueprint_id and user_id
+            blueprint_stats: Pre-aggregated execution metrics from repository
             limit: Maximum number of blueprints to return
         
         Returns:
             List of BlueprintUsage models sorted by run count descending
         """
-        # Aggregate by blueprint
-        blueprint_data: Dict[str, Dict] = {}
-        for item in blueprint_counts:
-            blueprint_id = item.get("blueprint_id")
-            user_id = item.get("user_id")
-            count = item.count
-            
-            if not blueprint_id:
-                continue
-
-            if blueprint_id not in blueprint_data:
-                blueprint_data[blueprint_id] = {
-                    "run_count": 0,
-                    "unique_users": set()
-                }
-            
-            blueprint_data[blueprint_id]["run_count"] += count
-            if user_id:
-                blueprint_data[blueprint_id]["unique_users"].add(user_id)
-        
-        # Sort by run_count to get top blueprints first
-        sorted_blueprints = sorted(
-            blueprint_data.items(),
-            key=lambda x: x[1]["run_count"],
-            reverse=True
-        )[:limit]
+        # Sort by total_runs to get top blueprints first
+        sorted_stats = sorted(blueprint_stats, key=lambda s: s.total_runs, reverse=True)[:limit]
         
         # Batch lookup blueprint names (only for top N)
-        blueprint_ids = [bp_id for bp_id, _ in sorted_blueprints]
+        blueprint_ids = [s.blueprint_id for s in sorted_stats]
         blueprint_names = self._batch_get_blueprint_names(blueprint_ids)
         
-        # Build result as BlueprintUsage models
-        return [
-            BlueprintUsage(
-                blueprint_id=blueprint_id,
-                blueprint_name=blueprint_names.get(blueprint_id, blueprint_id),
-                run_count=data["run_count"],
-                unique_users=len(data["unique_users"])
-            )
-            for blueprint_id, data in sorted_blueprints
-        ]
+        # Transform to BlueprintUsage models
+        result = []
+        for stats in sorted_stats:
+            success_rate = round((stats.completed_runs / stats.total_runs) * 100, 1) if stats.total_runs > 0 else 0.0
+            avg_duration_seconds = (stats.avg_duration_ms / 1000.0) if stats.avg_duration_ms is not None else None
+            
+            result.append(BlueprintUsage(
+                blueprint_id=stats.blueprint_id,
+                blueprint_name=blueprint_names.get(stats.blueprint_id, stats.blueprint_id),
+                run_count=stats.total_runs,
+                unique_users=len(stats.users),
+                avg_duration_seconds=avg_duration_seconds,
+                last_run_at=stats.last_run,
+                success_rate=success_rate,
+                user_list=stats.users
+            ))
+        
+        return result
 
     def _batch_get_blueprint_names(self, blueprint_ids: List[str]) -> Dict[str, str]:
         """

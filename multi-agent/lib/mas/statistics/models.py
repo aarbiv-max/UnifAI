@@ -81,12 +81,28 @@ class BlueprintUsage(BaseModel):
     Blueprint usage statistics for admin dashboard.
 
     Represents how a single blueprint has been used across the system,
-    including total runs and number of distinct users.
+    including total runs, number of distinct users, and execution metrics.
     """
     blueprint_id: str = Field(..., description="Blueprint identifier")
     blueprint_name: str = Field(..., description="Blueprint display name")
     run_count: int = Field(0, description="Total number of session runs")
     unique_users: int = Field(0, description="Number of distinct users who ran this blueprint")
+    avg_duration_seconds: Optional[float] = Field(
+        None,
+        description="Average execution duration in seconds (null if no completed runs with timing data)"
+    )
+    last_run_at: Optional[str] = Field(
+        None,
+        description="ISO timestamp of most recent execution"
+    )
+    success_rate: float = Field(
+        0.0,
+        description="Percentage of COMPLETED runs (0.0 - 100.0)"
+    )
+    user_list: List[str] = Field(
+        default_factory=list,
+        description="List of user IDs who executed this blueprint"
+    )
 
 
 class SystemStatsResponse(BaseModel):
