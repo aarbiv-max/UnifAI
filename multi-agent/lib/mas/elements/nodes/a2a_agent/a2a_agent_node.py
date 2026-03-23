@@ -57,7 +57,7 @@ class A2AAgentNode(
             base_url: HttpUrl,
             agent_card: Optional[AgentCard] = None,
             bearer_token: Optional[str] = None,
-            retriever: Any = None,
+            retrievers: list = None,
             **kwargs: Any
     ):
         """
@@ -67,10 +67,10 @@ class A2AAgentNode(
             base_url: A2A agent endpoint URL
             agent_card: Optional pre-fetched agent card
             bearer_token: Optional bearer token for authentication
-            retriever: Optional retriever for context augmentation
+            retrievers: Optional list of retrievers for context augmentation
         """
         super().__init__(
-            retriever=retriever,
+            retrievers=retrievers,
             **kwargs
         )
 
@@ -205,7 +205,7 @@ class A2AAgentNode(
 
         # 4. User prompt is always last (with retriever augmentation if available)
         user_msg = ChatMessage(role=Role.USER, content=task.content)
-        if self.retriever:
+        if self.retrievers:
             user_msg = self.augment_with_context(user_msg)
         context_messages.append(user_msg)
 

@@ -46,7 +46,7 @@ class CustomAgentNode(
             self,
             *,
             llm: Any,
-            retriever: Any = None,
+            retrievers: List[Any] = None,
             tools: List[BaseTool] = None,
             system_message: str = "",
             mcp_providers: List[McpProvider] = None,
@@ -57,7 +57,7 @@ class CustomAgentNode(
     ):
         super().__init__(
             llm=llm,
-            retriever=retriever,
+            retrievers=retrievers,
             system_message=system_message,
             **kwargs
         )
@@ -123,10 +123,13 @@ class CustomAgentNode(
         # Time tool (no dependencies needed)
         builtin_tools.append(GetCurrentTimeTool())
 
-        # Retriever as tool (if available)
+        # Retrievers as tools (if available)
         # Allows agent to decide when to retrieve context
-        if self.retriever is not None:
-            builtin_tools.append(RetrieverTool(self.retriever))
+        for i, retriever in enumerate(self.retrievers):
+            tool = RetrieverTool(retriever)
+            if i > 0:
+                tool.name = f"{tool.name}_{i}"
+            builtin_tools.append(tool)
 
         return builtin_tools
 

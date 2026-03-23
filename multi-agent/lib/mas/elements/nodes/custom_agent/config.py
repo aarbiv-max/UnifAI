@@ -23,7 +23,7 @@ class CustomAgentNodeConfig(NodeBaseConfig):
             field_mapping="is_valid"
         ).to_hints()
     )
-    retriever: Optional[RetrieverRef] = Field(None, description="Retriever key to use")
+    retrievers: Optional[List[RetrieverRef]] = Field(default_factory=list, description="List of retriever keys to use")
     tools: Optional[List[ToolRef]] = Field(default_factory=list, description="List of tool keys")
     providers: Optional[List[ProviderRef]] = Field(
         default_factory=list,

@@ -17,7 +17,7 @@ class CustomAgentNodeFactory(BaseFactory[CustomAgentNodeConfig, CustomAgentNode]
         try:
             return CustomAgentNode(
                 llm=deps.pop("llm"),
-                retriever=deps.pop("retriever"),
+                retrievers=deps.pop("retrievers"),
                 tools=deps.pop("tools"),
                 mcp_providers=deps.pop("providers"),
                 system_message=cfg.system_message,

@@ -74,7 +74,7 @@ function getElementDetails(nodeDef: NodeDefinition): Record<string, unknown> {
   const details: Record<string, unknown> = {};
   const config = nodeDef?.config || {};
   if (config.llm) details.llm = config.llm;
-  if (config.retriever) details.retriever = config.retriever;
+  if (config.retrievers && Array.isArray(config.retrievers)) details.retrievers = config.retrievers.length;
   if (config.tools && Array.isArray(config.tools)) details.tools = config.tools.length;
   if (config.type) details.type = config.type;
   if (config.system_message != null) details.system_message = true;

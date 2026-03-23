@@ -20,7 +20,7 @@ export interface NodeDefinition {
     retries?: number;
     type: string;
     llm?: string;
-    retriever?: string;
+    retrievers?: string[];
     system_message?: string;
     tools?: string[];
     [key: string]: any; // For additional config properties

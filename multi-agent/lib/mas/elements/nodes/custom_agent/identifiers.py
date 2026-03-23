@@ -18,13 +18,13 @@ class Meta:
 
 META = Meta(
     name="Custom Agent Node",
-    description="Agent node with LLM, retriever, tools, and prompt overrides",
+    description="Agent node with LLM, retrievers, tools, and prompt overrides",
     tags=[
         "agent",
         "node",
         "custom",
         "llm",
-        "retriever",
+        "retrievers",
         "tools",
     ],
 )

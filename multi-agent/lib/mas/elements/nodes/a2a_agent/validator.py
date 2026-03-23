@@ -56,11 +56,11 @@ class A2AAgentNodeValidator(BaseElementValidator):
                 field="base_url",
             ))
 
-        # Check retriever dependency (optional)
-        if config.retriever:
-            retriever_rid = self._extract_rid(config.retriever)
+        # Check retriever dependencies (optional, list)
+        for idx, retriever_ref in enumerate(config.retrievers or []):
+            retriever_rid = self._extract_rid(retriever_ref)
             self._check_dependency(
-                context, retriever_rid, "retriever", messages, checked_dependencies
+                context, retriever_rid, f"retrievers[{idx}]", messages, checked_dependencies
             )
 
         return self._build_report(

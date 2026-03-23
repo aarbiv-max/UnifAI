@@ -59,11 +59,11 @@ class CustomAgentNodeValidator(BaseElementValidator):
             ):
                 all_deps_valid = False
 
-        # Check retriever dependency (optional)
-        if config.retriever:
-            retriever_rid = self._extract_rid(config.retriever)
+        # Check retriever dependencies (optional, list)
+        for idx, retriever_ref in enumerate(config.retrievers or []):
+            retriever_rid = self._extract_rid(retriever_ref)
             if not self._check_dependency(
-                context, retriever_rid, "retriever", messages, checked_dependencies
+                context, retriever_rid, f"retrievers[{idx}]", messages, checked_dependencies
             ):
                 all_deps_valid = False
 
@@ -88,7 +88,7 @@ class CustomAgentNodeValidator(BaseElementValidator):
                 total_deps = sum([
                     1 if config.llm else 0,
                     len(config.tools or []),
-                    1 if config.retriever else 0,
+                    len(config.retrievers or []),
                     len(config.providers or []),
                 ])
                 if total_deps == 0:

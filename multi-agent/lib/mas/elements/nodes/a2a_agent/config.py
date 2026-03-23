@@ -4,7 +4,7 @@ A2A Agent Node Configuration
 
 from mas.elements.nodes.common.base_config import NodeBaseConfig
 from pydantic import Field, HttpUrl
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from a2a.types import AgentCard
 from .identifiers import Identifier
 from mas.core.ref.models import RetrieverRef
@@ -50,7 +50,7 @@ class A2AAgentNodeConfig(NodeBaseConfig):
         ).to_hints()
     )
 
-    retriever: Optional[RetrieverRef] = Field(
-        None,
-        description="Retriever for context augmentation (optional)"
+    retrievers: Optional[List[RetrieverRef]] = Field(
+        default_factory=list,
+        description="List of retrievers for context augmentation (optional)"
     )

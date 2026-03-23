@@ -15,7 +15,7 @@ class A2AAgentNodeFactory(BaseFactory[A2AAgentNodeConfig, A2AAgentNode]):
     
     Creates node with A2A provider initialized from mas.config.
     Dependencies injected:
-    - retriever: Optional retriever instance (resolved from RetrieverRef)
+    - retrievers: Optional list of retriever instances (resolved from RetrieverRef)
     """
 
     def accepts(self, cfg: A2AAgentNodeConfig, element_type: str) -> bool:
@@ -30,7 +30,7 @@ class A2AAgentNodeFactory(BaseFactory[A2AAgentNodeConfig, A2AAgentNode]):
         Args:
             cfg: Validated configuration
             deps: Resolved dependencies
-                - retriever: Optional retriever
+                - retrievers: Optional list of retrievers
                 
         Returns:
             Initialized A2AAgentNode
@@ -43,7 +43,7 @@ class A2AAgentNodeFactory(BaseFactory[A2AAgentNodeConfig, A2AAgentNode]):
                 base_url=cfg.base_url,
                 agent_card=cfg.agent_card,
                 bearer_token=cfg.bearer_token,
-                retriever=deps.pop("retriever"),
+                retrievers=deps.pop("retrievers"),
                 retries=cfg.retries,
             )
         except Exception as e:
