@@ -7,6 +7,7 @@ import logging
 from mas.session.repository.repository import SessionRepository
 from mas.session.domain.session_record import SessionRecord
 from mas.session.domain.models import SessionChat, TimeSeriesPoint, SystemAnalyticsData, BlueprintExecutionStats
+from mas.session.domain.status import SessionStatus
 from mas.core.dto import GroupedCount
 from global_utils.utils.time_utils import format_utc_iso
 
@@ -242,7 +243,7 @@ class MongoSessionRepository(SessionRepository):
                         "completed_runs": {
                             "$sum": {
                                 "$cond": [
-                                    {"$eq": [f"${self._STATUS_FIELD}", "COMPLETED"]},
+                                    {"$eq": [f"${self._STATUS_FIELD}", SessionStatus.COMPLETED.value]},
                                     1,
                                     0
                                 ]
