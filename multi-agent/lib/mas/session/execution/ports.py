@@ -26,7 +26,9 @@ class BackgroundSessionCanceller(ABC):
     Outbound port for session cancellation.
 
     Each adapter (Temporal, Celery, RQ, …) implements this port.
-    Cancellation notifies subscribers and stops the background workflow.
+    The adapter only requests workflow cancellation; lifecycle transitions
+    and channel cleanup are handled by BackgroundLifecycleHandler inside
+    the workflow's cancellation handler.
     """
 
     @abstractmethod

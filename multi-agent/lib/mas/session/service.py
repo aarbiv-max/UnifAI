@@ -4,7 +4,6 @@ from mas.session.management.user_session_manager import UserSessionManager
 from mas.session.execution.foreground_runner import ForegroundSessionRunner
 from mas.session.execution.input_projector import SessionInputProjector
 from mas.session.execution.ports import BackgroundSessionSubmitter, BackgroundSessionCanceller, SubmitSessionRequest
-from mas.session.execution.lifecycle import SessionLifecycle
 from mas.session.domain.status import SessionStatus
 from mas.session.domain.workflow_session import WorkflowSession
 from mas.session.domain.session_record import SessionRecord
@@ -29,14 +28,12 @@ class SessionService:
         input_projector: SessionInputProjector,
         background_submitter: Optional[BackgroundSessionSubmitter] = None,
         background_canceller: Optional[BackgroundSessionCanceller] = None,
-        lifecycle: Optional[SessionLifecycle] = None,
     ):
         self._manager = manager
         self._foreground = foreground_runner
         self._projector = input_projector
         self._submitter = background_submitter
         self._canceller = background_canceller
-        self._lifecycle = lifecycle
 
     def create(self, user_id: str, blueprint_id: str, metadata: Dict[str, Any] | SessionMeta | None = None) -> str:
         """
@@ -94,15 +91,25 @@ class SessionService:
         return self._submitter.submit(session, request)
 
     def cancel(self, session_id: str) -> bool:
-        """Cancel a running or queued background session.
-        Returns True if cancelled, False if not in a cancellable state."""
+        """Request cancellation of a running or queued background session.
+
+        Only checks eligibility and delegates to the adapter.  The actual
+        lifecycle transition (CANCELLED status, channel close) happens inside
+        the workflow's CancelledError handler via BackgroundLifecycleHandler,
+        keeping lifecycle ownership in a single place.
+
+        Returns True if cancellation was requested, False if the session
+        is not in a cancellable state.
+        """
+        if self._canceller is None:
+            raise TypeError(
+                "No BackgroundSessionCanceller configured — "
+                "cancel() is not available for this engine."
+            )
         record = self._manager.get_record(session_id)
         if record.status not in (SessionStatus.QUEUED, SessionStatus.RUNNING):
             return False
-        if self._lifecycle:
-            self._lifecycle.cancel(record)
-        if self._canceller:
-            self._canceller.cancel(session_id)
+        self._canceller.cancel(session_id)
         return True
 
     # ---- Private staging ----
