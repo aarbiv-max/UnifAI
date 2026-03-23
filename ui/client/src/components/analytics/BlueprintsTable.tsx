@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { FaRocket } from "react-icons/fa";
+import { FaRocket, FaEye } from "react-icons/fa";
 import { useMemo } from "react";
 import { generateColorPalette } from "@/lib/colorUtils";
 import { AnalyticCard } from "./AnalyticCard";
@@ -62,9 +62,10 @@ export function BlueprintsTable({ blueprints, colors }: BlueprintsTableProps) {
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="cursor-help underline decoration-dotted decoration-gray-500">
-                              {bp.unique_users}
-                            </span>
+                            <div className="inline-flex items-center gap-1.5 cursor-default">
+                              <span>{bp.unique_users}</span>
+                              <FaEye className="w-3 h-3 text-gray-500" />
+                            </div>
                           </TooltipTrigger>
                           <TooltipContent side="left" className="max-w-xs">
                             <div className="text-xs">
