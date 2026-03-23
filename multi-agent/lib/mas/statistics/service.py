@@ -400,7 +400,7 @@ class StatisticsService:
         result = []
         for stats in sorted_stats:
             success_rate = round((stats.completed_runs / stats.total_runs) * 100, 1) if stats.total_runs > 0 else 0.0
-            avg_duration_seconds = (stats.avg_duration_ms / 1000.0) if stats.avg_duration_ms is not None else None
+            avg_duration_seconds = max(0.0, stats.avg_duration_ms / 1000.0) if stats.avg_duration_ms is not None else None
             
             result.append(BlueprintUsage(
                 blueprint_id=stats.blueprint_id,

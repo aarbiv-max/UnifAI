@@ -254,7 +254,9 @@ class MongoSessionRepository(SessionRepository):
                                 "$cond": [
                                     {"$and": [
                                         {"$ne": ["$run_context.finished_at", None]},
-                                        {"$ne": [f"${self._TIME_FIELD}", None]}
+                                        {"$ne": ["$run_context.finished_at", ""]},
+                                        {"$ne": [f"${self._TIME_FIELD}", None]},
+                                        {"$ne": [f"${self._TIME_FIELD}", ""]},
                                     ]},
                                     {"$subtract": [
                                         {"$dateFromString": {"dateString": "$run_context.finished_at"}},

@@ -24,42 +24,42 @@ export function BlueprintsTable({ blueprints, colors }: BlueprintsTableProps) {
       icon={<FaRocket style={{ color: colors.primary }} />}
     >
       <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Blueprint Name</TableHead>
-              <TableHead className="text-right">Total Runs</TableHead>
-              <TableHead className="text-right">Avg Duration</TableHead>
-              <TableHead className="text-right">Last Run</TableHead>
-              <TableHead className="text-right">Success Rate</TableHead>
-              <TableHead className="text-right">Users</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {blueprints.length > 0 ? (
-              blueprints.map((bp, idx) => {
-                const color = colorPalette[idx % colorPalette.length];
-                return (
-                  <TableRow key={idx} className="hover:bg-muted/50">
-                    <TableCell className="font-medium text-sm max-w-[200px] truncate" title={bp.blueprint_name}>
-                      {bp.blueprint_name}
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-semibold" style={{ color }}>
-                      {bp.run_count}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-gray-400">
-                      {formatDuration(bp.avg_duration_seconds)}
-                    </TableCell>
-                    <TableCell className="text-right text-sm text-gray-400">
-                      {bp.last_run_at ? formatRelativeTimestamp(bp.last_run_at) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      <span className={getSuccessRateColor(bp.success_rate ?? 0)}>
-                        {(bp.success_rate ?? 0).toFixed(1)}%
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      <TooltipProvider>
+        <TooltipProvider>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Blueprint Name</TableHead>
+                <TableHead className="text-right">Total Runs</TableHead>
+                <TableHead className="text-right">Avg Duration</TableHead>
+                <TableHead className="text-right">Last Run</TableHead>
+                <TableHead className="text-right">Success Rate</TableHead>
+                <TableHead className="text-right">Users</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {blueprints.length > 0 ? (
+                blueprints.map((bp, idx) => {
+                  const color = colorPalette[idx % colorPalette.length];
+                  return (
+                    <TableRow key={idx} className="hover:bg-muted/50">
+                      <TableCell className="font-medium text-sm max-w-[200px] truncate" title={bp.blueprint_name}>
+                        {bp.blueprint_name}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-semibold" style={{ color }}>
+                        {bp.run_count}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-gray-400">
+                        {formatDuration(bp.avg_duration_seconds)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-gray-400">
+                        {bp.last_run_at ? formatRelativeTimestamp(bp.last_run_at) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        <span className={getSuccessRateColor(bp.success_rate ?? 0)}>
+                          {(bp.success_rate ?? 0).toFixed(1)}%
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div className="inline-flex items-center gap-1.5 cursor-default">
@@ -82,20 +82,20 @@ export function BlueprintsTable({ blueprints, colors }: BlueprintsTableProps) {
                             </div>
                           </TooltipContent>
                         </Tooltip>
-                      </TooltipProvider>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-6 text-gray-400">
-                  No blueprint data available
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-6 text-gray-400">
+                    No blueprint data available
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TooltipProvider>
       </div>
     </AnalyticCard>
   );

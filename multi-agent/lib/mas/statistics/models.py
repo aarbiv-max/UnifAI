@@ -113,7 +113,7 @@ class SystemStatsResponse(BaseModel):
     call the endpoint with different time_range values to get
     different views (e.g., today, last 7 days, last 30 days).
     """
-    total_stats: TotalStats = Field(..., description="Total statistics: total_runs, unique_users, avg_runs_per_user")
+    total_stats: TotalStats = Field(..., description="Total statistics: total_runs, unique_users, unique_blueprints")
     status_breakdown: Dict[str, int] = Field(default_factory=dict, description="Breakdown of session runs by status")
     active_users: List[UserActivity] = Field(default_factory=list, description="Users active in the selected time range, sorted by run count")
     top_blueprints: List[BlueprintUsage] = Field(default_factory=list, description="Most used blueprints in the selected time range")
