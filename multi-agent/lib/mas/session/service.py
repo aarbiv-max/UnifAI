@@ -95,14 +95,26 @@ class SessionService:
 
     def cancel(self, session_id: str) -> bool:
         """Cancel a running or queued background session.
-        Returns True if cancelled, False if not in a cancellable state."""
+        Returns True if cancelled, False if not in a cancellable state.
+
+        Unlike run() and submit() which delegate lifecycle management to
+        runners/submitters, cancel() orchestrates directly because it
+        spans two independent best-effort operations: an immediate DB
+        state transition (lifecycle) and an infrastructure stop signal
+        (canceller port).  The DB update must happen first so the API
+        can return CANCELLED immediately, even if the Temporal cancel
+        fails.
+        """
+        if self._lifecycle is None or self._canceller is None:
+            raise TypeError(
+                "No lifecycle or BackgroundSessionCanceller configured — "
+                "cancel() is not available for this engine."
+            )
         record = self._manager.get_record(session_id)
         if record.status not in (SessionStatus.QUEUED, SessionStatus.RUNNING):
             return False
-        if self._lifecycle:
-            self._lifecycle.cancel(record)
-        if self._canceller:
-            self._canceller.cancel(session_id)
+        self._lifecycle.cancel(record)
+        self._canceller.cancel(session_id)
         return True
 
     # ---- Private staging ----
