@@ -63,6 +63,10 @@ class ResourcesService:
         """
         return self._store.create(resource)
 
+    def find_by_name(self, user_id: str, category: str, type: str, name: str) -> Optional[Resource]:
+        """Find a resource by name within a user's scope."""
+        return self._store._repo.find_by_name(user_id, category, type, name)
+
     def update(self, rid: str, *, config: dict, name: str = None) -> Resource:
         doc = self._store.get(rid)
         model_cls = self.element_registry.get_schema(
