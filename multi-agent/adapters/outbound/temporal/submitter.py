@@ -12,7 +12,6 @@ Uses string-based workflow invocation to avoid importing from the
 inbound adapter layer (hexagonal boundary compliance).
 """
 import asyncio
-import uuid
 
 from mas.session.execution.ports import BackgroundSessionSubmitter, SubmitSessionRequest
 from mas.session.domain.workflow_session import WorkflowSession
@@ -57,7 +56,7 @@ class TemporalSessionSubmitter(BackgroundSessionSubmitter):
         cfg = AppConfig.get_instance()
         client = await get_temporal_client()
 
-        workflow_id = f"session-{uuid.uuid4().hex[:12]}"
+        workflow_id = f"session-{session.get_run_id()}"
 
         graph_params = GraphExecutionParams(
             state=session.graph_state,

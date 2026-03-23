@@ -67,6 +67,7 @@ async def run_worker(
             lifecycle_activities.begin_session,
             lifecycle_activities.complete_session,
             lifecycle_activities.fail_session,
+            lifecycle_activities.cancel_session,
         ],
         activity_executor=ThreadPoolExecutor(max_workers=threads),
         max_concurrent_activities=threads,

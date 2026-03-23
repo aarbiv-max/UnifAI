@@ -48,7 +48,10 @@ class SessionLifecycle:
     ) -> None:
         """
         Post-execution: attach final state, mark COMPLETED, persist.
+        No-op if session is already in terminal CANCELLED state.
         """
+        if record.status == SessionStatus.CANCELLED:
+            return
         record.graph_state = final_state
         record.update_context(finished_at=datetime.now(timezone.utc))
         record.status = SessionStatus.COMPLETED
@@ -61,7 +64,23 @@ class SessionLifecycle:
     ) -> None:
         """
         On error: mark FAILED, persist.
+        No-op if session is already in terminal CANCELLED state.
         """
+        if record.status == SessionStatus.CANCELLED:
+            return
         record.update_context(finished_at=datetime.now(timezone.utc))
         record.status = SessionStatus.FAILED
+        self._repo.save(record)
+
+    def cancel(
+        self,
+        record: SessionRecord,
+    ) -> None:
+        """
+        Cancel execution: mark CANCELLED, persist. Idempotent.
+        """
+        if record.status == SessionStatus.CANCELLED:
+            return
+        record.update_context(finished_at=datetime.now(timezone.utc))
+        record.status = SessionStatus.CANCELLED
         self._repo.save(record)

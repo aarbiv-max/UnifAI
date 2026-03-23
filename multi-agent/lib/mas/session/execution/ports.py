@@ -21,6 +21,20 @@ class SubmitSessionRequest:
     execution_context: ExecutionContext = field(default_factory=ExecutionContext)
 
 
+class BackgroundSessionCanceller(ABC):
+    """
+    Outbound port for session cancellation.
+
+    Each adapter (Temporal, Celery, RQ, …) implements this port.
+    Cancellation notifies subscribers and stops the background workflow.
+    """
+
+    @abstractmethod
+    def cancel(self, session_id: str) -> None:
+        """Request cancellation of a running background session."""
+        ...
+
+
 class BackgroundSessionSubmitter(ABC):
     """
     Outbound port for fire-and-forget session submission.

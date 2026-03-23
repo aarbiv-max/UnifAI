@@ -15,6 +15,7 @@ starts.  begin() only transitions QUEUED → RUNNING.
 pydantic_data_converter handles GraphState serialization/deserialization
 automatically — no manual .serialize()/.deserialize() calls needed.
 """
+import asyncio
 from datetime import timedelta
 
 from temporalio import workflow
@@ -28,6 +29,7 @@ from temporal.models import (
     BeginSessionParams,
     CompleteSessionParams,
     FailSessionParams,
+    CancelSessionParams,
 )
 from inbound.temporal.workflows.graph_traversal_workflow import GraphTraversalWorkflow
 
@@ -51,7 +53,16 @@ class SessionWorkflow:
     async def run(self, params: SessionWorkflowParams) -> GraphState:
         self._params = params
         runner = BackgroundSessionRunner()
-        return await runner.run(self)
+        try:
+            return await runner.run(self)
+        except asyncio.CancelledError:
+            await workflow.execute_activity(
+                "cancel_session",
+                CancelSessionParams(run_id=self._params.run_id),
+                start_to_close_timeout=_LIFECYCLE_TIMEOUT,
+                retry_policy=_LIFECYCLE_RETRY,
+            )
+            raise
 
     # ── BackgroundSessionOps implementation ──────────────────────────
 

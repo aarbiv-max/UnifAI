@@ -135,12 +135,17 @@ class AppContainer(metaclass=SingletonMeta):
         )
 
         background_submitter = self._create_background_submitter(cfg.engine_name)
+        background_canceller = self._create_background_canceller(
+            cfg.engine_name, self.channel_factory,
+        )
 
         self.session_service = SessionService(
             manager=self.session_manager,
             foreground_runner=foreground_runner,
             input_projector=self.input_projector,
             background_submitter=background_submitter,
+            background_canceller=background_canceller,
+            lifecycle=self.session_lifecycle,
         )
 
         self.share_repo = MongoShareRepository(
@@ -195,4 +200,11 @@ class AppContainer(metaclass=SingletonMeta):
         if engine_name == "temporal":
             from outbound.temporal.submitter import TemporalSessionSubmitter
             return TemporalSessionSubmitter()
+        return None
+
+    @staticmethod
+    def _create_background_canceller(engine_name: str, channel_factory):
+        if engine_name == "temporal":
+            from outbound.temporal.canceller import TemporalSessionCanceller
+            return TemporalSessionCanceller(channel_factory=channel_factory)
         return None
