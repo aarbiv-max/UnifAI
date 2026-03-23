@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADR - Session Cancel — UI Integration (Stop/Cancel Button)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 2rem;
+            color: #333;
+            background: #fafafa;
+        }
+        h1, h2, h3 {
+            color: #1a1a1a;
+        }
+        hr {
+            border: none;
+            border-top: 2px solid #e0e0e0;
+            margin: 2rem 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px 16px;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f5f5f5;
+            font-weight: 600;
+            width: 200px;
+        }
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1.2rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        code {
+            font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .header-meta {
+            color: #666;
+            font-size: 0.95rem;
+        }
+        .note-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+        }
+        .note-box strong {
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+
+<hr>
+
+<h1>&#x1F3A8; Architecture Design Review (ADR)</h1>
+
+<p><strong>Feature Name:</strong> Session Cancel &mdash; UI Integration (Stop/Cancel Button for Multi-Agent Chat)</p>
+
+<p class="header-meta"><strong>Lead Developer:</strong> Yosi Habushi | <strong>Date:</strong> 2026-03-23 | <strong>Priority:</strong> High</p>
+
+<p class="header-meta"><strong>Related:</strong> <a href="ADR-Session-Cancel-Temporal-Workflow.html">ADR &mdash; Session Cancel: Temporal Workflow Execution Path (Backend)</a></p>
+
+<hr>
+
+<h2>1. Executive Summary</h2>
+
+<table>
+    <tr>
+        <th>Section</th>
+        <th>Detail</th>
+    </tr>
+    <tr>
+        <td><strong>Problem Statement</strong></td>
+        <td>Once a user sends a query in the multi-agent chat, there is no way to stop the execution. The Send button is disabled during streaming (<code>isTyping</code>), and the <code>TypingIndicator</code> / <code>ChatOnlyLoader</code> displays indefinitely until the session completes or fails. The existing <code>cancelStream()</code> in <code>useSessionStream</code> only stops the <strong>client-side</strong> NDJSON reader &mdash; it does <strong>not</strong> cancel backend execution. Users must wait for the full graph traversal (potentially 30+ seconds with multiple LLM calls) to finish.</td>
+    </tr>
+    <tr>
+        <td><strong>High-Level Solution</strong></td>
+        <td>Add a <strong>Stop button</strong> that replaces the Send button while a session is actively running. Clicking it calls the new <code>POST /session.cancel</code> backend endpoint, handles the <code>session_cancelled</code> stream event, stops all client-side streaming, and displays a &ldquo;Session cancelled&rdquo; message. The solution touches 4 existing files and adds 1 new API function, following existing patterns (shadcn Button, lucide icons, axios calls, toast notifications, stream event handling).</td>
+    </tr>
+    <tr>
+        <td><strong>Success Metrics</strong></td>
+        <td>Stop button appears within 100ms of session start. Backend cancel API responds within 1 second. Stream closes immediately (user sees no further tokens). &ldquo;Session cancelled&rdquo; indication appears in the chat. Input re-enables for the next query. Works in both <code>ExecutionTab</code> (logged-in) and <code>PublicChat</code> (shared link) paths.</td>
+    </tr>
+</table>
+
+<hr>
+
+<h2>2. Current State Analysis</h2>
+
+<h3>2.1 &mdash; What Exists Today</h3>
+
+<table>
+    <tr>
+        <th>Concern</th>
+        <th>Current Behavior</th>
+        <th>File</th>
+    </tr>
+    <tr>
+        <td><strong>Send button</strong></td>
+        <td>Disabled while <code>isTyping</code> or blueprint invalid; always shows <code>Send</code> icon</td>
+        <td><code>ChatInterface.tsx:1176-1182</code></td>
+    </tr>
+    <tr>
+        <td><strong>Streaming indicator</strong></td>
+        <td><code>TypingIndicator</code> (animated dots) or <code>ChatOnlyLoader</code> (spinner) shown during <code>isTyping</code> or <code>isLiveRequest</code></td>
+        <td><code>ChatInterface.tsx:1105-1109</code></td>
+    </tr>
+    <tr>
+        <td><strong>Client cancel</strong></td>
+        <td><code>cancelStream()</code> aborts the <code>ReadableStream</code> reader + <code>AbortController</code>; does NOT cancel backend</td>
+        <td><code>use-session-stream.ts:96-107</code></td>
+    </tr>
+    <tr>
+        <td><strong>Stream events</strong></td>
+        <td>Handles <code>heartbeat</code>, <code>stream_end</code>, <code>stream_error</code>; no <code>session_cancelled</code> handler</td>
+        <td><code>use-session-stream.ts:163-180</code></td>
+    </tr>
+    <tr>
+        <td><strong>Session status types</strong></td>
+        <td><code>StreamStatusResponse.status: 'running' | 'completed' | 'failed' | 'unknown'</code> &mdash; no <code>'cancelled'</code></td>
+        <td><code>api/sessions.ts:51-61</code></td>
+    </tr>
+    <tr>
+        <td><strong>API layer</strong></td>
+        <td><code>submitSession()</code>, <code>subscribeToSessionStream()</code>, <code>getSessionStreamStatus()</code> &mdash; no <code>cancelSession()</code></td>
+        <td><code>api/sessions.ts</code></td>
+    </tr>
+    <tr>
+        <td><strong>Input gating</strong></td>
+        <td>Textarea disabled by blueprint checks; NOT by session status</td>
+        <td><code>ChatInterface.tsx:1145</code></td>
+    </tr>
+</table>
+
+<h3>2.2 &mdash; What the Backend Provides (from Backend ADR)</h3>
+
+<table>
+    <tr>
+        <th>Backend API</th>
+        <th>Behavior</th>
+    </tr>
+    <tr>
+        <td><code>POST /session.cancel { sessionId }</code></td>
+        <td>Returns <code>200 { sessionId, status: "CANCELLED" }</code> if cancelled, <code>409</code> if not in cancellable state</td>
+    </tr>
+    <tr>
+        <td>Redis stream event</td>
+        <td><code>{ type: "session_cancelled" }</code> emitted on the session&rsquo;s Redis stream immediately</td>
+    </tr>
+    <tr>
+        <td>Redis stream close</td>
+        <td><code>{ __control: "close" }</code> follows &mdash; reader stops (existing behavior)</td>
+    </tr>
+    <tr>
+        <td>Session status</td>
+        <td><code>CANCELLED</code> is a new terminal status in the backend</td>
+    </tr>
+</table>
+
+<hr>
+
+<h2>3. Files to Change (5 files, 0 new files)</h2>
+
+<table>
+    <tr>
+        <th>#</th>
+        <th>File</th>
+        <th>Change</th>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td><code>ui/client/src/api/sessions.ts</code></td>
+        <td>Add <code>cancelSession()</code> API function + add <code>'cancelled'</code> to <code>StreamStatusResponse.status</code> type</td>
+    </tr>
+    <tr>
+        <td>2</td>
+        <td><code>ui/client/src/hooks/use-session-stream.ts</code></td>
+        <td>Handle <code>session_cancelled</code> event type in the NDJSON read loop + expose <code>cancelSession</code></td>
+    </tr>
+    <tr>
+        <td>3</td>
+        <td><code>ui/client/src/components/agentic-ai/chat/ChatInterface.tsx</code></td>
+        <td>Replace Send button with Stop button during streaming; handle cancellation UI state</td>
+    </tr>
+    <tr>
+        <td>4</td>
+        <td><code>ui/client/src/components/agentic-ai/ExecutionTab.tsx</code></td>
+        <td>Wire cancel through <code>triggerExecution</code>; pass <code>onCancelSession</code> to <code>ChatInterface</code></td>
+    </tr>
+    <tr>
+        <td>5</td>
+        <td><code>ui/client/src/hooks/use-public-chat.ts</code></td>
+        <td>Add cancel support to the public chat <code>triggerExecution</code> path</td>
+    </tr>
+</table>
+
+<hr>
+
+<h2>4. Architecture &amp; Design</h2>
+
+<h3>Diagram 1 &mdash; Component Hierarchy and Data Flow</h3>
+
+<pre><code>ExecutionTab
+├── useSessionStream hook
+│   ├── submitAndSubscribe()     → POST /user.session.submit + GET /session.subscribe
+│   ├── cancelStream()           → Abort client-side reader
+│   ├── cancelSession()          → POST /session.cancel (NEW)
+│   └── onChunk / onStreamEnd   → Callbacks for stream events
+│
+├── handleCancelSession()        → cancelSession() + cancelStream() + setIsLiveRequest(false)
+│
+├── triggerExecution()           → submitAndSubscribe + await streamComplete + session.chat.get
+│
+└── ChatInterface
+    ├── handleSendMessage()      → triggerExecution()
+    ├── handleCancelClick()      → onCancelSession() prop (NEW)
+    │
+    ├── SEND AREA (conditional):
+    │   ├── isTyping || isLiveRequest → Stop Button (Square icon, red)
+    │   └── otherwise                 → Send Button (Send icon, primary)
+    │
+    ├── STREAMING INDICATORS:
+    │   ├── TypingIndicator          → Animated dots (normal mode)
+    │   └── ChatOnlyLoader           → Spinner (chat-only mode)
+    │
+    └── MESSAGE DISPLAY:
+        ├── Normal AI message        → StreamLogDisplay + finalAnswer
+        ├── Cancelled AI message     → "Session was stopped by user." (NEW)
+        └── Error AI message         → Error text (existing)</code></pre>
+
+<h3>Diagram 2 &mdash; Cancel Sequence (Full Data Flow)</h3>
+
+<pre><code>USER                     ChatInterface           ExecutionTab             useSessionStream           BACKEND
+  │                            │                      │                          │                       │
+  │ Click Stop button          │                      │                          │                       │
+  │───────────────────────────>│                      │                          │                       │
+  │                            │                      │                          │                       │
+  │                            │ handleCancelClick()  │                          │                       │
+  │                            │ isCancelling = true  │                          │                       │
+  │                            │                      │                          │                       │
+  │                            │ onCancelSession() ──>│                          │                       │
+  │                            │                      │ handleCancelSession()    │                       │
+  │                            │                      │                          │                       │
+  │                            │                      │ cancelSession(id) ──────>│                       │
+  │                            │                      │                          │ POST /session.cancel ─>│
+  │                            │                      │                          │                       │
+  │                            │                      │                          │ &lt;── 200 { CANCELLED }  │
+  │                            │                      │                          │                       │
+  │                            │                      │ cancelStream() ─────────>│                       │
+  │                            │                      │                          │ Abort reader           │
+  │                            │                      │                          │ setIsStreaming(false)   │
+  │                            │                      │                          │                       │
+  │                            │                      │ setIsLiveRequest(false)  │                       │
+  │                            │                      │                          │                       │
+  │                            │ isLiveRequest=false   │                          │                       │
+  │                            │ → show "Stopped" msg │                          │                       │
+  │                            │ → stopStreamingLogs() │                          │                       │
+  │                            │ → Send button returns │                          │                       │
+  │                            │ isCancelling = false  │                          │                       │
+  │                            │                      │                          │                       │
+  │ See "Session stopped" msg  │                      │                          │                       │
+  │&lt;───────────────────────────│                      │                          │                       │
+  │                            │                      │                          │                       │
+  │ Can type new message       │                      │                          │                       │
+  │───────────────────────────>│                      │                          │                       │</code></pre>
+
+<h3>Diagram 3 &mdash; UI State Machine</h3>
+
+<pre><code>                              ┌───────────────┐
+                              │     IDLE       │
+                              │                │
+                              │  Send button   │
+                              │  (enabled if   │
+                              │   input valid) │
+                              └──────┬────────┘
+                                     │
+                              User clicks Send
+                                     │
+                              ┌──────▼────────┐
+                              │   SUBMITTING   │
+                              │                │
+                              │  Stop button   │
+                              │  isTyping=true │
+                              │  TypingIndicator│
+                              │  Input disabled│
+                              └──────┬────────┘
+                                     │
+                              Submit + subscribe
+                              completes
+                                     │
+                              ┌──────▼────────┐
+                              │   STREAMING    │
+                              │                │
+                              │  Stop button   │
+                              │  isLiveRequest │
+                              │  Stream logs   │
+                              │  updating      │
+                              └──┬──────────┬──┘
+                                 │          │
+                    User clicks  │          │  Stream ends
+                    Stop button  │          │  (stream_end)
+                                 │          │
+                          ┌──────▼──┐  ┌────▼──────────┐
+                          │CANCELLING│  │  COMPLETING    │
+                          │          │  │                │
+                          │ Stop btn │  │  Fetching      │
+                          │ spinner  │  │  final answer  │
+                          │ API call │  │                │
+                          └──────┬───┘  └────┬──────────┘
+                                 │           │
+                          Cancel completes   │
+                                 │           │
+                          ┌──────▼───┐  ┌────▼──────────┐
+                          │CANCELLED  │  │  COMPLETED     │
+                          │           │  │                │
+                          │ "Session  │  │  Final answer  │
+                          │  stopped" │  │  displayed     │
+                          │ message   │  │                │
+                          │           │  │                │
+                          │ Send btn  │  │  Send button   │
+                          │ returns   │  │  returns       │
+                          └───────────┘  └────────────────┘
+
+                          ERROR PATH (at any streaming state):
+
+                          ┌──────────────┐
+                          │   ERRORED     │
+                          │               │
+                          │  Error toast  │
+                          │  or inline    │
+                          │  error msg    │
+                          │               │
+                          │  Send button  │
+                          │  returns      │
+                          └───────────────┘</code></pre>
+
+<hr>
+
+<h2>5. Detailed File Changes</h2>
+
+<h3>5.1 &mdash; API Client (<code>api/sessions.ts</code>)</h3>
+
+<p>Add <code>cancelSession()</code> function following the exact pattern of <code>submitSession()</code>:</p>
+
+<pre><code>// New type
+export interface CancelSessionResponse {
+  sessionId: string;
+  status: 'CANCELLED';
+}
+
+// New function
+export async function cancelSession(sessionId: string): Promise&lt;CancelSessionResponse&gt; {
+  const response = await axios.post('/sessions/session.cancel', { sessionId });
+  return response.data;
+}</code></pre>
+
+<p>Update <code>StreamStatusResponse.status</code> to include <code>'cancelled'</code>:</p>
+
+<pre><code>export interface StreamStatusResponse {
+  session_id: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'unknown';
+  // ... rest unchanged
+}</code></pre>
+
+<h3>5.2 &mdash; Stream Hook (<code>use-session-stream.ts</code>)</h3>
+
+<p>Add <code>session_cancelled</code> to the event handling in the NDJSON read loop, alongside <code>stream_end</code> and <code>stream_error</code>:</p>
+
+<pre><code>// Inside the while(true) read loop, after stream_end check:
+
+if (event.type === 'session_cancelled') {
+  setIsStreaming(false);
+  onStreamEndRef.current?.();
+  return;
+}</code></pre>
+
+<p>Add <code>cancelSession</code> wrapper to the hook&rsquo;s return interface:</p>
+
+<pre><code>const cancelSessionFn = useCallback(async (sessionId: string): Promise&lt;void&gt; =&gt; {
+  try {
+    await cancelSession(sessionId);
+  } catch (err: any) {
+    if (err.response?.status === 409) {
+      // Session not in cancellable state — already completed/failed/cancelled
+      return;
+    }
+    throw err;
+  }
+}, []);</code></pre>
+
+<p><strong>Why <code>session_cancelled</code> behaves like <code>stream_end</code>:</strong> The backend emits <code>{ type: "session_cancelled" }</code> via <code>channel.emit()</code> then immediately calls <code>channel.close()</code>. The reader sees <code>session_cancelled</code> (payload event) followed by <code>__control: close</code> (control event). We treat it as stream end so <code>onStreamEnd</code> fires immediately &mdash; the reader doesn&rsquo;t need to wait for the close control. Cancellation is a user-initiated intentional action, not a failure, so we do not use <code>onError</code>.</p>
+
+<h3>5.3 &mdash; Chat Interface (<code>ChatInterface.tsx</code>)</h3>
+
+<h4>5.3.1 &mdash; Stop Button (replaces Send during streaming)</h4>
+
+<p>New prop on <code>ChatInterfaceProps</code>:</p>
+
+<pre><code>interface ChatInterfaceProps {
+  // ... existing props ...
+  onCancelSession?: () =&gt; Promise&lt;void&gt;;  // Called when user clicks Stop
+}</code></pre>
+
+<p>Button swap logic &mdash; the Send button area becomes conditional:</p>
+
+<pre><code>CONDITION                           BUTTON SHOWN
+──────────────────────────────────────────────────────
+isTyping || isLiveRequest           Stop button (Square icon, red accent)
+otherwise                           Send button (Send icon, primary)</code></pre>
+
+<p>Stop button implementation using existing patterns (shadcn <code>Button</code>, <code>lucide-react</code> icons):</p>
+
+<pre><code>import { Square } from "lucide-react";
+
+const [isCancelling, setIsCancelling] = useState(false);
+
+{(isTyping || isLiveRequest) ? (
+  &lt;Button
+    onClick={handleCancelClick}
+    disabled={isCancelling}
+    className="bg-red-600 hover:bg-red-700 mb-0"
+    title="Stop generation"
+  &gt;
+    {isCancelling ? (
+      &lt;Loader2 className="h-4 w-4 animate-spin" /&gt;
+    ) : (
+      &lt;Square className="h-4 w-4" /&gt;
+    )}
+  &lt;/Button&gt;
+) : (
+  &lt;Button
+    onClick={() =&gt; handleSendMessage()}
+    disabled={inputMessage.trim() === "" || isTyping || ...}
+    className="bg-primary hover:bg-[#7525c9] mb-0"
+  &gt;
+    &lt;Send className="h-4 w-4" /&gt;
+  &lt;/Button&gt;
+)}</code></pre>
+
+<h4>5.3.2 &mdash; Cancel Click Handler</h4>
+
+<pre><code>const handleCancelClick = async () =&gt; {
+  if (isCancelling) return;
+  setIsCancelling(true);
+
+  try {
+    await onCancelSession?.();
+  } catch (error) {
+    console.error('Error cancelling session:', error);
+    toast({
+      title: "Cancel Failed",
+      description: "Failed to cancel the session. It may have already completed.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsCancelling(false);
+  }
+};</code></pre>
+
+<h4>5.3.3 &mdash; Cancelled Message Display</h4>
+
+<p>When session is cancelled, the placeholder AI message shows a cancellation indication:</p>
+
+<pre><code>// New state
+const [wasCancelledByUser, setWasCancelledByUser] = useState(false);
+
+// In handleCancelClick, before calling onCancelSession:
+setWasCancelledByUser(true);
+
+// In the existing useEffect for (!isLiveRequest &amp;&amp; currentStreamingMessageId):
+if (wasCancelled) {
+  setMessages((prev) =&gt;
+    prev.map((msg) =&gt; {
+      if (msg.id === messageId) {
+        return { ...msg, content: "Session was stopped by user.", isCancelled: true };
+      }
+      return msg;
+    })
+  );
+  return;  // Skip fetching final answer
+}</code></pre>
+
+<p>Rendering for cancelled messages:</p>
+
+<pre><code>{message.isCancelled &amp;&amp; (
+  &lt;div className="flex items-center gap-2 text-gray-400 text-sm italic"&gt;
+    &lt;Square className="h-3.5 w-3.5" /&gt;
+    &lt;span&gt;{message.content}&lt;/span&gt;
+  &lt;/div&gt;
+)}</code></pre>
+
+<h3>5.4 &mdash; ExecutionTab (<code>ExecutionTab.tsx</code>)</h3>
+
+<p>Wire the cancel function and pass it to <code>ChatInterface</code>:</p>
+
+<pre><code>const handleCancelSession = useCallback(async () =&gt; {
+  if (!selectedSession?.id) return;
+
+  // 1. Call backend cancel API
+  await sessionStream.cancelSession(selectedSession.id);
+
+  // 2. Cancel client-side stream subscription
+  sessionStream.cancelStream();
+
+  // 3. Mark session as no longer live
+  setIsLiveRequest(false);
+}, [selectedSession, sessionStream]);
+
+// In JSX:
+&lt;ChatInterface
+  key={selectedSession?.id || 'no-session'}
+  runId={selectedSession?.id || ''}
+  triggerExecution={triggerExecution}
+  onCancelSession={handleCancelSession}  // NEW
+  initialMessages={currentSessionMessages}
+  // ... other existing props
+/&gt;</code></pre>
+
+<h3>5.5 &mdash; Public Chat (<code>use-public-chat.ts</code>)</h3>
+
+<p>Add cancel support to the public chat flow (which uses <code>fetch</code> directly, not <code>useSessionStream</code>):</p>
+
+<pre><code>const handleCancelSession = useCallback(async () =&gt; {
+  if (!runId) return;
+
+  // Cancel the fetch stream reader (if active)
+  abortController?.abort();
+
+  // Call backend cancel API
+  await cancelSession(runId);
+}, [runId, abortController]);</code></pre>
+
+<p>Expose <code>handleCancelSession</code> in the hook&rsquo;s return value for <code>PublicChat</code> to pass as <code>onCancelSession</code> to <code>ChatInterface</code>.</p>
+
+<hr>
+
+<h2>6. Stream Event Handling Matrix</h2>
+
+<p>How each stream event type is handled in <code>use-session-stream.ts</code>:</p>
+
+<table>
+    <tr>
+        <th>Event Type</th>
+        <th>Current Handling</th>
+        <th>After Change</th>
+    </tr>
+    <tr>
+        <td><code>heartbeat</code></td>
+        <td><code>continue</code> (skip)</td>
+        <td>No change</td>
+    </tr>
+    <tr>
+        <td><code>stream_end</code></td>
+        <td><code>setIsStreaming(false)</code>, call <code>onStreamEnd</code></td>
+        <td>No change</td>
+    </tr>
+    <tr>
+        <td><code>stream_error</code></td>
+        <td>Call <code>onError(event.error)</code>, <code>setIsStreaming(false)</code></td>
+        <td>No change</td>
+    </tr>
+    <tr>
+        <td><code>session_cancelled</code></td>
+        <td><strong>Not handled</strong> &mdash; passed to <code>onChunk</code> as a regular event</td>
+        <td><strong>NEW:</strong> <code>setIsStreaming(false)</code>, call <code>onStreamEnd</code></td>
+    </tr>
+    <tr>
+        <td>All other events</td>
+        <td>Passed to <code>processEventData</code> &rarr; <code>onChunk</code></td>
+        <td>No change</td>
+    </tr>
+</table>
+
+<hr>
+
+<h2>7. Edge Cases and Race Conditions</h2>
+
+<table>
+    <tr>
+        <th>Scenario</th>
+        <th>UI Behavior</th>
+        <th>Implementation Detail</th>
+    </tr>
+    <tr>
+        <td><strong>Stop + stream_end simultaneous</strong></td>
+        <td>Cancel API may return 409 (already completed). <code>isCancelling</code> resets, final answer shown normally.</td>
+        <td><code>cancelSession</code> silently handles 409. <code>wasCancelledByUser</code> may be true but <code>session.chat.get</code> returns valid output &mdash; show it.</td>
+    </tr>
+    <tr>
+        <td><strong>Stop during <code>isTyping</code></strong> (before stream starts)</td>
+        <td>Cancel API called. If session hasn&rsquo;t been submitted yet, API returns 409 (PENDING). No error toast.</td>
+        <td>Guard: only call cancel if <code>runId</code> exists and session has been submitted.</td>
+    </tr>
+    <tr>
+        <td><strong>Stop, backend is down</strong></td>
+        <td>Cancel API call fails. Toast: &ldquo;Failed to cancel&rdquo;. Stream continues until natural end or timeout.</td>
+        <td><code>handleCancelClick</code> catch block shows destructive toast. Stream reader not cancelled.</td>
+    </tr>
+    <tr>
+        <td><strong>Double-click Stop</strong></td>
+        <td>First click sets <code>isCancelling=true</code>, disabling the button. Second click ignored.</td>
+        <td><code>disabled={isCancelling}</code> on Stop button.</td>
+    </tr>
+    <tr>
+        <td><strong>Switch session while cancelling</strong></td>
+        <td><code>cancelStream()</code> is called by session switching logic. Cancel API call may still be in flight.</td>
+        <td>Cancel API response is ignored (fire-and-forget). New session loads normally.</td>
+    </tr>
+    <tr>
+        <td><strong>Admin cancels session</strong> (not user-initiated)</td>
+        <td>Stream ends, <code>onStreamEnd</code> fires, AI message shows empty (no final answer).</td>
+        <td>Same as stream_end. No special handling &mdash; the user didn&rsquo;t request it.</td>
+    </tr>
+    <tr>
+        <td><strong>Navigate away and back to cancelled session</strong></td>
+        <td><code>checkAndReconnect</code> calls <code>getSessionStreamStatus</code>. Status is <code>&lsquo;cancelled&rsquo;</code> or stream not active. Returns <code>false</code>.</td>
+        <td>Session shows as completed with whatever messages were saved. No reconnection attempted.</td>
+    </tr>
+    <tr>
+        <td><strong>Cancel during reconnection</strong></td>
+        <td>User reconnected to active stream, then clicks Stop. Same cancel flow applies.</td>
+        <td><code>isReconnectionStreamRef.current</code> is true. Cancel API called. &ldquo;Session stopped&rdquo; message shown.</td>
+    </tr>
+    <tr>
+        <td><strong>Cancel + race with complete</strong></td>
+        <td>If <code>complete_session</code> ran first on backend, cancel returns 409. UI shows final answer.</td>
+        <td>Backend guards prevent CANCELLED from overwriting COMPLETED. UI shows whatever state the backend reports.</td>
+    </tr>
+</table>
+
+<hr>
+
+<h2>8. Visual Specification</h2>
+
+<h3>8.1 &mdash; During Streaming (Stop Button Visible)</h3>
+
+<pre><code>┌──────────────────────────────────────────────────────────────────┐
+│  Chat Interface                                                  │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  [User Message]                                           │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  ✨ AI Generated                                          │   │
+│  │  ┌─ Agent Thinking ──────────────────────────────────┐    │   │
+│  │  │  🔵 Orchestrator Agent     ⟳ Processing...        │    │   │
+│  │  │  🔵 Research Agent         ⟳ Processing...        │    │   │
+│  │  └────────────────────────────────────────────────────┘    │   │
+│  │                                                           │   │
+│  │  • • •  (typing indicator)                                │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────┐ ┌────────┐  │
+│  │  Ask your AI assistant a question...            │ │ ■ Stop │  │
+│  └─────────────────────────────────────────────────┘ └────────┘  │
+│                                                       (red bg)   │
+└──────────────────────────────────────────────────────────────────┘</code></pre>
+
+<h3>8.2 &mdash; After Cancellation</h3>
+
+<pre><code>┌──────────────────────────────────────────────────────────────────┐
+│  Chat Interface                                                  │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  [User Message]                                           │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │  ✨ AI Generated                                          │   │
+│  │  ┌─ Agent Thinking ──────────────────────────────────┐    │   │
+│  │  │  ✅ Orchestrator Agent     Complete                │    │   │
+│  │  │  ■  Research Agent         Stopped                 │    │   │
+│  │  └────────────────────────────────────────────────────┘    │   │
+│  │                                                           │   │
+│  │  ■ Session was stopped by user.                           │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  ┌─────────────────────────────────────────────────┐ ┌────────┐  │
+│  │  Ask your AI assistant a question...            │ │ ➤ Send │  │
+│  └─────────────────────────────────────────────────┘ └────────┘  │
+│                                                      (primary)   │
+└──────────────────────────────────────────────────────────────────┘</code></pre>
+
+<h3>8.3 &mdash; Cancel In Progress (Spinner on Stop Button)</h3>
+
+<pre><code>┌─────────────────────────────────────────────────┐ ┌────────┐
+│  Ask your AI assistant a question...            │ │ ⟳ Stop │
+└─────────────────────────────────────────────────┘ └────────┘
+                                                     (red bg,
+                                                      spinner,
+                                                      disabled)</code></pre>
+
+<hr>
+
+<h2>9. Key Design Decisions &amp; Rationale</h2>
+
+<h3>9.1 &mdash; Stop Button Replaces Send (Not Alongside)</h3>
+
+<p><strong>Decision:</strong> The Stop button occupies the same position as the Send button (conditional render), rather than appearing as a separate button.</p>
+
+<p><strong>Rationale:</strong> Follows the pattern used by ChatGPT, Claude, and other AI chat products &mdash; users expect the action button to contextually change. Avoids cluttering the input area. The Send button is already disabled during streaming, so showing it alongside Stop would be confusing.</p>
+
+<h3>9.2 &mdash; <code>session_cancelled</code> Treated as <code>stream_end</code> (Not as Error)</h3>
+
+<p><strong>Decision:</strong> The <code>session_cancelled</code> stream event triggers <code>onStreamEnd</code>, not <code>onError</code>.</p>
+
+<p><strong>Rationale:</strong> Cancellation is a user-initiated intentional action, not a failure. Using <code>onError</code> would trigger error toast notifications and error message styling &mdash; wrong UX. The <code>onStreamEnd</code> path cleanly resolves the <code>streamCompletePromise</code> in <code>triggerExecution</code>. The distinction between &ldquo;cancelled&rdquo; and &ldquo;completed&rdquo; is handled in <code>ChatInterface</code> via the <code>wasCancelledByUser</code> flag.</p>
+
+<h3>9.3 &mdash; Cancel is Fire-and-Forget from UI Perspective</h3>
+
+<p><strong>Decision:</strong> After the cancel API returns 200, the UI immediately transitions to cancelled state. It does not wait for the <code>session_cancelled</code> stream event.</p>
+
+<p><strong>Rationale:</strong> The NDJSON reader polls with XREAD block timeout (up to 5 seconds). The user shouldn&rsquo;t wait for the next XREAD cycle. Calling <code>cancelStream()</code> after the API call stops the client reader immediately. If <code>session_cancelled</code> arrives before <code>cancelStream()</code>, it&rsquo;s handled by the new event handler &mdash; either path leads to the same end state.</p>
+
+<h3>9.4 &mdash; No Confirmation Dialog</h3>
+
+<p><strong>Decision:</strong> Clicking Stop immediately cancels. No &ldquo;Are you sure?&rdquo; dialog.</p>
+
+<p><strong>Rationale:</strong> Speed is critical. The action is not destructive: the user can send a new query. The session&rsquo;s partial state is preserved in the DB. A confirmation dialog on a Stop button is unusual and feels heavy.</p>
+
+<h3>9.5 &mdash; Message Type Extension (<code>isCancelled</code> field)</h3>
+
+<p><strong>Decision:</strong> Add an optional <code>isCancelled?: boolean</code> to the <code>Message</code> type rather than using a special <code>content</code> string.</p>
+
+<p><strong>Rationale:</strong> Enables distinct rendering (gray italic with stop icon) rather than being treated as regular AI text. Follows the same pattern as <code>finalAnswer</code> &mdash; an optional field that changes rendering behavior. Doesn&rsquo;t break existing message serialization or history loading.</p>
+
+<hr>
+
+<h2>10. Implementation Order</h2>
+
+<p>Recommended implementation sequence (dependency chain):</p>
+
+<pre><code>1. api/sessions.ts
+   ├── Add cancelSession() function
+   └── Update StreamStatusResponse type
+
+2. hooks/use-session-stream.ts
+   ├── Handle session_cancelled event
+   └── Add cancelSession to hook return
+
+3. components/agentic-ai/ExecutionTab.tsx
+   ├── Add handleCancelSession callback
+   └── Pass onCancelSession to ChatInterface
+
+4. components/agentic-ai/chat/ChatInterface.tsx
+   ├── Add onCancelSession prop
+   ├── Add Stop button (conditional render)
+   ├── Add handleCancelClick handler
+   ├── Add isCancelling + wasCancelledByUser state
+   ├── Update message display for cancelled messages
+   └── Update Message type with isCancelled field
+
+5. hooks/use-public-chat.ts
+   ├── Add handleCancelSession for public path
+   └── Wire through PublicChat component</code></pre>
+
+<hr>
+
+<h2>11. Accessibility</h2>
+
+<table>
+    <tr>
+        <th>Concern</th>
+        <th>Implementation</th>
+    </tr>
+    <tr>
+        <td><strong>Stop button label</strong></td>
+        <td><code>title="Stop generation"</code> + <code>aria-label="Stop generation"</code></td>
+    </tr>
+    <tr>
+        <td><strong>Cancel state</strong></td>
+        <td><code>aria-busy="true"</code> on the message area during cancellation</td>
+    </tr>
+    <tr>
+        <td><strong>Keyboard</strong></td>
+        <td>Stop button focusable via Tab, activatable via Enter/Space (default shadcn <code>&lt;Button&gt;</code> behavior)</td>
+    </tr>
+    <tr>
+        <td><strong>Screen reader</strong></td>
+        <td>&ldquo;Session was stopped&rdquo; message uses <code>role="status"</code> or <code>aria-live="polite"</code></td>
+    </tr>
+</table>
+
+<hr>
+
+<h2>12. Testing Checklist</h2>
+
+<table>
+    <tr>
+        <th>Test Case</th>
+        <th>Expected Result</th>
+    </tr>
+    <tr>
+        <td>Send message &rarr; Stop button appears</td>
+        <td>Stop button visible with red background and Square icon</td>
+    </tr>
+    <tr>
+        <td>Click Stop &rarr; Session cancels</td>
+        <td>API called, stream stops, &ldquo;Session stopped&rdquo; message, Send button returns</td>
+    </tr>
+    <tr>
+        <td>Click Stop while <code>isTyping</code> (pre-stream)</td>
+        <td>If session submitted: cancels. If not yet submitted: toast error or 409 silently handled</td>
+    </tr>
+    <tr>
+        <td>Double-click Stop</td>
+        <td>Second click ignored (button disabled during <code>isCancelling</code>)</td>
+    </tr>
+    <tr>
+        <td>Cancel completes &rarr; Send new message</td>
+        <td>New message sends normally, new session execution works</td>
+    </tr>
+    <tr>
+        <td>Switch session while streaming &rarr; Stop button state</td>
+        <td>Stop button disappears (new session is idle), previous session continues in background</td>
+    </tr>
+    <tr>
+        <td>Reconnect to active session &rarr; Stop button</td>
+        <td>Stop button appears on reconnection (<code>isLiveRequest=true</code>)</td>
+    </tr>
+    <tr>
+        <td>Cancel during reconnection</td>
+        <td>Same cancel flow, &ldquo;Session stopped&rdquo; message on reconnect placeholder</td>
+    </tr>
+    <tr>
+        <td>Backend returns 409 (session already done)</td>
+        <td>Cancel treated as success (silent), final answer shown if available</td>
+    </tr>
+    <tr>
+        <td>Backend unavailable</td>
+        <td>Error toast: &ldquo;Failed to cancel the session&rdquo;</td>
+    </tr>
+    <tr>
+        <td>Public chat &rarr; Stop button</td>
+        <td>Same behavior via <code>usePublicChat.handleCancelSession</code></td>
+    </tr>
+    <tr>
+        <td>Cancel &rarr; Reload page &rarr; View session</td>
+        <td>Session shows as cancelled/completed, messages from before cancel preserved</td>
+    </tr>
+</table>
+
+<hr>
+
+<h2>13. Reviewer&rsquo;s Feedback</h2>
+
+<table>
+    <tr>
+        <th>Status</th>
+        <th>Feedback / Required Changes</th>
+    </tr>
+    <tr>
+        <td><strong>[ ] Approved</strong></td>
+        <td></td>
+    </tr>
+    <tr>
+        <td><strong>[ ] Revise</strong></td>
+        <td></td>
+    </tr>
+</table>
+
+</body>
+</html>
