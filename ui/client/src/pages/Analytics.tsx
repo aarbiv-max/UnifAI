@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import GlassPanel from "@/components/ui/GlassPanel";
 import { StatCard } from "@/components/ui/stat-card";
 import { 
-  FaUsers, FaRocket, FaChartLine, FaCheckCircle, FaSync
+  FaUsers, FaRocket, FaCheckCircle, FaSync, FaCubes, FaChartLine
 } from "react-icons/fa";
 import type { ReactNode } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -138,11 +138,11 @@ export default function Analytics() {
       iconBgColor: `${colors.success}33`,
     },
     {
-      key: 'avg-runs-per-user',
-      icon: <FaChartLine className="w-4 h-4" />,
-      title: 'Avg Runs/User',
-      value: analytics?.total_stats?.avg_runs_per_user?.toFixed(1) || '0',
-      subtext: 'Average engagement',
+      key: 'workflows-in-use',
+      icon: <FaCubes className="w-4 h-4" />,
+      title: 'Workflows in Use',
+      value: analytics?.total_stats?.unique_blueprints || 0,
+      subtext: 'Distinct blueprints executed',
       iconColor: colors.warning,
       iconBgColor: `${colors.warning}33`,
     },

@@ -10,7 +10,7 @@ export type TimeRange = 'today' | '7days' | '30days' | 'all';
 export interface TotalStats {
   total_runs: number;
   unique_users: number;
-  avg_runs_per_user: number;
+  unique_blueprints: number;
 }
 
 export interface StatusBreakdown {

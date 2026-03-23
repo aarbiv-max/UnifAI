@@ -60,7 +60,7 @@ class TotalStats(BaseModel):
     """Total statistics for system-wide overview."""
     total_runs: int = Field(..., description="Total number of workflow runs")
     unique_users: int = Field(..., description="Number of unique users")
-    avg_runs_per_user: float = Field(..., description="Average runs per user (can be fractional)")
+    unique_blueprints: int = Field(..., description="Number of distinct blueprints executed")
 
 
 class UserActivity(BaseModel):

@@ -248,12 +248,12 @@ class StatisticsService:
         total_runs, unique_users, status_breakdown = self._derive_totals_from_status_counts(
             analytics.user_status_counts
         )
-        avg_runs_per_user = round(total_runs / unique_users, 2) if unique_users > 0 else 0
+        unique_blueprints = len(analytics.blueprint_stats)
         
         total_stats = TotalStats(
             total_runs=total_runs,
             unique_users=unique_users,
-            avg_runs_per_user=avg_runs_per_user
+            unique_blueprints=unique_blueprints
         )
         
         # Build active users list from analytics data
