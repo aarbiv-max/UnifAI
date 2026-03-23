@@ -19,6 +19,11 @@ class ResourceCategory(str, Enum):
         """Check if this category is plan-referenced."""
         return self in self.plan_categories()
 
+    @classmethod
+    def list_values(cls) -> list[str]:
+        """All category values as strings."""
+        return [e.value for e in cls]
+
 
 class SystemNodeType(str, Enum):
     """Node types that stay inline in blueprints (never saved as resources)."""

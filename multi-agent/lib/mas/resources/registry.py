@@ -2,9 +2,15 @@ from datetime import datetime, timezone
 from mas.resources.models import Resource, ResourceQuery
 from mas.resources.repository.base import ResourceRepository
 from mas.blueprints.repository.repository import BlueprintRepository
+from mas.blueprints.models.blueprint import BlueprintDraft
 from mas.resources.errors import ResourceInUseError
 from typing import List, Tuple, Dict, Any
 from mas.core.dto import GroupedCount
+from mas.core.ref import RefWalker, RefRemapper
+from mas.core.enums import ResourceCategory
+
+
+_CATALOGUE_KEYS = tuple(c.value for c in ResourceCategory)
 
 
 class ResourcesRegistry:
@@ -59,7 +65,7 @@ class ResourcesRegistry:
             doc.cfg_dict = RefRemapper.remap(doc.cfg_dict, mapping)
             doc.nested_refs = list({replacement_rid if r == rid else r for r in doc.nested_refs})
             doc.version += 1
-            doc.updated = datetime.utcnow()
+            doc.updated = datetime.now(timezone.utc)
             self._repo.update(doc)
 
         for bp_id in self._bp_repo.list_direct_usage(rid):
@@ -74,7 +80,7 @@ class ResourcesRegistry:
             doc.cfg_dict = _remove_ref_from_dict(doc.cfg_dict, rid)
             doc.nested_refs = [r for r in doc.nested_refs if r != rid]
             doc.version += 1
-            doc.updated = datetime.utcnow()
+            doc.updated = datetime.now(timezone.utc)
             self._repo.update(doc)
 
         for bp_id in self._bp_repo.list_direct_usage(rid):
@@ -92,7 +98,7 @@ class ResourcesRegistry:
             doc.cfg_dict = _remove_ref_from_dict(doc.cfg_dict, rid)
             doc.nested_refs = [r for r in doc.nested_refs if r != rid]
             doc.version += 1
-            doc.updated = datetime.utcnow()
+            doc.updated = datetime.now(timezone.utc)
             self._repo.update(doc)
 
         self._repo.delete(rid)
