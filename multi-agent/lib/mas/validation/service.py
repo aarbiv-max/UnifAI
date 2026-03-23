@@ -17,6 +17,8 @@ Does NOT:
 
 from typing import Dict, List, Optional, Type
 
+from pydantic import BaseModel, SecretStr
+
 from mas.catalog.element_registry import ElementRegistry
 from mas.core.element_meta import ElementConfigMeta
 from mas.elements.common.validator import (
@@ -57,6 +59,17 @@ class ElementValidationService:
         Builds ElementValidationResult from ValidatorReport + metadata.
         If no validator is defined, returns success with INFO message.
         """
+        # Fail fast on empty required fields before attempting network calls
+        required_errors = self._check_required_fields(config_meta.config)
+        if required_errors:
+            return ElementValidationResult(
+                is_valid=False,
+                element_rid=config_meta.rid,
+                element_type=config_meta.type_key,
+                name=config_meta.name,
+                messages=required_errors,
+            )
+
         spec = self._registry.get_spec(
             config_meta.category,
             config_meta.type_key
@@ -105,6 +118,24 @@ class ElementValidationService:
             messages=report.messages,
             dependency_results=report.checked_dependencies,
         )
+
+    @staticmethod
+    def _check_required_fields(config: BaseModel) -> List[ValidationMessage]:
+        """Return error messages for any required fields that have empty values."""
+        errors = []
+        for field_name, field_info in type(config).model_fields.items():
+            if not field_info.is_required():
+                continue
+            value = getattr(config, field_name, None)
+            raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+            if raw is None or raw == "":
+                errors.append(ValidationMessage(
+                    severity=ValidationSeverity.ERROR,
+                    code=ValidationCode.MISSING_REQUIRED_FIELD.value,
+                    message=f"'{field_name}' is required",
+                    field=field_name,
+                ))
+        return errors
 
     def validate_ordered(
         self,

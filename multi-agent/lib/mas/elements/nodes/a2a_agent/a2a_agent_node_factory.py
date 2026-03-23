@@ -42,7 +42,7 @@ class A2AAgentNodeFactory(BaseFactory[A2AAgentNodeConfig, A2AAgentNode]):
             return A2AAgentNode(
                 base_url=cfg.base_url,
                 agent_card=cfg.agent_card,
-                bearer_token=cfg.bearer_token,
+                bearer_token=cfg.bearer_token.get_secret_value() if cfg.bearer_token else None,
                 retriever=deps.pop("retriever"),
                 retries=cfg.retries,
             )

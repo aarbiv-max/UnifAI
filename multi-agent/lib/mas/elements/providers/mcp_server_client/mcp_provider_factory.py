@@ -44,7 +44,10 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         :raises PluginConfigurationError: if instantiation fails
         """
         try:
-            headers = self._build_headers(cfg.bearer_token, cfg.additional_headers)
+            headers = self._build_headers(
+                cfg.bearer_token.get_secret_value() if cfg.bearer_token else None,
+                cfg.additional_headers
+            )
             
             # Use the clean sync factory method which handles async internally
             return McpProvider.create_sync(
@@ -67,7 +70,10 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         :raises PluginConfigurationError: if instantiation fails
         """
         try:
-            headers = self._build_headers(cfg.bearer_token, cfg.additional_headers)
+            headers = self._build_headers(
+                cfg.bearer_token.get_secret_value() if cfg.bearer_token else None,
+                cfg.additional_headers
+            )
             
             # Use the async factory method directly for better performance
             return await McpProvider.create_async(

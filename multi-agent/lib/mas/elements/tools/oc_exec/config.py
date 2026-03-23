@@ -1,6 +1,7 @@
 from typing import Literal
 from pydantic import Field
 from mas.elements.tools.common.base_config import BaseToolConfig
+from mas.core.secret import Secret
 from mas.core.field_hints import SecretHint
 from .identifiers import Identifier
 
@@ -15,7 +16,7 @@ class OcExecToolConfig(BaseToolConfig):
         description="OpenShift API server URL (e.g., https://api.cluster.example.com:6443)"
     )
     
-    token: str = Field(
+    token: Secret = Field(
         ..., 
         description="OpenShift authentication token",
         json_schema_extra=SecretHint(

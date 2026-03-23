@@ -2,6 +2,7 @@ from typing import Any, Dict, Literal, List, Optional
 from .identifiers import Identifier
 from pydantic import Field, HttpUrl
 from mas.elements.providers.common.base_config import ProviderBaseConfig
+from mas.core.secret import Secret
 from mas.core.field_hints import ActionHint, HintType, SelectionType, SecretHint
 from .transport.enums import McpTransportType
 
@@ -28,7 +29,7 @@ class McpProviderConfig(ProviderBaseConfig):
             }
         ).to_hints()
     )
-    bearer_token: Optional[str] = Field(
+    bearer_token: Optional[Secret] = Field(
         default=None,
         description="Bearer token for MCP server authentication (sent as 'Authorization: Bearer <token>' header)",
         json_schema_extra=SecretHint(reason="API credentials should be masked").to_hints()

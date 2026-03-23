@@ -36,7 +36,7 @@ class OpenAIFactory(BaseFactory[OpenAIConfig, OpenAILLM]):
         try:
             llm = OpenAILLM(
                 model_name=cfg.model_name,
-                api_key=cfg.api_key,
+                api_key=cfg.api_key.get_secret_value(),
                 base_url=str(cfg.base_url),
                 temperature=cfg.temperature,
                 max_tokens=cfg.max_tokens,

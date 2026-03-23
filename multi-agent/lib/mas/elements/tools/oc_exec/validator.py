@@ -25,7 +25,7 @@ class OcExecToolValidator(BaseElementValidator):
 
         try:
             with oc.api_server(config.server):
-                with oc.token(config.token):
+                with oc.token(config.token.get_secret_value()):
                     with oc.tls_verify(enable=not config.skip_tls_verify):
                         result = oc.invoke('whoami')
             

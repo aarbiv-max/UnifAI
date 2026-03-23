@@ -75,7 +75,7 @@ class OpenAILLMValidator(BaseElementValidator):
             ) as http_client:
                 client = OpenAI(
                     base_url=str(config.base_url),
-                    api_key=config.api_key,
+                    api_key=config.api_key.get_secret_value(),
                     timeout=context.timeout_seconds,
                     http_client=http_client,
                 )

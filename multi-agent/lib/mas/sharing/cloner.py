@@ -13,6 +13,7 @@ from mas.catalog.element_registry import ElementRegistry
 from mas.core.ref import RefWalker, RefRemapper
 from mas.core.ref.models import Ref
 from mas.core.enums import ResourceCategory
+from mas.core.secret import strip_secret_fields, dump_with_secrets
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +239,10 @@ class ShareCloner:
 
         # Use typed model for clean remapping (Ref objects), then dump to dict
         remapped_model = RefRemapper.remap(cache_data.cfg_model, rid_mapping)
-        new_cfg_dict = remapped_model.model_dump(mode="json")
+        new_cfg_dict = dump_with_secrets(remapped_model)
+
+        # Strip secrets — recipient must provide their own credentials
+        new_cfg_dict = strip_secret_fields(type(cache_data.cfg_model), new_cfg_dict)
 
         # Map dependencies to new RIDs
         new_nested_refs = [
@@ -300,8 +304,13 @@ class ShareCloner:
         )
 
     def _clone_resource_with_refs(self, resource: BlueprintResource, rid_mapping: Dict[str, str]) -> BlueprintResource:
-        """Clone a resource and replace any Ref instances using shared utility."""
-        return RefRemapper.remap(resource, rid_mapping)
+        """Clone a resource, replace Ref instances, and strip secret fields from inline configs."""
+        remapped = RefRemapper.remap(resource, rid_mapping)
+        if remapped.config is not None:
+            cfg_cls = type(remapped.config)
+            stripped = strip_secret_fields(cfg_cls, dump_with_secrets(remapped.config))
+            remapped.config = cfg_cls(**stripped)
+        return remapped
 
     def _clone_plan(self, plan: List[StepDef], rid_mapping: Dict[str, str]) -> List[StepDef]:
         """Clone plan with proper UID mapping for step references."""

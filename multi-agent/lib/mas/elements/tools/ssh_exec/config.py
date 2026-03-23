@@ -1,6 +1,7 @@
 from typing import Literal
 from pydantic import Field
 from mas.elements.tools.common.base_config import BaseToolConfig
+from mas.core.secret import Secret
 from mas.core.field_hints import SecretHint
 from .identifiers import Identifier
 
@@ -13,7 +14,7 @@ class SshExecToolConfig(BaseToolConfig):
     host: str = Field(..., description="IP or DNS name of the target VM")
     port: int = Field(22, description="SSH port")
     username: str = Field(..., description="SSH user name")
-    password: str = Field(
+    password: Secret = Field(
         ..., 
         description="SSH password",
         json_schema_extra=SecretHint(
