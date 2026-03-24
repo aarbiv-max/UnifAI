@@ -13,8 +13,8 @@ class RagProviderConfig(ProviderBaseConfig):
     type: Literal[Identifier.TYPE] = Identifier.TYPE
 
     base_url: HttpUrl = Field(
-        default="http://localhost:13457",
-        description="Base URL of the Dataflow service",
+        default="unifai-rag-server:13456",
+        description="Base URL of the RAG service",
         json_schema_extra=ActionHint(
             action_uid="rag.validate_connection",
             hint_type=HintType.VALIDATE,
