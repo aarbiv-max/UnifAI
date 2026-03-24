@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional
 from mas.elements.common.base_factory import BaseFactory
 from mas.elements.common.exceptions import PluginConfigurationError
+from mas.core.secret import Secret
 from .config import McpProviderConfig
 from .mcp_provider import McpProvider
 from .identifiers import Identifier
@@ -16,14 +17,14 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
 
     def _build_headers(
         self,
-        bearer_token: Optional[str],
+        bearer_token: Optional[Secret],
         additional_headers: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Build HTTP headers from bearer token and any additional headers.
 
         Args:
-            bearer_token: Optional bearer token for authentication
+            bearer_token: Optional Secret bearer token for authentication
             additional_headers: Optional extra headers to include
 
         Returns:
@@ -31,7 +32,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         """
         headers: Dict[str, Any] = {}
         if bearer_token:
-            headers["Authorization"] = f"Bearer {bearer_token}"
+            headers["Authorization"] = f"Bearer {bearer_token.get_secret_value()}"
         if additional_headers:
             headers.update(additional_headers)
         return headers if headers else None
@@ -45,7 +46,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         """
         try:
             headers = self._build_headers(
-                cfg.bearer_token.get_secret_value() if cfg.bearer_token else None,
+                cfg.bearer_token,
                 cfg.additional_headers
             )
             
@@ -71,7 +72,7 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
         """
         try:
             headers = self._build_headers(
-                cfg.bearer_token.get_secret_value() if cfg.bearer_token else None,
+                cfg.bearer_token,
                 cfg.additional_headers
             )
             

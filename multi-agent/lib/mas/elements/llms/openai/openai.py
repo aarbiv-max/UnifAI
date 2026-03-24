@@ -3,6 +3,7 @@ import copy
 from langchain_openai import ChatOpenAI
 from ..common.base_llm import BaseLLM
 from mas.core.contracts import SupportsStreaming
+from mas.core.secret import Secret
 from ..common.chat.converter import LangChainConverter
 from ..common.chat.message import ChatMessage
 from ...tools.common.base_tool import BaseTool
@@ -20,7 +21,7 @@ class OpenAILLM(BaseLLM, SupportsStreaming):
             model_name: str,
             temperature: float = 0.7,
             max_tokens: int = 1024,
-            api_key: str = "EMPTY",
+            api_key: Secret = Secret("EMPTY"),
             **extra: Any
     ):
         """
@@ -32,7 +33,7 @@ class OpenAILLM(BaseLLM, SupportsStreaming):
         """
         self._name = "vllm-qwen"
         self.client = ChatOpenAI(
-            api_key=api_key,
+            api_key=api_key.get_secret_value(),
             base_url=base_url,
             model=model_name,
             temperature=temperature,

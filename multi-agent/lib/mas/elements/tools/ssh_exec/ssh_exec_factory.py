@@ -25,7 +25,7 @@ class SshExecToolFactory(BaseFactory[SshExecToolConfig, SshExecTool]):
             client = SshExecTool(host=cfg.host,
                                  port=cfg.port,
                                  username=cfg.username,
-                                 password=cfg.password.get_secret_value())
+                                 password=cfg.password)
             return client
         except Exception as e:
             raise PluginConfigurationError(

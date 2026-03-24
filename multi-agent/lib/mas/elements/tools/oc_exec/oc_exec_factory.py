@@ -21,7 +21,7 @@ class OcExecToolFactory(BaseFactory[OcExecToolConfig, OcExecTool]):
         try:
             return OcExecTool(
                 server=cfg.server,
-                token=cfg.token.get_secret_value(),
+                token=cfg.token,
                 skip_tls_verify=cfg.skip_tls_verify,
             )
         except Exception as e:

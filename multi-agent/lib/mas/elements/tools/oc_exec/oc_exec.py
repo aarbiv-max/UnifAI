@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import openshift_client as oc
 from pydantic import BaseModel, Field
 
+from mas.core.secret import Secret
 from mas.elements.tools.common.base_tool import BaseTool
 
 
@@ -24,10 +25,10 @@ class OcExecTool(BaseTool):
     description: str = "Execute oc commands on an OpenShift cluster"
     args_schema = OcCommandInput
 
-    def __init__(self, *, server: str, token: str, skip_tls_verify: bool = False):
+    def __init__(self, *, server: str, token: Secret, skip_tls_verify: bool = False):
         super().__init__()
         self._server = server
-        self._token = token
+        self._token = token.get_secret_value()
         self._skip_tls_verify = skip_tls_verify
         
         self.name = self._build_tool_name(server)

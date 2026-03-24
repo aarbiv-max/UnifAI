@@ -5,6 +5,7 @@ A2A Agent Node - Delegates work to remote agent via A2A protocol
 from typing import Optional, Any, List, ClassVar, Dict
 from copy import deepcopy
 from pydantic import HttpUrl
+from mas.core.secret import Secret
 from a2a.types import AgentCard
 from mas.graph.state.state_view import StateView
 from mas.elements.llms.common.chat.message import ChatMessage, Role
@@ -56,7 +57,7 @@ class A2AAgentNode(
             *,
             base_url: HttpUrl,
             agent_card: Optional[AgentCard] = None,
-            bearer_token: Optional[str] = None,
+            bearer_token: Optional[Secret] = None,
             retriever: Any = None,
             **kwargs: Any
     ):
@@ -77,7 +78,7 @@ class A2AAgentNode(
         # Build headers from bearer_token if provided
         headers = None
         if bearer_token:
-            headers = {"Authorization": f"Bearer {bearer_token}"}
+            headers = {"Authorization": f"Bearer {bearer_token.get_secret_value()}"}
 
         # Create A2A provider from config
         self.a2a_provider = A2AProvider.create_sync(

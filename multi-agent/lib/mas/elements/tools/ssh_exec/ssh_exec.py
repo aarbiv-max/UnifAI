@@ -1,6 +1,7 @@
 import paramiko
 from typing import Any, Optional
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field
+from mas.core.secret import Secret
 from mas.elements.tools.common.base_tool import BaseTool
 
 
@@ -16,12 +17,12 @@ class SshExecTool(BaseTool):
     description: str = "Execute a shell command on a remote VM via SSH"
     args_schema = CommandInput
 
-    def __init__(self, *, host: str, port: int, username: str, password: str):
+    def __init__(self, *, host: str, port: int, username: str, password: Secret):
         super().__init__()
         self._host = host
         self._port = port
         self._username = username
-        self._password = password
+        self._password = password.get_secret_value()
         
         # Persistent SSH client
         self._ssh: Optional[paramiko.SSHClient] = None

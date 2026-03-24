@@ -3,6 +3,7 @@ import copy
 from langchain_google_genai import ChatGoogleGenerativeAI
 from ..common.base_llm import BaseLLM
 from mas.core.contracts import SupportsStreaming
+from mas.core.secret import Secret
 from ..common.chat.converter import LangChainConverter
 from ..common.chat.message import ChatMessage
 from ...tools.common.base_tool import BaseTool
@@ -38,7 +39,7 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
     def __init__(
             self,
             model_name: str,
-            api_key: str,
+            api_key: Secret,
             temperature: float = 0.7,
             max_tokens: Optional[int] = None,
             top_p: Optional[float] = None,
@@ -58,7 +59,7 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
 
         client_kwargs: Dict[str, Any] = {
             "model": model_name,
-            "google_api_key": api_key,
+            "google_api_key": api_key.get_secret_value(),
             "temperature": temperature,
             **extra
         }
