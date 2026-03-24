@@ -182,7 +182,8 @@ export default function UserWorkspace() {
         setPreviewWorkflow(bp);
         setIsWorkflowPreviewOpen(true);
       }
-    } catch {
+    } catch (err) {
+      console.error("Error loading blueprint preview:", err);
       window.open(`/agentic-ai`, '_blank');
     }
   };

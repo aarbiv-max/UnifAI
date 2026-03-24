@@ -6,13 +6,16 @@ from mas.resources.errors import ResourceInUseError
 resources_bp = Blueprint("resources", __name__)
 
 
-def _enrich_in_use_error(error: ResourceInUseError) -> dict:
-    """Resolve IDs in a ResourceInUseError to {id, name} dicts for the UI."""
+_VALID_FORCE_DELETE_MODES = frozenset({"replace", "detach", "cascade"})
+
+
+def _enrich_usage(bp_ids: list[str], res_ids: list[str]) -> dict:
+    """Resolve IDs to {id, name} dicts for the UI."""
     bp_svc = current_app.container.blueprint_service
     res_svc = current_app.container.resources_service
 
     bp_details = []
-    for bp_id in error.by_blueprints:
+    for bp_id in bp_ids:
         try:
             bp_doc = bp_svc.get_blueprint_draft_doc(bp_id)
             bp_details.append({"id": bp_id, "name": bp_doc.spec_dict.get("name", bp_id)})
@@ -20,7 +23,7 @@ def _enrich_in_use_error(error: ResourceInUseError) -> dict:
             bp_details.append({"id": bp_id, "name": bp_id})
 
     res_details = []
-    for res_id in error.by_resources:
+    for res_id in res_ids:
         try:
             res = res_svc.get(res_id)
             res_details.append({"id": res_id, "name": res.name, "category": res.category, "type": res.type})
@@ -143,11 +146,10 @@ def check_resource_usage(resource_id):
     try:
         bp_ids, res_ids = svc.check_usage(resource_id)
         if bp_ids or res_ids:
-            error = ResourceInUseError(by_blueprints=bp_ids, by_resources=res_ids)
             return jsonify({
                 "in_use": True,
                 "category": resource.category,
-                **_enrich_in_use_error(error),
+                **_enrich_usage(bp_ids, res_ids),
             }), 200
         return jsonify({"in_use": False}), 200
     except Exception as e:
@@ -174,7 +176,7 @@ def delete_resource(resource_id):
             "error": str(e),
             "code": "RESOURCE_IN_USE",
             "category": resource.category,
-            **_enrich_in_use_error(e),
+            **_enrich_usage(e.by_blueprints, e.by_resources),
         }), 409
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -195,18 +197,20 @@ def force_delete_resource(resource_id, mode, replacement_id=None):
       - detach:   remove all references from dependents, then delete (Tools, Providers, Retrievers)
       - cascade:  delete the resource and all blueprints that reference it (Agents)
     """
+    if mode not in _VALID_FORCE_DELETE_MODES:
+        return jsonify({"error": f"Unknown mode: {mode}. Must be one of: {', '.join(sorted(_VALID_FORCE_DELETE_MODES))}"}), 400
+
+    if mode == "replace" and not replacement_id:
+        return jsonify({"error": "replacementId is required for replace mode"}), 400
+
     svc = current_app.container.resources_service
     try:
         if mode == "replace":
-            if not replacement_id:
-                return jsonify({"error": "replacementId is required for replace mode"}), 400
             svc.replace_and_delete(resource_id, replacement_id)
         elif mode == "detach":
             svc.detach_and_delete(resource_id)
         elif mode == "cascade":
             svc.cascade_delete(resource_id)
-        else:
-            return jsonify({"error": f"Unknown mode: {mode}"}), 400
 
         return jsonify({"status": "deleted"}), 200
     except KeyError as e:

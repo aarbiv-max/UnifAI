@@ -78,7 +78,7 @@ class ResourcesService:
 
         return self._store.update(doc)
 
-    def check_usage(self, rid: str) -> tuple[list, list]:
+    def check_usage(self, rid: str) -> Tuple[List[str], List[str]]:
         """Return (blueprint_ids, resource_ids) that reference *rid*."""
         return self._store.check_usage(rid)
 

@@ -42,7 +42,7 @@ class ResourcesRegistry:
         self._repo.update(doc)
         return doc
 
-    def check_usage(self, rid: str) -> tuple[list, list]:
+    def check_usage(self, rid: str) -> Tuple[List[str], List[str]]:
         """Return (blueprint_ids, resource_ids) that reference *rid*."""
         direct_bps = self._bp_repo.list_direct_usage(rid)
         nested_res = self._repo.list_nested_usage(rid)
@@ -68,9 +68,7 @@ class ResourcesRegistry:
             doc = self._repo.get(dep_rid)
             doc.cfg_dict = RefRemapper.remap(doc.cfg_dict, mapping)
             doc.nested_refs = list({replacement_rid if r == rid else r for r in doc.nested_refs})
-            doc.version += 1
-            doc.updated = datetime.now(timezone.utc)
-            self._repo.update(doc)
+            self._bump_and_save(doc)
 
         for bp_id in self._bp_repo.list_direct_usage(rid):
             self._update_blueprint_refs(bp_id, remap=mapping)
@@ -79,17 +77,7 @@ class ResourcesRegistry:
 
     def detach_and_delete(self, rid: str) -> None:
         """Remove all references to rid from dependents, then delete rid."""
-        for dep_rid in self._repo.list_nested_usage(rid):
-            doc = self._repo.get(dep_rid)
-            doc.cfg_dict = _remove_ref_from_dict(doc.cfg_dict, rid)
-            doc.nested_refs = [r for r in doc.nested_refs if r != rid]
-            doc.version += 1
-            doc.updated = datetime.now(timezone.utc)
-            self._repo.update(doc)
-
-        for bp_id in self._bp_repo.list_direct_usage(rid):
-            self._update_blueprint_refs(bp_id, remove_rid=rid)
-
+        self._strip_ref_from_dependents(rid)
         self._repo.delete(rid)
 
     def cascade_delete(self, rid: str) -> None:
@@ -97,15 +85,25 @@ class ResourcesRegistry:
         for bp_id in self._bp_repo.list_direct_usage(rid):
             self._bp_repo.delete(bp_id)
 
+        self._strip_ref_from_dependents(rid)
+        self._repo.delete(rid)
+
+    def _bump_and_save(self, doc: Resource) -> None:
+        """Increment version, stamp updated-at, and persist."""
+        doc.version += 1
+        doc.updated = datetime.now(timezone.utc)
+        self._repo.update(doc)
+
+    def _strip_ref_from_dependents(self, rid: str) -> None:
+        """Remove all references to *rid* from nested resources and blueprints."""
         for dep_rid in self._repo.list_nested_usage(rid):
             doc = self._repo.get(dep_rid)
             doc.cfg_dict = _remove_ref_from_dict(doc.cfg_dict, rid)
             doc.nested_refs = [r for r in doc.nested_refs if r != rid]
-            doc.version += 1
-            doc.updated = datetime.now(timezone.utc)
-            self._repo.update(doc)
+            self._bump_and_save(doc)
 
-        self._repo.delete(rid)
+        for bp_id in self._bp_repo.list_direct_usage(rid):
+            self._update_blueprint_refs(bp_id, remove_rid=rid)
 
     def _update_blueprint_refs(
         self,

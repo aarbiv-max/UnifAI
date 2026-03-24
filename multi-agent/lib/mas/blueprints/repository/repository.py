@@ -26,7 +26,7 @@ class BlueprintRepository(ABC):
         Used by ref-maintenance operations where the stored spec may contain
         legacy fields that the current model no longer accepts.
         """
-        
+
     @abstractmethod
     def set_metadata(self, *, blueprint_id: str, metadata: Dict[str, Any]) -> bool:
         """

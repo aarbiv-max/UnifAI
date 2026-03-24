@@ -274,21 +274,30 @@ function ReplaceFlow({
   onBlueprintClick?: (id: string) => void;
   onResourceClick?: (id: string, category?: string, type?: string) => void;
 }) {
-  const dependentLabel =
-    category === "conditions" ? "Used by these workflows" : "Used by these agents";
-  const dependents = category === "conditions" ? blueprints : resources;
-  const itemClickHandler =
-    category === "conditions"
-      ? onBlueprintClick
-        ? (item: { id: string }) => onBlueprintClick(item.id)
-        : undefined
-      : onResourceClick
-        ? (item: { id: string; category?: string; type?: string }) => onResourceClick(item.id, item.category, item.type)
-        : undefined;
-
   return (
     <>
-      <DependentList items={dependents} label={dependentLabel} onItemClick={itemClickHandler} />
+      {blueprints.length > 0 && (
+        <DependentList
+          items={blueprints}
+          label="Used by these workflows"
+          onItemClick={
+            onBlueprintClick
+              ? (item) => onBlueprintClick(item.id)
+              : undefined
+          }
+        />
+      )}
+      {resources.length > 0 && (
+        <DependentList
+          items={resources}
+          label="Used by these agents"
+          onItemClick={
+            onResourceClick
+              ? (item) => onResourceClick(item.id, item.category, item.type)
+              : undefined
+          }
+        />
+      )}
 
       <div className="mt-4">
         <p className="text-sm text-gray-300 mb-2">
