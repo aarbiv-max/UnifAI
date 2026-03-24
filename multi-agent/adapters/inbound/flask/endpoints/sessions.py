@@ -263,7 +263,7 @@ def subscribe_session(session_id):
     def generate():
         try:
             for event in with_heartbeats(reader):
-                yield json.dumps(event, default=str) + "\n"
+                yield json.dumps(event, default=pydantic_encoder) + "\n"
         finally:
             reader.close()
 
