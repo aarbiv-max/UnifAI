@@ -23,7 +23,7 @@ def _enrich_in_use_error(error: ResourceInUseError) -> dict:
     for res_id in error.by_resources:
         try:
             res = res_svc.get(res_id)
-            res_details.append({"id": res_id, "name": res.name, "category": res.category})
+            res_details.append({"id": res_id, "name": res.name, "category": res.category, "type": res.type})
         except Exception:
             res_details.append({"id": res_id, "name": res_id})
 

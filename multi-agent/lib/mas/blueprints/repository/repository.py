@@ -17,6 +17,15 @@ class BlueprintRepository(ABC):
         """
         Replace an existing draft.  Return True if a document was modified.
         """
+
+    @abstractmethod
+    def update_raw(self, *, blueprint_id: str, spec_dict: dict,
+                   rid_refs: list[str]) -> bool:
+        """
+        Replace spec_dict directly without Pydantic validation.
+        Used by ref-maintenance operations where the stored spec may contain
+        legacy fields that the current model no longer accepts.
+        """
         
     @abstractmethod
     def set_metadata(self, *, blueprint_id: str, metadata: Dict[str, Any]) -> bool:

@@ -15,12 +15,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, ArrowRightLeft, Unlink, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Unlink, Trash2, Eye } from "lucide-react";
 
 export interface InUseData {
   category: string;
   blueprints: Array<{ id: string; name: string }>;
-  resources: Array<{ id: string; name: string; category?: string }>;
+  resources: Array<{ id: string; name: string; category?: string; type?: string }>;
 }
 
 interface ReplacementOption {
@@ -37,6 +37,8 @@ interface ResourceInUseModalProps {
   replacementOptions: ReplacementOption[];
   isLoadingReplacements: boolean;
   onForceDelete: (mode: "replace" | "detach" | "cascade", replacementId?: string) => Promise<void>;
+  onBlueprintClick?: (id: string) => void;
+  onResourceClick?: (id: string, category?: string, type?: string) => void;
 }
 
 type DeleteMode = "replace" | "detach" | "cascade";
@@ -68,9 +70,11 @@ function categoryLabel(category: string): string {
 function DependentList({
   items,
   label,
+  onItemClick,
 }: {
-  items: Array<{ id: string; name: string }>;
+  items: Array<{ id: string; name: string; category?: string; type?: string }>;
   label: string;
+  onItemClick?: (item: { id: string; name: string; category?: string; type?: string }) => void;
 }) {
   if (items.length === 0) return null;
   return (
@@ -80,9 +84,17 @@ function DependentList({
         {items.map((item) => (
           <li
             key={item.id}
-            className="text-sm bg-background-dark rounded px-3 py-1.5 border border-gray-800"
+            className={`text-sm bg-background-dark rounded px-3 py-1.5 border border-gray-800 flex items-center justify-between ${
+              onItemClick
+                ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                : ""
+            }`}
+            onClick={() => onItemClick?.(item)}
           >
-            {item.name}
+            <span>{item.name}</span>
+            {onItemClick && (
+              <Eye className="h-3.5 w-3.5 text-gray-500 flex-shrink-0 ml-2" />
+            )}
           </li>
         ))}
       </ul>
@@ -98,6 +110,8 @@ export function ResourceInUseModal({
   replacementOptions,
   isLoadingReplacements,
   onForceDelete,
+  onBlueprintClick,
+  onResourceClick,
 }: ResourceInUseModalProps) {
   const [selectedReplacement, setSelectedReplacement] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -124,6 +138,9 @@ export function ResourceInUseModal({
   const canConfirm =
     mode !== "replace" || (selectedReplacement && selectedReplacement.length > 0);
 
+  const hasNoReplacements =
+    mode === "replace" && !isLoadingReplacements && replacementOptions.length === 0;
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="bg-background-card border-gray-800 max-w-md">
@@ -149,6 +166,8 @@ export function ResourceInUseModal({
               isLoadingReplacements={isLoadingReplacements}
               selectedReplacement={selectedReplacement}
               onSelectReplacement={setSelectedReplacement}
+              onBlueprintClick={onBlueprintClick}
+              onResourceClick={onResourceClick}
             />
           )}
 
@@ -156,14 +175,14 @@ export function ResourceInUseModal({
             <DetachFlow
               label={label}
               resources={inUseData.resources}
-              blueprints={inUseData.blueprints}
+              onResourceClick={onResourceClick}
             />
           )}
 
           {mode === "cascade" && (
             <CascadeFlow
               blueprints={inUseData.blueprints}
-              resources={inUseData.resources}
+              onBlueprintClick={onBlueprintClick}
             />
           )}
         </div>
@@ -175,14 +194,16 @@ export function ResourceInUseModal({
             disabled={isProcessing}
             className="border-gray-700 hover:bg-background-dark"
           >
-            Cancel
+            {hasNoReplacements ? "Close" : "Cancel"}
           </Button>
-          <ConfirmButton
-            mode={mode}
-            canConfirm={!!canConfirm}
-            isProcessing={isProcessing}
-            onClick={handleConfirm}
-          />
+          {!hasNoReplacements && (
+            <ConfirmButton
+              mode={mode}
+              canConfirm={!!canConfirm}
+              isProcessing={isProcessing}
+              onClick={handleConfirm}
+            />
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -239,6 +260,8 @@ function ReplaceFlow({
   isLoadingReplacements,
   selectedReplacement,
   onSelectReplacement,
+  onBlueprintClick,
+  onResourceClick,
 }: {
   category: string;
   label: string;
@@ -248,14 +271,24 @@ function ReplaceFlow({
   isLoadingReplacements: boolean;
   selectedReplacement: string;
   onSelectReplacement: (rid: string) => void;
+  onBlueprintClick?: (id: string) => void;
+  onResourceClick?: (id: string, category?: string, type?: string) => void;
 }) {
   const dependentLabel =
     category === "conditions" ? "Used by these workflows" : "Used by these agents";
   const dependents = category === "conditions" ? blueprints : resources;
+  const itemClickHandler =
+    category === "conditions"
+      ? onBlueprintClick
+        ? (item: { id: string }) => onBlueprintClick(item.id)
+        : undefined
+      : onResourceClick
+        ? (item: { id: string; category?: string; type?: string }) => onResourceClick(item.id, item.category, item.type)
+        : undefined;
 
   return (
     <>
-      <DependentList items={dependents} label={dependentLabel} />
+      <DependentList items={dependents} label={dependentLabel} onItemClick={itemClickHandler} />
 
       <div className="mt-4">
         <p className="text-sm text-gray-300 mb-2">
@@ -294,11 +327,11 @@ function ReplaceFlow({
 function DetachFlow({
   label,
   resources,
-  blueprints,
+  onResourceClick,
 }: {
   label: string;
   resources: InUseData["resources"];
-  blueprints: InUseData["blueprints"];
+  onResourceClick?: (id: string, category?: string, type?: string) => void;
 }) {
   return (
     <>
@@ -306,18 +339,25 @@ function DetachFlow({
         This {label.toLowerCase()} will be removed from the following agents. They will
         continue to work without it.
       </p>
-      <DependentList items={resources} label="Used by these agents" />
-      <DependentList items={blueprints} label="Referenced by these workflows" />
+      <DependentList
+        items={resources}
+        label="Used by these agents"
+        onItemClick={
+          onResourceClick
+            ? (item) => onResourceClick(item.id, item.category, item.type)
+            : undefined
+        }
+      />
     </>
   );
 }
 
 function CascadeFlow({
   blueprints,
-  resources,
+  onBlueprintClick,
 }: {
   blueprints: InUseData["blueprints"];
-  resources: InUseData["resources"];
+  onBlueprintClick?: (id: string) => void;
 }) {
   return (
     <>
@@ -325,8 +365,15 @@ function CascadeFlow({
         Deleting this agent will also delete all workflows that use it.
         This action cannot be undone.
       </p>
-      <DependentList items={blueprints} label="Workflows that will be deleted" />
-      <DependentList items={resources} label="Resources that reference this agent" />
+      <DependentList
+        items={blueprints}
+        label="Workflows that will be deleted"
+        onItemClick={
+          onBlueprintClick
+            ? (item) => onBlueprintClick(item.id)
+            : undefined
+        }
+      />
     </>
   );
 }

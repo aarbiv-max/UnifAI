@@ -2,14 +2,19 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
-import { Plus, Info } from 'lucide-react';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, Info, Search, X } from 'lucide-react';
+import { FaProjectDiagram } from "react-icons/fa";
 import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { CategorySidebar } from '../components/agentic-ai/workspace/CategorySidebar';
 import { ElementGrid } from '../components/agentic-ai/workspace/ElementGrid';
 import { ElementForm } from '../components/agentic-ai/workspace/ElementForm';
+import { ElementData } from '../components/agentic-ai/workspace/ElementData';
 import { ResourceInUseModal, InUseData } from '../components/agentic-ai/workspace/ResourceInUseModal';
 import { ElementType, ElementInstance } from '../types/workspace';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import GraphDisplay from "@/components/agentic-ai/graphs/GraphDisplay";
+import { fetchResolvedBlueprint, WorkflowBlueprint } from "@/api/blueprints";
+import { useAuth } from "@/contexts/AuthContext";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
 
@@ -19,14 +24,23 @@ export default function UserWorkspace() {
   const [selectedElementType, setSelectedElementType] = useState<ElementType | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingElement, setEditingElement] = useState<ElementInstance | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [elementToDelete, setElementToDelete] = useState<ElementInstance | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [showInUseModal, setShowInUseModal] = useState(false);
   const [inUseData, setInUseData] = useState<InUseData | null>(null);
   const [replacementOptions, setReplacementOptions] = useState<Array<{ rid: string; name: string; type: string }>>([]);
   const [isLoadingReplacements, setIsLoadingReplacements] = useState(false);
+
+  const [previewWorkflow, setPreviewWorkflow] = useState<WorkflowBlueprint | null>(null);
+  const [isWorkflowPreviewOpen, setIsWorkflowPreviewOpen] = useState(false);
+
+  const [previewResource, setPreviewResource] = useState<ElementInstance | null>(null);
+  const [previewResourceType, setPreviewResourceType] = useState<ElementType | null>(null);
+  const [isResourcePreviewOpen, setIsResourcePreviewOpen] = useState(false);
+
+  const { user } = useAuth();
 
   const {
     categories,
@@ -39,12 +53,12 @@ export default function UserWorkspace() {
     fetchElementSchema,
     fetchElementActions,
     fetchResourcesForCategory,
+    fetchResourceById,
     saveElement,
     deleteElement,
     forceDeleteElement,
   } = useWorkspaceData();
 
-  // Fetch element instances when element type is selected
   useEffect(() => {
     if (selectedElementType) {
       fetchElementInstances(selectedElementType.category, selectedElementType.type);
@@ -52,14 +66,20 @@ export default function UserWorkspace() {
   }, [selectedElementType, fetchElementInstances]);
 
   const handleElementTypeSelect = async (category: string, elementType: ElementType) => {
-    // Ensure category is set before element type to avoid race conditions
     setSelectedCategory(category);
     setSelectedElementType(elementType);
+    setSearchQuery("");
     await Promise.all([
       fetchElementSchema(category, elementType.type),
       fetchElementActions(category, elementType.type)
     ]);
   };
+
+  const filteredInstances = searchQuery.trim()
+    ? elementInstances.filter(el =>
+        el.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : elementInstances;
 
   const handleCreateNew = () => {
     setEditingElement(null);
@@ -75,31 +95,24 @@ export default function UserWorkspace() {
     if (selectedElementType) {
       await saveElement(selectedElementType.category, selectedElementType.type, elementData, editingElement?.rid);
       setIsFormOpen(false);
-      // Refresh instances
       fetchElementInstances(selectedElementType.category, selectedElementType.type);
     }
   };
 
-  const handleDeleteElement = (rid: string) => {
+  const handleDeleteElement = async (rid: string) => {
     const element = elementInstances.find(el => el.rid === rid);
-    if (element) {
-      setElementToDelete(element);
-      setShowDeleteModal(true);
-    }
-  };
+    if (!element || !selectedElementType) return;
 
-  const confirmDeleteElement = async () => {
-    if (!elementToDelete || !selectedElementType) return;
-
+    setElementToDelete(element);
     setIsDeleting(true);
+
     try {
-      const result = await deleteElement(elementToDelete.rid);
+      const result = await deleteElement(rid);
+
       if (result.deleted) {
-        await fetchElementInstances(selectedElementType.category, selectedElementType.type);
-        setShowDeleteModal(false);
         setElementToDelete(null);
+        await fetchElementInstances(selectedElementType.category, selectedElementType.type);
       } else if ('inUse' in result && result.inUse) {
-        setShowDeleteModal(false);
         setInUseData({
           category: result.category,
           blueprints: result.blueprints,
@@ -111,21 +124,19 @@ export default function UserWorkspace() {
           setIsLoadingReplacements(true);
           const options = await fetchResourcesForCategory(result.category);
           setReplacementOptions(
-            options.filter((o: { rid: string }) => o.rid !== elementToDelete.rid)
+            options.filter((o: { rid: string }) => o.rid !== rid)
           );
           setIsLoadingReplacements(false);
         }
+      } else {
+        setElementToDelete(null);
       }
     } catch (error) {
       console.error('Error deleting element:', error);
+      setElementToDelete(null);
     } finally {
       setIsDeleting(false);
     }
-  };
-
-  const cancelDeleteElement = () => {
-    setShowDeleteModal(false);
-    setElementToDelete(null);
   };
 
   const handleForceDelete = async (
@@ -148,6 +159,42 @@ export default function UserWorkspace() {
     setInUseData(null);
     setElementToDelete(null);
     setReplacementOptions([]);
+  };
+
+  const handleBlueprintClick = async (blueprintId: string) => {
+    try {
+      const bp = await fetchResolvedBlueprint(blueprintId, user?.username);
+      if (bp) {
+        setPreviewWorkflow(bp);
+        setIsWorkflowPreviewOpen(true);
+      }
+    } catch {
+      window.open(`/agentic-ai`, '_blank');
+    }
+  };
+
+  const handleDependentResourceClick = async (resourceId: string, resourceCategory?: string, resourceType?: string) => {
+    const resource = await fetchResourceById(resourceId);
+    if (!resource) return;
+
+    const matchedCategory = categories.find(c => c.category === (resourceCategory || resource.category));
+    const elType: ElementType = matchedCategory?.elements.find(e => e.type === (resourceType || resource.type))
+      || matchedCategory?.elements[0]
+      || { type: resource.type, name: resource.type, category: resource.category };
+
+    setPreviewResource({
+      rid: resource.rid,
+      name: resource.name,
+      config: resource.cfg_dict,
+      category: resource.category,
+      type: resource.type,
+      version: resource.version,
+      created: resource.created,
+      updated: resource.updated,
+      nested_refs: resource.nested_refs,
+    });
+    setPreviewResourceType(elType);
+    setIsResourcePreviewOpen(true);
   };
 
   return (
@@ -214,24 +261,53 @@ export default function UserWorkspace() {
                   </div>
                 )}
 
+                {selectedElementType && elementInstances.length > 0 && (
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={`Search ${selectedElementType.name.toLowerCase()}s by name...`}
+                      className="w-full pl-9 pr-9 py-2 text-sm bg-background-card border border-gray-800 rounded-md text-gray-200 placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25 transition-colors"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Elements Grid */}
                 <div className="flex-1">
-                  {selectedElementType ? (
-                    <ElementGrid
-                      elements={elementInstances}
-                      elementType={selectedElementType}
-                      isLoading={isLoadingInstances}
-                      onEditElement={handleEditElement}
-                      onDeleteElement={handleDeleteElement}
-                      elementSchema={elementSchema}
-                    />
-                  ) : (
+                  {!selectedElementType ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center text-gray-400">
                         <p className="text-lg font-medium mb-2">Select an element type</p>
                         <p className="text-sm">Choose a category and element type from the sidebar to view instances</p>
                       </div>
                     </div>
+                  ) : searchQuery && filteredInstances.length === 0 && !isLoadingInstances ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                      <Search className="h-12 w-12 mb-4 opacity-50" />
+                      <h3 className="text-lg font-medium mb-2">No matches found</h3>
+                      <p className="text-sm">
+                        No {selectedElementType.name.toLowerCase()}s matching "{searchQuery}"
+                      </p>
+                    </div>
+                  ) : (
+                    <ElementGrid
+                      elements={filteredInstances}
+                      elementType={selectedElementType}
+                      isLoading={isLoadingInstances}
+                      onEditElement={handleEditElement}
+                      onDeleteElement={handleDeleteElement}
+                      elementSchema={elementSchema}
+                    />
                   )}
                 </div>
               </div>
@@ -253,34 +329,6 @@ export default function UserWorkspace() {
         </main>
       </div>
 
-      <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <AlertDialogContent className="bg-background-card border-gray-800">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedElementType?.name || 'Element'}</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{elementToDelete?.name || `${selectedElementType?.name || 'Element'} Instance`}"?
-              <br /><br />
-              <strong>Be aware that this action is irreversible.</strong>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel 
-              onClick={cancelDeleteElement}
-              className="bg-background-dark border-gray-700 hover:bg-background-surface"
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteElement}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       {inUseData && (
         <ResourceInUseModal
           open={showInUseModal}
@@ -290,6 +338,55 @@ export default function UserWorkspace() {
           replacementOptions={replacementOptions}
           isLoadingReplacements={isLoadingReplacements}
           onForceDelete={handleForceDelete}
+          onBlueprintClick={handleBlueprintClick}
+          onResourceClick={handleDependentResourceClick}
+        />
+      )}
+
+      <Dialog open={isWorkflowPreviewOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsWorkflowPreviewOpen(false);
+          setPreviewWorkflow(null);
+        }
+      }}>
+        <DialogContent className="bg-background-card border-gray-800 max-w-6xl w-[90vw] h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 py-4 border-b border-gray-800 flex-shrink-0">
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <FaProjectDiagram className="text-primary" />
+              {previewWorkflow?.spec_dict?.name || "Workflow View"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden p-6 min-h-0">
+            {previewWorkflow && (
+              <div className="h-full w-full">
+                <GraphDisplay
+                  blueprintId={previewWorkflow.blueprint_id}
+                  specDict={previewWorkflow.spec_dict}
+                  height="100%"
+                  showBackground={true}
+                  interactive={true}
+                  centerInView={true}
+                  animated={true}
+                />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {previewResourceType && (
+        <ElementData
+          element={previewResource}
+          elementType={previewResourceType}
+          isOpen={isResourcePreviewOpen}
+          onOpenChange={(open) => {
+            setIsResourcePreviewOpen(open);
+            if (!open) {
+              setPreviewResource(null);
+              setPreviewResourceType(null);
+            }
+          }}
+          elementSchema={null}
         />
       )}
     </div>

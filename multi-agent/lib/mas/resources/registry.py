@@ -2,11 +2,10 @@ from datetime import datetime, timezone
 from mas.resources.models import Resource, ResourceQuery
 from mas.resources.repository.base import ResourceRepository
 from mas.blueprints.repository.repository import BlueprintRepository
-from mas.blueprints.models.blueprint import BlueprintDraft
 from mas.resources.errors import ResourceInUseError
 from typing import List, Tuple, Dict, Any
 from mas.core.dto import GroupedCount
-from mas.core.ref import RefWalker, RefRemapper
+from mas.core.ref import RefRemapper
 from mas.core.enums import ResourceCategory
 
 
@@ -112,7 +111,8 @@ class ResourcesRegistry:
     ) -> None:
         """
         Update a blueprint's spec_dict and rid_refs after a ref change.
-        Follows the same parse→walk→save pattern as BlueprintService.update_draft.
+        Operates on the raw spec dict to avoid Pydantic validation failures
+        caused by legacy fields in stored blueprints.
         """
         bp_doc = self._bp_repo.load(bp_id)
         spec = bp_doc.spec_dict
@@ -124,9 +124,8 @@ class ResourcesRegistry:
         if remove_rid:
             spec = _remove_ref_from_catalogue(spec, remove_rid)
 
-        draft = BlueprintDraft(**spec)
-        rid_refs = list(RefWalker.external_rids(draft))
-        self._bp_repo.update(blueprint_id=bp_id, spec=draft, rid_refs=rid_refs)
+        rid_refs = list(_extract_ref_ids(spec))
+        self._bp_repo.update_raw(blueprint_id=bp_id, spec_dict=spec, rid_refs=rid_refs)
 
     # ---------- read ----------
     def get(self, rid: str) -> Resource:
@@ -173,7 +172,28 @@ class ResourcesRegistry:
         return self._repo.group_count(user_id, group_by, filter)
 
 
-# ---------- pure helpers for ref manipulation on raw dicts ----------
+# ---------- pure helpers for ref extraction & manipulation on raw dicts ----------
+
+_REF_PREFIX = "$ref:"
+
+
+def _extract_ref_ids(node: Any) -> set[str]:
+    """Extract all resource IDs from $ref:xxx strings in a raw spec dict."""
+    bucket: set[str] = set()
+    _scan_refs(node, bucket)
+    return bucket
+
+
+def _scan_refs(node: Any, bucket: set[str]) -> None:
+    if isinstance(node, str):
+        if node.startswith(_REF_PREFIX):
+            bucket.add(node[len(_REF_PREFIX):])
+    elif isinstance(node, dict):
+        for v in node.values():
+            _scan_refs(v, bucket)
+    elif isinstance(node, (list, tuple)):
+        for v in node:
+            _scan_refs(v, bucket)
 
 def _remove_ref_from_dict(d: dict, rid: str) -> dict:
     """Remove $ref:rid from a raw config dict — nullify scalars, filter from lists."""
