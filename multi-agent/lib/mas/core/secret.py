@@ -1,60 +1,53 @@
-from typing import Any, Dict, Type, Union, get_args, get_origin
+from enum import Enum
+from typing import Any, Dict
 
-from pydantic import BaseModel, SecretStr
+from pydantic import SecretStr
+from pydantic_core import core_schema as cs
+
+
+class SecretContext(str, Enum):
+    """Keys used in Pydantic serialization context to control Secret output."""
+    REVEAL = "reveal_secrets"
+    STRIP = "strip_secrets"
+
+    @classmethod
+    def reveal(cls) -> Dict[str, Any]:
+        """Context for DB persistence — exposes real secret values."""
+        return {cls.REVEAL: True}
+
+    @classmethod
+    def strip(cls) -> Dict[str, Any]:
+        """Context for sharing/cloning — replaces secrets with empty strings."""
+        return {cls.STRIP: True}
 
 
 class Secret(SecretStr):
-    """SecretStr subclass for marking sensitive config fields.
+    """Context-aware secret field.
 
-    Behaviour:
-    - ``str()`` / ``repr()`` / logging → ``'**********'`` (inherited from SecretStr)
-    - ``.get_secret_value()`` → real value
-    - ``model_dump(mode="json")`` → ``'**********'`` (Pydantic default)
-    - Use ``dump_with_secrets()`` when persisting to the database.
-    - Use ``strip_secret_fields()`` when sharing/cloning resources.
+    Serialization behaviour is controlled by the ``context`` argument
+    passed to ``model_dump()`` / ``model_dump_json()``:
+
+        model_dump(mode="json")                                 → '**********'
+        model_dump(mode="json", context=SecretContext.reveal())  → real value
+        model_dump(mode="json", context=SecretContext.strip())   → ''
+
+    Use ``.get_secret_value()`` when you need the raw value at runtime
+    (e.g. passing to an SDK constructor).
     """
-    pass
 
-
-def _is_secret_annotation(annotation: Any) -> bool:
-    """Check whether a field annotation is Secret or Optional[Secret]."""
-    if annotation is Secret:
-        return True
-    if isinstance(annotation, type) and issubclass(annotation, Secret):
-        return True
-    origin = get_origin(annotation)
-    if origin is Union:
-        return any(
-            _is_secret_annotation(a)
-            for a in get_args(annotation)
-            if a is not type(None)
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
+        schema = super().__get_pydantic_core_schema__(source_type, handler)
+        schema["serialization"] = cs.plain_serializer_function_ser_schema(
+            cls._serialize, info_arg=True,
         )
-    return False
+        return schema
 
-
-def dump_with_secrets(cfg_model: BaseModel) -> Dict[str, Any]:
-    """Serialize a config model, revealing Secret fields for database persistence.
-
-    Uses ``model_dump(mode="json")`` as the base (which masks secrets),
-    then overwrites secret fields with their real values.
-    """
-    data = cfg_model.model_dump(mode="json")
-    for field_name, field_info in cfg_model.model_fields.items():
-        if _is_secret_annotation(field_info.annotation):
-            value = getattr(cfg_model, field_name, None)
-            if value is not None:
-                data[field_name] = value.get_secret_value()
-    return data
-
-
-def strip_secret_fields(model_cls: Type[BaseModel], cfg_dict: Dict[str, Any]) -> Dict[str, Any]:
-    """Return a copy of *cfg_dict* with all Secret-typed fields set to empty string.
-
-    Used during sharing/cloning so recipients don't receive credentials.
-    """
-    result = dict(cfg_dict)
-    for field_name, field_info in model_cls.model_fields.items():
-        if _is_secret_annotation(field_info.annotation):
-            if field_name in result:
-                result[field_name] = ""
-    return result
+    @staticmethod
+    def _serialize(value: "Secret", info) -> str:
+        ctx = info.context or {}
+        if ctx.get(SecretContext.REVEAL):
+            return value.get_secret_value()
+        if ctx.get(SecretContext.STRIP):
+            return ""
+        return "**********"

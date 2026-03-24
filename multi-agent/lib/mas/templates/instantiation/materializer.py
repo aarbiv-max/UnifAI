@@ -19,7 +19,7 @@ from mas.resources.models import Resource
 from mas.core.ref import RefRemapper
 from mas.core.ref.models import Ref
 from mas.core.enums import ResourceCategory, SystemNodeType
-from mas.core.secret import dump_with_secrets
+from mas.core.secret import SecretContext
 from mas.templates.errors import MaterializationError
 from mas.templates.instantiation.models import CollectedResource, MaterializationResult
 
@@ -119,7 +119,7 @@ class ResourceMaterializer:
                 category=item.category,
                 type=item.bp_resource.type or "",
                 name=f"{item.bp_resource.name or item.bp_resource.type}_{suffix}",
-                cfg_dict=dump_with_secrets(item.bp_resource.config),
+                cfg_dict=item.bp_resource.config.model_dump(mode="json", context=SecretContext.reveal()),
                 nested_refs=[],
             )
             self._resources.save_resource(resource)

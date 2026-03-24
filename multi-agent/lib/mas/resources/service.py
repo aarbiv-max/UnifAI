@@ -8,7 +8,7 @@ from mas.catalog.element_registry import ElementRegistry
 from mas.resources.models import Resource, ResourceQuery
 from mas.core.enums import ResourceCategory
 from mas.core.ref import RefWalker
-from mas.core.secret import dump_with_secrets
+from mas.core.secret import SecretContext
 from mas.core.dto import GroupedCount
 from mas.core.element_meta import ElementConfigMeta
 from mas.elements.common.validator import ElementValidationResult, ValidationContext
@@ -49,7 +49,7 @@ class ResourcesService:
             category=category,
             type=type,
             name=name,
-            cfg_dict=dump_with_secrets(cfg_model),
+            cfg_dict=cfg_model.model_dump(mode="json", context=SecretContext.reveal()),
             nested_refs=nested_refs,
         )
         return self._store.create(doc)
@@ -75,7 +75,7 @@ class ResourcesService:
 
         nested_refs = list(RefWalker.external_rids(cfg_model))
 
-        doc.cfg_dict = dump_with_secrets(cfg_model)
+        doc.cfg_dict = cfg_model.model_dump(mode="json", context=SecretContext.reveal())
         doc.nested_refs = nested_refs
 
         if name is not None:
