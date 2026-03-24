@@ -128,19 +128,32 @@ class TestPipelineExecutor:
 
     # ── Failure at each handler step (parametrized) ───────────────────────
 
-    @pytest.mark.parametrize("step_method,expected_failed_at", [
-        ("collect", "COLLECTING"),
-        ("process", "PROCESSING"),
-        ("chunk_and_embed", "CHUNKING_AND_EMBEDDING"),
+    @pytest.mark.parametrize("step_method,expected_failed_at,expected_statuses", [
+        ("collect", "COLLECTING", [
+            PipelineStatus.COLLECTING,
+            PipelineStatus.FAILED,
+        ]),
+        ("process", "PROCESSING", [
+            PipelineStatus.COLLECTING,
+            PipelineStatus.PROCESSING,
+            PipelineStatus.FAILED,
+        ]),
+        ("chunk_and_embed", "CHUNKING_AND_EMBEDDING", [
+            PipelineStatus.COLLECTING,
+            PipelineStatus.PROCESSING,
+            PipelineStatus.CHUNKING_AND_EMBEDDING,
+            PipelineStatus.FAILED,
+        ]),
     ])
     def test_failure_at_handler_step_records_error(
         self, executor, mock_handler, mock_monitoring_svc, mock_pipeline_svc,
-        build_context, step_method, expected_failed_at,
+        build_context, step_method, expected_failed_at, expected_statuses,
     ):
         """When a handler step raises, the error must be recorded with the correct failed_at stage
-        and the pipeline status must be set to FAILED.
+        and the pipeline status must transition through completed stages then FAILED.
 
-        Expected: record_error called with failed_at matching the step; status set to FAILED.
+        Expected: record_error called with failed_at matching the step; full status sequence
+        includes only stages reached before the failure, followed by FAILED.
         Logs: No warnings or errors (error is recorded via monitoring, not logged to console).
         """
         getattr(mock_handler, step_method).side_effect = RuntimeError("boom")
@@ -155,17 +168,20 @@ class TestPipelineExecutor:
         ) or mock_monitoring_svc.record_error.call_args[1].get("error_details")
         assert error_details["failed_at"] == expected_failed_at
 
-        mock_pipeline_svc.update_status.assert_any_call(
-            "pipe_1", PipelineStatus.FAILED
-        )
+        status_calls = [
+            c.args[1] for c in mock_pipeline_svc.update_status.call_args_list
+        ]
+        assert status_calls == expected_statuses
 
     def test_failure_at_store_records_error(
         self, executor, mock_handler, mock_monitoring_svc, mock_pipeline_svc,
         mock_vector_repo, build_context,
     ):
-        """When vector storage fails, the error must be recorded with failed_at='STORING'.
+        """When vector storage fails, the error must be recorded with failed_at='STORING'
+        and the full status sequence must end with FAILED.
 
-        Expected: error_details['failed_at'] == 'STORING'.
+        Expected: error_details['failed_at'] == 'STORING'; status sequence includes all
+        stages up to STORING followed by FAILED.
         Logs: No warnings or errors.
         """
         mock_vector_repo.store.side_effect = RuntimeError("store boom")
@@ -178,6 +194,17 @@ class TestPipelineExecutor:
             "error_details"
         ) or mock_monitoring_svc.record_error.call_args[1].get("error_details")
         assert error_details["failed_at"] == "STORING"
+
+        status_calls = [
+            c.args[1] for c in mock_pipeline_svc.update_status.call_args_list
+        ]
+        assert status_calls == [
+            PipelineStatus.COLLECTING,
+            PipelineStatus.PROCESSING,
+            PipelineStatus.CHUNKING_AND_EMBEDDING,
+            PipelineStatus.STORING,
+            PipelineStatus.FAILED,
+        ]
 
     # ── Failure upserts error summary ─────────────────────────────────────
 
