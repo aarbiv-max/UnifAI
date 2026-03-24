@@ -128,6 +128,32 @@ def update_resource(resource_id, config, name=None):
         return jsonify({"error": str(e)}), 500
 
 
+@resources_bp.route("/resource.check-usage", methods=["GET"])
+@from_query({
+    "resource_id": fields.Str(data_key="resourceId", required=True),
+})
+def check_resource_usage(resource_id):
+    """Check whether a resource is in use without deleting it."""
+    svc = current_app.container.resources_service
+    try:
+        resource = svc.get(resource_id)
+    except KeyError:
+        return jsonify({"error": f"Resource not found: {resource_id}"}), 404
+
+    try:
+        bp_ids, res_ids = svc.check_usage(resource_id)
+        if bp_ids or res_ids:
+            error = ResourceInUseError(by_blueprints=bp_ids, by_resources=res_ids)
+            return jsonify({
+                "in_use": True,
+                "category": resource.category,
+                **_enrich_in_use_error(error),
+            }), 200
+        return jsonify({"in_use": False}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @resources_bp.route("/resource.delete", methods=["DELETE"])
 @from_query({
     "resource_id": fields.Str(data_key="resourceId", required=True),

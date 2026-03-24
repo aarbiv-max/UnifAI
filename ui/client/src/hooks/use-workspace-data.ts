@@ -381,6 +381,33 @@ export const useWorkspaceData = () => {
     [toast, USER_ID],
   );
 
+  // Check whether a resource is in use without deleting it.
+  const checkElementUsage = useCallback(
+    async (rid: string): Promise<
+      | { inUse: false }
+      | { inUse: true; category: string; blueprints: any[]; resources: any[] }
+    > => {
+      try {
+        const response = await axios.get(
+          `/resources/resource.check-usage?resourceId=${rid}`,
+        );
+        if (response.data.in_use) {
+          return {
+            inUse: true,
+            category: response.data.category,
+            blueprints: response.data.blueprints || [],
+            resources: response.data.resources || [],
+          };
+        }
+        return { inUse: false };
+      } catch (err: any) {
+        console.error("Error checking element usage:", err);
+        return { inUse: false };
+      }
+    },
+    [],
+  );
+
   // Delete element using Resources API.
   // Returns { deleted: true } on success, or { inUse: true, ...data } when the
   // resource is still referenced by other elements/workflows.
@@ -492,6 +519,7 @@ export const useWorkspaceData = () => {
     fetchElementActions,
     fetchResourcesForCategory,
     fetchResourceById,
+    checkElementUsage,
     saveElement,
     deleteElement,
     forceDeleteElement,

@@ -42,9 +42,14 @@ class ResourcesRegistry:
         self._repo.update(doc)
         return doc
 
-    def delete(self, rid: str) -> None:
+    def check_usage(self, rid: str) -> tuple[list, list]:
+        """Return (blueprint_ids, resource_ids) that reference *rid*."""
         direct_bps = self._bp_repo.list_direct_usage(rid)
         nested_res = self._repo.list_nested_usage(rid)
+        return direct_bps, nested_res
+
+    def delete(self, rid: str) -> None:
+        direct_bps, nested_res = self.check_usage(rid)
 
         if direct_bps or nested_res:
             raise ResourceInUseError(by_blueprints=direct_bps,

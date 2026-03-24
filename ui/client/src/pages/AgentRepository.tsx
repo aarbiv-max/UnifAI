@@ -4,6 +4,7 @@ import Header from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import { Plus, Info, Search, X } from 'lucide-react';
 import { FaProjectDiagram } from "react-icons/fa";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { CategorySidebar } from '../components/agentic-ai/workspace/CategorySidebar';
 import { ElementGrid } from '../components/agentic-ai/workspace/ElementGrid';
@@ -24,6 +25,7 @@ export default function UserWorkspace() {
   const [selectedElementType, setSelectedElementType] = useState<ElementType | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingElement, setEditingElement] = useState<ElementInstance | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [elementToDelete, setElementToDelete] = useState<ElementInstance | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -54,6 +56,7 @@ export default function UserWorkspace() {
     fetchElementActions,
     fetchResourcesForCategory,
     fetchResourceById,
+    checkElementUsage,
     saveElement,
     deleteElement,
     forceDeleteElement,
@@ -101,42 +104,53 @@ export default function UserWorkspace() {
 
   const handleDeleteElement = async (rid: string) => {
     const element = elementInstances.find(el => el.rid === rid);
-    if (!element || !selectedElementType) return;
+    if (!element) return;
 
     setElementToDelete(element);
+
+    const usage = await checkElementUsage(rid);
+    if ('inUse' in usage && usage.inUse) {
+      setInUseData({
+        category: usage.category,
+        blueprints: usage.blueprints,
+        resources: usage.resources,
+      });
+      setShowInUseModal(true);
+
+      if (usage.category === "llms" || usage.category === "conditions") {
+        setIsLoadingReplacements(true);
+        const options = await fetchResourcesForCategory(usage.category);
+        setReplacementOptions(
+          options.filter((o: { rid: string }) => o.rid !== element.rid)
+        );
+        setIsLoadingReplacements(false);
+      }
+    } else {
+      setShowDeleteModal(true);
+    }
+  };
+
+  const confirmDeleteElement = async () => {
+    if (!elementToDelete || !selectedElementType) return;
+
     setIsDeleting(true);
-
     try {
-      const result = await deleteElement(rid);
-
+      const result = await deleteElement(elementToDelete.rid);
       if (result.deleted) {
-        setElementToDelete(null);
         await fetchElementInstances(selectedElementType.category, selectedElementType.type);
-      } else if ('inUse' in result && result.inUse) {
-        setInUseData({
-          category: result.category,
-          blueprints: result.blueprints,
-          resources: result.resources,
-        });
-        setShowInUseModal(true);
-
-        if (result.category === "llms" || result.category === "conditions") {
-          setIsLoadingReplacements(true);
-          const options = await fetchResourcesForCategory(result.category);
-          setReplacementOptions(
-            options.filter((o: { rid: string }) => o.rid !== rid)
-          );
-          setIsLoadingReplacements(false);
-        }
-      } else {
-        setElementToDelete(null);
       }
     } catch (error) {
       console.error('Error deleting element:', error);
-      setElementToDelete(null);
     } finally {
       setIsDeleting(false);
+      setShowDeleteModal(false);
+      setElementToDelete(null);
     }
+  };
+
+  const cancelDeleteElement = () => {
+    setShowDeleteModal(false);
+    setElementToDelete(null);
   };
 
   const handleForceDelete = async (
@@ -328,6 +342,34 @@ export default function UserWorkspace() {
           )}
         </main>
       </div>
+
+      <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <AlertDialogContent className="bg-background-card border-gray-800">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedElementType?.name || 'Element'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{elementToDelete?.name || `${selectedElementType?.name || 'Element'} Instance`}"?
+              <br /><br />
+              <strong>Be aware that this action is irreversible.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={cancelDeleteElement}
+              className="bg-background-dark border-gray-700 hover:bg-background-surface"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteElement}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {inUseData && (
         <ResourceInUseModal
