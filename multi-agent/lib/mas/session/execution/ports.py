@@ -6,6 +6,7 @@ by infrastructure adapters (Temporal, Celery, etc.).
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Optional
 
 from mas.session.domain.workflow_session import WorkflowSession
 from mas.core.execution_context import ExecutionContext
@@ -32,7 +33,7 @@ class BackgroundSessionCanceller(ABC):
     """
 
     @abstractmethod
-    def cancel(self, session_id: str) -> None:
+    def cancel(self, session_id: str, workflow_id: Optional[str] = None) -> None:
         """Request cancellation of a running background session."""
         ...
 

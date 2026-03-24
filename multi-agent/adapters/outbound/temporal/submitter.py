@@ -12,6 +12,7 @@ Uses string-based workflow invocation to avoid importing from the
 inbound adapter layer (hexagonal boundary compliance).
 """
 import asyncio
+import uuid
 
 from mas.session.execution.ports import BackgroundSessionSubmitter, SubmitSessionRequest
 from mas.session.domain.workflow_session import WorkflowSession

@@ -88,7 +88,13 @@ class SessionService:
         session = self._manager.get_session(session_id)
         execution_ctx = session.run_context.with_scope(scope)
         request = SubmitSessionRequest(execution_context=execution_ctx)
-        return self._submitter.submit(session, request)
+        workflow_id = self._submitter.submit(session, request)
+
+        record = self._manager.get_record(session_id)
+        record.update_context(tags={**record.run_context.tags, "workflow_id": workflow_id})
+        self._manager.save_record(record)
+
+        return workflow_id
 
     def cancel(self, session_id: str) -> bool:
         """Request cancellation of a running or queued background session.
@@ -109,7 +115,8 @@ class SessionService:
         record = self._manager.get_record(session_id)
         if record.status not in (SessionStatus.QUEUED, SessionStatus.RUNNING):
             return False
-        self._canceller.cancel(session_id)
+        workflow_id = record.run_context.tags.get("workflow_id")
+        self._canceller.cancel(session_id, workflow_id=workflow_id)
         return True
 
     # ---- Private staging ----
