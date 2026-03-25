@@ -97,8 +97,11 @@ class BlueprintUsage(BaseModel):
     )
     success_rate: float = Field(
         0.0,
-        description="Percentage of COMPLETED runs (0.0 - 100.0)"
+        description="Percentage of COMPLETED runs out of terminal runs (0.0 - 100.0)"
     )
+    completed_runs: int = Field(0, description="Number of COMPLETED executions")
+    failed_runs: int = Field(0, description="Number of FAILED executions")
+    in_progress_runs: int = Field(0, description="Number of non-terminal executions (PENDING, QUEUED, RUNNING)")
     user_list: List[str] = Field(
         default_factory=list,
         description="List of user IDs who executed this blueprint"

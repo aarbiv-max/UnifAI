@@ -32,6 +32,9 @@ export interface BlueprintUsage {
   avg_duration_seconds?: number;
   last_run_at?: string;
   success_rate: number;
+  completed_runs: number;
+  failed_runs: number;
+  in_progress_runs: number;
   user_list: string[];
 }
 

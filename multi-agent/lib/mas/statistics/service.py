@@ -399,7 +399,8 @@ class StatisticsService:
         # Transform to BlueprintUsage models
         result = []
         for stats in sorted_stats:
-            success_rate = round((stats.completed_runs / stats.total_runs) * 100, 1) if stats.total_runs > 0 else 0.0
+            terminal_runs = stats.completed_runs + stats.failed_runs
+            success_rate = round((stats.completed_runs / terminal_runs) * 100, 1) if terminal_runs > 0 else 0.0
             avg_duration_seconds = max(0.0, stats.avg_duration_ms / 1000.0) if stats.avg_duration_ms is not None else None
             
             result.append(BlueprintUsage(
@@ -410,6 +411,9 @@ class StatisticsService:
                 avg_duration_seconds=avg_duration_seconds,
                 last_run_at=stats.last_run,
                 success_rate=success_rate,
+                completed_runs=stats.completed_runs,
+                failed_runs=stats.failed_runs,
+                in_progress_runs=stats.total_runs - terminal_runs,
                 user_list=stats.users
             ))
         

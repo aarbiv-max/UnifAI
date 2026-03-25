@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { FaRocket, FaEye } from "react-icons/fa";
+import { FaRocket, FaEye, FaChartBar } from "react-icons/fa";
 import { useMemo } from "react";
 import { generateColorPalette } from "@/lib/colorUtils";
 import { AnalyticCard } from "./AnalyticCard";
@@ -55,9 +55,35 @@ export function BlueprintsTable({ blueprints, colors }: BlueprintsTableProps) {
                         {bp.last_run_at ? formatRelativeTimestamp(bp.last_run_at) : "—"}
                       </TableCell>
                       <TableCell className="text-right text-sm">
-                        <span className={getSuccessRateColor(bp.success_rate ?? 0)}>
-                          {(bp.success_rate ?? 0).toFixed(1)}%
-                        </span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="inline-flex items-center gap-1.5 cursor-default">
+                              <span className={getSuccessRateColor(bp.success_rate ?? 0)}>
+                                {(bp.success_rate ?? 0).toFixed(1)}%
+                              </span>
+                              <FaChartBar className="w-3 h-3 text-gray-500" />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="max-w-xs">
+                            <div className="text-xs space-y-1">
+                              <p className="font-semibold mb-1.5">Execution Breakdown</p>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-green-400">Completed</span>
+                                <span className="font-medium">{bp.completed_runs ?? 0}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-red-400">Failed</span>
+                                <span className="font-medium">{bp.failed_runs ?? 0}</span>
+                              </div>
+                              {(bp.in_progress_runs ?? 0) > 0 && (
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-yellow-400">In Progress</span>
+                                  <span className="font-medium">{bp.in_progress_runs}</span>
+                                </div>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="text-right text-sm">
                         <Tooltip>
