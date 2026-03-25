@@ -5,6 +5,7 @@ from mas.elements.nodes.types import NodeSpec
 from mas.elements.common.exceptions import PluginConfigurationError
 from mas.core.ref.models import Ref
 from mas.core.contracts import SessionRegistry
+from mas.blueprints.models.blueprint import ResourceSpec
 
 
 class NodeBuilder(CategoryBuilder):
@@ -22,13 +23,14 @@ class NodeBuilder(CategoryBuilder):
         ResourceCategory.PROVIDER
     }
 
-    def _iter_specs(self, bp: BlueprintSpec) -> Iterable[NodeSpec]:
+    def _iter_specs(self, bp: BlueprintSpec) -> Iterable[ResourceSpec]:
         return bp.nodes
 
-    def _extra_kwargs(self, cfg: NodeSpec, reg: SessionRegistry) -> Dict[str, Any]:
+    def _extra_kwargs(self, resource_spec: ResourceSpec, reg: SessionRegistry) -> Dict[str, Any]:
         """Resolve all Ref-typed fields to their instances."""
+        cfg = resource_spec.config
         return {
-            name: self._resolve(getattr(cfg, name, None), cfg, reg)
+            name: self._resolve(getattr(cfg, name, None), resource_spec, reg)
             for name in self._get_ref_field_names(cfg)
         }
 
@@ -57,21 +59,21 @@ class NodeBuilder(CategoryBuilder):
         except TypeError:
             return False
 
-    def _resolve(self, value: Any, cfg: NodeSpec, reg: SessionRegistry) -> Any:
+    def _resolve(self, value: Any, resource_spec: ResourceSpec, reg: SessionRegistry) -> Any:
         """Resolve Ref or list of Refs to instances."""
         if value is None:
             return None
         if isinstance(value, list):
-            return [self._resolve_single(ref, cfg, reg) for ref in value]
-        return self._resolve_single(value, cfg, reg)
+            return [self._resolve_single(ref, resource_spec, reg) for ref in value]
+        return self._resolve_single(value, resource_spec, reg)
 
-    def _resolve_single(self, ref: Ref, cfg: NodeSpec, reg: SessionRegistry) -> Any:
+    def _resolve_single(self, ref: Ref, resource_spec: ResourceSpec, reg: SessionRegistry) -> Any:
         """Resolve a single Ref to its instance."""
         category = ref.get_category()
         try:
             return reg.get_instance(category=category, rid=ref.ref)
         except KeyError as e:
             raise PluginConfigurationError(
-                f"Node '{cfg.name}': unknown {category.value} ref '{ref.ref}'",
-                cfg.model_dump()
+                f"Node '{resource_spec.name}': unknown {category.value} ref '{ref.ref}'",
+                resource_spec.config.model_dump()
             ) from e

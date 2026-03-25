@@ -327,7 +327,7 @@ def get_stress_test_blueprint() -> Dict:
                 "config": {
                     "type": "openai",
                     "model_name": "gemini-2.5-flash",
-                    "api_key": "",
+                    "api_key": "AIzaSyCur-4Jt-0MqA7XrnVQ2_uIVupanUBhFlY",
                     "base_url": "https://generativelanguage.googleapis.com/v1beta/openai"
                 }
             }
