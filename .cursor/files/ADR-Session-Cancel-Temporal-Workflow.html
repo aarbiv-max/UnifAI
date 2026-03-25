@@ -117,44 +117,105 @@
 <table>
     <tr>
         <th>Area</th>
-        <th>Targeted Repositories / Files / Modules</th>
+        <th colspan="2">Details</th>
     </tr>
     <tr>
         <td><strong>Frontend</strong></td>
-        <td>No frontend changes in this ADR. This covers the backend Temporal execution path only. Frontend stop button integration is covered by GENIE-1038.</td>
-    </tr>
-    <tr>
-        <td><strong>Backend/APIs</strong></td>
-        <td>
-            <strong>Domain layer (lib/mas/):</strong><br>
-            <code>lib/mas/session/domain/status.py</code> &mdash; add <code>CANCELLED</code> to <code>SessionStatus</code> enum.<br>
-            <code>lib/mas/session/execution/lifecycle.py</code> &mdash; add <code>cancel()</code> method + guards on <code>complete()</code>/<code>fail()</code>.<br>
-            <code>lib/mas/session/execution/lifecycle_handler.py</code> &mdash; add <code>cancel()</code> method.<br>
-            <code>lib/mas/session/execution/ports.py</code> &mdash; add <code>BackgroundSessionCanceller</code> abstract port.<br>
-            <code>lib/mas/session/execution/__init__.py</code> &mdash; export <code>BackgroundSessionCanceller</code>.<br>
-            <code>lib/mas/session/service.py</code> &mdash; add <code>cancel()</code> method, update constructor.<br><br>
-            <strong>Temporal shared layer:</strong><br>
-            <code>adapters/temporal/models.py</code> &mdash; add <code>CancelSessionParams</code> DTO.<br><br>
-            <strong>Outbound adapters:</strong><br>
-            <code>adapters/outbound/temporal/submitter.py</code> &mdash; workflow ID with random suffix (persisted via tags).<br>
-            <code>adapters/outbound/temporal/canceller.py</code> &mdash; new <code>TemporalSessionCanceller</code>.<br><br>
-            <strong>Inbound adapters:</strong><br>
-            <code>adapters/inbound/temporal/workflows/session_workflow.py</code> &mdash; handle <code>CancelledError</code>.<br>
-            <code>adapters/inbound/temporal/activities/session_lifecycle_activities.py</code> &mdash; add <code>cancel_session</code> activity.<br>
-            <code>adapters/inbound/temporal/worker.py</code> &mdash; register new activity.<br><br>
-            <strong>API layer:</strong><br>
-            <code>adapters/inbound/flask/endpoints/sessions.py</code> &mdash; add <code>POST /session.cancel</code>.<br><br>
-            <strong>Bootstrap:</strong><br>
-            <code>bootstrap/container.py</code> &mdash; wire canceller + update <code>SessionService</code> init.
-        </td>
+        <td colspan="2">No frontend changes in this ADR. This covers the backend Temporal execution path only. Frontend stop button integration is covered by GENIE-1038.</td>
     </tr>
     <tr>
         <td><strong>Database</strong></td>
-        <td>No new tables or columns. <code>SessionStatus.CANCELLED</code> is persisted via the existing <code>SessionRepository.save()</code> mechanism. MongoDB documents gain a new possible value <code>"CANCELLED"</code> in the <code>status</code> field.</td>
+        <td colspan="2">No new tables or columns. <code>SessionStatus.CANCELLED</code> is persisted via the existing <code>SessionRepository.save()</code> mechanism. MongoDB documents gain a new possible value <code>"CANCELLED"</code> in the <code>status</code> field.</td>
     </tr>
     <tr>
         <td><strong>Config/Infra</strong></td>
-        <td>No new environment variables or third-party keys. Uses existing Temporal client configuration (<code>temporal_host</code>, <code>temporal_namespace</code>, <code>temporal_task_queue</code>) and Redis channel infrastructure.</td>
+        <td colspan="2">No new environment variables or third-party keys. Uses existing Temporal client configuration (<code>temporal_host</code>, <code>temporal_namespace</code>, <code>temporal_task_queue</code>) and Redis channel infrastructure.</td>
+    </tr>
+</table>
+
+<h3>Backend/APIs &mdash; File-Level Breakdown</h3>
+
+<table style="font-size: 0.78rem;">
+    <tr>
+        <th>File</th>
+        <th>Role</th>
+        <th>What Changed</th>
+    </tr>
+    <tr><td colspan="3" style="background:#eef;font-weight:600;">New File</td></tr>
+    <tr>
+        <td><code>outbound/temporal/canceller.py</code></td>
+        <td>Outbound adapter</td>
+        <td>New <code>TemporalSessionCanceller</code>. Calls <code>handle.cancel()</code> to send cancel signal. Bridges sync Flask &harr; async Temporal via <code>asyncio.run()</code>.</td>
+    </tr>
+    <tr><td colspan="3" style="background:#eef;font-weight:600;">Domain Layer (lib/mas/)</td></tr>
+    <tr>
+        <td><code>session/service.py</code></td>
+        <td>App service</td>
+        <td>Added <code>cancel()</code> &mdash; checks eligibility, reads <code>workflow_id</code> from tags, delegates to canceller. Modified <code>submit()</code> to persist <code>workflow_id</code> in tags. Added <code>background_canceller</code> to constructor.</td>
+    </tr>
+    <tr>
+        <td><code>session/execution/ports.py</code></td>
+        <td>Port (interface)</td>
+        <td>Added <code>BackgroundSessionCanceller</code> abstract class with <code>cancel(session_id, workflow_id)</code>. Domain contract &mdash; doesn&rsquo;t know it&rsquo;s Temporal.</td>
+    </tr>
+    <tr>
+        <td><code>session/execution/__init__.py</code></td>
+        <td>Package exports</td>
+        <td>Export <code>BackgroundSessionCanceller</code>.</td>
+    </tr>
+    <tr>
+        <td><code>session/execution/lifecycle.py</code></td>
+        <td>State machine</td>
+        <td>Added <code>cancel(record)</code> &mdash; sets CANCELLED + <code>finished_at</code>. Added guards in <code>complete()</code>/<code>fail()</code> to no-op if already CANCELLED.</td>
+    </tr>
+    <tr>
+        <td><code>session/execution/lifecycle_handler.py</code></td>
+        <td>Lifecycle handler</td>
+        <td>Added <code>cancel(run_id)</code> &mdash; fetches record, calls <code>lifecycle.cancel()</code>, then <code>_close_channel()</code>. Same pattern as <code>complete()</code>/<code>fail()</code>.</td>
+    </tr>
+    <tr>
+        <td><code>session/domain/status.py</code></td>
+        <td>Status enum</td>
+        <td>Added <code>CANCELLED</code> to <code>SessionStatus</code>.</td>
+    </tr>
+    <tr>
+        <td><code>session/management/user_session_manager.py</code></td>
+        <td>Data access</td>
+        <td>Supporting changes for cancel flow.</td>
+    </tr>
+    <tr><td colspan="3" style="background:#eef;font-weight:600;">Temporal Shared Layer</td></tr>
+    <tr>
+        <td><code>temporal/models.py</code></td>
+        <td>DTO</td>
+        <td>Added <code>CancelSessionParams(run_id: str)</code> &mdash; data object sent to <code>cancel_session</code> activity.</td>
+    </tr>
+    <tr><td colspan="3" style="background:#eef;font-weight:600;">Temporal Inbound Adapters</td></tr>
+    <tr>
+        <td><code>temporal/workflows/session_workflow.py</code></td>
+        <td>Workflow</td>
+        <td>Added <code>try/except CancelledError</code> in <code>run()</code>. Executes <code>cancel_session</code> cleanup activity, then re-raises.</td>
+    </tr>
+    <tr>
+        <td><code>temporal/activities/session_lifecycle_activities.py</code></td>
+        <td>Activity</td>
+        <td>Added <code>cancel_session</code> activity &mdash; one-liner delegates to <code>handler.cancel(run_id)</code>.</td>
+    </tr>
+    <tr>
+        <td><code>temporal/worker.py</code></td>
+        <td>Worker reg.</td>
+        <td>Registered <code>cancel_session</code> activity.</td>
+    </tr>
+    <tr><td colspan="3" style="background:#eef;font-weight:600;">API Layer</td></tr>
+    <tr>
+        <td><code>flask/endpoints/sessions.py</code></td>
+        <td>Flask endpoint</td>
+        <td>Added <code>POST /session.cancel</code>. Returns 200 or 409.</td>
+    </tr>
+    <tr><td colspan="3" style="background:#eef;font-weight:600;">Bootstrap</td></tr>
+    <tr>
+        <td><code>bootstrap/container.py</code></td>
+        <td>DI wiring</td>
+        <td>Wire <code>TemporalSessionCanceller</code> into <code>SessionService</code>.</td>
     </tr>
 </table>
 
@@ -308,107 +369,69 @@ STAGE 6: COMPLETE SESSION (Temporal Activity)
 
   Subscriber sees CLOSE signal -&gt; stops reading</code></pre>
 
-<h3>Diagram 2 &mdash; Hexagonal Architecture Layers (with Data Flow)</h3>
+<h3>Diagram 2 &mdash; Hexagonal Architecture Layers (Cancel Flow)</h3>
+
+<p>The cancel flow passes through the architecture layers twice: once to send the signal, once to handle the cleanup.</p>
 
 <pre><code>
- ┌─────────────────────────────────────────────────────────────────────────┐
- │                        INBOUND ADAPTERS                                │
- │                                                                        │
- │  Flask Endpoint                         Temporal Worker                 │
- │  POST /session.cancel                   SessionWorkflow.run()           │
- │  ┌──────────────────────────┐           ┌─────────────────────────┐    │
- │  │ INPUT:                   │           │ On CancelledError:      │    │
- │  │  { sessionId: "abc123" } │           │  execute activity:      │    │
- │  │                          │           │   "cancel_session"      │    │
- │  │ Extracts: session_id     │           │   CancelSessionParams(  │    │
- │  │  = "abc123"              │           │     run_id="abc123"     │    │
- │  │                          │           │   )                     │    │
- │  │ OUTPUT:                  │           │                         │    │
- │  │  200 { sessionId:       │           │ Activity delegates to:  │    │
- │  │    "abc123",             │           │  handler.cancel("abc123")    │
- │  │    status: "CANCELLED" } │           │   └─ lifecycle.cancel() │    │
- │  │  or                      │           │   └─ channel.close()    │    │
- │  │  409 { error: "..." }    │           │   (both idempotent)     │    │
- │  └───────────┬──────────────┘           └─────────────────────────┘    │
- └──────────────┼─────────────────────────────────────────────────────────┘
-                │ session_id = "abc123"
- ┌──────────────▼─────────────────────────────────────────────────────────┐
- │                        DOMAIN HEXAGON                                  │
- │                                                                        │
- │  SessionService.cancel(session_id="abc123")                            │
- │  ┌─────────────────────────────────────────────────────────────────┐   │
- │  │ 1. record = manager.get_record("abc123")                        │   │
- │  │    → SessionRecord(run_id="abc123", status=RUNNING,             │   │
- │  │      run_context.tags={"workflow_id":"session-abc123-7f3a9b1e"})│   │
- │  │                                                                  │   │
- │  │ 2. Guard: record.status in (QUEUED, RUNNING)?                   │   │
- │  │    YES → proceed    NO → return False (409)                      │   │
- │  │                                                                  │   │
- │  │ 3. workflow_id = record.run_context.tags.get("workflow_id")     │   │
- │  │    → "session-abc123-7f3a9b1e"                                  │   │
- │  │                                                                  │   │
- │  │ 4. canceller.cancel("abc123", workflow_id=workflow_id)           │   │
- │  │    ← BackgroundSessionCanceller port                             │   │
- │  │    (domain doesn't know it's Temporal — just calls the port)     │   │
- │  │                                                                  │   │
- │  │ NOTE: No DB write or lifecycle transition here.                  │   │
- │  │ The lifecycle transition (→ CANCELLED) and channel cleanup       │   │
- │  │ happen in the workflow's CancelledError handler via              │   │
- │  │ BackgroundLifecycleHandler.cancel(), keeping lifecycle           │   │
- │  │ ownership in a single place.                                     │   │
- │  └─────────────────────────────────────────────┬───────────────────┘   │
- │                                                │                       │
- │  Guards on other lifecycle methods:            │                       │
- │  ┌─────────────────────────────────────┐       │                       │
- │  │ complete(record, final_state):      │       │                       │
- │  │   if record.status == CANCELLED:    │       │                       │
- │  │     return  (no-op, won't overwrite)│       │                       │
- │  │                                     │       │                       │
- │  │ fail(record, error):                │       │                       │
- │  │   if record.status == CANCELLED:    │       │                       │
- │  │     return  (no-op, won't overwrite)│       │                       │
- │  └─────────────────────────────────────┘       │                       │
- └────────────────────────────────────────────────┼───────────────────────┘
-                                                  │ session_id, workflow_id
- ┌────────────────────────────────────────────────▼───────────────────────┐
- │                        OUTBOUND ADAPTERS                               │
- │                                                                        │
- │  TemporalSessionCanceller.cancel(session_id, workflow_id)               │
- │  ┌─────────────────────────────────────────────────────────────────┐   │
- │  │ 1. Guard: if not workflow_id → log warning, return (no-op)     │   │
- │  │                                                                  │   │
- │  │ 2. Cancel Temporal workflow:                                     │   │
- │  │    client = await get_temporal_client()                           │   │
- │  │    handle = client.get_workflow_handle(workflow_id)               │   │
- │  │    await handle.cancel()                                         │   │
- │  │      → Temporal sends CancelledError to SessionWorkflow          │   │
- │  │                                                                  │   │
- │  │ 3. On exception: log warning + suppress                         │   │
- │  │    (workflow may have already completed)                         │   │
- │  │                                                                  │   │
- │  │ NOTE: No Redis emit or channel.close() here.                    │   │
- │  │ Channel cleanup is owned by BackgroundLifecycleHandler.cancel() │   │
- │  │ which runs inside the workflow's CancelledError handler.         │   │
- │  └─────────────────────────────────────────────────────────────────┘   │
- │                                                                        │
- │  TemporalSessionSubmitter.submit() (existing, modified)                │
- │  ┌─────────────────────────────────────────────────────────────────┐   │
- │  │ workflow_id = f"session-{session.get_run_id()}-{uuid[:8]}"      │   │
- │  │             = "session-abc123-7f3a9b1e"                          │   │
- │  │                                                                  │   │
- │  │ WHY RANDOM SUFFIX:                                               │   │
- │  │   "Continue conversation" creates a new workflow for the same    │   │
- │  │   session_id. Temporal requires unique workflow IDs, so a        │   │
- │  │   random suffix ensures each submission is unique.               │   │
- │  │                                                                  │   │
- │  │ HOW THE CANCELLER FINDS IT:                                      │   │
- │  │   SessionService.submit() persists the returned workflow_id      │   │
- │  │   into record.run_context.tags["workflow_id"] via update_context()│  │
- │  │   SessionService.cancel() reads it back from the same tags.      │   │
- │  │   This reuses the existing tag persistence pattern (same as      │   │
- │  │   SessionLifecycle.begin() uses for scope).                      │   │
- │  └─────────────────────────────────────────────────────────────────┘   │
- └────────────────────────────────────────────────────────────────────────┘
+PHASE A: SEND THE CANCEL SIGNAL
+(User → Flask → Domain → Temporal)
+══════════════════════════════════════════════════════════════════
+
+Step 1 │ INBOUND         │ Flask receives POST /session.cancel
+       │                  │ Extracts session_id = "abc123"
+       │                  │
+       ▼                  │
+Step 2 │ DOMAIN           │ SessionService.cancel("abc123")
+       │                  │   1. Fetch record from MongoDB
+       │                  │   2. Guard: status is QUEUED or RUNNING?
+       │                  │      NO → return 409  |  YES → continue
+       │                  │   3. Read workflow_id from record tags
+       │                  │   4. Call canceller.cancel(session_id, workflow_id)
+       │                  │      (calls the PORT — doesn't know it's Temporal)
+       │                  │
+       │                  │   NOTE: No DB write here. Domain only SIGNALS.
+       ▼                  │
+Step 3 │ OUTBOUND         │ TemporalSessionCanceller.cancel()
+       │                  │   handle = client.get_workflow_handle(workflow_id)
+       │                  │   handle.cancel()  → sends cancel to Temporal
+       │                  │   (catches exceptions if workflow already done)
+       │                  │
+       ▼                  │
+Step 4 │                  │ Flask returns 200 { status: "CANCELLED" }
+       │                  │ (or 409 if not cancellable)
+
+
+══════════════════════════════════════════════════════════════════
+  ... Temporal delivers CancelledError to the workflow ...
+══════════════════════════════════════════════════════════════════
+
+
+PHASE B: HANDLE THE CLEANUP
+(Temporal → Worker → Domain → MongoDB + Redis)
+══════════════════════════════════════════════════════════════════
+
+Step 5 │ INBOUND         │ SessionWorkflow catches CancelledError
+       │                  │ Runs cancel_session activity on worker
+       │                  │
+       ▼                  │
+Step 6 │ DOMAIN           │ BackgroundLifecycleHandler.cancel(run_id)
+       │                  │   1. lifecycle.cancel(record)
+       │                  │      → status = CANCELLED, save to MongoDB
+       │                  │   2. _close_channel(run_id)
+       │                  │      → XADD {__control: close}
+       │                  │      → SREM from active set
+       │                  │      → DELETE stream
+       │                  │
+       ▼                  │
+Step 7 │                  │ Workflow re-raises CancelledError
+       │                  │ Temporal marks workflow as cancelled
+       │                  │ Subscriber sees close signal, stops reading
+
+
+══════════════════════════════════════════════════════════════════
+  GUARDS: complete()/fail() no-op if status is already CANCELLED
+══════════════════════════════════════════════════════════════════
 </code></pre>
 
 <h3>Diagram 3 &mdash; Cancel Sequence (Full Data Flow)</h3>
