@@ -100,11 +100,11 @@
     </tr>
     <tr>
         <td><strong>High-Level Solution</strong></td>
-        <td>Add a <code>POST /session.cancel</code> endpoint that immediately marks the session as CANCELLED in MongoDB, emits a <code>session_cancelled</code> event on the Redis channel for instant subscriber notification, and calls Temporal&rsquo;s <code>handle.cancel()</code> to stop the workflow. The workflow catches <code>CancelledError</code> and runs a cleanup activity. A new <code>BackgroundSessionCanceller</code> port follows the existing hexagonal architecture.</td>
+        <td>Add a <code>POST /session.cancel</code> endpoint that checks session eligibility (QUEUED/RUNNING), reads the persisted <code>workflow_id</code> from the session record, and calls Temporal&rsquo;s <code>handle.cancel()</code> via a <code>BackgroundSessionCanceller</code> port to stop the workflow. The workflow catches <code>CancelledError</code> and runs a <code>cancel_session</code> cleanup activity that marks the session as CANCELLED in MongoDB and closes the Redis channel. Lifecycle ownership remains in a single place (the workflow&rsquo;s cleanup activity via <code>BackgroundLifecycleHandler</code>).</td>
     </tr>
     <tr>
         <td><strong>Success Metrics</strong></td>
-        <td>Session status transitions to CANCELLED within 1 second of API call. Subscribed clients receive <code>session_cancelled</code> event immediately. No new graph nodes start after cancel. Redis stream and active-session tracking cleaned up. <code>complete()</code>/<code>fail()</code> cannot overwrite CANCELLED (terminal state guard).</td>
+        <td>Session status transitions to CANCELLED within seconds of API call (once Temporal delivers <code>CancelledError</code> to the workflow and the cleanup activity executes). No new graph nodes start after cancel. Redis stream and active-session tracking cleaned up by the cleanup activity. <code>complete()</code>/<code>fail()</code> cannot overwrite CANCELLED (terminal state guard).</td>
     </tr>
 </table>
 
@@ -136,7 +136,7 @@
             <strong>Temporal shared layer:</strong><br>
             <code>adapters/temporal/models.py</code> &mdash; add <code>CancelSessionParams</code> DTO.<br><br>
             <strong>Outbound adapters:</strong><br>
-            <code>adapters/outbound/temporal/submitter.py</code> &mdash; deterministic workflow ID.<br>
+            <code>adapters/outbound/temporal/submitter.py</code> &mdash; workflow ID with random suffix (persisted via tags).<br>
             <code>adapters/outbound/temporal/canceller.py</code> &mdash; new <code>TemporalSessionCanceller</code>.<br><br>
             <strong>Inbound adapters:</strong><br>
             <code>adapters/inbound/temporal/workflows/session_workflow.py</code> &mdash; handle <code>CancelledError</code>.<br>
@@ -183,7 +183,7 @@
     </tr>
     <tr>
         <td><strong>Output Validation</strong></td>
-        <td>On cancellation, the session&rsquo;s <code>GraphState</code> is preserved at the last successfully completed superstep. The session record retains all state accumulated before cancellation. Subscribers receive a <code>{"type": "session_cancelled"}</code> event followed by a stream close, clearly distinguishing cancellation from normal completion or failure.</td>
+        <td>On cancellation, the session&rsquo;s <code>GraphState</code> is preserved at the last successfully completed superstep. The session record retains all state accumulated before cancellation. Subscribers see the stream close (via <code>__control: close</code>), cleanly ending the connection. The session status in MongoDB distinguishes cancellation from normal completion or failure.</td>
     </tr>
 </table>
 
@@ -201,7 +201,7 @@
     |             status: PENDING -&gt; QUEUED
     +-- _submitter.submit(): start Temporal workflow
 
-  Response: 202 { sessionId: "abc123", workflowId: "session-abc123" }
+  Response: 202 { sessionId: "abc123", workflowId: "session-abc123-7f3a9b1e" }
 
 
 STAGE 2: TEMPORAL TASK QUEUE
@@ -337,20 +337,25 @@ STAGE 6: COMPLETE SESSION (Temporal Activity)
  │                                                                        │
  │  SessionService.cancel(session_id="abc123")                            │
  │  ┌─────────────────────────────────────────────────────────────────┐   │
- │  │ 1. record = repo.fetch("abc123")                                │   │
- │  │    → SessionRecord(run_id="abc123", status=RUNNING, ...)        │   │
+ │  │ 1. record = manager.get_record("abc123")                        │   │
+ │  │    → SessionRecord(run_id="abc123", status=RUNNING,             │   │
+ │  │      run_context.tags={"workflow_id":"session-abc123-7f3a9b1e"})│   │
  │  │                                                                  │   │
  │  │ 2. Guard: record.status in (QUEUED, RUNNING)?                   │   │
  │  │    YES → proceed    NO → return False (409)                      │   │
  │  │                                                                  │   │
- │  │ 3. lifecycle.cancel(record)                                      │   │
- │  │    ├─ record.status = CANCELLED                                  │   │
- │  │    ├─ record.run_context = mark_finished() (sets finished_at)    │   │
- │  │    └─ repo.save(record)                                          │   │
- │  │       → MongoDB write: { status: "CANCELLED", finished_at: now } │   │
+ │  │ 3. workflow_id = record.run_context.tags.get("workflow_id")     │   │
+ │  │    → "session-abc123-7f3a9b1e"                                  │   │
  │  │                                                                  │   │
- │  │ 4. canceller.cancel("abc123")  ← BackgroundSessionCanceller port │   │
+ │  │ 4. canceller.cancel("abc123", workflow_id=workflow_id)           │   │
+ │  │    ← BackgroundSessionCanceller port                             │   │
  │  │    (domain doesn't know it's Temporal — just calls the port)     │   │
+ │  │                                                                  │   │
+ │  │ NOTE: No DB write or lifecycle transition here.                  │   │
+ │  │ The lifecycle transition (→ CANCELLED) and channel cleanup       │   │
+ │  │ happen in the workflow's CancelledError handler via              │   │
+ │  │ BackgroundLifecycleHandler.cancel(), keeping lifecycle           │   │
+ │  │ ownership in a single place.                                     │   │
  │  └─────────────────────────────────────────────┬───────────────────┘   │
  │                                                │                       │
  │  Guards on other lifecycle methods:            │                       │
@@ -364,46 +369,44 @@ STAGE 6: COMPLETE SESSION (Temporal Activity)
  │  │     return  (no-op, won't overwrite)│       │                       │
  │  └─────────────────────────────────────┘       │                       │
  └────────────────────────────────────────────────┼───────────────────────┘
-                                                  │ session_id = "abc123"
+                                                  │ session_id, workflow_id
  ┌────────────────────────────────────────────────▼───────────────────────┐
  │                        OUTBOUND ADAPTERS                               │
  │                                                                        │
- │  TemporalSessionCanceller.cancel(session_id="abc123")                  │
+ │  TemporalSessionCanceller.cancel(session_id, workflow_id)               │
  │  ┌─────────────────────────────────────────────────────────────────┐   │
- │  │ 1. Notify subscribers (Redis):                                   │   │
- │  │    channel = channel_factory.create("abc123")                    │   │
- │  │    channel.emit({"type": "session_cancelled"})                   │   │
- │  │      → XADD mas:stream:abc123 {payload: '{"type":...}'}         │   │
- │  │    channel.close()                                               │   │
- │  │      → XADD mas:stream:abc123 {__control: "close"}              │   │
- │  │      → SREM mas:sessions:active "abc123"                         │   │
- │  │      → DEL  mas:stream:abc123                                    │   │
+ │  │ 1. Guard: if not workflow_id → log warning, return (no-op)     │   │
  │  │                                                                  │   │
  │  │ 2. Cancel Temporal workflow:                                     │   │
- │  │    workflow_id = f"session-{session_id}"                         │   │
- │  │                = "session-abc123"   ← DETERMINISTIC (from run_id)│   │
  │  │    client = await get_temporal_client()                           │   │
- │  │    handle = client.get_workflow_handle("session-abc123")          │   │
+ │  │    handle = client.get_workflow_handle(workflow_id)               │   │
  │  │    await handle.cancel()                                         │   │
  │  │      → Temporal sends CancelledError to SessionWorkflow          │   │
+ │  │                                                                  │   │
+ │  │ 3. On exception: log warning + suppress                         │   │
+ │  │    (workflow may have already completed)                         │   │
+ │  │                                                                  │   │
+ │  │ NOTE: No Redis emit or channel.close() here.                    │   │
+ │  │ Channel cleanup is owned by BackgroundLifecycleHandler.cancel() │   │
+ │  │ which runs inside the workflow's CancelledError handler.         │   │
  │  └─────────────────────────────────────────────────────────────────┘   │
  │                                                                        │
  │  TemporalSessionSubmitter.submit() (existing, modified)                │
  │  ┌─────────────────────────────────────────────────────────────────┐   │
- │  │ workflow_id = f"session-{session.get_run_id()}"                  │   │
- │  │             = "session-abc123"                                    │   │
+ │  │ workflow_id = f"session-{session.get_run_id()}-{uuid[:8]}"      │   │
+ │  │             = "session-abc123-7f3a9b1e"                          │   │
  │  │                                                                  │   │
- │  │ WHY DETERMINISTIC:                                               │   │
- │  │   Before: f"session-{uuid.uuid4().hex[:12]}" → "session-7f3a9b" │   │
- │  │           (random, thrown away, nobody stores it)                 │   │
+ │  │ WHY RANDOM SUFFIX:                                               │   │
+ │  │   "Continue conversation" creates a new workflow for the same    │   │
+ │  │   session_id. Temporal requires unique workflow IDs, so a        │   │
+ │  │   random suffix ensures each submission is unique.               │   │
  │  │                                                                  │   │
- │  │   After:  f"session-{run_id}" → "session-abc123"                 │   │
- │  │           (derivable from session_id at any time)                 │   │
- │  │                                                                  │   │
- │  │ The canceller reconstructs the SAME workflow_id:                 │   │
- │  │   submitter:  f"session-{session.get_run_id()}" = "session-abc123"│  │
- │  │   canceller:  f"session-{session_id}"           = "session-abc123"│  │
- │  │   MATCH ✓                                                        │   │
+ │  │ HOW THE CANCELLER FINDS IT:                                      │   │
+ │  │   SessionService.submit() persists the returned workflow_id      │   │
+ │  │   into record.run_context.tags["workflow_id"] via update_context()│  │
+ │  │   SessionService.cancel() reads it back from the same tags.      │   │
+ │  │   This reuses the existing tag persistence pattern (same as      │   │
+ │  │   SessionLifecycle.begin() uses for scope).                      │   │
  │  └─────────────────────────────────────────────────────────────────┘   │
  └────────────────────────────────────────────────────────────────────────┘
 </code></pre>
@@ -422,18 +425,12 @@ STAGE 6: COMPLETE SESSION (Temporal Activity)
   │                            │    (must be QUEUED or    │                          │
   │                            │     RUNNING)             │                          │
   │                            │                          │                          │
-  │                            │ 3. lifecycle.cancel()    │                          │
-  │                            │    RUNNING → CANCELLED   │                          │
-  │                            │    (immediate DB write)  │                          │
+  │                            │ 3. Read workflow_id from │                          │
+  │                            │    record.run_context    │                          │
+  │                            │    .tags["workflow_id"]  │                          │
   │                            │                          │                          │
   │                            │ 4. TemporalSession-      │                          │
   │                            │    Canceller.cancel()    │                          │
-  │                            │    │                     │                          │
-  │                            │    │── emit {type:       │                          │
-  │  {type: session_cancelled} │    │   session_cancelled}│                          │
-  │<~~~~ Redis channel ~~~~~~~~│~~~~│                     │                          │
-  │  {__control: close}        │    │── channel.close()   │                          │
-  │<~~~~ subscriber stops ~~~~~│~~~~│                     │                          │
   │                            │    │                     │                          │
   │                            │    │── handle.cancel() ─>│                          │
   │                            │                          │                          │
@@ -445,18 +442,20 @@ STAGE 6: COMPLETE SESSION (Temporal Activity)
   │                            │                          │                          │
   │                            │                          │ cancel_session activity  │
   │                            │                          │────────── runs ─────────>│
-  │                            │                          │   lifecycle.cancel()     │
-  │                            │                          │   (no-op: already        │
-  │                            │                          │    CANCELLED)            │
-  │                            │                          │   channel.close()        │
-  │                            │                          │   (idempotent)           │</code></pre>
+  │                            │                          │   handler.cancel(run_id) │
+  │                            │                          │     lifecycle.cancel()   │
+  │                            │                          │       RUNNING → CANCELLED│
+  │                            │                          │       (DB write)         │
+  │                            │                          │     _close_channel()     │
+  │  {__control: close}        │                          │       channel.close()    │
+  │<~~~~ subscriber stops ~~~~~│~~~~~~~~~~~~~~~~~~~~~~~~~~│~~~~~~~~~~~~~~~~~~~~~~~~~>│</code></pre>
 
 <h3>Diagram 4 &mdash; Stage-by-Stage Cancellation Behavior</h3>
 
 <pre><code>STAGE                        WHAT HAPPENS
 ───────────────────────────────────────────────────────────────────────────
 1. QUEUED in Temporal        handle.cancel() cancels before workflow starts.
-   (workflow not started)    DB: CANCELLED. Channel closed.
+   (workflow not started)    Cleanup activity marks CANCELLED + closes channel.
 
 2. begin_session activity    Activity is short (~200ms). Temporal delivers
    (marking RUNNING)         CancelledError after it finishes. complete/fail
@@ -465,10 +464,11 @@ STAGE 6: COMPLETE SESSION (Temporal Activity)
 3. Between supersteps        CancelledError raised at next await. No new
    (BSP PLAN phase)          nodes dispatched. Cleanup activity runs.
 
-4. Node activity executing   Client notified immediately via Redis channel
-   (e.g. LLM API call)      (emit + close). Current node finishes in
-                             background. CancelledError at next await after
-                             activity returns. No new nodes dispatched.
+4. Node activity executing   Current node finishes in background (LLM call
+   (e.g. LLM API call)      completes naturally). CancelledError at next
+                             await after activity returns. Cleanup activity
+                             marks CANCELLED + closes channel. No new
+                             nodes dispatched.
 
 5. complete/fail activity    Guards check: status is CANCELLED, so
    (final lifecycle)         complete/fail become no-ops.</code></pre>
@@ -482,8 +482,8 @@ STAGE 6: COMPLETE SESSION (Temporal Activity)
 │       │                                                          │
 │       ▼                                                          │
 │  ┌─────────────────────────────────────┐                        │
-│  │ SessionWorkflow                     │                        │
-│  │ id: session-{run_id}                │                        │
+ │  │ SessionWorkflow                     │                        │
+ │  │ id: session-{run_id}-{uuid[:8]}     │                        │
 │  │                                     │                        │
 │  │  try:                               │                        │
 │  │    runner.run(self)                  │                        │
@@ -514,7 +514,7 @@ STAGE 6: COMPLETE SESSION (Temporal Activity)
 
 <h3>Diagram 6 &mdash; Redis Channel Cancellation Deep Dive</h3>
 
-<p>The cancel mechanism reuses existing <code>emit()</code> + <code>close()</code> methods &mdash; zero new Redis logic.</p>
+<p>The cancel mechanism reuses the existing <code>close()</code> method &mdash; zero new Redis logic. The cleanup activity on the worker calls <code>_close_channel()</code>, the same method used by <code>complete()</code> and <code>fail()</code>.</p>
 
 <h4>What the Redis Stream Looks Like During a Running Session</h4>
 
@@ -535,54 +535,50 @@ STAGE 6: COMPLETE SESSION (Temporal Activity)
 │  └────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────┘</code></pre>
 
-<h4>What the Canceller Does (Two Existing Methods)</h4>
+<h4>What Happens on Cancel (BackgroundLifecycleHandler in the Worker)</h4>
 
-<pre><code>STEP 1: channel.emit({"type": "session_cancelled"})
+<p>The <code>TemporalSessionCanceller</code> (outbound adapter) only sends <code>handle.cancel()</code> to Temporal. The actual Redis cleanup is performed by <code>BackgroundLifecycleHandler.cancel()</code>, which runs as the <code>cancel_session</code> activity inside the workflow&rsquo;s <code>CancelledError</code> handler on the worker side.</p>
+
+<pre><code>BackgroundLifecycleHandler.cancel(run_id):
 ─────────────────────────────────────────────────────
-  Calls: redis.XADD("mas:stream:abc123", {payload: '{"type":"session_cancelled"}'})
+  STEP 1: lifecycle.cancel(record)
+    ├─ record.status = CANCELLED
+    ├─ record.run_context = mark_finished() (sets finished_at)
+    └─ repo.save(record)
+       → MongoDB write: { status: "CANCELLED", finished_at: now }
 
-  Stream after:
-  ┌─────────────────────────────────────────────────────┐
-  │ msg-1  { payload: '{"type":"agent_message",...}' }  │
-  │ msg-2  { payload: '{"type":"agent_message",...}' }  │
-  │ msg-3  { payload: '{"type":"tool_call",...}' }      │
-  │ msg-4  { payload: '{"type":"session_cancelled"}' }  │  &lt;-- NEW
-  └─────────────────────────────────────────────────────┘
+  STEP 2: _close_channel(run_id)   →   channel.close()
+    (THREE Redis commands — same as complete/fail paths)
 
+    2a. redis.XADD("mas:stream:abc123", {__control: "close"})
 
-STEP 2: channel.close()   (THREE Redis commands)
-─────────────────────────────────────────────────────
-  2a. redis.XADD("mas:stream:abc123", {__control: "close"})
+        Stream after:
+        ┌─────────────────────────────────────────────────────┐
+        │ msg-1  { payload: '{"type":"agent_message",...}' }  │
+        │ msg-2  { payload: '{"type":"agent_message",...}' }  │
+        │ msg-3  { payload: '{"type":"tool_call",...}' }      │
+        │ msg-4  { __control: "close" }                       │  &lt;-- CONTROL
+        └─────────────────────────────────────────────────────┘
 
-      Stream after:
-      ┌─────────────────────────────────────────────────────┐
-      │ msg-1  { payload: '{"type":"agent_message",...}' }  │
-      │ msg-2  { payload: '{"type":"agent_message",...}' }  │
-      │ msg-3  { payload: '{"type":"tool_call",...}' }      │
-      │ msg-4  { payload: '{"type":"session_cancelled"}' }  │
-      │ msg-5  { __control: "close" }                       │  &lt;-- CONTROL
-      └─────────────────────────────────────────────────────┘
+    2b. redis.SREM("mas:sessions:active", "abc123")
+        Active set: { "xyz789", "def456" }  (abc123 removed)
 
-  2b. redis.SREM("mas:sessions:active", "abc123")
-      Active set: { "xyz789", "def456" }  (abc123 removed)
-
-  2c. redis.DELETE("mas:stream:abc123")
-      Stream deleted from Redis.</code></pre>
+    2c. redis.DELETE("mas:stream:abc123")
+        Stream deleted from Redis.</code></pre>
 
 <h4>What the Reader Sees (Existing Code, No Changes)</h4>
 
-<pre><code>Reader's XREAD returns batch with msg-4 and msg-5:
+<pre><code>Reader's XREAD returns batch with msg-4:
 
-  msg-4: { payload: '{"type":"session_cancelled"}' }
-         -&gt; has PAYLOAD field, not CONTROL
-         -&gt; yield {"type": "session_cancelled"}     &lt;- client receives this
-         -&gt; client knows: "session was cancelled"
-
-  msg-5: { __control: "close" }
+  msg-4: { __control: "close" }
          -&gt; has CONTROL field
          -&gt; return                                   &lt;- iterator STOPS
          -&gt; Flask generator ends
-         -&gt; HTTP response stream closes</code></pre>
+         -&gt; HTTP response stream closes
+
+The client distinguishes cancellation from completion by checking the
+session status via the API (GET /session.status) — the status will be
+CANCELLED rather than COMPLETED or FAILED.</code></pre>
 
 <hr>
 
@@ -609,7 +605,7 @@ STEP 2: channel.close()   (THREE Redis commands)
     </tr>
     <tr>
         <td><strong>Performance</strong></td>
-        <td>The cancel API call is lightweight: one MongoDB write (<code>lifecycle.cancel</code>) + one Redis XADD/DELETE (<code>channel.close</code>) + one Temporal RPC (<code>handle.cancel</code>). Total latency &lt; 100ms. The status guard check in <code>complete()</code>/<code>fail()</code> adds a single enum comparison (nanoseconds). Temporal&rsquo;s cancel propagation to child workflows is immediate. No polling loops or background threads introduced.</td>
+        <td>The cancel API call is lightweight: one MongoDB read (<code>get_record</code> for status guard + workflow_id lookup) + one Temporal RPC (<code>handle.cancel</code>). Total latency &lt; 100ms. The DB write (<code>lifecycle.cancel</code>) and Redis cleanup (<code>channel.close</code>) happen asynchronously in the workflow&rsquo;s cleanup activity on the worker. The status guard check in <code>complete()</code>/<code>fail()</code> adds a single enum comparison (nanoseconds). Temporal&rsquo;s cancel propagation to child workflows is immediate. No polling loops or background threads introduced.</td>
     </tr>
 </table>
 
@@ -625,47 +621,36 @@ STEP 2: channel.close()   (THREE Redis commands)
 
 <p>This property is essential to the design. It means the domain-level <code>BackgroundSessionRunner</code> remains unmodified &mdash; cancellation is handled entirely in the Temporal adapter layer where it belongs.</p>
 
-<h3>5.2 &mdash; Redis Channel Double-Close Idempotency</h3>
+<h3>5.2 &mdash; Single-Owner Lifecycle Transition</h3>
 
-<p>Two paths close the Redis channel for a cancelled session:</p>
-<ol>
-    <li><strong>API path:</strong> <code>TemporalSessionCanceller.cancel()</code> emits <code>session_cancelled</code> + <code>close()</code></li>
-    <li><strong>Worker path:</strong> <code>BackgroundLifecycleHandler.cancel()</code> calls <code>_close_channel()</code></li>
-</ol>
+<p>The cancel design deliberately avoids performing lifecycle transitions (DB write) or channel cleanup (Redis close) in the API path. Both happen exclusively in the workflow&rsquo;s <code>CancelledError</code> handler via <code>BackgroundLifecycleHandler.cancel()</code>. This keeps lifecycle ownership in a single place &mdash; the same pattern used by <code>complete()</code> and <code>fail()</code>, which also run as Temporal activities on the worker side.</p>
 
-<p><code>RedisSessionChannel.close()</code> uses a <code>_closed</code> flag with a lock to prevent double-close on the <strong>same instance</strong>. However, different instances (created by separate <code>channel_factory.create()</code> calls) each start with <code>_closed = False</code>. When the worker path creates a new channel instance after the API path already closed:</p>
-<ol>
-    <li>Constructor <code>SADD</code> &mdash; re-adds session to the active set (benign; no subscriber checks this set during cancellation)</li>
-    <li><code>XADD __control:close</code> &mdash; writes close signal to a new transient stream</li>
-    <li><code>SREM</code> &mdash; removes the session that this instance&rsquo;s own constructor just re-added</li>
-    <li><code>DELETE</code> &mdash; deletes the transient stream</li>
-</ol>
-<p>The net result is the same as a single close: the active set is clean and the stream is gone. No subscriber reads from the transient stream because the session is already CANCELLED. This follows the same pattern used by the existing <code>complete()</code> and <code>fail()</code> paths in <code>BackgroundLifecycleHandler._close_channel()</code>.</p>
+<p>The API path only: (1) guards on status eligibility, (2) reads the persisted <code>workflow_id</code>, and (3) sends the Temporal cancel RPC. The actual state mutation is deferred to the worker.</p>
 
 <h3>5.3 &mdash; Temporal <code>handle.cancel()</code> Failure Resilience</h3>
 
-<p>The cancel flow is ordered so that <code>lifecycle.cancel()</code> (DB write) and Redis notification happen <strong>before</strong> the Temporal RPC. If <code>handle.cancel()</code> fails (Temporal cluster unavailable, workflow already completed):</p>
-<ul>
-    <li><strong>DB:</strong> Already marked <code>CANCELLED</code></li>
-    <li><strong>Subscriber:</strong> Already notified via Redis</li>
-    <li><strong>Workflow:</strong> Runs to completion, but <code>complete()</code>/<code>fail()</code> guards prevent overwriting <code>CANCELLED</code></li>
-</ul>
-<p>The <code>TemporalSessionCanceller</code> catches and suppresses exceptions from <code>handle.cancel()</code> to prevent a Temporal outage from blocking the cancel API response. The cancel is considered successful once the DB is marked and subscribers are notified.</p>
+<p>If <code>handle.cancel()</code> fails (Temporal cluster unavailable, workflow already completed), the <code>TemporalSessionCanceller</code> catches and suppresses the exception with a warning log, preventing a Temporal outage from blocking the cancel API response. The API still returns <code>200</code> to the client.</p>
 
-<h3>5.4 &mdash; Cleanup Activity as Safety Net</h3>
+<p>In this failure scenario, the workflow continues running to natural completion. The <code>complete()</code>/<code>fail()</code> lifecycle guards in <code>SessionLifecycle</code> do <strong>not</strong> need to check for CANCELLED status because the status was never changed &mdash; the cancel simply did not take effect. The session completes normally.</p>
+
+<p>If the user retries the cancel and Temporal is available, the cancel will succeed normally.</p>
+
+<h3>5.4 &mdash; Cleanup Activity as the Primary Cancel Mechanism</h3>
 
 <p>In the Temporal Python SDK, workflows can execute cleanup activities inside a <code>CancelledError</code> handler before the workflow is marked cancelled. If the cleanup activity itself fails or times out, the original <code>CancelledError</code> is re-raised and the workflow is marked cancelled regardless.</p>
 
-<p>The <code>cancel_session</code> cleanup activity is a <strong>safety net</strong>, not the primary cancel mechanism. It ensures correct cleanup for:</p>
+<p>The <code>cancel_session</code> cleanup activity is the <strong>primary</strong> cancel mechanism (not a safety net). It is responsible for:</p>
 <ul>
-    <li>Direct Temporal admin cancellation (bypassing the API)</li>
-    <li>Race conditions where the API cancel was partial</li>
-    <li>Ensuring the Redis channel is closed even if the outbound adapter did not reach it</li>
+    <li>Transitioning the session status to CANCELLED via <code>SessionLifecycle.cancel()</code></li>
+    <li>Closing the Redis channel via <code>_close_channel()</code></li>
 </ul>
+<p>This also handles direct Temporal admin cancellation (bypassing the API), since the cleanup activity runs regardless of how the workflow was cancelled.</p>
 
-<h3>5.5 &mdash; Lightweight Record Fetch for Cancel</h3>
+<h3>5.5 &mdash; Lightweight Record Fetch for Cancel + Workflow ID Persistence</h3>
 
-<p><code>SessionService.cancel()</code> uses <code>manager.get_record(session_id)</code> (lightweight DB fetch) rather than <code>manager.get_session(session_id)</code> (expensive full graph hydration with blueprint resolution and node compilation). Cancellation only needs the session&rsquo;s status and <code>run_context</code> &mdash; not the executable graph. This follows the same pattern used by <code>get_status()</code>, <code>get_state()</code>, and <code>BackgroundLifecycleHandler</code>.</p>
+<p><code>SessionService.cancel()</code> uses <code>manager.get_record(session_id)</code> (lightweight DB fetch) rather than <code>manager.get_session(session_id)</code> (expensive full graph hydration with blueprint resolution and node compilation). Cancellation only needs the session&rsquo;s status and <code>run_context.tags["workflow_id"]</code> &mdash; not the executable graph. This follows the same pattern used by <code>get_status()</code>, <code>get_state()</code>, and <code>BackgroundLifecycleHandler</code>.</p>
+
+<p>The workflow ID is persisted by <code>SessionService.submit()</code> into <code>record.run_context.tags["workflow_id"]</code> using the existing <code>update_context(tags=...)</code> + <code>save_record()</code> pattern &mdash; the same mechanism that <code>SessionLifecycle.begin()</code> uses for scope. This avoids introducing any new persistence mechanism and keeps the workflow ID available for cancellation without requiring deterministic IDs (which would break the &ldquo;continue conversation&rdquo; scenario where multiple workflows map to the same session).</p>
 
 <hr>
 

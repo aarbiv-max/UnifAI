@@ -110,7 +110,7 @@
     </tr>
     <tr>
         <td><strong>High-Level Solution</strong></td>
-        <td>Add a <strong>Stop button</strong> that replaces the Send button while a session is actively running. Clicking it calls the new <code>POST /session.cancel</code> backend endpoint, handles the <code>session_cancelled</code> stream event, stops all client-side streaming, and displays a &ldquo;Session cancelled&rdquo; message. The solution touches 4 existing files and adds 1 new API function, following existing patterns (shadcn Button, lucide icons, axios calls, toast notifications, stream event handling).</td>
+        <td>Add a <strong>Stop button</strong> that replaces the Send button while a session is actively running. Clicking it calls the new <code>POST /session.cancel</code> backend endpoint, stops all client-side streaming via <code>cancelStream()</code>, and displays a &ldquo;Session cancelled&rdquo; message. The stream ends naturally when the backend workflow&rsquo;s cleanup activity closes the Redis channel. The solution touches 4 existing files and adds 1 new API function, following existing patterns (shadcn Button, lucide icons, axios calls, toast notifications).</td>
     </tr>
     <tr>
         <td><strong>Success Metrics</strong></td>
@@ -147,7 +147,7 @@
     </tr>
     <tr>
         <td><strong>Stream events</strong></td>
-        <td>Handles <code>heartbeat</code>, <code>stream_end</code>, <code>stream_error</code>; no <code>session_cancelled</code> handler</td>
+        <td>Handles <code>heartbeat</code>, <code>stream_end</code>, <code>stream_error</code>; no cancel-specific handler needed (stream closes via existing <code>__control: close</code>)</td>
         <td><code>use-session-stream.ts:163-180</code></td>
     </tr>
     <tr>
@@ -179,12 +179,8 @@
         <td>Returns <code>200 { sessionId, status: "CANCELLED" }</code> if cancelled, <code>409</code> if not in cancellable state</td>
     </tr>
     <tr>
-        <td>Redis stream event</td>
-        <td><code>{ type: "session_cancelled" }</code> emitted on the session&rsquo;s Redis stream immediately</td>
-    </tr>
-    <tr>
         <td>Redis stream close</td>
-        <td><code>{ __control: "close" }</code> follows &mdash; reader stops (existing behavior)</td>
+        <td>The workflow&rsquo;s cleanup activity calls <code>channel.close()</code> &mdash; emits <code>{ __control: "close" }</code>, reader stops (existing behavior). No separate <code>session_cancelled</code> event is emitted on the stream.</td>
     </tr>
     <tr>
         <td>Session status</td>
@@ -210,7 +206,7 @@
     <tr>
         <td>2</td>
         <td><code>ui/client/src/hooks/use-session-stream.ts</code></td>
-        <td>Handle <code>session_cancelled</code> event type in the NDJSON read loop + expose <code>cancelSession</code></td>
+        <td>Expose <code>cancelSession</code> API wrapper in hook return value</td>
     </tr>
     <tr>
         <td>3</td>
@@ -399,16 +395,6 @@ export async function cancelSession(sessionId: string): Promise&lt;CancelSession
 
 <h3>5.2 &mdash; Stream Hook (<code>use-session-stream.ts</code>)</h3>
 
-<p>Add <code>session_cancelled</code> to the event handling in the NDJSON read loop, alongside <code>stream_end</code> and <code>stream_error</code>:</p>
-
-<pre><code>// Inside the while(true) read loop, after stream_end check:
-
-if (event.type === 'session_cancelled') {
-  setIsStreaming(false);
-  onStreamEndRef.current?.();
-  return;
-}</code></pre>
-
 <p>Add <code>cancelSession</code> wrapper to the hook&rsquo;s return interface:</p>
 
 <pre><code>const cancelSessionFn = useCallback(async (sessionId: string): Promise&lt;void&gt; =&gt; {
@@ -423,7 +409,7 @@ if (event.type === 'session_cancelled') {
   }
 }, []);</code></pre>
 
-<p><strong>Why <code>session_cancelled</code> behaves like <code>stream_end</code>:</strong> The backend emits <code>{ type: "session_cancelled" }</code> via <code>channel.emit()</code> then immediately calls <code>channel.close()</code>. The reader sees <code>session_cancelled</code> (payload event) followed by <code>__control: close</code> (control event). We treat it as stream end so <code>onStreamEnd</code> fires immediately &mdash; the reader doesn&rsquo;t need to wait for the close control. Cancellation is a user-initiated intentional action, not a failure, so we do not use <code>onError</code>.</p>
+<p><strong>No new stream event handler needed:</strong> The backend does not emit a separate <code>session_cancelled</code> event on the Redis stream. When the Temporal workflow is cancelled, its cleanup activity calls <code>channel.close()</code>, which sends the existing <code>__control: close</code> signal. The NDJSON reader&rsquo;s existing close-handling logic stops the stream naturally. The UI distinguishes cancellation from completion using the <code>wasCancelledByUser</code> client-side flag set when the user clicks Stop.</p>
 
 <h3>5.3 &mdash; Chat Interface (<code>ChatInterface.tsx</code>)</h3>
 
@@ -595,9 +581,9 @@ if (wasCancelled) {
         <td>No change</td>
     </tr>
     <tr>
-        <td><code>session_cancelled</code></td>
-        <td><strong>Not handled</strong> &mdash; passed to <code>onChunk</code> as a regular event</td>
-        <td><strong>NEW:</strong> <code>setIsStreaming(false)</code>, call <code>onStreamEnd</code></td>
+        <td><code>__control: close</code> (after cancel)</td>
+        <td>Reader stops, <code>onStreamEnd</code> fires (existing behavior)</td>
+        <td>No change &mdash; same close signal as normal completion. UI uses <code>wasCancelledByUser</code> flag to distinguish cancel from completion.</td>
     </tr>
     <tr>
         <td>All other events</td>
@@ -736,17 +722,17 @@ if (wasCancelled) {
 
 <p><strong>Rationale:</strong> Follows the pattern used by ChatGPT, Claude, and other AI chat products &mdash; users expect the action button to contextually change. Avoids cluttering the input area. The Send button is already disabled during streaming, so showing it alongside Stop would be confusing.</p>
 
-<h3>9.2 &mdash; <code>session_cancelled</code> Treated as <code>stream_end</code> (Not as Error)</h3>
+<h3>9.2 &mdash; Cancellation Uses Client-Side Flag (Not Stream Event)</h3>
 
-<p><strong>Decision:</strong> The <code>session_cancelled</code> stream event triggers <code>onStreamEnd</code>, not <code>onError</code>.</p>
+<p><strong>Decision:</strong> The UI distinguishes cancellation from normal completion using a <code>wasCancelledByUser</code> client-side flag, not a dedicated stream event.</p>
 
-<p><strong>Rationale:</strong> Cancellation is a user-initiated intentional action, not a failure. Using <code>onError</code> would trigger error toast notifications and error message styling &mdash; wrong UX. The <code>onStreamEnd</code> path cleanly resolves the <code>streamCompletePromise</code> in <code>triggerExecution</code>. The distinction between &ldquo;cancelled&rdquo; and &ldquo;completed&rdquo; is handled in <code>ChatInterface</code> via the <code>wasCancelledByUser</code> flag.</p>
+<p><strong>Rationale:</strong> The backend does not emit a separate <code>session_cancelled</code> event on the stream &mdash; it only closes the channel via the existing <code>__control: close</code> mechanism. The UI sets <code>wasCancelledByUser</code> when the user clicks Stop (before the API call). When the stream ends (either from the close signal or from <code>cancelStream()</code>), the flag is checked to determine whether to show the &ldquo;Session stopped&rdquo; message or fetch the final answer. This keeps the cancel flow simple and avoids requiring a new stream event type.</p>
 
 <h3>9.3 &mdash; Cancel is Fire-and-Forget from UI Perspective</h3>
 
 <p><strong>Decision:</strong> After the cancel API returns 200, the UI immediately transitions to cancelled state. It does not wait for the <code>session_cancelled</code> stream event.</p>
 
-<p><strong>Rationale:</strong> The NDJSON reader polls with XREAD block timeout (up to 5 seconds). The user shouldn&rsquo;t wait for the next XREAD cycle. Calling <code>cancelStream()</code> after the API call stops the client reader immediately. If <code>session_cancelled</code> arrives before <code>cancelStream()</code>, it&rsquo;s handled by the new event handler &mdash; either path leads to the same end state.</p>
+<p><strong>Rationale:</strong> The NDJSON reader polls with XREAD block timeout (up to 5 seconds). The user shouldn&rsquo;t wait for the next XREAD cycle or for the workflow cleanup activity to close the channel. Calling <code>cancelStream()</code> after the API call stops the client reader immediately. If the backend <code>__control: close</code> arrives before <code>cancelStream()</code>, the existing close handler ends the stream &mdash; either path leads to the same end state.</p>
 
 <h3>9.4 &mdash; No Confirmation Dialog</h3>
 
@@ -771,7 +757,6 @@ if (wasCancelled) {
    └── Update StreamStatusResponse type
 
 2. hooks/use-session-stream.ts
-   ├── Handle session_cancelled event
    └── Add cancelSession to hook return
 
 3. components/agentic-ai/ExecutionTab.tsx
