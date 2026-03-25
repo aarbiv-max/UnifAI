@@ -60,7 +60,7 @@ class TotalStats(BaseModel):
     """Total statistics for system-wide overview."""
     total_runs: int = Field(..., description="Total number of workflow runs")
     unique_users: int = Field(..., description="Number of unique users")
-    unique_blueprints: int = Field(..., description="Number of distinct blueprints executed")
+    blueprints_used: int = Field(..., description="Number of distinct blueprints executed")
 
 
 class UserActivity(BaseModel):
@@ -73,7 +73,7 @@ class UserActivity(BaseModel):
     user_id: str = Field(..., description="User identifier")
     run_count: int = Field(0, description="Number of session runs in the time period")
     status_breakdown: Dict[str, int] = Field(default_factory=dict, description="Run counts broken down by session status")
-    unique_blueprints: int = Field(0, description="Number of distinct blueprints used")
+    blueprints_used: int = Field(0, description="Number of distinct blueprints used")
 
 
 class BlueprintUsage(BaseModel):
@@ -113,7 +113,7 @@ class SystemStatsResponse(BaseModel):
     call the endpoint with different time_range values to get
     different views (e.g., today, last 7 days, last 30 days).
     """
-    total_stats: TotalStats = Field(..., description="Total statistics: total_runs, unique_users, unique_blueprints")
+    total_stats: TotalStats = Field(..., description="Total statistics: total_runs, unique_users, blueprints_used")
     status_breakdown: Dict[str, int] = Field(default_factory=dict, description="Breakdown of session runs by status")
     active_users: List[UserActivity] = Field(default_factory=list, description="Users active in the selected time range, sorted by run count")
     top_blueprints: List[BlueprintUsage] = Field(default_factory=list, description="Most used blueprints in the selected time range")

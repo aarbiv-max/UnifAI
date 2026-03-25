@@ -218,58 +218,9 @@ class MongoSessionRepository(SessionRepository):
         pipeline = [
             {"$match": self._time_match(since)},
             {"$facet": {
-                "user_status": [
-                    {"$group": {
-                        "_id": {
-                            self._USER_FIELD: f"${self._USER_FIELD}",
-                            self._STATUS_FIELD: f"${self._STATUS_FIELD}"
-                        },
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                "user_blueprint": [
-                    {"$group": {
-                        "_id": {
-                            self._USER_FIELD: f"${self._USER_FIELD}",
-                            self._BLUEPRINT_FIELD: f"${self._BLUEPRINT_FIELD}"
-                        },
-                        "count": {"$sum": 1}
-                    }}
-                ],
-                "blueprint_stats": [
-                    {"$group": {
-                        "_id": f"${self._BLUEPRINT_FIELD}",
-                        "total_runs": {"$sum": 1},
-                        "completed_runs": {
-                            "$sum": {
-                                "$cond": [
-                                    {"$eq": [f"${self._STATUS_FIELD}", SessionStatus.COMPLETED.value]},
-                                    1,
-                                    0
-                                ]
-                            }
-                        },
-                        "last_run": {"$max": f"${self._TIME_FIELD}"},
-                        "avg_duration_ms": {
-                            "$avg": {
-                                "$cond": [
-                                    {"$and": [
-                                        {"$ne": ["$run_context.finished_at", None]},
-                                        {"$ne": ["$run_context.finished_at", ""]},
-                                        {"$ne": [f"${self._TIME_FIELD}", None]},
-                                        {"$ne": [f"${self._TIME_FIELD}", ""]},
-                                    ]},
-                                    {"$subtract": [
-                                        {"$dateFromString": {"dateString": "$run_context.finished_at"}},
-                                        {"$dateFromString": {"dateString": f"${self._TIME_FIELD}"}}
-                                    ]},
-                                    None
-                                ]
-                            }
-                        },
-                        "users": {"$addToSet": f"${self._USER_FIELD}"}
-                    }}
-                ]
+                "user_status": self._user_status_facet(),
+                "user_blueprint": self._user_blueprint_facet(),
+                "blueprint_stats": self._blueprint_stats_facet(),
             }}
         ]
 
@@ -288,6 +239,69 @@ class MongoSessionRepository(SessionRepository):
         except Exception as e:
             logger.warning(f"Failed to get system analytics: {e}")
             return SystemAnalyticsData()
+
+    # ---------- Facet Definitions ----------
+
+    def _user_status_facet(self) -> list:
+        """Group sessions by user and status."""
+        return [
+            {"$group": {
+                "_id": {
+                    self._USER_FIELD: f"${self._USER_FIELD}",
+                    self._STATUS_FIELD: f"${self._STATUS_FIELD}"
+                },
+                "count": {"$sum": 1}
+            }}
+        ]
+
+    def _user_blueprint_facet(self) -> list:
+        """Group sessions by user and blueprint."""
+        return [
+            {"$group": {
+                "_id": {
+                    self._USER_FIELD: f"${self._USER_FIELD}",
+                    self._BLUEPRINT_FIELD: f"${self._BLUEPRINT_FIELD}"
+                },
+                "count": {"$sum": 1}
+            }}
+        ]
+
+    def _blueprint_stats_facet(self) -> list:
+        """Aggregate execution metrics per blueprint."""
+        return [
+            {"$group": {
+                "_id": f"${self._BLUEPRINT_FIELD}",
+                "total_runs": {"$sum": 1},
+                "completed_runs": {
+                    "$sum": {
+                        "$cond": [
+                            {"$eq": [f"${self._STATUS_FIELD}", SessionStatus.COMPLETED.value]},
+                            1,
+                            0
+                        ]
+                    }
+                },
+                "last_run": {"$max": f"${self._TIME_FIELD}"},
+                "avg_duration_ms": {
+                    "$avg": {
+                        "$cond": [
+                            {"$and": [
+                                {"$ne": ["$run_context.finished_at", None]},
+                                {"$ne": ["$run_context.finished_at", ""]},
+                                {"$ne": [f"${self._TIME_FIELD}", None]},
+                                {"$ne": [f"${self._TIME_FIELD}", ""]},
+                            ]},
+                            {"$subtract": [
+                                {"$dateFromString": {"dateString": "$run_context.finished_at"}},
+                                {"$dateFromString": {"dateString": f"${self._TIME_FIELD}"}}
+                            ]},
+                            None
+                        ]
+                    }
+                },
+                "users": {"$addToSet": f"${self._USER_FIELD}"}
+            }}
+        ]
 
     @staticmethod
     def _to_blueprint_stats(docs: List[Dict]) -> List[BlueprintExecutionStats]:

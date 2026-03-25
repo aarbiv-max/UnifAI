@@ -248,12 +248,12 @@ class StatisticsService:
         total_runs, unique_users, status_breakdown = self._derive_totals_from_status_counts(
             analytics.user_status_counts
         )
-        unique_blueprints = len(analytics.blueprint_stats)
+        blueprints_used = len(analytics.blueprint_stats)
         
         total_stats = TotalStats(
             total_runs=total_runs,
             unique_users=unique_users,
-            unique_blueprints=unique_blueprints
+            blueprints_used=blueprints_used
         )
         
         # Build active users list from analytics data
@@ -330,7 +330,7 @@ class StatisticsService:
                     user_blueprints[user_id].add(blueprint_id)
         
         for user_id, activity in user_data.items():
-            activity.unique_blueprints = len(user_blueprints.get(user_id, set()))
+            activity.blueprints_used = len(user_blueprints.get(user_id, set()))
         
         # Sort by run count descending
         result = sorted(user_data.values(), key=lambda x: x.run_count, reverse=True)

@@ -93,7 +93,7 @@ export default function Analytics() {
     name: truncateUserId(u.user_id, 12),
     fullName: u.user_id,
     runs: u.run_count,
-    blueprints: u.unique_blueprints,
+    blueprints: u.blueprints_used,
     completed: u.status_breakdown?.COMPLETED || 0,
     failed: u.status_breakdown?.FAILED || 0,
   })) || [];
@@ -141,7 +141,7 @@ export default function Analytics() {
       key: 'workflows-in-use',
       icon: <FaCubes className="w-4 h-4" />,
       title: 'Workflows in Use',
-      value: analytics?.total_stats?.unique_blueprints || 0,
+      value: analytics?.total_stats?.blueprints_used || 0,
       subtext: 'Distinct blueprints executed',
       iconColor: colors.warning,
       iconBgColor: `${colors.warning}33`,

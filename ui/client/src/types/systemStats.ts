@@ -10,7 +10,7 @@ export type TimeRange = 'today' | '7days' | '30days' | 'all';
 export interface TotalStats {
   total_runs: number;
   unique_users: number;
-  unique_blueprints: number;
+  blueprints_used: number;
 }
 
 export interface StatusBreakdown {
@@ -20,7 +20,7 @@ export interface StatusBreakdown {
 export interface UserActivity {
   user_id: string;
   run_count: number;
-  unique_blueprints: number;
+  blueprints_used: number;
   status_breakdown: StatusBreakdown;
 }
 
