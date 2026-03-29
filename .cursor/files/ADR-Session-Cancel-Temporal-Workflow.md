@@ -82,6 +82,10 @@ STAGE 1: API LAYER (Flask)
     |-- _stage(): project inputs onto SessionRecord, save to MongoDB
     |             status: PENDING -> QUEUED
     +-- _submitter.submit(): start Temporal workflow
+    |     +-- generate workflow_id = "session-{runId}-{uuid4().hex[:8]}"
+    |     +-- client.start_workflow(id=workflow_id)
+    +-- save workflow_id to record.run_context.tags["workflow_id"]
+          (persisted to MongoDB — used later by cancel to find the workflow)
 
   Response: 202 { sessionId: "abc123", workflowId: "session-abc123-7f3a9b1e" }
 
