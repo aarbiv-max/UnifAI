@@ -91,11 +91,12 @@ class MongoSessionRepository(SessionRepository):
     def fetch_chat(self, run_id: str) -> SessionChat:
         doc = self._col.find_one(
             {self._RUN_ID_FIELD: run_id},
-            {"_id": 0, "graph_state.messages": 1, "graph_state.output": 1},
+            {"_id": 0, "graph_state.messages": 1, "graph_state.output": 1, "status": 1},
         )
         if not doc:
             raise KeyError(f"No session for {run_id}")
         gs = doc.get("graph_state", {})
+        gs["status"] = doc.get("status")
         return SessionChat.model_validate(gs)
 
     def list_runs(self, user_id: str) -> List[str]:

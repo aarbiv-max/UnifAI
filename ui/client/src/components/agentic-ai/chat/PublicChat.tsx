@@ -375,6 +375,7 @@ export default function PublicChat() {
                 triggerExecution={triggerExecution}
                 onCancelSession={handleCancelSession}
                 initialMessages={chatHistory}
+                sessionStatus={selectedSession?.status}
                 blueprintExists={true}
                 isSharingDisabled={isSharingDisabled}
                 blueprintValid={isBlueprintValid}

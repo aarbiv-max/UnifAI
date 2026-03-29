@@ -12,8 +12,9 @@ class AppConfig(SharedConfig):
     client_secret: str = "a0a82b17-e7e7-49c6-ad1c-3d03c79ff4fd"
     keycloak_realm: str = "EmployeeIDP"
     version: str = "1.0.0"
-    admin_allowed_users: list = []  # Populate with user_ids (usernames) to grant admin access
+    admin_allowed_users: list = ["yhabushi"]  # Populate with user_ids (usernames) to grant admin access
 
-    frontend_url: str = "http://localhost:5000"    # session_cookie_secure=True
+    frontend_url: str = "http://127.0.0.1:5000"
+    redirect_url: str = "http://127.0.0.1:13456/api/auth/callback"    # session_cookie_secure=True
     backend_env: str = "development"
 

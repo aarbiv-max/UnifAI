@@ -36,6 +36,7 @@ interface ChatInterfaceProps {
   triggerExecution: (sessionPayload: SessionPayload) => Promise<string>;
   onCancelSession?: () => Promise<void>;
   initialMessages?: BackendMessage[];
+  sessionStatus?: string;
   blueprintExists?: boolean;
   isSharingDisabled?: boolean;
   blueprintValid?: boolean;
@@ -52,6 +53,7 @@ export default function ChatInterface({
   triggerExecution,
   onCancelSession,
   initialMessages = [],
+  sessionStatus,
   blueprintExists = true,
   isSharingDisabled = false,
   blueprintValid = true,
@@ -197,6 +199,27 @@ export default function ChatInterface({
     if (initialMessages && initialMessages.length > 0) {
       const transformedMessages =
         transformBackendMessagesToFrontend(initialMessages);
+
+      if (sessionStatus === "CANCELLED") {
+        const lastAiIndex = transformedMessages.findLastIndex(
+          (m) => m.sender === "ai"
+        );
+        if (lastAiIndex !== -1) {
+          transformedMessages[lastAiIndex] = {
+            ...transformedMessages[lastAiIndex],
+            isCancelled: true,
+            content: "Session was stopped by user.",
+          };
+        } else {
+          transformedMessages.push({
+            id: `${Date.now()}-cancelled`,
+            content: "Session was stopped by user.",
+            sender: "ai",
+            isCancelled: true,
+          });
+        }
+      }
+
       setMessages(transformedMessages);
     } else {
       // Default welcome message when no initial messages
@@ -209,7 +232,7 @@ export default function ChatInterface({
         },
       ]);
     }
-  }, [initialMessages, transformBackendMessagesToFrontend]);
+  }, [initialMessages, sessionStatus, transformBackendMessagesToFrontend]);
 
   // useEffect(() => {
   //   scrollToBottom();

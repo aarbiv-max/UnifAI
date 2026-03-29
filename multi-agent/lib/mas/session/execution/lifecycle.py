@@ -78,9 +78,12 @@ class SessionLifecycle:
     ) -> None:
         """
         Cancel execution: mark CANCELLED, persist. Idempotent.
+        Stamps metadata.cancelled so the frontend can show the
+        cancellation notice when revisiting the session.
         """
         if record.status == SessionStatus.CANCELLED:
             return
         record.update_context(finished_at=datetime.now(timezone.utc))
         record.status = SessionStatus.CANCELLED
+        record.metadata.tags["cancelled"] = "true"
         self._repo.save(record)

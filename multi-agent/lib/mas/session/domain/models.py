@@ -73,3 +73,4 @@ class SessionChat(BaseModel):
     """Lightweight projection of a session's chat-relevant graph state."""
     messages: List = Field(default_factory=list)
     output: str = ""
+    status: Optional[str] = None

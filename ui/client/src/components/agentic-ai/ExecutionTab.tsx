@@ -955,6 +955,7 @@ export default function ExecutionTab({
                 triggerExecution={triggerExecution}
                 onCancelSession={handleCancelSession}
                 initialMessages={currentSessionMessages}
+                sessionStatus={selectedSession?.status}
                 blueprintExists={selectedSession?.blueprintExists ?? true}
                 isSharingDisabled={isSharingDisabled}
                 blueprintValid={isBlueprintValid}
