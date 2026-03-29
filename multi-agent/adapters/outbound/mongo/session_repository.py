@@ -6,7 +6,8 @@ import logging
 
 from mas.session.repository.repository import SessionRepository
 from mas.session.domain.session_record import SessionRecord
-from mas.session.domain.models import SessionChat, TimeSeriesPoint, SystemAnalyticsData, BlueprintExecutionStats
+from mas.session.domain.models import SessionChat, TimeSeriesPoint, SystemAnalyticsData
+from mas.blueprints.models.blueprint import BlueprintExecutionStats
 from mas.session.domain.status import SessionStatus
 from mas.core.dto import GroupedCount
 from global_utils.utils.time_utils import format_utc_iso
@@ -326,7 +327,6 @@ class MongoSessionRepository(SessionRepository):
                 users=doc.get("users", [])
             )
             for doc in docs
-            if doc.get("_id")
         ]
 
     # ---------- Private Helpers ----------

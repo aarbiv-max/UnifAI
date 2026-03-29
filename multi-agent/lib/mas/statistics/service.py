@@ -5,7 +5,7 @@ from mas.blueprints.service import BlueprintService
 from mas.session.service import SessionService
 from mas.resources.service import ResourcesService
 from mas.core.dto import GroupedCount
-from mas.session.domain.models import BlueprintExecutionStats
+from mas.blueprints.models.blueprint import BlueprintExecutionStats
 from global_utils.utils.time_utils import format_utc_iso
 from .models import (
     StatisticsResponse, ResourceCategoryStats, SystemStatsResponse,
@@ -405,7 +405,7 @@ class StatisticsService:
             
             result.append(BlueprintUsage(
                 blueprint_id=stats.blueprint_id,
-                blueprint_name=blueprint_names.get(stats.blueprint_id, stats.blueprint_id),
+                blueprint_name=blueprint_names[stats.blueprint_id],
                 run_count=stats.total_runs,
                 unique_users=len(stats.users),
                 avg_duration_seconds=avg_duration_seconds,
