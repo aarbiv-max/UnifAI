@@ -1,32 +1,45 @@
-from mas.elements.common.base_factory import BaseFactory
-from mas.elements.common.exceptions import PluginConfigurationError
-from .config import CustomAgentNodeConfig
-from .custom_agent import CustomAgentNode
-from .identifiers import Identifier
+from typing import Optional
+
+from lib.mas.elements.nodes.custom_agent.config import CustomAgentConfig
+from lib.mas.elements.nodes.custom_agent.custom_agent_node import CustomAgentNode
+from lib.mas.elements.nodes.custom_agent.validator import CustomAgentValidator
+from lib.mas.elements.node_factory import NodeFactory
 
 
-class CustomAgentNodeFactory(BaseFactory[CustomAgentNodeConfig, CustomAgentNode]):
-    """
-    Factory for creating CustomAgentNode instances.
-    """
+class CustomAgentNodeFactory(NodeFactory):
+    @staticmethod
+    def create_node(
+        id: str,
+        model_name: str,
+        prompt_template: str,
+        retriever: Optional[str],
+        tools: list[str],
+        **kwargs,
+    ) -> CustomAgentNode:
+        node = CustomAgentNode(
+            id=id,
+            model_name=model_name,
+            prompt_template=prompt_template,
+            retriever=retriever,
+            tools=tools,
+            **kwargs,
+        )
+        return node
 
-    def accepts(self, cfg: CustomAgentNodeConfig, element_type: str) -> bool:
-        return element_type == Identifier.TYPE
+    @staticmethod
+    def create_config(
+        model_name: str,
+        prompt_template: str,
+        retriever: Optional[str],
+        tools: list[str],
+    ) -> CustomAgentConfig:
+        return CustomAgentConfig(
+            model_name=model_name,
+            prompt_template=prompt_template,
+            retriever=retriever,
+            tools=tools,
+        )
 
-    def create(self, cfg, **deps):
-        try:
-            return CustomAgentNode(
-                llm=deps.pop("llm"),
-                retrievers=deps.pop("retrievers"),
-                tools=deps.pop("tools"),
-                mcp_providers=deps.pop("providers"),
-                system_message=cfg.system_message,
-                strategy_type=cfg.strategy_type,
-                max_rounds=cfg.max_rounds,
-                retries=cfg.retries,
-            )
-        except Exception as e:
-            raise PluginConfigurationError(
-                f"CustomAgentNodeFactory.create failed: {e}",
-                cfg.dict()
-            ) from e
+    @staticmethod
+    def create_validator():
+        return CustomAgentValidator
