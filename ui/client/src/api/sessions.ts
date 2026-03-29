@@ -46,11 +46,32 @@ export async function submitSession(params: SubmitSessionParams): Promise<Submit
 }
 
 /**
+ * Cancel Session Response
+ */
+export interface CancelSessionResponse {
+  sessionId: string;
+  status: 'CANCELLED';
+}
+
+/**
+ * Cancel a running session.
+ * Signals the backend to cancel the Temporal workflow for this session.
+ *
+ * @param sessionId - The session to cancel
+ * @returns Cancel confirmation with CANCELLED status
+ * @throws 409 if session is not in a cancellable state (already completed/failed/cancelled)
+ */
+export async function cancelSession(sessionId: string): Promise<CancelSessionResponse> {
+  const response = await axios.post('/sessions/session.cancel', { sessionId });
+  return response.data;
+}
+
+/**
  * Redis Stream Status Response
  */
 export interface StreamStatusResponse {
   session_id: string;
-  status: 'running' | 'completed' | 'failed' | 'unknown';
+  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'unknown';
   started_at: string | null;
   completed_at: string | null;
   failed_at: string | null;

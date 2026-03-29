@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import axios from '@/http/axiosAgentConfig';
@@ -7,6 +7,7 @@ import { checkSessionSharingStatus } from '@/hooks/use-sharing-status';
 import {transformSessionData, sortSessionsByTimestamp,} from '@/utils/sessionHelpers';
 import { useSessionManagement } from '@/hooks/use-session-management';
 import { getBlueprintInfo } from '@/api/blueprints';
+import { cancelSession } from '@/api/sessions';
 
 interface UsePublicChatReturn {
   sessions: ChatSession[];
@@ -22,6 +23,7 @@ interface UsePublicChatReturn {
   confirmDeleteChat: () => Promise<void>;
   cancelDeleteChat: () => void;
   triggerExecution: (sessionPayload: any) => Promise<string>;
+  handleCancelSession: () => Promise<void>;
   showDeleteModal: boolean;
   setShowDeleteModal: (open: boolean) => void;
   chatToDelete: ChatSession | null;
@@ -40,6 +42,8 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
   const [chatToDelete, setChatToDelete] = useState<ChatSession | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const { currentMessages, loadSessionMessages, clearMessages, setCurrentMessages } =
     useSessionManagement();
@@ -308,6 +312,21 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
     }
   }, [blueprintId, user, transformApiDataToSessions, toast]);
 
+  const handleCancelSession = useCallback(async () => {
+    if (!runId) return;
+
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+
+    try {
+      await cancelSession(runId);
+    } catch (err: any) {
+      if (err.response?.status !== 409) {
+        throw err;
+      }
+    }
+  }, [runId]);
+
   // Trigger execution
   const triggerExecution = useCallback(
     async (sessionPayload: any): Promise<string> => {
@@ -334,12 +353,15 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
       }
 
       try {
-        // Use fetch for streaming response (axios doesn't handle streams well)
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
         const response = await fetch(`/api2/sessions/user.session.execute`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
+          signal: controller.signal,
           body: JSON.stringify({
             sessionId: runId,
             inputs: sessionPayload.inputs || {},
@@ -407,6 +429,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
     confirmDeleteChat,
     cancelDeleteChat,
     triggerExecution,
+    handleCancelSession,
     showDeleteModal,
     setShowDeleteModal,
     chatToDelete,

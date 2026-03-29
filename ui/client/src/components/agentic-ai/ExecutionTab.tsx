@@ -693,6 +693,23 @@ export default function ExecutionTab({
   });
 
   /**
+   * Cancel the currently running session.
+   * Calls the backend cancel API, stops the client-side stream, and resets live state.
+   */
+  const handleCancelSession = useCallback(async () => {
+    if (!selectedSession?.id) return;
+
+    await sessionStream.cancelSessionExecution(selectedSession.id);
+    sessionStream.cancelStream();
+    setIsLiveRequest(false);
+
+    if (streamCompleteResolverRef.current) {
+      streamCompleteResolverRef.current();
+      streamCompleteResolverRef.current = null;
+    }
+  }, [selectedSession, sessionStream]);
+
+  /**
    * Submit a session for execution and stream results.
    * 
    * Uses fire-and-forget pattern:
@@ -936,6 +953,7 @@ export default function ExecutionTab({
                 key={selectedSession?.id || 'no-session'}
                 runId={selectedSession?.id || ''}
                 triggerExecution={triggerExecution}
+                onCancelSession={handleCancelSession}
                 initialMessages={currentSessionMessages}
                 blueprintExists={selectedSession?.blueprintExists ?? true}
                 isSharingDisabled={isSharingDisabled}

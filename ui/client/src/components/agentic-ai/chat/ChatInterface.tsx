@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Trash2, Loader2, Sparkles, Info, Copy, RotateCcw, ThumbsUp, ThumbsDown, Check, Columns3, MessageSquare, Network, Maximize2, Minimize2 } from "lucide-react";
+import { Send, Square, Trash2, Loader2, Sparkles, Info, Copy, RotateCcw, ThumbsUp, ThumbsDown, Check, Columns3, MessageSquare, Network, Maximize2, Minimize2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -34,21 +34,23 @@ interface BackendMessage {
 interface ChatInterfaceProps {
   runId?: string;
   triggerExecution: (sessionPayload: SessionPayload) => Promise<string>;
+  onCancelSession?: () => Promise<void>;
   initialMessages?: BackendMessage[];
   blueprintExists?: boolean;
-  isSharingDisabled?: boolean; // If true, sharing is disabled for this blueprint
+  isSharingDisabled?: boolean;
   blueprintValid?: boolean;
   isValidatingBlueprint?: boolean;
   isBlueprintGraphHidden?: boolean;
-  isChatOnlyMode?: boolean; // If true, hide agent thinking and workflow details
-  onSetCarouselMode?: (mode: 'normal' | 'chat' | 'graph') => void; // Carousel mode setter
-  carouselMode?: 'normal' | 'chat' | 'graph'; // Current carousel mode
-  isLiveRequest?: boolean; // True when session is actively streaming (including reconnection)
+  isChatOnlyMode?: boolean;
+  onSetCarouselMode?: (mode: 'normal' | 'chat' | 'graph') => void;
+  carouselMode?: 'normal' | 'chat' | 'graph';
+  isLiveRequest?: boolean;
 }
 
 export default function ChatInterface({
   runId,
   triggerExecution,
+  onCancelSession,
   initialMessages = [],
   blueprintExists = true,
   isSharingDisabled = false,
@@ -78,6 +80,8 @@ export default function ChatInterface({
   const { toast } = useToast();
   const [userPromptsMap, setUserPromptsMap] = useState<Record<string, string>>({});
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const wasCancelledByUserRef = useRef(false);
 
   // ────────────────────────────────────────────────────────────────────────────────
   // Auto-expanding textarea configuration
@@ -530,12 +534,26 @@ export default function ChatInterface({
     if (!isLiveRequest && currentStreamingMessageId) {
       const messageId = currentStreamingMessageId;
       const wasReconnection = isReconnectionStreamRef.current;
+      const wasCancelled = wasCancelledByUserRef.current;
       
       // Stop polling
       stopStreamingLogs(messageId);
       setCurrentStreamingMessageId(null);
       isReconnectionStreamRef.current = false;
+      wasCancelledByUserRef.current = false;
       
+      if (wasCancelled) {
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id === messageId) {
+              return { ...msg, content: "Session was stopped by user.", isCancelled: true };
+            }
+            return msg;
+          })
+        );
+        return;
+      }
+
       // For reconnection streams, fetch the final answer
       if (wasReconnection && runId) {
         (async () => {
@@ -632,6 +650,7 @@ export default function ChatInterface({
     setMessages((prev) => [...prev, userMessage]);
     setInputMessage("");
     setIsTyping(true);
+    wasCancelledByUserRef.current = false;
 
     // Reset textarea to compact state and focus
     setTimeout(() => {
@@ -673,45 +692,82 @@ export default function ChatInterface({
 
       const response = await triggerExecution(sessionPayload);
 
-      // Update the message with final answer
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.id === streamingMessageId) {
-            return {
-              ...msg,
-              finalAnswer: response,
-            };
-          }
-          return msg;
-        }),
-      );
+      if (wasCancelledByUserRef.current) {
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id === streamingMessageId) {
+              return { ...msg, content: "Session was stopped by user.", isCancelled: true };
+            }
+            return msg;
+          }),
+        );
+      } else {
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id === streamingMessageId) {
+              return { ...msg, finalAnswer: response };
+            }
+            return msg;
+          }),
+        );
+      }
     } catch (error) {
       console.error("Error in chat interaction:", error);
 
-      // Update with error message
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.id === streamingMessageId) {
-            return {
-              ...msg,
-              finalAnswer:
-                "I'm sorry, there was an error processing your request.",
-            };
-          }
-          return msg;
-        }),
-      );
+      if (wasCancelledByUserRef.current) {
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id === streamingMessageId) {
+              return { ...msg, content: "Session was stopped by user.", isCancelled: true };
+            }
+            return msg;
+          }),
+        );
+      } else {
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id === streamingMessageId) {
+              return {
+                ...msg,
+                finalAnswer:
+                  "I'm sorry, there was an error processing your request.",
+              };
+            }
+            return msg;
+          }),
+        );
+      }
     } finally {
       setIsTyping(false);
+      wasCancelledByUserRef.current = false;
       stopStreamingLogs(streamingMessageId);
       setCurrentStreamingMessageId(null);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) { // Allow Shift+Enter for new lines
-      e.preventDefault(); // Prevent default Enter behavior (new line)
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
       handleSendMessage();
+    }
+  };
+
+  const handleCancelClick = async () => {
+    if (isCancelling) return;
+    setIsCancelling(true);
+    wasCancelledByUserRef.current = true;
+
+    try {
+      await onCancelSession?.();
+    } catch (error) {
+      console.error('Error cancelling session:', error);
+      toast({
+        title: "Cancel Failed",
+        description: "Failed to cancel the session. It may have already completed.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -947,7 +1003,7 @@ export default function ChatInterface({
 
     if (
       message.sender === "ai" &&
-      (streamLogs.length > 0 || workPlans.length > 0 || message.finalAnswer)
+      (streamLogs.length > 0 || workPlans.length > 0 || message.finalAnswer || message.isCancelled)
     ) {
       return (
         <div className="space-y-3 w-full">
@@ -960,12 +1016,19 @@ export default function ChatInterface({
             />
           )}
 
+          {/* Cancelled message display */}
+          {message.isCancelled && (
+            <div className="flex items-center gap-2 text-gray-400 text-sm italic mt-2" role="status" aria-live="polite">
+              <Square className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>{message.content}</span>
+            </div>
+          )}
+
           {/* Final answer with markdown rendering */}
-          {message.finalAnswer && (
+          {message.finalAnswer && !message.isCancelled && (
             <div
               className="mt-3 p-3 rounded-lg"
               style={{
-                // backgroundColor: `hsl(var(--primary) / 0.1)`,
                 border: `1px solid hsl(var(--primary) / 0.3)`,
               }}
             >
@@ -1170,17 +1233,33 @@ export default function ChatInterface({
                 )}
               </AnimatePresence>
             </div>
-            <UmamiTrack 
-              event={UmamiEvents.AGENT_CHAT_SEND_MESSAGE_BUTTON}
-            >
+            {(isTyping || isLiveRequest) ? (
               <Button
-                onClick={() => handleSendMessage()}
-                disabled={inputMessage.trim() === "" || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
-                className="bg-primary hover:bg-[#7525c9] mb-0"
+                onClick={handleCancelClick}
+                disabled={isCancelling || !onCancelSession}
+                className="bg-red-600 hover:bg-red-700 mb-0"
+                title="Stop generation"
+                aria-label="Stop generation"
               >
-                <Send className="h-4 w-4" />
+                {isCancelling ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Square className="h-4 w-4" />
+                )}
               </Button>
-            </UmamiTrack>
+            ) : (
+              <UmamiTrack 
+                event={UmamiEvents.AGENT_CHAT_SEND_MESSAGE_BUTTON}
+              >
+                <Button
+                  onClick={() => handleSendMessage()}
+                  disabled={inputMessage.trim() === "" || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
+                  className="bg-primary hover:bg-[#7525c9] mb-0"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </UmamiTrack>
+            )}
           </div>
           <div className="flex items-start gap-2 mt-2 px-1">
             <Info className="h-3.5 w-3.5 text-gray-400 mt-0.5 flex-shrink-0" />

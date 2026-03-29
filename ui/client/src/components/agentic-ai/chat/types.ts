@@ -3,8 +3,9 @@ export interface Message {
   content: string;
   sender: 'user' | 'ai';
   finalAnswer?: string;
+  isCancelled?: boolean;
   streamLogs?: StreamLogEntry[];
-  workPlans?: WorkPlanSnapshot[]; // Add support for workplans
+  workPlans?: WorkPlanSnapshot[];
 }
 
 export interface StreamLogEntry {

@@ -62,6 +62,7 @@ export default function PublicChat() {
     confirmDeleteChat,
     cancelDeleteChat,
     triggerExecution,
+    handleCancelSession,
     showDeleteModal,
     setShowDeleteModal,
     chatToDelete,
@@ -372,6 +373,7 @@ export default function PublicChat() {
               <ChatInterface
                 runId={runId}
                 triggerExecution={triggerExecution}
+                onCancelSession={handleCancelSession}
                 initialMessages={chatHistory}
                 blueprintExists={true}
                 isSharingDisabled={isSharingDisabled}
