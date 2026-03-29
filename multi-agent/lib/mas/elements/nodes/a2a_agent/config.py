@@ -1,56 +1,10 @@
-"""
-A2A Agent Node Configuration
-"""
+from typing import Optional
 
-from mas.elements.nodes.common.base_config import NodeBaseConfig
-from pydantic import Field, HttpUrl
-from typing import Optional, Literal, List
-from a2a.types import AgentCard
-from .identifiers import Identifier
-from mas.core.ref.models import RetrieverRef
-from mas.core.field_hints import ActionHint, HintType, SelectionType, SecretHint
+from pydantic import BaseModel, Field
 
 
-class A2AAgentNodeConfig(NodeBaseConfig):
-    """
-    A2A Agent Node - delegates work to remote agent via A2A protocol.
-    
-    Simple configuration with just endpoint and optional retriever.
-    The node creates its own A2A provider internally.
-    """
-    type: Literal[Identifier.TYPE] = Identifier.TYPE
-
-    base_url: HttpUrl = Field(
-        description="Base URL of the A2A agent (e.g., http://localhost:10000)",
-        json_schema_extra=ActionHint(
-            action_uid="a2a.validate_connection",
-            hint_type=HintType.VALIDATE,
-            field_mapping="is_reachable"
-        ).to_hints()
-    )
-
-    bearer_token: Optional[str] = Field(
-        default=None,
-        description="Bearer token for authentication (will be sent as 'Authorization: Bearer <token>' header)",
-        json_schema_extra=SecretHint(
-            allow_reveal=True
-        ).to_hints()
-    )
-
-    agent_card: Optional[AgentCard] = Field(
-        default=None,
-        description="Pre-fetched agent card (optional, will be fetched if not provided)",
-        json_schema_extra=ActionHint(
-            action_uid="a2a.get_agent_card",
-            hint_type=HintType.POPULATE,
-            selection_type=SelectionType.AUTOMATIC,
-            field_mapping="agent_card",
-            dependencies={
-                "base_url": "base_url"            }
-        ).to_hints()
-    )
-
-    retrievers: Optional[List[RetrieverRef]] = Field(
-        default_factory=list,
-        description="List of retrievers for context augmentation (optional)"
-    )
+class A2AAgentConfig(BaseModel):
+    model_name: str = Field(..., description="The name of the language model to use.")
+    prompt_template: str = Field(..., description="The prompt template to use for the agent.")
+    retriever: Optional[str] = Field(None, description="The retriever to use for the agent.")
+    number_of_conversations: int = Field(3, description="Number of conversations to use for context.")
