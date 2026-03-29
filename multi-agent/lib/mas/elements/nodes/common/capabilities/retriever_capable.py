@@ -1,12 +1,10 @@
-from typing import Optional
-
-from lib.utils.tool_utils import ToolRegistry
+from typing import List, Optional, Any
 
 
 class RetrieverCapable:
-    retriever: Optional[str]
+    retriever: Optional[Any] = None
 
-    def create_retriever_tool(self, tool_registry: ToolRegistry):
-        if self.retriever:
-            return tool_registry.get_tool(self.retriever)
-        return None
+    def retrieve(self, query: str) -> List[str]:
+        if self.retriever is None:
+            return []
+        return self.retriever.retrieve(query)

@@ -1,16 +1,22 @@
-from typing import Optional
+from typing import List
 
-from lib.mas.elements.nodes.abstract_agent.abstract_agent import AbstractAgent
-from lib.utils.tool_utils import ToolRegistry
+from multi_agent.lib.mas.elements.nodes.custom_agent.config import CustomAgentNodeConfig
+from multi_agent.lib.mas.elements.nodes.agent_node import AgentNode
+from multi_agent.lib.toolkit.tool import Tool
+from multi_agent.lib.toolkit.retriever_tool import RetrieverTool
 
 
-class CustomAgent(AbstractAgent):
-    retriever: Optional[str]
+class CustomAgent(AgentNode):
+    config: CustomAgentNodeConfig
 
-    def _create_builtin_tools(self, tool_registry: ToolRegistry) -> list:
-        tools = super()._create_builtin_tools(tool_registry)
+    @property
+    def retriever(self):
+        return self.config.retriever
+
+    def _create_builtin_tools(self) -> List[Tool]:
+        tools = super()._create_builtin_tools()
+
         if self.retriever:
-            retriever_tool = tool_registry.get_tool(self.retriever)
-            if retriever_tool:
-                tools.append(retriever_tool)
+            tools.append(RetrieverTool(self.retriever))
+
         return tools
