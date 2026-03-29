@@ -1,54 +1,45 @@
-"""
-A2A Agent Node Factory
-"""
+from typing import Optional
 
-from mas.elements.common.base_factory import BaseFactory
-from mas.elements.common.exceptions import PluginConfigurationError
-from .config import A2AAgentNodeConfig
-from .a2a_agent_node import A2AAgentNode
-from .identifiers import Identifier
+from lib.mas.elements.nodes.a2a_agent.a2a_agent_node import A2AAgentNode
+from lib.mas.elements.nodes.a2a_agent.config import A2AAgentConfig
+from lib.mas.elements.nodes.a2a_agent.validator import A2AAgentValidator
+from lib.mas.elements.node_factory import NodeFactory
 
 
-class A2AAgentNodeFactory(BaseFactory[A2AAgentNodeConfig, A2AAgentNode]):
-    """
-    Factory for creating A2A Agent Node instances.
-    
-    Creates node with A2A provider initialized from mas.config.
-    Dependencies injected:
-    - retrievers: Optional list of retriever instances (resolved from RetrieverRef)
-    """
+class A2AAgentNodeFactory(NodeFactory):
+    @staticmethod
+    def create_node(
+        id: str,
+        model_name: str,
+        prompt_template: str,
+        retriever: Optional[str],
+        number_of_conversations: int,
+        **kwargs,
+    ) -> A2AAgentNode:
+        node = A2AAgentNode(
+            id=id,
+            model_name=model_name,
+            prompt_template=prompt_template,
+            retriever=retriever,
+            number_of_conversations=number_of_conversations,
+            **kwargs,
+        )
+        return node
 
-    def accepts(self, cfg: A2AAgentNodeConfig, element_type: str) -> bool:
-        return element_type == Identifier.TYPE
+    @staticmethod
+    def create_config(
+        model_name: str,
+        prompt_template: str,
+        retriever: Optional[str],
+        number_of_conversations: int,
+    ) -> A2AAgentConfig:
+        return A2AAgentConfig(
+            model_name=model_name,
+            prompt_template=prompt_template,
+            retriever=retriever,
+            number_of_conversations=number_of_conversations,
+        )
 
-    def create(self, cfg: A2AAgentNodeConfig, **deps):
-        """
-        Create A2A Agent Node from configuration.
-        
-        Node creates its own A2A provider from base_url and agent_card.
-        
-        Args:
-            cfg: Validated configuration
-            deps: Resolved dependencies
-                - retrievers: Optional list of retrievers
-                
-        Returns:
-            Initialized A2AAgentNode
-            
-        Raises:
-            PluginConfigurationError: If creation fails
-        """
-        try:
-            return A2AAgentNode(
-                base_url=cfg.base_url,
-                agent_card=cfg.agent_card,
-                bearer_token=cfg.bearer_token,
-                retrievers=deps.pop("retrievers"),
-                retries=cfg.retries,
-            )
-        except Exception as e:
-            raise PluginConfigurationError(
-                f"A2AAgentNodeFactory.create failed: {e}",
-                cfg.dict()
-            ) from e
-
+    @staticmethod
+    def create_validator():
+        return A2AAgentValidator
