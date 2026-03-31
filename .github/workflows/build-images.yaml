@@ -1,4 +1,4 @@
-name: Build UnifAIImages
+name: Build UnifAI Images
 
 on:
   push:
