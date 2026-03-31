@@ -89,7 +89,7 @@ jobs:
         include:
           - image_name: sso-backend:github
             context: shared-resources/sso-backend
-            dockerfile: shared-resources/sso-backend/Dockerfile1
+            dockerfile: shared-resources/sso-backend/Dockerfile
           - image_name: ui:github
             context: ui
             dockerfile: ./ui/deployment/Dockerfile
