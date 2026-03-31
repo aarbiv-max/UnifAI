@@ -14,8 +14,12 @@ on:
         description: "Build UI image"
         required: false
         default: false
-      build_dataflow_backend:
-        description: "Build Dataflow backend image"
+      build_backend:
+        description: "Build backend image"
+        required: false
+        default: false
+      build_rag_backend:
+        description: "Build RAG backend image"
         required: false
         default: false
       build_multiagent_backend:
@@ -87,14 +91,17 @@ jobs:
             context: shared-resources/sso-backend
             dockerfile: shared-resources/sso-backend/Dockerfile1
           - image_name: ui:github
-            context: ./ui
+            context: ui
             dockerfile: ./ui/deployment/Dockerfile
-          # - image_name: dataflow-backend:github
-          #   context: ./backend
-          #   dockerfile: ./backend/Dockerfile
-          # - image_name: multiagent-backend:github
-          #   context: ./multi-agent
-          #   dockerfile: ./multi-agent/Dockerfile
+          - image_name: backend:github
+            context: backend
+            dockerfile: ./backend/Dockerfile
+          - image_name: rag-backend:github
+            context: rag
+            dockerfile: ./rag/Dockerfile
+          - image_name: multiagent-backend:github
+            context: multi-agent
+            dockerfile: ./multi-agent/Dockerfile
     env:
       VERSION: 'test' #${{ github.sha }}
     steps:
@@ -111,9 +118,18 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Checkout GitLab repository (genie-cred-data)
-        run: |
-          git clone git@gitlab.cee.redhat.com:ai_tools/genie-cred-data.git ui/genie-cred-data
+      - name: Checkout Creds repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'redhat-community-ai-tools/UnifAI-secrets'
+          ref: main
+          token: ${{ secrets.UNIFAI_SECRETS_TOKEN }}
+          persist-credentials: false
+          path: ui/genie-cred-data  #change this along with the nginx docker file to take from an updated name
+
+      # - name: Checkout GitLab repository (genie-cred-data)
+      #   run: |
+      #     git clone git@gitlab.cee.redhat.com:ai_tools/genie-cred-data.git ui/genie-cred-data
       
       - name: Log in to image paas registry
         run: |
