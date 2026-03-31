@@ -59,8 +59,17 @@ class ResourcesRegistry:
     # ---------- force-delete variants ----------
     def replace_and_delete(self, rid: str, replacement_rid: str) -> None:
         """Replace all references to rid with replacement_rid, then delete rid."""
-        if not self._repo.exists(replacement_rid):
-            raise KeyError(f"Replacement resource not found: {replacement_rid}")
+        if replacement_rid == rid:
+            raise ValueError("Replacement cannot be the same as the resource")
+
+        original = self._repo.get(rid)
+        replacement = self._repo.get(replacement_rid)
+
+        if original.category != replacement.category:
+            raise ValueError(
+                f"Replacement must be the same category "
+                f"(got {replacement.category}, expected {original.category})"
+            )
 
         mapping = {rid: replacement_rid}
 
@@ -126,6 +135,7 @@ class ResourcesRegistry:
 
         if remove_rid:
             spec = _remove_ref_from_catalogue(spec, remove_rid)
+            spec = _remove_ref_from_dict(spec, remove_rid)
 
         rid_refs = list(_extract_ref_ids(spec))
         self._bp_repo.update_raw(blueprint_id=bp_id, spec_dict=spec, rid_refs=rid_refs)

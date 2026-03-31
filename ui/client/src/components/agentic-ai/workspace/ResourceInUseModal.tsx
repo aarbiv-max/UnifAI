@@ -84,16 +84,18 @@ function DependentList({
         {items.map((item) => (
           <li
             key={item.id}
-            className={`text-sm bg-background-dark rounded px-3 py-1.5 border border-gray-800 flex items-center justify-between ${
-              onItemClick
-                ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
-                : ""
-            }`}
-            onClick={() => onItemClick?.(item)}
+            className="text-sm bg-background-dark rounded px-3 py-1.5 border border-gray-800 flex items-center justify-between"
           >
             <span>{item.name}</span>
             {onItemClick && (
-              <Eye className="h-3.5 w-3.5 text-gray-500 flex-shrink-0 ml-2" />
+              <button
+                type="button"
+                aria-label={`View details for ${item.name}`}
+                onClick={() => onItemClick(item)}
+                className="text-gray-500 hover:text-gray-300 flex-shrink-0 ml-2 rounded-sm p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </button>
             )}
           </li>
         ))}

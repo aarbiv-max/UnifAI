@@ -8,6 +8,15 @@ resources_bp = Blueprint("resources", __name__)
 
 _VALID_FORCE_DELETE_MODES = frozenset({"replace", "detach", "cascade"})
 
+_CATEGORY_ALLOWED_MODE: dict[str, str] = {
+    "llms": "replace",
+    "conditions": "replace",
+    "tools": "detach",
+    "providers": "detach",
+    "retrievers": "detach",
+    "nodes": "cascade",
+}
+
 
 def _enrich_usage(bp_ids: list[str], res_ids: list[str]) -> dict:
     """Resolve IDs to {id, name} dicts for the UI."""
@@ -204,6 +213,19 @@ def force_delete_resource(resource_id, mode, replacement_id=None):
         return jsonify({"error": "replacementId is required for replace mode"}), 400
 
     svc = current_app.container.resources_service
+
+    try:
+        resource = svc.get(resource_id)
+    except KeyError:
+        return jsonify({"error": f"Resource not found: {resource_id}"}), 404
+
+    allowed_mode = _CATEGORY_ALLOWED_MODE.get(resource.category)
+    if allowed_mode and mode != allowed_mode:
+        return jsonify({
+            "error": f"Mode '{mode}' is not permitted for {resource.category} resources. "
+                     f"Use '{allowed_mode}' instead."
+        }), 400
+
     try:
         if mode == "replace":
             svc.replace_and_delete(resource_id, replacement_id)
@@ -215,6 +237,8 @@ def force_delete_resource(resource_id, mode, replacement_id=None):
         return jsonify({"status": "deleted"}), 200
     except KeyError as e:
         return jsonify({"error": f"Resource not found: {e}"}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

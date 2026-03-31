@@ -18,6 +18,7 @@ import { fetchResolvedBlueprint, WorkflowBlueprint } from "@/api/blueprints";
 import { useAuth } from "@/contexts/AuthContext";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
+import { useToast } from "@/hooks/use-toast";
 
 export default function UserWorkspace() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -43,6 +44,7 @@ export default function UserWorkspace() {
   const [isResourcePreviewOpen, setIsResourcePreviewOpen] = useState(false);
 
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const {
     categories,
@@ -108,25 +110,38 @@ export default function UserWorkspace() {
 
     setElementToDelete(element);
 
-    const usage = await checkElementUsage(rid);
-    if ('inUse' in usage && usage.inUse) {
-      setInUseData({
-        category: usage.category,
-        blueprints: usage.blueprints,
-        resources: usage.resources,
-      });
-      setShowInUseModal(true);
+    try {
+      const usage = await checkElementUsage(rid);
+      if ('inUse' in usage && usage.inUse) {
+        setInUseData({
+          category: usage.category,
+          blueprints: usage.blueprints,
+          resources: usage.resources,
+        });
+        setShowInUseModal(true);
 
-      if (usage.category === "llms" || usage.category === "conditions") {
-        setIsLoadingReplacements(true);
-        const options = await fetchResourcesForCategory(usage.category);
-        setReplacementOptions(
-          options.filter((o: { rid: string }) => o.rid !== element.rid)
-        );
-        setIsLoadingReplacements(false);
+        if (usage.category === "llms" || usage.category === "conditions") {
+          setIsLoadingReplacements(true);
+          try {
+            const options = await fetchResourcesForCategory(usage.category);
+            setReplacementOptions(
+              options.filter((o: { rid: string }) => o.rid !== element.rid)
+            );
+          } finally {
+            setIsLoadingReplacements(false);
+          }
+        }
+      } else {
+        setShowDeleteModal(true);
       }
-    } else {
-      setShowDeleteModal(true);
+    } catch (error) {
+      console.error("Error during element deletion check:", error);
+      toast({
+        title: "Error",
+        description: "Failed to check element usage. Please try again.",
+        variant: "destructive",
+      });
+      setElementToDelete(null);
     }
   };
 
@@ -178,13 +193,23 @@ export default function UserWorkspace() {
   const handleBlueprintClick = async (blueprintId: string) => {
     try {
       const bp = await fetchResolvedBlueprint(blueprintId, user?.username);
-      if (bp) {
-        setPreviewWorkflow(bp);
-        setIsWorkflowPreviewOpen(true);
+      if (!bp) {
+        toast({
+          title: "Not Found",
+          description: "Blueprint not found",
+          variant: "destructive",
+        });
+        return;
       }
+      setPreviewWorkflow(bp);
+      setIsWorkflowPreviewOpen(true);
     } catch (err) {
       console.error("Error loading blueprint preview:", err);
-      window.open(`/agentic-ai`, '_blank');
+      toast({
+        title: "Error",
+        description: "Failed to load blueprint preview",
+        variant: "destructive",
+      });
     }
   };
 
@@ -194,7 +219,6 @@ export default function UserWorkspace() {
 
     const matchedCategory = categories.find(c => c.category === (resourceCategory || resource.category));
     const elType: ElementType = matchedCategory?.elements.find(e => e.type === (resourceType || resource.type))
-      || matchedCategory?.elements[0]
       || { type: resource.type, name: resource.type, category: resource.category };
 
     setPreviewResource({
