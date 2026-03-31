@@ -6,7 +6,7 @@ import {
   fetchAllResources,
   fetchResourceCategories,
 } from "@/api/agentic";
-import { fetchBlueprints } from "@/api/blueprints";
+import { fetchResolvedBlueprints } from "@/api/blueprints";
 
 export function useAgenticData() {
   const { user } = useAuth();
@@ -22,7 +22,7 @@ export function useAgenticData() {
   // Individual queries for granular data when needed by components
   const workflows = useQuery({
     queryKey: ["blueprints", userId],
-    queryFn: () => fetchBlueprints(userId),
+    queryFn: () => fetchResolvedBlueprints(userId),
     staleTime: 0,
   });
 

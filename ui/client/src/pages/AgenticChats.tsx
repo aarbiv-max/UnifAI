@@ -9,9 +9,6 @@ import { motion } from "framer-motion";
 import ExecutionTab from "@/components/agentic-ai/ExecutionTab";
 import { StreamingDataProvider } from "@/components/agentic-ai/StreamingDataContext";
 
-// Create a ReactFlow provider wrapper
-import { ReactFlowProvider } from "reactflow";
-
 export default function AgenticChats() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -33,9 +30,7 @@ export default function AgenticChats() {
               transition={{ duration: 0.3 }}
             >
               <StreamingDataProvider>
-                <ReactFlowProvider>
-                  <ExecutionTab runId={null} />
-                </ReactFlowProvider>
+                <ExecutionTab runId={null} />
               </StreamingDataProvider>
             </motion.div>
           </div>

@@ -29,6 +29,20 @@ def get_mongo_url():
     return f"mongodb://{ip}:{port}/"
 
 
+def get_temporal_url():
+    ip = config.temporal_ip
+    port = config.temporal_port
+    return f"{ip}:{port}"
+
+
+def get_redis_url():
+    ip = config.redis_ip
+    port = config.redis_port
+    if not ip:
+        return ""
+    return f"redis://{ip}:{port}"
+
+
 def get_rabbitmq_url(user=None, password=None):
     ip = config.rabbitmq_ip
     port = config.rabbitmq_port
@@ -164,7 +178,7 @@ def to_snake_case(s: str) -> str:
     
     Examples:
         - SlackRetriever -> slack_retriever
-        - DocsDataflowRetriever -> docs_dataflow_retriever
+        - DocsRAGRetriever -> docs_rag_retriever
         - HTTPResponse -> http_response
     """
     # Insert underscore before uppercase letters that follow lowercase letters

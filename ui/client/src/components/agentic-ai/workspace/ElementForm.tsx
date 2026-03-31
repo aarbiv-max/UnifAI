@@ -14,7 +14,7 @@ import {
   ElementSchema,
   ElementInstance,
 } from "../../../types/workspace";
-import { FieldRenderer } from "./FieldRenderer";
+import { FieldRenderer, getStringEnumFromRef } from "./FieldRenderer";
 import { ItemValidationResult } from "./FieldValidation";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
@@ -78,15 +78,22 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     });
   };
 
-  const handlePopulateResult = (fieldName: string, results: string[] | any, multiSelect: boolean) => {
+  const handlePopulateResult = (fieldName: string, results: any[], multiSelect: boolean) => {
     setPopulateResults(prev => ({
       ...prev,
       [fieldName]: results
     }));
     
-    // For multi-select, set the array of selected values
-    // For single select, set the first (and only) selected value
-    handleInputChange(fieldName, multiSelect || typeof results === 'object' ? results : results.length > 0 ? results[0] : "");
+    // For multi-select fields, store the full array of objects (or strings)
+    // For single select, store just the first item (can be object or string)
+    if (multiSelect) {
+      // Multi-select: always store as array
+      handleInputChange(fieldName, results);
+    } else {
+      // Single select: store single item (first in array, or empty string)
+      const singleResult = results.length > 0 ? results[0] : "";
+      handleInputChange(fieldName, singleResult);
+    }
   };
 
 
@@ -310,6 +317,11 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     }
 
     return null;
+  };
+
+  // Helper function to check if a $ref resolves to a string enum (not a resource reference)
+  const isStringEnumRef = (fieldSchema: any): boolean => {
+    return getStringEnumFromRef(fieldSchema, resolveRef) !== null;
   };
 
   // Helper function to extract category from $ref field or anyOf structure
@@ -554,8 +566,8 @@ export const ElementForm: React.FC<ElementFormProps> = ({
             else if (isArrayWithRefItems(fieldSchema) && Array.isArray(value)) {
               processedValue = value.map((rid: string) => `$ref:${rid}`);
             }
-            // Handle single $ref fields - only add $ref: prefix for string values (RIDs)
-            else if (fieldSchema.$ref && typeof value === "string" && value !== "") {
+            // Handle single $ref fields - only add $ref: prefix for resource references (RIDs), exclude string enums
+            else if (fieldSchema.$ref && typeof value === "string" && value !== "" && !isStringEnumRef(fieldSchema)) {
               processedValue = `$ref:${value}`;
             }
             // Handle anyOf with $ref (single select) - only add $ref: prefix for string values (RIDs)
@@ -666,6 +678,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
         isArrayWithRefItems={isArrayWithRefItems}
         getArrayItemsSchema={getArrayItemsSchema}
         extractCategoryFromField={extractCategoryFromField}
+        resolveSchemaRef={resolveRef}
         onInputChange={handleInputChange}
         onArrayChange={handleArrayChange}
         onAddArrayItem={addArrayItem}
@@ -680,7 +693,11 @@ export const ElementForm: React.FC<ElementFormProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-background-card border-gray-800 text-foreground max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="bg-background-card border-gray-800 text-foreground max-w-3xl max-h-[90vh] overflow-y-auto"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {editingElement ? "Edit" : "Create"} {elementType.name}

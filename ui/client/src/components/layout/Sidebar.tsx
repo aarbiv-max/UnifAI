@@ -5,13 +5,14 @@ import {
   FaTachometerAlt, FaCogs, FaFileAlt, 
   FaChartLine, FaUserShield, FaCog, FaSignOutAlt,
   FaRobot, FaFile, FaChevronLeft, FaChevronRight,
-  FaInfoCircle, FaBook, FaComment
+  FaInfoCircle, FaBook, FaComment, FaPuzzlePiece
 } from "react-icons/fa";
-import { FaJira, FaSlack, FaBars } from "react-icons/fa";
+import { FaSlack, FaBars } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { useAuth, User } from '@/contexts/AuthContext';
+import { useAdminAccess } from '@/hooks/use-admin-access';
 
 export default function Sidebar() {
   const [location] = useLocation();
@@ -25,6 +26,7 @@ export default function Sidebar() {
   };
 
   const { user, logout } = useAuth();
+  const { isAdmin } = useAdminAccess();
 
   const getInitials = (name: string): string => {
     return name
@@ -86,7 +88,7 @@ export default function Sidebar() {
             <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
               <span className="text-xs font-bold">{currentProject?.shortName || 'DP'}</span>
             </div>
-            <span className="font-medium text-sm">{currentProject?.name || 'DataFlow Project'}</span>
+            <span className="font-medium text-sm">{currentProject?.name || 'RAG Project'}</span>
           </div>
           <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
@@ -101,7 +103,61 @@ export default function Sidebar() {
             initial={false}
             animate={{ opacity: isCollapsed ? 0 : 1 }}
             transition={{ duration: 0.2 }}
-            className="px-3 mb-2"
+            className="px-3 mt-6 mb-2"
+          >
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Agentic AI</span>
+          </motion.div>
+        )}
+        <ul>
+          <NavItem 
+            icon={<FaTachometerAlt className="sidebar-icon" />} 
+            label="Agentic AI Overview" 
+            to="/agentic-overview"
+            isActive={location === '/agentic-overview'}
+            status={null}
+            isCollapsed={isCollapsed}
+          />
+          <NavItem 
+            icon={<FaPuzzlePiece className="sidebar-icon" />} 
+            label="Agentic AI Templates" 
+            to="/templates"
+            isActive={location === '/templates'}
+            status={null}
+            isCollapsed={isCollapsed}
+          />
+          <NavItem 
+              icon={<FaFile className="sidebar-icon" />} 
+              label="Agentic Inventory" 
+              to="/inventory"
+              isActive={location === '/inventory'}
+              status={null}
+              isCollapsed={isCollapsed}
+          />
+          <NavItem 
+            icon={<FaRobot className="sidebar-icon" />} 
+            label="Agentic AI Workflows" 
+            to="/agentic-ai"
+            isActive={location === '/agentic-ai'}
+            status={null}
+            // status="New"
+            isCollapsed={isCollapsed}
+          />
+          <NavItem 
+            icon={<FaComment className="sidebar-icon" />} 
+            label="Agentic Chats" 
+            to="/agentic-chats"
+            isActive={location === '/agentic-chats'}
+            status={null}
+            isCollapsed={isCollapsed}
+          />
+        </ul>
+        
+        {!isCollapsed && (
+          <motion.div 
+            initial={false}
+            animate={{ opacity: isCollapsed ? 0 : 1 }}
+            transition={{ duration: 0.2 }}
+            className="px-3 mt-6 mb-2"
           >
             <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">RAG</span>
           </motion.div>
@@ -136,51 +192,6 @@ export default function Sidebar() {
           />
         </ul>
 
-        {!isCollapsed && (
-          <motion.div 
-            initial={false}
-            animate={{ opacity: isCollapsed ? 0 : 1 }}
-            transition={{ duration: 0.2 }}
-            className="px-3 mt-6 mb-2"
-          >
-            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Agentic AI</span>
-          </motion.div>
-        )}
-        <ul>
-          <NavItem 
-            icon={<FaTachometerAlt className="sidebar-icon" />} 
-            label="Agentic AI Overview" 
-            to="/agentic-overview"
-            isActive={location === '/agentic-overview'}
-            status={null}
-            isCollapsed={isCollapsed}
-          />
-          <NavItem 
-              icon={<FaFile className="sidebar-icon" />} 
-              label="Agentic Inventory" 
-              to="/inventory"
-              isActive={location === '/inventory'}
-              status={null}
-              isCollapsed={isCollapsed}
-          />
-          <NavItem 
-            icon={<FaRobot className="sidebar-icon" />} 
-            label="Agentic AI Workflows" 
-            to="/agentic-ai"
-            isActive={location === '/agentic-ai'}
-            status={null}
-            // status="New"
-            isCollapsed={isCollapsed}
-          />
-          <NavItem 
-            icon={<FaComment className="sidebar-icon" />} 
-            label="Agentic Chats" 
-            to="/agentic-chats"
-            isActive={location === '/agentic-chats'}
-            status={null}
-            isCollapsed={isCollapsed}
-          />
-        </ul>
 
         {!isCollapsed && (
           <motion.div 
@@ -216,8 +227,9 @@ export default function Sidebar() {
             isActive={location === '/configuration'}
             status={null}
             isCollapsed={isCollapsed}
-            disabled={true}
+            disabled={!isAdmin}
           />
+          {user?.is_admin && (
           <NavItem 
             icon={<FaChartLine className="sidebar-icon" />} 
             label="Analytics" 
@@ -225,8 +237,8 @@ export default function Sidebar() {
             isActive={location === '/analytics'}
             status={null}
             isCollapsed={isCollapsed}
-            disabled={true}
           />
+          )}
           <NavItem 
             icon={<FaUserShield className="sidebar-icon" />} 
             label="User Management" 

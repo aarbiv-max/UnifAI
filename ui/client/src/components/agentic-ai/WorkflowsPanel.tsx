@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Trash2, Users } from "lucide-react";
+import { Trash2, Users, Pencil, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useShared } from "@/contexts/SharedContext";
 import { Button } from "@/components/ui/button";
@@ -13,10 +14,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import SimpleTooltip from "@/components/shared/SimpleTooltip";
-import { GraphFlow, FlowObject } from "./graphs/interfaces";
-import ReactFlowGraph from "./graphs/ReactFlowGraph";
+import { FlowObject } from "./graphs/interfaces";
+import GraphDisplay from "./graphs/GraphDisplay";
 import { fetchActiveSessions } from "@/api/agentic";
-import { fetchBlueprints, fetchResolvedBlueprints, deleteBlueprint } from "@/api/blueprints";
+import { fetchBlueprintSummaries, deleteBlueprint, fetchResolvedBlueprint } from "@/api/blueprints";
 import { convertGraphFlowToFlowObject } from "@/utils/blueprintHelpers";
 import ShareWorkflow from "./ShareWorkflow";
 import { BlueprintValidationResult } from "@/types/validation";
@@ -26,18 +27,16 @@ export interface WorkflowsPanelProps {
   selectedFlow: FlowObject | null;
   onFlowSelect: (flow: FlowObject | null) => void;
   onFlowDelete?: (flow: FlowObject) => void;
+  onFlowEdit?: (flow: FlowObject) => void;
   onValidationChange?: (isValid: boolean, validationResult: BlueprintValidationResult | null, isValidating: boolean) => void;
   showActiveStatus?: boolean;
   showDeleteButton?: boolean;
+  showEditButton?: boolean;
   className?: string;
   height?: string;
-  useResolvedEndpoint?: boolean; // If true, uses resolved endpoint, otherwise uses regular get endpoint
   graphProps?: {
-    showControls?: boolean;
-    showMiniMap?: boolean;
     showBackground?: boolean;
     interactive?: boolean;
-    isLiveRequest?: boolean;
   };
 }
 
@@ -45,18 +44,16 @@ export default function WorkflowsPanel({
   selectedFlow,
   onFlowSelect,
   onFlowDelete,
+  onFlowEdit,
   onValidationChange,
   showActiveStatus = false,
   showDeleteButton = false,
+  showEditButton = false,
   className = "",
   height = "100%",
-  useResolvedEndpoint = false,
   graphProps = {
-    showControls: true,
-    showMiniMap: false,
     showBackground: true,
     interactive: true,
-    isLiveRequest: false,
   },
 }: WorkflowsPanelProps): React.ReactElement {
   // State for available graph flows
@@ -66,7 +63,13 @@ export default function WorkflowsPanel({
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [flowToDelete, setFlowToDelete] = useState<FlowObject | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [selectedBlueprintData, setSelectedBlueprintData] = useState<{
+    specDict: any;
+    sharingEnabled: boolean;
+  } | null>(null);
   
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
   const { user } = useAuth();
   const { openShareForItem } = useShared();
   
@@ -78,24 +81,37 @@ export default function WorkflowsPanel({
     validateBlueprint: validateSelectedBlueprint,
     clearValidation,
   } = useBlueprintValidation({
+    activeBlueprintId: selectedFlow?.id ?? null,
     onValidationChange,
     showToastOnFailure: true,
   });
 
-  // Fetch available blueprints from API
+  const filteredFlows = useMemo(() => {
+    const normalizedSearch = (searchQuery ?? "").trim().toLowerCase();
+    if (!normalizedSearch) return graphFlows;
+    return graphFlows.filter(
+      (flow) =>
+        flow.name.toLowerCase().includes(normalizedSearch) ||
+        flow.description.toLowerCase().includes(normalizedSearch),
+    );
+  }, [graphFlows, searchQuery]);
+
+  // Fetch available blueprints from API (resolved – references replaced with actual data)
   const fetchAvailableFlows = async (): Promise<void> => {
     try {
       const userId = user?.username || "default";
-      // Use resolved endpoint if requested (returns blueprints with all references resolved)
-      // Otherwise use regular endpoint (returns blueprints as stored, may contain unresolved references)
-      const blueprints = useResolvedEndpoint 
-        ? await fetchResolvedBlueprints(userId)
-        : await fetchBlueprints(userId);
+      // Use summary endpoint - returns name, description, metadata without heavy spec_dict.
+      // Full resolved data is fetched on selection for the graph + sharing status.
+      const summaries = await fetchBlueprintSummaries(userId);
 
-      // Convert the blueprints to the format expected by the component
-      const processedFlows = blueprints
-        .map((blueprint) =>
-          convertGraphFlowToFlowObject(blueprint.spec_dict, 0, blueprint.blueprint_id),
+      // Convert summaries to FlowObject format
+      const processedFlows = summaries
+        .map((summary, index) =>
+          convertGraphFlowToFlowObject(
+            { name: summary.name, description: summary.description },
+            index,
+            summary.blueprint_id
+          ),
         )
         .filter((flow): flow is FlowObject => flow !== null);
       
@@ -136,7 +152,7 @@ export default function WorkflowsPanel({
     ]).finally(() => {
       setIsLoading(false);
     });
-  }, [user, useResolvedEndpoint]);
+  }, [user]);
 
   // Trigger validation when selected flow changes
   useEffect(() => {
@@ -147,6 +163,43 @@ export default function WorkflowsPanel({
       clearValidation();
     }
   }, [selectedFlow?.id, validateSelectedBlueprint, clearValidation]);
+
+  // Fetch blueprint data (spec_dict + metadata) when selected flow changes.
+  // This consolidates API calls - data is fetched once and passed to child components.
+  // A `cancelled` flag prevents stale responses from overwriting state when the
+  // user switches flows quickly.
+  useEffect(() => {
+    if (!selectedFlow?.id) {
+      setSelectedBlueprintData(null);
+      return;
+    }
+
+    let cancelled = false;
+    // Clear previous data immediately so the UI shows a loading state
+    // instead of the previous flow's graph while the new fetch is in-flight.
+    setSelectedBlueprintData(null);
+
+    const fetchBlueprintData = async () => {
+      try {
+        const userId = user?.username || 'default';
+        const blueprint = await fetchResolvedBlueprint(selectedFlow.id, userId);
+        if (cancelled) return;
+        if (blueprint) {
+          setSelectedBlueprintData({
+            specDict: blueprint.spec_dict,
+            sharingEnabled: blueprint.metadata?.usageScope === "public",
+          });
+        }
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Error fetching blueprint data:", error);
+        setSelectedBlueprintData(null);
+      }
+    };
+
+    fetchBlueprintData();
+    return () => { cancelled = true; };
+  }, [selectedFlow?.id, user?.username]);
 
   const handleFlowSelect = (flow: FlowObject): void => {
     onFlowSelect(flow);
@@ -160,6 +213,13 @@ export default function WorkflowsPanel({
     event.stopPropagation(); // Prevent flow selection when clicking delete
     setFlowToDelete(flow);
     setShowDeleteModal(true);
+  };
+
+  const handleEditClick = (flow: FlowObject, event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (onFlowEdit) {
+      onFlowEdit(flow);
+    }
   };
 
   const handleShareClick = (flow: FlowObject, event: React.MouseEvent) => {
@@ -239,16 +299,41 @@ export default function WorkflowsPanel({
       <div className={`flex h-full overflow-hidden ${className}`} style={{ height }}>
         {/* Available Workflows Sidebar */}
         <div className="w-1/3 border-r border-gray-800 bg-background-dark flex flex-col min-h-0 relative">
-          <div className="py-3 px-4 border-b border-gray-800 bg-background-surface flex-shrink-0">
-            <h3 className="text-sm font-medium">Available Workflows ({graphFlows.length})</h3>
+          <div className="py-3 px-4 border-b border-gray-800 bg-background-surface flex-shrink-0 space-y-2">
+            <h3 className="text-sm font-medium">Available Workflows ({filteredFlows.length})</h3>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+              <Input
+                placeholder="Search workflows..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 pl-8 pr-8 text-xs bg-background-dark border-gray-700 focus:border-primary"
+              />
+              {searchQuery && (
+                <SimpleTooltip content={<p>Clear search</p>}>
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </SimpleTooltip>
+              )}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto py-2 max-h-full relative">
-            {graphFlows.length === 0 ? (
+            {filteredFlows.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <div className="text-gray-400">No flows available</div>
+                <div className="text-gray-400 text-sm text-center px-4">
+                  {searchQuery.trim()
+                    ? `No workflows match "${searchQuery.trim()}"`
+                    : "No flows available"}
+                </div>
               </div>
             ) : (
-              graphFlows.map((flow) => (
+              filteredFlows.map((flow) => (
                 <motion.div
                   key={flow.id}
                   className={`px-4 py-2 border-l-2 cursor-pointer ${
@@ -270,6 +355,18 @@ export default function WorkflowsPanel({
                         <span className="text-xs bg-primary text-white px-2 py-1 rounded-full">
                           Active
                         </span>
+                      )}
+                      {showEditButton && (
+                        <SimpleTooltip content={<p>Edit this workflow</p>}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-primary/20 hover:text-primary"
+                            onClick={(e) => handleEditClick(flow, e)}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </SimpleTooltip>
                       )}
                       <SimpleTooltip content={<p>Share this workflow</p>}>
                         <Button
@@ -314,15 +411,26 @@ export default function WorkflowsPanel({
                   blueprintId={selectedFlow.id} 
                   isValid={isValid}
                   isValidating={isValidating}
+                  initialSharingEnabled={selectedBlueprintData?.sharingEnabled ?? false}
                 />
               </div>
-            <ReactFlowGraph
-              blueprintId={selectedFlow.id}
-              height="100%"
-              validationResults={validationResults}
-              isValidating={isValidating}
-              {...graphProps}
-            />
+            {selectedBlueprintData?.specDict ? (
+              <GraphDisplay
+                blueprintId={selectedFlow.id}
+                specDict={selectedBlueprintData.specDict}
+                height="100%"
+                showBackground={graphProps?.showBackground}
+                interactive={graphProps?.interactive}
+                centerInView={true}
+                animated={true}
+                validationResults={validationResults}
+                isValidating={isValidating}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                Loading graph...
+              </div>
+            )}
             </>
           ) : (
             <div className="flex items-center justify-center h-full text-gray-400">

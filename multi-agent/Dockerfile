@@ -6,7 +6,15 @@ USER root
 #the line below is meant to add mongosh to the image (not the server though), this is for debugging option
 # NOTE: the version we use here is mongo 8 if building this part fails you might need to find the latest available mongo shell repo.
 RUN echo -e "[mongodb-org-8.0]\nname=MongoDB Repository\nbaseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/8.0/\$basearch/\ngpgcheck=1\nenabled=1\ngpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" > /etc/yum.repos.d/mongodb-org-8.0.repo
-RUN dnf update --nobest -y && dnf install -y vim less iputils nmap-ncat mongodb-mongosh ca-certificates && dnf clean all
+RUN dnf update --nobest -y && dnf install -y vim less iputils mongodb-mongosh ca-certificates && dnf clean all
+
+# Install OpenShift CLI (oc) for oc_exec tool
+RUN curl -fSL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz -o /tmp/openshift-client.tar.gz && \
+    tar -xzf /tmp/openshift-client.tar.gz -C /tmp && \
+    mv /tmp/oc /usr/local/bin/oc && \
+    chmod +x /usr/local/bin/oc && \
+    rm -f /tmp/openshift-client.tar.gz /tmp/kubectl /tmp/README.md && \
+    oc version --client
 
 RUN update-ca-trust enable
 
@@ -30,6 +38,7 @@ ENV CURL_CA_BUNDLE=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
 
 ADD  --chown=default:root --chmod=777 ./multi-agent $HOME/app
 ADD  --chown=default:root --chmod=777 ./global_utils $HOME/global_utils
+ADD  --chown=default:root --chmod=777 ./scripts $HOME/scripts
 
 WORKDIR $HOME
 COPY ./multi-agent/entrypoint.sh ./app/entrypoint.sh
@@ -46,8 +55,8 @@ RUN pip3 install --upgrade pip virtualenv
 RUN python3 -m venv --prompt "virtualenv" venv
 ENV VIRTUAL_ENV=$HOME/app/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN /bin/bash -c "pip install -r ./app/requirements.txt "
 
+RUN pip install -e "./app/[all]"
 RUN /bin/bash -c "pip install -e ./global_utils/"
 
 ENTRYPOINT ["./app/entrypoint.sh"]

@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
-import { hexToHsl } from "@/lib/colorUtils";
+import { hexToHsl, generateColorPalette } from "@/lib/colorUtils";
 
 type Theme = "dark" | "light";
 
@@ -40,6 +40,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     body.style.setProperty("--primary", hsl);
     // Keep foreground white for best contrast in our palette
     body.style.setProperty("--primary-foreground", "0 0% 98%");
+    
+    // Generate harmonious secondary color from primary palette
+    // Use the 2nd color from palette (index 1) which is a cooler, slightly darker variation
+    const palette = generateColorPalette(hexColor, 4);
+    const secondaryHex = palette[1];
+    const secondaryHsl = hexToHslString(secondaryHex);
+    body.style.setProperty("--secondary", secondaryHsl);
+    body.style.setProperty("--secondary-foreground", "0 0% 98%");
+    
+    // Also update ring color to match primary for focus states
+    body.style.setProperty("--ring", hsl);
   };
 
   // Update body and html classes when theme changes

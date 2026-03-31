@@ -36,18 +36,19 @@ const InnerRefElement: React.FC<InnerRefElementProps> = ({
 
   return (
     <>
-      <div className="bg-gray-700 border border-gray-600 rounded px-2 py-1 flex items-center gap-1 text-xs">
-        <div className="w-4 h-4 flex items-center justify-center text-white">
+      <div className="bg-gray-700 border border-gray-600 rounded px-2 py-1.5 flex items-center gap-1.5 text-xs">
+        <div className="w-5 h-5 flex items-center justify-center text-white [&>svg]:w-4 [&>svg]:h-4">
           {categoryDisplay.icon}
         </div>
-        <span className="text-gray-200 truncate max-w-16">
+        <span className="text-gray-200 truncate max-w-20">
           {referencedElement.label}
         </span>
         <button
           onClick={handleViewDetails}
-          className="w-3 h-3 text-gray-400 hover:text-white transition-colors"
+          aria-label="View details"
+          className="w-4 h-4 text-gray-400 hover:text-white transition-colors flex-shrink-0"
         >
-          <Eye className="w-3 h-3" />
+          <Eye className="w-3.5 h-3.5" />
         </button>
       </div>
       

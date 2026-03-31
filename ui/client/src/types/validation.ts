@@ -96,3 +96,15 @@ export interface CachedValidationResult {
   timestamp: number;
 }
 
+/**
+ * Cached blueprint validation entry with timestamp for TTL-based caching
+ */
+export interface CachedBlueprintValidationResult {
+  /** The full validation result */
+  result: BlueprintValidationResult;
+  /** Whether the blueprint is valid (shortcut for result.is_valid) */
+  isValid: boolean;
+  /** Unix timestamp (ms) when the validation was performed */
+  timestamp: number;
+}
+

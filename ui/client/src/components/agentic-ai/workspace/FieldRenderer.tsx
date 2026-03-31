@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,15 @@ import { AgentCardVisualization } from "./AgentCardVisualization";
 import { ElementType } from "../../../types/workspace";
 import { maskSecretValue } from "../../../utils/maskSecretFields";
 import { XCircle } from "lucide-react";
+import {getArrayDisplayText, getArrayFieldMode, getValidRefOptions,} from "./arrayFieldHelpers";
+
+/** Resolved string enum definition from $defs */
+interface ResolvedStringEnum {
+  type: "string";
+  enum: string[];
+  title?: string;
+  description?: string;
+}
 
 interface FieldRendererProps {
   fieldName: string;
@@ -37,6 +47,7 @@ interface FieldRendererProps {
   isArrayWithRefItems: (fieldSchema: any) => boolean;
   getArrayItemsSchema: (fieldSchema: any) => any;
   extractCategoryFromField: (fieldSchema: any) => string | null;
+  resolveSchemaRef?: (ref: string) => any | null;
   onInputChange: (field: string, value: any) => void;
   onArrayChange?: (field: string, index: number, value: any) => void;
   onAddArrayItem?: (field: string) => void;
@@ -44,6 +55,110 @@ interface FieldRendererProps {
   onValidationChange: (fieldName: string, isValid: boolean, itemResults?: ItemValidationResult[]) => void;
   onPopulateResult: (fieldName: string, results: string[] | any, multiSelect: boolean) => void;
 }
+
+// Controlled number input with local state buffer to handle intermediate typing (e.g., "0.")
+interface NumberFieldInputProps {
+  fieldName: string;
+  value: number | null;
+  isFloatField: boolean;
+  hasFieldError: boolean;
+  placeholder?: string;
+  onChange: (value: number | null) => void;
+}
+
+const NumberFieldInput: React.FC<NumberFieldInputProps> = ({
+  fieldName,
+  value,
+  isFloatField,
+  hasFieldError,
+  placeholder,
+  onChange,
+}) => {
+  // Local string buffer to preserve intermediate typing states like "0." or "-"
+  const [localNumStr, setLocalNumStr] = useState<string>(
+    value != null ? String(value) : ""
+  );
+
+  // Sync from parent when value changes externally (e.g., clear, populate, reset)
+  useEffect(() => {
+    const incoming = value != null ? String(value) : "";
+    setLocalNumStr((prev) => {
+      // Don't overwrite if user is mid-edit with the same numeric value
+      // e.g., user typed "0." which parent sees as 0, don't replace "0." with "0"
+      if (prev === "") {
+        return incoming;
+      }
+      const parsed = parseFloat(prev);
+      if (!isNaN(parsed) && parsed === value) {
+        return prev; // Same numeric value, keep user's string representation
+      }
+      return incoming;
+    });
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const strValue = e.target.value;
+    
+    // For integer fields, reject any input containing a decimal point
+    if (!isFloatField && strValue.includes('.')) {
+      return; // Don't update - reject decimal input for integers
+    }
+    
+    setLocalNumStr(strValue);
+    
+    // Parse and notify parent
+    if (strValue === "") {
+      onChange(null);
+    } else {
+      const numValue = isFloatField
+        ? parseFloat(strValue)
+        : parseInt(strValue, 10);
+      onChange(isNaN(numValue) ? null : numValue);
+    }
+  };
+
+  return (
+    <Input
+      id={fieldName}
+      type="number"
+      step={isFloatField ? "any" : "1"}
+      value={localNumStr}
+      onChange={handleChange}
+      className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}
+      placeholder={placeholder}
+    />
+  );
+};
+
+/**
+ * Checks if a $ref (pydantic mode) resolves to a string enum definition.
+ * Returns the resolved enum definition if found, null otherwise.
+ */
+export const getStringEnumFromRef = (
+  fieldSchema: any,
+  resolveSchemaRef?: (ref: string) => any | null
+): ResolvedStringEnum | null => {
+  if (!resolveSchemaRef || !fieldSchema.$ref) {
+    return null;
+  }
+
+  const resolved = resolveSchemaRef(fieldSchema.$ref);
+  if (!resolved) {
+    return null;
+  }
+
+  // Check if resolved definition is a string enum
+  if (resolved.type === "string" && Array.isArray(resolved.enum) && resolved.enum.length > 0) {
+    return {
+      type: "string",
+      enum: resolved.enum,
+      title: resolved.title,
+      description: resolved.description,
+    };
+  }
+
+  return null;
+};
 
 export const FieldRenderer: React.FC<FieldRendererProps> = ({
   fieldName,
@@ -63,6 +178,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
   isArrayWithRefItems,
   getArrayItemsSchema,
   extractCategoryFromField,
+  resolveSchemaRef,
   onInputChange,
   onArrayChange,
   onAddArrayItem,
@@ -179,27 +295,236 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
     return { displayValue, inputType, handleChange, handleFocus };
   };
 
-  // Handle array fields with $ref items (multi-select dropdown)
-  if (isArrayWithRefItems(fieldSchema)) {
-    const itemsSchema = getArrayItemsSchema(fieldSchema);
-    const category = extractCategoryFromField(fieldSchema);
+  // Check if this is an array-like field (direct type or anyOf containing array)
+  const isArrayField = fieldSchema.type === "array" ||
+    (fieldSchema.anyOf && fieldSchema.anyOf.some((opt: any) => opt.type === "array"));
 
-    if (!category) {
+  // Handle all array fields in a unified block
+  if (isArrayField) {
+    // Determine array mode and gather mode-specific data
+    const arrayMode = getArrayFieldMode(
+      isArrayWithRefItems(fieldSchema),
+      !!populateHint,
+      fieldSchema.type === "array"
+    );
+
+    if (!arrayMode) return null;
+
+    const category = arrayMode === 'refItems' ? extractCategoryFromField(fieldSchema) : null;
+    const validOptions = arrayMode === 'refItems' ? getValidRefOptions(refOptions, category) : [];
+    const displayFieldPath = populateHint?.display_field || populateHint?.label_field;
+    const displayName = populateHint?.display_name || fieldName;
+
+    // Early return for missing category in refItems mode
+    if (arrayMode === 'refItems' && !category) {
       console.warn(`No category found for array field ${fieldName}`);
       return null;
     }
 
-    const validOptions = (refOptions[category] || []).filter(
-      (option: any) => option.rid && option.rid.trim() !== "",
+    // Early return for missing handlers in regular mode
+    if (arrayMode === 'regular' && (!onArrayChange || !onAddArrayItem || !onRemoveArrayItem)) {
+      console.warn("Array handlers not provided for array field", fieldName);
+      return null;
+    }
+
+    // Render content based on mode
+    const renderArrayContent = () => {
+      switch (arrayMode) {
+        case 'refItems':
+          return (
+            <>
+              <div className="space-y-2">
+                <Select
+                  value=""
+                  onValueChange={(newValue) => {
+                    if (newValue && newValue !== "__no_options_disabled__") {
+                      const currentArray = formData[fieldName] || [];
+                      if (!currentArray.includes(newValue)) {
+                        onInputChange(fieldName, [...currentArray, newValue]);
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}>
+                    <SelectValue placeholder={`Add ${category}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {validOptions.map((option: any) => (
+                      <SelectItem key={option.rid} value={option.rid}>
+                        {option.name} ({option.type})
+                      </SelectItem>
+                    ))}
+                    {validOptions.length === 0 && (
+                      <SelectItem value="__no_options_disabled__" disabled>
+                        No {category} resources available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                {/* Show selected items */}
+                {value && Array.isArray(value) && value.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {value.map((selectedRid: string, index: number) => {
+                      const selectedOption = validOptions.find(
+                        (opt: any) => opt.rid === selectedRid,
+                      );
+                      const itemInvalid = isItemInvalid(selectedRid);
+                      return (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className={`flex items-center gap-1 ${itemInvalid ? 'border-red-500 border' : ''}`}
+                        >
+                          {itemInvalid && <XCircle className="h-3 w-3 text-red-500" />}
+                          {selectedOption
+                            ? `${selectedOption.name} (${selectedOption.type})`
+                            : selectedRid}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newArray = value.filter(
+                                (_: any, i: number) => i !== index,
+                              );
+                              onInputChange(fieldName, newArray);
+                            }}
+                            className="ml-1 text-xs hover:text-red-400"
+                          >
+                            ×
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          );
+
+        case 'dynamic':
+          return (
+            <Textarea
+              id={fieldName}
+              value={getArrayDisplayText(value, displayFieldPath)}
+              readOnly
+              disabled
+              rows={1}
+              className="bg-background-dark resize-none"
+              placeholder={fieldSchema.description || `Selected ${fieldName} will appear here...`}
+            />
+          );
+
+        case 'regular':
+          return (
+            <div className="space-y-2">
+              {(value || []).map((item: any, index: number) => (
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={typeof item === 'object' ? JSON.stringify(item) : item}
+                    onChange={(e) => onArrayChange!(fieldName, index, e.target.value)}
+                    className={`bg-background-dark flex-1 ${hasFieldError ? 'border-red-500' : ''}`}
+                    placeholder={`${fieldName} item ${index + 1}`}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onRemoveArrayItem!(fieldName, index)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onAddArrayItem!(fieldName)}
+              >
+                Add {fieldName}
+              </Button>
+            </div>
+          );
+      }
+    };
+
+    return (
+      <div key={fieldName} className="space-y-2">
+        {/* Label with badges */}
+        <Label htmlFor={fieldName} className="flex items-center flex-wrap gap-1">
+          {displayName} {isRequired && <span className="text-red-400">*</span>}
+          {arrayMode === 'refItems' && category && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              {category}
+            </Badge>
+          )}
+          {validationHint && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              validation
+            </Badge>
+          )}
+          {populateHint && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              populate
+            </Badge>
+          )}
+          {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
+        </Label>
+
+        {/* Description */}
+        {fieldSchema.description && (
+          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
+        )}
+
+        {/* Mode-specific content */}
+        {renderArrayContent()}
+
+        {/* Validation */}
+        {validationHint && (
+          <FieldValidation
+            fieldName={fieldName}
+            fieldValue={value}
+            validationHint={validationHint}
+            elementActions={elementActions}
+            selectedElementType={elementType}
+            isRequired={isRequired}
+            configValues={formData}
+            onValidationChange={onValidationChange}
+          />
+        )}
+
+        {/* Population - rendered once for all modes that need it */}
+        {populateHint && (
+          <FieldPopulation
+            fieldName={fieldName}
+            populateHint={populateHint}
+            elementActions={elementActions}
+            selectedElementType={elementType}
+            formData={formData}
+            onPopulateResult={onPopulateResult}
+            hideUI={populateHint.selection_type === 'automatic'}
+            autoTrigger={areDependenciesValid}
+            currentValue={value}
+          />
+        )}
+      </div>
     );
+  }
+
+  // Handle string enum fields (from $ref to $defs with type: "string" and enum)
+  const stringEnumDef = getStringEnumFromRef(fieldSchema, resolveSchemaRef);
+  
+  if (stringEnumDef) {
+    const enumOptions = stringEnumDef.enum;
+    const enumTitle = stringEnumDef.title;
 
     return (
       <div key={fieldName} className="space-y-2">
         <Label htmlFor={fieldName} className="flex items-center flex-wrap gap-1">
           {fieldName} {isRequired && <span className="text-red-400">*</span>}
-          {category && (
+          {enumTitle && (
             <Badge variant="outline" className="ml-2 text-xs">
-              {category}
+              {enumTitle}
             </Badge>
           )}
           {validationHint && (
@@ -219,73 +544,27 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           <p className="text-xs text-gray-400">{fieldSchema.description}</p>
         )}
 
-        <div className="space-y-2">
-          <Select
-            value=""
-            onValueChange={(newValue) => {
-              if (newValue && newValue !== "__no_options_disabled__") {
-                const currentArray = formData[fieldName] || [];
-                if (!currentArray.includes(newValue)) {
-                  onInputChange(fieldName, [...currentArray, newValue]);
-                }
-              }
-            }}
-          >
-            <SelectTrigger className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}>
-              <SelectValue placeholder={`Add ${category}`} />
-            </SelectTrigger>
-            <SelectContent>
-              {validOptions.map((option: any) => (
-                <SelectItem key={option.rid} value={option.rid}>
-                  {option.name} ({option.type})
-                </SelectItem>
-              ))}
-              {validOptions.length === 0 && (
-                <SelectItem value="__no_options_disabled__" disabled>
-                  No {category} resources available
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-
-          {/* Show selected items */}
-          {value && Array.isArray(value) && value.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {value.map((selectedRid: string, index: number) => {
-                const selectedOption = validOptions.find(
-                  (opt: any) => opt.rid === selectedRid,
-                );
-                const itemInvalid = isItemInvalid(selectedRid);
-                return (
-                  <Badge
-                    key={index}
-                    variant="secondary"
-                    className={`flex items-center gap-1 ${itemInvalid ? 'border-red-500 border' : ''}`}
-                  >
-                    {itemInvalid && <XCircle className="h-3 w-3 text-red-500" />}
-                    {selectedOption
-                      ? `${selectedOption.name} (${selectedOption.type})`
-                      : selectedRid}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newArray = value.filter(
-                          (_: any, i: number) => i !== index,
-                        );
-                        onInputChange(fieldName, newArray);
-                      }}
-                      className="ml-1 text-xs hover:text-red-400"
-                    >
-                      ×
-                    </button>
-                  </Badge>
-                );
-              })}
+        <RadioGroup
+          value={value || ""}
+          onValueChange={(newValue) => {
+            onInputChange(fieldName, newValue);
+          }}
+          className={`flex flex-wrap gap-4 ${hasFieldError ? 'border border-red-500 rounded-md p-2' : ''}`}
+        >
+          {enumOptions.map((option: string) => (
+            <div key={option} className="flex items-center space-x-2">
+              <RadioGroupItem value={option} id={`${fieldName}-${option}`} />
+              <Label
+                htmlFor={`${fieldName}-${option}`}
+                className="font-normal cursor-pointer"
+              >
+                {option}
+              </Label>
             </div>
-          )}
-        </div>
+          ))}
+        </RadioGroup>
 
-        {/* Validation component for array $ref fields */}
+        {/* Validation component for string enum fields */}
         {validationHint && (
           <FieldValidation
             fieldName={fieldName}
@@ -294,11 +573,12 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             elementActions={elementActions}
             selectedElementType={elementType}
             isRequired={isRequired}
+            configValues={formData}
             onValidationChange={onValidationChange}
           />
         )}
 
-        {/* Population component for array $ref fields */}
+        {/* Population component for string enum fields */}
         {populateHint && (
           <FieldPopulation
             fieldName={fieldName}
@@ -326,9 +606,9 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
     const category = extractCategoryFromField(fieldSchema);
 
     if (category) {
-      const validOptions = (refOptions[category] || []).filter(
-        (option: any) => option.rid && option.rid.trim() !== "",
-      );
+      const validOptions = (refOptions[category] || [])
+        .filter((option: any) => option.rid && option.rid.trim() !== "")
+        .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
 
       return (
         <div key={fieldName} className="space-y-2">
@@ -356,31 +636,43 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
             <p className="text-xs text-gray-400">{fieldSchema.description}</p>
           )}
 
-          <Select
-            value={value && value !== "" ? value : undefined}
-            onValueChange={(newValue) => {
-              onInputChange(fieldName, newValue);
-            }}
-          >
-            <SelectTrigger className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}>
-              <SelectValue placeholder={`Select ${fieldName}`} />
-            </SelectTrigger>
-            <SelectContent>
-              {validOptions.map((option: any) => (
-                <SelectItem 
-                  key={option.rid} 
-                  value={option.rid}
-                >
-                  {option.name} ({option.type})
-                </SelectItem>
-              ))}
-              {validOptions.length === 0 && (
-                <SelectItem value="__no_options_disabled__" disabled>
-                  No {category} resources available
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Select
+              key={value || 'empty'}
+              value={value || undefined}
+              onValueChange={(newValue) => onInputChange(fieldName, newValue)}
+            >
+              <SelectTrigger className={`bg-background-dark flex-1 ${hasFieldError ? 'border-red-500' : ''}`}>
+                <SelectValue placeholder={`Select ${fieldName}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {validOptions.map((option: any) => (
+                  <SelectItem 
+                    key={option.rid} 
+                    value={option.rid}
+                  >
+                    {option.name} ({option.type})
+                  </SelectItem>
+                ))}
+                {validOptions.length === 0 && (
+                  <SelectItem value="__no_options_disabled__" disabled>
+                    No {category} resources available
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {!isRequired && value && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={() => onInputChange(fieldName, null)}
+              >
+                <XCircle className="h-4 w-4 text-muted-foreground hover:text-red-400" />
+              </Button>
+            )}
+          </div>
 
           {/* Validation component for $ref fields */}
           {validationHint && (
@@ -391,6 +683,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
               elementActions={elementActions}
               selectedElementType={elementType}
               isRequired={isRequired}
+              configValues={formData}
               onValidationChange={onValidationChange}
             />
           )}
@@ -448,56 +741,6 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
     );
   }
 
-  // Handle array fields (non-$ref arrays)
-  if (fieldSchema.type === "array") {
-    if (!onArrayChange || !onAddArrayItem || !onRemoveArrayItem) {
-      console.warn(
-        "Array handlers not provided for array field",
-        fieldName,
-      );
-      return null;
-    }
-
-    return (
-      <div key={fieldName} className="space-y-2">
-        <Label className="flex items-center">
-          {fieldName} {isRequired && <span className="text-red-400">*</span>}
-          {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
-        </Label>
-        <div className="space-y-2">
-          {(value || []).map((item: any, index: number) => (
-            <div key={index} className="flex gap-2">
-              <Input
-                value={item}
-                onChange={(e) => onArrayChange(fieldName, index, e.target.value)}
-                className={`bg-background-dark flex-1 ${hasFieldError ? 'border-red-500' : ''}`}
-                placeholder={`${fieldName} item ${index + 1}`}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onRemoveArrayItem(fieldName, index)}
-              >
-                Remove
-              </Button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onAddArrayItem(fieldName)}
-          >
-            Add {fieldName}
-          </Button>
-        </div>
-        {fieldSchema.description && (
-          <p className="text-xs text-gray-400">{fieldSchema.description}</p>
-        )}
-      </div>
-    );
-  }
 
   // Handle boolean fields
   if (fieldSchema.type === "boolean") {
@@ -533,24 +776,32 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           option.type === "integer" || option.type === "number",
       ));
 
+  // Determine if the field should accept float values (step="any") or only integers (step="1")
+  const isFloatField =
+    fieldSchema.type === "number" ||
+    (fieldSchema.anyOf &&
+      fieldSchema.anyOf.some((option: any) => option.type === "number"));
+
   if (isNumberField) {
     return (
       <div key={fieldName} className="space-y-2">
-        <Label htmlFor={fieldName} className="flex items-center">
+        <Label htmlFor={fieldName} className="flex items-center flex-wrap gap-1">
           {fieldName} {isRequired && <span className="text-red-400">*</span>}
+          {isFloatField && (
+            <Badge variant="outline" className="ml-2 text-xs">
+              float
+            </Badge>
+          )}
           {hasFieldError && <XCircle className="h-4 w-4 text-red-500 inline-block ml-2" />}
         </Label>
-        <Input
-          id={fieldName}
-          type="number"
-          value={value || ""}
-          onChange={(e) => {
-            const numValue =
-              e.target.value === "" ? null : parseFloat(e.target.value);
-            onInputChange(fieldName, numValue);
-          }}
-          className={`bg-background-dark ${hasFieldError ? 'border-red-500' : ''}`}
+        <NumberFieldInput
+          key={`${fieldName}-${editingElement?.rid || 'new'}`}
+          fieldName={fieldName}
+          value={value}
+          isFloatField={isFloatField}
+          hasFieldError={hasFieldError}
           placeholder={fieldSchema.description}
+          onChange={(numValue) => onInputChange(fieldName, numValue)}
         />
         {fieldSchema.description && (
           <p className="text-xs text-gray-400">{fieldSchema.description}</p>
@@ -612,6 +863,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
           elementActions={elementActions}
           selectedElementType={elementType}
           isRequired={isRequired}
+          configValues={formData}
           onValidationChange={onValidationChange}
         />
       )}
@@ -688,6 +940,7 @@ export const FieldRenderer: React.FC<FieldRendererProps> = ({
         elementActions={elementActions}
         selectedElementType={elementType}
         isRequired={isRequired}
+        configValues={formData}
         onValidationChange={onValidationChange}
       />
     )}
