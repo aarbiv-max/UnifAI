@@ -97,6 +97,7 @@ export default function ExecutionTab({
   const [showExecutionStream, setShowExecutionStream] = useState(false);
   const [isActiveChatSession, setIsActiveChatSession] = useState(true);
   const [isLiveRequest, setIsLiveRequest] = useState(false);
+  const [isCancelled, setIsCancelled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [globalScope, setGlobalScope] = useState<'public' | 'private'>('public');
@@ -328,6 +329,7 @@ export default function ExecutionTab({
     // This clears any existing node data from the previous session
     clearStream();
     setIsLiveRequest(false);
+    setIsCancelled(false);
 
     // Reset sharing-disabled state immediately so a previously disabled session
     // doesn't bleed into the newly selected (possibly valid) session.
@@ -705,6 +707,7 @@ export default function ExecutionTab({
 
     await sessionStream.cancelSessionExecution(selectedSession.id);
     sessionStream.cancelStream();
+    setIsCancelled(true);
     setIsLiveRequest(false);
 
     if (streamCompleteResolverRef.current) {
@@ -728,6 +731,7 @@ export default function ExecutionTab({
    */
   const triggerExecution = async (sessionPayload: SessionPayload): Promise<string> => {
     try {
+      setIsCancelled(false);
       setIsLiveRequest(true);
       
       // Create a promise that resolves when streaming completes
@@ -1108,6 +1112,7 @@ export default function ExecutionTab({
                   validationResults={blueprintValidationResults}
                   isValidating={isValidatingBlueprint}
                   isLiveRequest={isLiveRequest}
+                  isCancelled={isCancelled}
                   isGraphVisible={carouselMode !== 'chat'}
                 />
               ) : (
