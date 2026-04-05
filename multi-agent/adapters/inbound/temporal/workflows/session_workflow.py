@@ -40,15 +40,14 @@ _LIFECYCLE_RETRY = RetryPolicy(maximum_attempts=3)
 _GRAPH_WORKFLOW_TIMEOUT = timedelta(hours=1)
 
 
-def _is_temporal_cancellation(exc: BaseException) -> bool:
-    """Walk the exception chain to detect Temporal-initiated cancellation.
+def _is_cancellation(exc: BaseException) -> bool:
+    """Walk the exception chain looking for a cancellation cause.
 
-    When a parent workflow is cancelled, Temporal cancels its child
-    workflows and surfaces the result as a chain such as
-    ``ChildWorkflowError → CancelledError``.  This helper walks
-    ``__cause__`` / ``__context__`` to detect that pattern so the
-    adapter can translate it into ``asyncio.CancelledError`` before
-    it reaches the domain layer.
+    Temporal wraps child-workflow cancellation in an exception chain
+    (e.g. ``ChildWorkflowError`` → ``CancelledError``).  This helper
+    detects the pattern so ``execute_graph`` can translate it into
+    ``asyncio.CancelledError`` at the adapter boundary — before the
+    exception reaches the domain layer.
     """
     current: BaseException | None = exc
     while current is not None:
@@ -75,21 +74,13 @@ class SessionWorkflow:
         try:
             return await runner.run(self)
         except asyncio.CancelledError:
-            await self._cancel()
+            await workflow.execute_activity(
+                "cancel_session",
+                CancelSessionParams(run_id=self._params.run_id),
+                start_to_close_timeout=_LIFECYCLE_TIMEOUT,
+                retry_policy=_LIFECYCLE_RETRY,
+            )
             raise
-        except Exception as e:
-            if _is_temporal_cancellation(e):
-                await self._cancel()
-                raise asyncio.CancelledError() from e
-            raise
-
-    async def _cancel(self) -> None:
-        await workflow.execute_activity(
-            "cancel_session",
-            CancelSessionParams(run_id=self._params.run_id),
-            start_to_close_timeout=_LIFECYCLE_TIMEOUT,
-            retry_policy=_LIFECYCLE_RETRY,
-        )
 
     # ── BackgroundSessionOps implementation ──────────────────────────
 
@@ -107,20 +98,34 @@ class SessionWorkflow:
         )
 
     async def execute_graph(self, seeded_state: GraphState) -> GraphState:
-        """Run graph traversal as a child workflow."""
+        """Run graph traversal as a child workflow.
+
+        Translates Temporal-wrapped cancellation exceptions into
+        ``asyncio.CancelledError`` so the domain-layer runner never
+        sees infrastructure-specific error types.  Because
+        ``CancelledError`` is a ``BaseException`` (not ``Exception``),
+        it bypasses the runner's ``except Exception`` → ``fail()``
+        handler and propagates directly to ``run()``'s cancellation
+        handler.
+        """
         graph_params = GraphExecutionParams(
             state=seeded_state,
             graph_definition=self._params.graph_execution_params.graph_definition,
             session_id=self._params.run_id,
             execution_context=self._params.execution_context,
         )
-        return await workflow.execute_child_workflow(
-            GraphTraversalWorkflow.run,
-            graph_params,
-            id=f"{workflow.info().workflow_id}-graph",
-            execution_timeout=_GRAPH_WORKFLOW_TIMEOUT,
-            result_type=GraphState,
-        )
+        try:
+            return await workflow.execute_child_workflow(
+                GraphTraversalWorkflow.run,
+                graph_params,
+                id=f"{workflow.info().workflow_id}-graph",
+                execution_timeout=_GRAPH_WORKFLOW_TIMEOUT,
+                result_type=GraphState,
+            )
+        except Exception as e:
+            if _is_cancellation(e):
+                raise asyncio.CancelledError() from e
+            raise
 
     async def complete(self, final_state: GraphState) -> None:
         """Attach final state, mark COMPLETED, persist."""
