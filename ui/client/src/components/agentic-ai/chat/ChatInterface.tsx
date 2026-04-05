@@ -1223,13 +1223,13 @@ export default function ChatInterface({
                 onKeyDown={handleKeyDown}
                 placeholder={getInputPlaceholder()}
                 className={`bg-background-dark resize-none transition-[height] duration-200 ease-out w-full ${
-                  (!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint) 
+                  (!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || isTyping || isLiveRequest) 
                     ? 'opacity-50 cursor-not-allowed' 
                     : ''
                 } ${(isAtMaxHeight || isExpanded) ? 'pr-10' : ''}`}
                 style={{ height: `${TEXTAREA_MIN_HEIGHT}px` }}
                 rows={1}
-                disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
+                disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || isTyping || isLiveRequest}
               />
               {/* Expand/Collapse icon - shows when textarea is at max height or expanded */}
               <AnimatePresence>
