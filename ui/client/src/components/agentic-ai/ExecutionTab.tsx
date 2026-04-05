@@ -426,15 +426,19 @@ export default function ExecutionTab({
     }
     setIsLoadingSessionMessages(false);
 
-    // Check if this session has an active Redis stream and reconnect if so
-    // This enables persistent streaming - when user navigates away and returns,
-    // they can reconnect to the live stream and continue seeing updates
-    // Note: This runs in the background - we don't block session selection on it
-    sessionStream.checkAndReconnect(session.id).then(hasActiveStream => {
-      if (hasActiveStream) {
-        setIsLiveRequest(true);
-      }
-    });
+    // Check if this session has an active Redis stream and reconnect if so.
+    // Skip reconnection for sessions in terminal states (CANCELLED, FAILED, COMPLETED)
+    // to avoid showing typing indicators and cancel buttons for finished sessions.
+    const sessionStatus = updatedSession?.status;
+    const isTerminal = sessionStatus === 'CANCELLED' || sessionStatus === 'FAILED' || sessionStatus === 'COMPLETED';
+
+    if (!isTerminal) {
+      sessionStream.checkAndReconnect(session.id).then(hasActiveStream => {
+        if (hasActiveStream) {
+          setIsLiveRequest(true);
+        }
+      });
+    }
   };
 
   // Handle delete chat

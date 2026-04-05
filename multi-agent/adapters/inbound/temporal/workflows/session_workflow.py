@@ -20,6 +20,7 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+from temporalio.exceptions import CancelledError as TemporalCancelledError
 
 from mas.graph.state.graph_state import GraphState
 from mas.session.execution.background_runner import BackgroundSessionRunner
@@ -39,6 +40,24 @@ _LIFECYCLE_RETRY = RetryPolicy(maximum_attempts=3)
 _GRAPH_WORKFLOW_TIMEOUT = timedelta(hours=1)
 
 
+def _is_temporal_cancellation(exc: BaseException) -> bool:
+    """Walk the exception chain to detect Temporal-initiated cancellation.
+
+    When a parent workflow is cancelled, Temporal cancels its child
+    workflows and surfaces the result as a chain such as
+    ``ChildWorkflowError → CancelledError``.  This helper walks
+    ``__cause__`` / ``__context__`` to detect that pattern so the
+    adapter can translate it into ``asyncio.CancelledError`` before
+    it reaches the domain layer.
+    """
+    current: BaseException | None = exc
+    while current is not None:
+        if isinstance(current, (asyncio.CancelledError, TemporalCancelledError)):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
 @workflow.defn
 class SessionWorkflow:
     """
@@ -56,13 +75,21 @@ class SessionWorkflow:
         try:
             return await runner.run(self)
         except asyncio.CancelledError:
-            await workflow.execute_activity(
-                "cancel_session",
-                CancelSessionParams(run_id=self._params.run_id),
-                start_to_close_timeout=_LIFECYCLE_TIMEOUT,
-                retry_policy=_LIFECYCLE_RETRY,
-            )
+            await self._cancel()
             raise
+        except Exception as e:
+            if _is_temporal_cancellation(e):
+                await self._cancel()
+                raise asyncio.CancelledError() from e
+            raise
+
+    async def _cancel(self) -> None:
+        await workflow.execute_activity(
+            "cancel_session",
+            CancelSessionParams(run_id=self._params.run_id),
+            start_to_close_timeout=_LIFECYCLE_TIMEOUT,
+            retry_policy=_LIFECYCLE_RETRY,
+        )
 
     # ── BackgroundSessionOps implementation ──────────────────────────
 

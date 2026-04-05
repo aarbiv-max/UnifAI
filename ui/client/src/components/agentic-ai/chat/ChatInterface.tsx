@@ -518,6 +518,8 @@ export default function ChatInterface({
     if (currentStreamingMessageId) return;
     // Skip if user is typing (middle of handleSendMessage)
     if (isTyping) return;
+    // Skip reconnection for sessions in terminal states
+    if (sessionStatus === 'CANCELLED' || sessionStatus === 'FAILED' || sessionStatus === 'COMPLETED') return;
     
     // Start polling when session is live and messages are loaded
     if (isLiveRequest && messages.length > 0) {
