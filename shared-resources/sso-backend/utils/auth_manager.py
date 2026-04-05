@@ -126,7 +126,7 @@ class AuthManager:
                 # Redirect to frontend with auth status and state parameter
                 # Frontend will extract the original URL from state and restore it
                 state_param = f"&state={quote(request_state, safe='')}" if request_state else ""
-                final_url = f"http://127.0.0.1:5000/?auth=success{state_param}"
+                final_url = f"{config.frontend_url}/?auth=success{state_param}"
                 return redirect(final_url)
                 
             except AuthlibBaseError as e:
@@ -134,7 +134,7 @@ class AuthManager:
                 
                 # On error, return state back to frontend so it can retry with preserved URL
                 state_param = f"&state={quote(request_state, safe='')}" if request_state else ""
-                redirect_url = f"http://127.0.0.1:5000/?auth=error{state_param}"
+                redirect_url = f"{config.frontend_url}/?auth=error{state_param}"
                 return redirect(redirect_url)
         
         @self.app.route('/api/auth/logout', methods=['POST'])
