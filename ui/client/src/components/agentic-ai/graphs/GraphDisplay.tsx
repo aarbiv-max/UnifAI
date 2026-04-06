@@ -264,8 +264,8 @@ export default function GraphDisplay({
   }, [isLiveRequest]);
 
   // When execution ends → mark nodes with their final status.
-  // On cancellation: nodes still PROGRESS become CANCELLED, already-DONE nodes stay DONE.
-  // On normal completion: all nodes become DONE.
+  // On cancellation: PROGRESS → CANCELLED, DONE stays DONE, IDLE stays IDLE.
+  // On normal completion: PROGRESS → DONE, DONE stays DONE, IDLE stays IDLE.
   useEffect(() => {
     if (!isLiveRequest && wasLiveRef.current) {
       wasLiveRef.current = false;
@@ -277,8 +277,17 @@ export default function GraphDisplay({
         const finalMap: Record<string, NodeStatus> = {};
         for (const el of graph.getElements()) {
           const id = el.id as string;
-          const wasInProgress = prevMap[id] === "PROGRESS";
-          const finalStatus: NodeStatus = isCancelled && wasInProgress ? "CANCELLED" : "DONE";
+          const prev = prevMap[id];
+          let finalStatus: NodeStatus;
+          if (isCancelled && prev === "PROGRESS") {
+            finalStatus = "CANCELLED";
+          } else if (prev === "DONE") {
+            finalStatus = "DONE";
+          } else if (!isCancelled && prev === "PROGRESS") {
+            finalStatus = "DONE";
+          } else {
+            finalStatus = "IDLE";
+          }
           applyNodeVisual(el, finalStatus);
           finalMap[id] = finalStatus;
         }
