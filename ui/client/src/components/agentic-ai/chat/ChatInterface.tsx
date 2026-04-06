@@ -1261,14 +1261,31 @@ export default function ChatInterface({
               <Button
                 onClick={handleCancelClick}
                 disabled={isCancelling || !onCancelSession}
-                className="bg-red-600 hover:bg-red-700 mb-0"
+                size="icon"
+                className="bg-primary hover:bg-primary/80 mb-0"
                 title="Stop generation"
                 aria-label="Stop generation"
               >
                 {isCancelling ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Square className="h-4 w-4" />
+                  <span className="flex flex-col items-center gap-0.5">
+                    <Square className="h-4 w-4" />
+                    <span className="flex items-center gap-0.5">
+                      {[0, 1, 2].map((i) => (
+                        <motion.span
+                          key={i}
+                          className="block h-[3px] w-[3px] rounded-full bg-white"
+                          animate={{ opacity: [0.3, 1, 0.3] }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            delay: i * 0.2,
+                          }}
+                        />
+                      ))}
+                    </span>
+                  </span>
                 )}
               </Button>
             ) : (
@@ -1278,7 +1295,8 @@ export default function ChatInterface({
                 <Button
                   onClick={() => handleSendMessage()}
                   disabled={inputMessage.trim() === "" || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
-                  className="bg-primary hover:bg-[#7525c9] mb-0"
+                  size="icon"
+                  className="bg-primary hover:bg-primary/80 mb-0"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
