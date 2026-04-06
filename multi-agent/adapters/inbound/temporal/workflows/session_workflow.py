@@ -75,11 +75,13 @@ class SessionWorkflow:
         try:
             return await runner.run(self)
         except asyncio.CancelledError:
-            await self._cancel()
+            async with workflow.CancellationScope(cancellable=False):
+                await self._cancel()
             raise
         except Exception as e:
             if _is_temporal_cancellation(e):
-                await self._cancel()
+                async with workflow.CancellationScope(cancellable=False):
+                    await self._cancel()
                 raise asyncio.CancelledError() from e
             raise
 
