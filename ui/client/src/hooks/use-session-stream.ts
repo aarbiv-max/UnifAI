@@ -278,17 +278,9 @@ export function useSessionStream(options: UseSessionStreamOptions): UseSessionSt
   
   /**
    * Cancel a session's backend execution via POST /session.cancel.
-   * Silently handles 409 (session already completed/failed/cancelled).
    */
   const cancelSessionExecution = useCallback(async (sessionId: string): Promise<void> => {
-    try {
-      await cancelSession(sessionId);
-    } catch (err: any) {
-      if (err.response?.status === 409) {
-        return;
-      }
-      throw err;
-    }
+    await cancelSession(sessionId);
   }, []);
 
   // Cleanup on unmount

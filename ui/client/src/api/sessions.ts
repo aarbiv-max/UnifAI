@@ -55,15 +55,22 @@ export interface CancelSessionResponse {
 
 /**
  * Cancel a running session.
- * Signals the backend to cancel the Temporal workflow for this session.
+ * Signals the backend to cancel the workflow for this session.
+ * Silently ignores 409 (session already completed/failed/cancelled).
  *
  * @param sessionId - The session to cancel
- * @returns Cancel confirmation with CANCELLED status
- * @throws 409 if session is not in a cancellable state (already completed/failed/cancelled)
+ * @returns Cancel confirmation, or null if session was not cancellable
  */
-export async function cancelSession(sessionId: string): Promise<CancelSessionResponse> {
-  const response = await axios.post('/sessions/session.cancel', { sessionId });
-  return response.data;
+export async function cancelSession(sessionId: string): Promise<CancelSessionResponse | null> {
+  try {
+    const response = await axios.post('/sessions/session.cancel', { sessionId });
+    return response.data;
+  } catch (err: any) {
+    if (err.response?.status === 409) {
+      return null;
+    }
+    throw err;
+  }
 }
 
 /**

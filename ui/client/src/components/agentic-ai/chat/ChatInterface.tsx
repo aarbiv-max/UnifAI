@@ -202,7 +202,7 @@ export default function ChatInterface({
         transformBackendMessagesToFrontend(initialMessages);
 
       if (sessionStatus === "CANCELLED") {
-        const cancelText = statusMessage;
+        const cancelText = statusMessage || "Workflow was stopped by user.";
         const lastAiIndex = transformedMessages.findLastIndex(
           (m) => m.sender === "ai"
         );

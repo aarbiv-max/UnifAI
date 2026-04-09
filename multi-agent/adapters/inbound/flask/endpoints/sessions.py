@@ -117,8 +117,9 @@ def submit_user_session(session_id, inputs, scope, logged_in_user):
 @sessions_bp.route("/session.cancel", methods=["POST"])
 @from_body({
     "session_id": fields.Str(data_key="sessionId", required=True),
+    "logged_in_user": fields.Str(data_key="loggedInUser", required=False, load_default=lambda: ""),
 })
-def cancel_session(session_id):
+def cancel_session(session_id, logged_in_user):
     try:
         svc = current_app.container.session_service
         cancelled = svc.cancel(session_id=session_id)

@@ -318,13 +318,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
 
-    try {
-      await cancelSession(runId);
-    } catch (err: any) {
-      if (err.response?.status !== 409) {
-        throw err;
-      }
-    }
+    await cancelSession(runId);
   }, [runId]);
 
   // Trigger execution
