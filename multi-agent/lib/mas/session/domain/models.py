@@ -75,6 +75,7 @@ class SessionMeta(BaseModel):
     title: str | None = None
     tags: Dict[str, str] = Field(default_factory=dict)
     source: Optional[str] = None
+    status_message: Optional[str] = None
 
 
 class SessionChat(BaseModel):
@@ -82,3 +83,4 @@ class SessionChat(BaseModel):
     messages: List = Field(default_factory=list)
     output: str = ""
     status: Optional[str] = None
+    status_message: Optional[str] = None

@@ -50,5 +50,7 @@ class SessionInputProjector:
                 ChatMessage(role=Role.USER, content=prompt)
             )
 
+        record.metadata.status_message = None
+        record.metadata.tags.pop("cancelled", None)
         record.status = SessionStatus.QUEUED
         self._repo.save(record)

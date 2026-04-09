@@ -376,6 +376,7 @@ export default function PublicChat() {
                 onCancelSession={handleCancelSession}
                 initialMessages={chatHistory}
                 sessionStatus={selectedSession?.status}
+                statusMessage={selectedSession?.statusMessage}
                 blueprintExists={true}
                 isSharingDisabled={isSharingDisabled}
                 blueprintValid={isBlueprintValid}

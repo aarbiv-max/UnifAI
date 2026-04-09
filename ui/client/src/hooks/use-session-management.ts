@@ -23,12 +23,13 @@ export const fetchSessionState = async (sessionId: string): Promise<SessionState
 /**
  * Fetch session chat data including messages and status
  */
-export const fetchSessionChat = async (sessionId: string): Promise<{ messages: ChatMessage[]; status?: string } | null> => {
+export const fetchSessionChat = async (sessionId: string): Promise<{ messages: ChatMessage[]; status?: string; statusMessage?: string } | null> => {
   try {
     const response = await axios.get(`/sessions/session.chat.get?sessionId=${sessionId}`);
     return {
       messages: response.data?.messages ?? [],
       status: response.data?.status,
+      statusMessage: response.data?.status_message ?? undefined,
     };
   } catch (err) {
     console.error('Error fetching session chat:', err);
@@ -62,6 +63,7 @@ export const useSessionManagement = () => {
           messages: chat.messages,
           preview: getPreviewText(chat.messages),
           status: chat.status,
+          statusMessage: chat.statusMessage,
         };
 
         return updatedSession;

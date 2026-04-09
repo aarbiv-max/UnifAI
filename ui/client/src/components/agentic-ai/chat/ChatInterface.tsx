@@ -36,6 +36,7 @@ interface ChatInterfaceProps {
   onCancelSession?: () => Promise<void>;
   initialMessages?: BackendMessage[];
   sessionStatus?: string;
+  statusMessage?: string;
   blueprintExists?: boolean;
   isSharingDisabled?: boolean;
   blueprintValid?: boolean;
@@ -53,6 +54,7 @@ export default function ChatInterface({
   onCancelSession,
   initialMessages = [],
   sessionStatus,
+  statusMessage,
   blueprintExists = true,
   isSharingDisabled = false,
   blueprintValid = true,
@@ -200,6 +202,7 @@ export default function ChatInterface({
         transformBackendMessagesToFrontend(initialMessages);
 
       if (sessionStatus === "CANCELLED") {
+        const cancelText = statusMessage;
         const lastAiIndex = transformedMessages.findLastIndex(
           (m) => m.sender === "ai"
         );
@@ -207,12 +210,12 @@ export default function ChatInterface({
           transformedMessages[lastAiIndex] = {
             ...transformedMessages[lastAiIndex],
             isCancelled: true,
-            content: "Session was stopped by user.",
+            content: cancelText,
           };
         } else {
           transformedMessages.push({
             id: `${Date.now()}-cancelled`,
-            content: "Session was stopped by user.",
+            content: cancelText,
             sender: "ai",
             isCancelled: true,
           });
@@ -231,7 +234,7 @@ export default function ChatInterface({
         },
       ]);
     }
-  }, [initialMessages, sessionStatus, transformBackendMessagesToFrontend]);
+  }, [initialMessages, sessionStatus, statusMessage, transformBackendMessagesToFrontend]);
 
   // useEffect(() => {
   //   scrollToBottom();
@@ -570,7 +573,7 @@ export default function ChatInterface({
         setMessages((prev) =>
           prev.map((msg) => {
             if (msg.id === messageId) {
-              return { ...msg, content: "Session was stopped by user.", isCancelled: true };
+              return { ...msg, content: "Workflow was stopped by user.", isCancelled: true };
             }
             return msg;
           })
@@ -720,7 +723,7 @@ export default function ChatInterface({
         setMessages((prev) =>
           prev.map((msg) => {
             if (msg.id === streamingMessageId) {
-              return { ...msg, content: "Session was stopped by user.", isCancelled: true };
+              return { ...msg, content: "Workflow was stopped by user.", isCancelled: true };
             }
             return msg;
           }),
@@ -742,7 +745,7 @@ export default function ChatInterface({
         setMessages((prev) =>
           prev.map((msg) => {
             if (msg.id === streamingMessageId) {
-              return { ...msg, content: "Session was stopped by user.", isCancelled: true };
+              return { ...msg, content: "Workflow was stopped by user.", isCancelled: true };
             }
             return msg;
           }),

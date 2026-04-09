@@ -18,6 +18,7 @@ export interface ChatSession {
   blueprintName?: string; // The workflow display name from spec_dict.name
   isSharingDisabled?: boolean; // Track if sharing is disabled for this session
   status?: string;
+  statusMessage?: string;
 }
 
 // Types for the API response
@@ -33,4 +34,5 @@ export interface SessionStateData {
   final_output: string;
   messages: ChatMessage[];
   status?: string;
+  status_message?: string;
 }

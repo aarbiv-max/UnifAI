@@ -86,4 +86,5 @@ class SessionLifecycle:
         record.update_context(finished_at=datetime.now(timezone.utc))
         record.status = SessionStatus.CANCELLED
         record.metadata.tags["cancelled"] = "true"
+        record.metadata.status_message = "Workflow was stopped by user."
         self._repo.save(record)
