@@ -17,6 +17,7 @@ from typing import Any, Dict
 from mas.elements.llms.common.chat.message import ChatMessage, Role
 from mas.session.domain.session_record import SessionRecord
 from mas.session.domain.status import SessionStatus
+from mas.session.domain.constants import CANCELLED_TAG
 from mas.session.management.utils import derive_title
 from mas.session.repository.repository import SessionRepository
 
@@ -51,6 +52,6 @@ class SessionInputProjector:
             )
 
         record.metadata.status_message = None
-        record.metadata.tags.pop("cancelled", None)
+        record.metadata.tags.pop(CANCELLED_TAG, None)
         record.status = SessionStatus.QUEUED
         self._repo.save(record)

@@ -15,6 +15,7 @@ from mas.graph.state.graph_state import GraphState
 from mas.session.repository.repository import SessionRepository
 from mas.session.domain.session_record import SessionRecord
 from mas.session.domain.status import SessionStatus
+from mas.session.domain.constants import CANCELLED_TAG, CANCELLED_STATUS_MESSAGE
 
 
 class SessionLifecycle:
@@ -85,6 +86,6 @@ class SessionLifecycle:
             return
         record.update_context(finished_at=datetime.now(timezone.utc))
         record.status = SessionStatus.CANCELLED
-        record.metadata.tags["cancelled"] = "true"
-        record.metadata.status_message = "Workflow was stopped by user."
+        record.metadata.tags[CANCELLED_TAG] = "true"
+        record.metadata.status_message = CANCELLED_STATUS_MESSAGE
         self._repo.save(record)
