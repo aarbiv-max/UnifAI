@@ -6,6 +6,7 @@ Business logic, validation, and error transformation are in the service layer.
 """
 
 import os
+import socket
 import logging
 from typing import Dict, Any, Optional, List
 
@@ -17,6 +18,17 @@ from global_utils.docling.exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+
+_KEEPALIVE_SOCKET_OPTIONS = [
+    # Enable TCP keepalive on the socket
+    (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1),
+    # Send the first keepalive probe after 15 seconds of idle
+    (socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 15),
+    # Send subsequent probes every 15 seconds
+    (socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 15),
+    # Close the connection after 20 unanswered probes (~315s total coverage)
+    (socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 20),
+]
 
 
 class DoclingClient:
@@ -50,9 +62,14 @@ class DoclingClient:
         """
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
+        transport = httpx.HTTPTransport(
+            retries=1,
+            socket_options=_KEEPALIVE_SOCKET_OPTIONS,
+        )
         self._client = httpx.Client(
             base_url=self.base_url,
             timeout=httpx.Timeout(timeout),
+            transport=transport,
         )
         logger.info(f"DoclingClient initialized: {self.base_url}, timeout={self.timeout}s")
     
