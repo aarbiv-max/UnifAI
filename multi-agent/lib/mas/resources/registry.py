@@ -140,6 +140,11 @@ class ResourcesRegistry:
         rid_refs = list(_extract_ref_ids(spec))
         self._bp_repo.update_raw(blueprint_id=bp_id, spec_dict=spec, rid_refs=rid_refs)
 
+    def get_blueprint_summary(self, bp_id: str) -> dict:
+        """Return {id, name} for a blueprint."""
+        bp_doc = self._bp_repo.load(bp_id)
+        return {"id": bp_id, "name": bp_doc.spec_dict.get("name", bp_id)}
+
     # ---------- read ----------
     def get(self, rid: str) -> Resource:
         return self._repo.get(rid)

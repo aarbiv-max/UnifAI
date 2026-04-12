@@ -6,42 +6,6 @@ from mas.resources.errors import ResourceInUseError
 resources_bp = Blueprint("resources", __name__)
 
 
-_VALID_FORCE_DELETE_MODES = frozenset({"replace", "detach", "cascade"})
-
-_CATEGORY_ALLOWED_MODE: dict[str, str] = {
-    "llms": "replace",
-    "conditions": "replace",
-    "tools": "detach",
-    "providers": "detach",
-    "retrievers": "detach",
-    "nodes": "cascade",
-}
-
-
-def _enrich_usage(bp_ids: list[str], res_ids: list[str]) -> dict:
-    """Resolve IDs to {id, name} dicts for the UI."""
-    bp_svc = current_app.container.blueprint_service
-    res_svc = current_app.container.resources_service
-
-    bp_details = []
-    for bp_id in bp_ids:
-        try:
-            bp_doc = bp_svc.get_blueprint_draft_doc(bp_id)
-            bp_details.append({"id": bp_id, "name": bp_doc.spec_dict.get("name", bp_id)})
-        except Exception:
-            bp_details.append({"id": bp_id, "name": bp_id})
-
-    res_details = []
-    for res_id in res_ids:
-        try:
-            res = res_svc.get(res_id)
-            res_details.append({"id": res_id, "name": res.name, "category": res.category, "type": res.type})
-        except Exception:
-            res_details.append({"id": res_id, "name": res_id})
-
-    return {"blueprints": bp_details, "resources": res_details}
-
-
 @resources_bp.route("/resource.save", methods=["POST"])
 @from_body({
     "user_id": fields.Str(data_key="userId", required=True),
@@ -148,19 +112,9 @@ def check_resource_usage(resource_id):
     """Check whether a resource is in use without deleting it."""
     svc = current_app.container.resources_service
     try:
-        resource = svc.get(resource_id)
+        return jsonify(svc.check_usage_detailed(resource_id)), 200
     except KeyError:
         return jsonify({"error": f"Resource not found: {resource_id}"}), 404
-
-    try:
-        bp_ids, res_ids = svc.check_usage(resource_id)
-        if bp_ids or res_ids:
-            return jsonify({
-                "in_use": True,
-                "category": resource.category,
-                **_enrich_usage(bp_ids, res_ids),
-            }), 200
-        return jsonify({"in_use": False}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -173,19 +127,16 @@ def delete_resource(resource_id):
     # TODO: Add authorization check - verify user has permission to delete this resource
     svc = current_app.container.resources_service
     try:
-        resource = svc.get(resource_id)
-    except KeyError:
-        return jsonify({"error": f"Resource not found: {resource_id}"}), 404
-
-    try:
         svc.delete(resource_id)
         return jsonify({"status": "deleted"}), 200
-    except ResourceInUseError as e:
+    except KeyError:
+        return jsonify({"error": f"Resource not found: {resource_id}"}), 404
+    except ResourceInUseError:
+        usage = svc.check_usage_detailed(resource_id)
         return jsonify({
-            "error": str(e),
+            "error": "Resource is in use",
             "code": "RESOURCE_IN_USE",
-            "category": resource.category,
-            **_enrich_usage(e.by_blueprints, e.by_resources),
+            **usage,
         }), 409
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -206,34 +157,9 @@ def force_delete_resource(resource_id, mode, replacement_id=None):
       - detach:   remove all references from dependents, then delete (Tools, Providers, Retrievers)
       - cascade:  delete the resource and all blueprints that reference it (Agents)
     """
-    if mode not in _VALID_FORCE_DELETE_MODES:
-        return jsonify({"error": f"Unknown mode: {mode}. Must be one of: {', '.join(sorted(_VALID_FORCE_DELETE_MODES))}"}), 400
-
-    if mode == "replace" and not replacement_id:
-        return jsonify({"error": "replacementId is required for replace mode"}), 400
-
     svc = current_app.container.resources_service
-
     try:
-        resource = svc.get(resource_id)
-    except KeyError:
-        return jsonify({"error": f"Resource not found: {resource_id}"}), 404
-
-    allowed_mode = _CATEGORY_ALLOWED_MODE.get(resource.category)
-    if allowed_mode and mode != allowed_mode:
-        return jsonify({
-            "error": f"Mode '{mode}' is not permitted for {resource.category} resources. "
-                     f"Use '{allowed_mode}' instead."
-        }), 400
-
-    try:
-        if mode == "replace":
-            svc.replace_and_delete(resource_id, replacement_id)
-        elif mode == "detach":
-            svc.detach_and_delete(resource_id)
-        elif mode == "cascade":
-            svc.cascade_delete(resource_id)
-
+        svc.force_delete(resource_id, mode, replacement_id)
         return jsonify({"status": "deleted"}), 200
     except KeyError as e:
         return jsonify({"error": f"Resource not found: {e}"}), 404

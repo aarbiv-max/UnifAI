@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, ArrowRightLeft, Unlink, Trash2, Eye } from "lucide-react";
+import { getCategorySingularDisplayName } from "@/components/shared/helpers";
 
 export interface InUseData {
   category: string;
+  allowed_mode: "replace" | "detach" | "cascade";
   blueprints: Array<{ id: string; name: string }>;
   resources: Array<{ id: string; name: string; category?: string; type?: string }>;
 }
@@ -42,30 +44,6 @@ interface ResourceInUseModalProps {
 }
 
 type DeleteMode = "replace" | "detach" | "cascade";
-
-function resolveMode(category: string): DeleteMode {
-  switch (category) {
-    case "llms":
-    case "conditions":
-      return "replace";
-    case "nodes":
-      return "cascade";
-    default:
-      return "detach";
-  }
-}
-
-function categoryLabel(category: string): string {
-  const labels: Record<string, string> = {
-    llms: "LLM",
-    conditions: "Condition",
-    tools: "Tool",
-    providers: "MCP Provider",
-    retrievers: "Retriever",
-    nodes: "Agent",
-  };
-  return labels[category] || category;
-}
 
 function DependentList({
   items,
@@ -118,8 +96,8 @@ export function ResourceInUseModal({
   const [selectedReplacement, setSelectedReplacement] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const mode = resolveMode(inUseData.category);
-  const label = categoryLabel(inUseData.category);
+  const mode = inUseData.allowed_mode;
+  const label = getCategorySingularDisplayName(inUseData.category);
 
   useEffect(() => {
     if (!open) {

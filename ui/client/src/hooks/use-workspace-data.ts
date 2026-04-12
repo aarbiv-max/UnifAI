@@ -385,7 +385,7 @@ export const useWorkspaceData = () => {
   const checkElementUsage = useCallback(
     async (rid: string): Promise<
       | { inUse: false }
-      | { inUse: true; category: string; blueprints: any[]; resources: any[] }
+      | { inUse: true; category: string; allowed_mode: string; blueprints: any[]; resources: any[] }
     > => {
       try {
         const response = await axios.get(
@@ -395,6 +395,7 @@ export const useWorkspaceData = () => {
           return {
             inUse: true,
             category: response.data.category,
+            allowed_mode: response.data.allowed_mode,
             blueprints: response.data.blueprints || [],
             resources: response.data.resources || [],
           };
@@ -414,7 +415,7 @@ export const useWorkspaceData = () => {
   const deleteElement = useCallback(
     async (rid: string): Promise<
       | { deleted: true }
-      | { deleted: false; inUse: true; category: string; blueprints: any[]; resources: any[] }
+      | { deleted: false; inUse: true; category: string; allowed_mode: string; blueprints: any[]; resources: any[] }
       | { deleted: false; inUse: false }
     > => {
       try {
@@ -436,6 +437,7 @@ export const useWorkspaceData = () => {
             deleted: false,
             inUse: true,
             category: err.response.data.category,
+            allowed_mode: err.response.data.allowed_mode,
             blueprints: err.response.data.blueprints || [],
             resources: err.response.data.resources || [],
           };

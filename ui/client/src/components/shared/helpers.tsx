@@ -46,6 +46,21 @@ export const getCategoryDisplayName = (category: string) => {
   );
 };
 
+export const getCategorySingularDisplayName = (category: string): string => {
+  const nameMap: { [key: string]: string } = {
+    nodes: "Agent",
+    orchestrators: "Orchestrator",
+    llms: "LLM",
+    tools: "Tool",
+    retrievers: "Retriever",
+    providers: "Provider",
+    conditions: "Condition",
+  };
+  return (
+    nameMap[category] || category.charAt(0).toUpperCase() + category.slice(1)
+  );
+};
+
 export const handleDownloadFile = (downloadFile: DownloadFile, setDownloadingFile: any) => {
     setDownloadingFile(downloadFile.path);
     fetch(downloadFile.path)

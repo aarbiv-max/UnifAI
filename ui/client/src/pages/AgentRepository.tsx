@@ -115,12 +115,13 @@ export default function UserWorkspace() {
       if ('inUse' in usage && usage.inUse) {
         setInUseData({
           category: usage.category,
+          allowed_mode: usage.allowed_mode as "replace" | "detach" | "cascade",
           blueprints: usage.blueprints,
           resources: usage.resources,
         });
         setShowInUseModal(true);
 
-        if (usage.category === "llms" || usage.category === "conditions") {
+        if (usage.allowed_mode === "replace") {
           setIsLoadingReplacements(true);
           try {
             const options = await fetchResourcesForCategory(usage.category);

@@ -85,14 +85,66 @@ class ResourcesService:
     def delete(self, rid: str) -> None:
         self._store.delete(rid)
 
-    def replace_and_delete(self, rid: str, replacement_rid: str) -> None:
-        self._store.replace_and_delete(rid, replacement_rid)
+    def force_delete(self, rid: str, mode: str, replacement_rid: str = None) -> None:
+        """Validate the requested force-delete mode against the resource's
+        category and dispatch to the appropriate strategy."""
+        valid_modes = {"replace", "detach", "cascade"}
+        if mode not in valid_modes:
+            raise ValueError(
+                f"Unknown mode: {mode}. Must be one of: {', '.join(sorted(valid_modes))}"
+            )
+        if mode == "replace" and not replacement_rid:
+            raise ValueError("replacementId is required for replace mode")
 
-    def detach_and_delete(self, rid: str) -> None:
-        self._store.detach_and_delete(rid)
+        resource = self.get(rid)
+        allowed = ResourceCategory(resource.category).delete_mode
+        if mode != allowed:
+            raise ValueError(
+                f"Mode '{mode}' is not permitted for {resource.category} resources. "
+                f"Use '{allowed}' instead."
+            )
 
-    def cascade_delete(self, rid: str) -> None:
-        self._store.cascade_delete(rid)
+        if mode == "replace":
+            self._store.replace_and_delete(rid, replacement_rid)
+        elif mode == "detach":
+            self._store.detach_and_delete(rid)
+        elif mode == "cascade":
+            self._store.cascade_delete(rid)
+
+    def check_usage_detailed(self, rid: str) -> dict:
+        """Return enriched usage data (with names) and the allowed delete mode."""
+        resource = self._store.get(rid)
+        bp_ids, res_ids = self._store.check_usage(rid)
+
+        if not bp_ids and not res_ids:
+            return {"in_use": False}
+
+        bp_details = []
+        for bp_id in bp_ids:
+            try:
+                bp_doc = self._store.get_blueprint_summary(bp_id)
+                bp_details.append(bp_doc)
+            except Exception:
+                bp_details.append({"id": bp_id, "name": bp_id})
+
+        res_details = []
+        for res_id in res_ids:
+            try:
+                res = self._store.get(res_id)
+                res_details.append({
+                    "id": res_id, "name": res.name,
+                    "category": res.category, "type": res.type,
+                })
+            except Exception:
+                res_details.append({"id": res_id, "name": res_id})
+
+        return {
+            "in_use": True,
+            "category": resource.category,
+            "allowed_mode": ResourceCategory(resource.category).delete_mode,
+            "blueprints": bp_details,
+            "resources": res_details,
+        }
 
     # ---------- READ ----------
     def get(self, rid: str) -> Resource:

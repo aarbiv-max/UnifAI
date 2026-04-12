@@ -24,6 +24,19 @@ class ResourceCategory(str, Enum):
         """All category values as strings."""
         return [e.value for e in cls]
 
+    @property
+    def delete_mode(self) -> str:
+        """The force-delete mode permitted for this category."""
+        _modes = {
+            ResourceCategory.LLM: "replace",
+            ResourceCategory.CONDITION: "replace",
+            ResourceCategory.TOOL: "detach",
+            ResourceCategory.PROVIDER: "detach",
+            ResourceCategory.RETRIEVER: "detach",
+            ResourceCategory.NODE: "cascade",
+        }
+        return _modes[self]
+
 
 class SystemNodeType(str, Enum):
     """Node types that stay inline in blueprints (never saved as resources)."""
