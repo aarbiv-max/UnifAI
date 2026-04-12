@@ -24,6 +24,7 @@ from global_utils.docling.exceptions import (
 logger = logging.getLogger(__name__)
 
 _POLL_INTERVAL_SECONDS = 10
+_MAX_TRANSIENT_FAILURES = 3
 
 
 class DoclingClient:
@@ -67,7 +68,31 @@ class DoclingClient:
             timeout=httpx.Timeout(60),
         )
         logger.info(f"DoclingClient initialized: {self.base_url}, timeout={self.timeout}s")
-    
+
+    def _request(self, method: str, url: str, **kwargs) -> Dict[str, Any]:
+        """
+        Execute an HTTP request and return the parsed JSON body.
+
+        Raises:
+            DoclingConnectionError: On connect / HTTP-status / transport / parse errors
+            DoclingTimeoutError: On request timeout
+        """
+        try:
+            response = self._client.request(method, url, **kwargs)
+            response.raise_for_status()
+            return response.json()
+        except httpx.ConnectError as e:
+            raise DoclingConnectionError(f"Cannot connect to docling service: {e}")
+        except httpx.TimeoutException as e:
+            raise DoclingTimeoutError(f"Request to {url} timed out: {e}")
+        except httpx.HTTPStatusError as e:
+            raise DoclingConnectionError(f"HTTP error {e.response.status_code}: {e}")
+        except httpx.TransportError as e:
+            raise DoclingConnectionError(f"Transport error on {url}: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error on {method} {url}: {e}", exc_info=True)
+            raise DoclingConnectionError(f"Failed to process response from {url}: {e}")
+
     def post_file(
         self, 
         file_path: str, 
@@ -95,8 +120,9 @@ class DoclingClient:
             DoclingConnectionError: If service is unreachable or conversion fails
             DoclingTimeoutError: If the total timeout is exceeded
         """
-        task_id = self._submit_file(file_path, to_formats, image_export_mode, pdf_backend)
-        self._poll_until_done(task_id)
+        deadline = time.monotonic() + self.timeout
+        task_id = self._submit_file(file_path, to_formats, image_export_mode, pdf_backend, deadline)
+        self._poll_until_done(task_id, deadline)
         return self._fetch_result(task_id)
 
     def _submit_file(
@@ -105,54 +131,43 @@ class DoclingClient:
         to_formats: List[str],
         image_export_mode: Optional[str] = None,
         pdf_backend: Optional[str] = None,
+        deadline: float = float("inf"),
     ) -> str:
         """Submit a file for async conversion, return the task_id."""
-        url = "/v1/convert/file/async"
+        if time.monotonic() >= deadline:
+            raise DoclingTimeoutError(
+                f"Docling conversion timed out before submit (timeout={self.timeout}s)"
+            )
 
-        try:
-            with open(file_path, 'rb') as f:
-                multipart_data = [
-                    ('files', (os.path.basename(file_path), f, 'application/octet-stream')),
-                ]
+        with open(file_path, 'rb') as f:
+            multipart_data = [
+                ('files', (os.path.basename(file_path), f, 'application/octet-stream')),
+            ]
+            for fmt in to_formats:
+                multipart_data.append(('to_formats', (None, fmt)))
+            if image_export_mode:
+                multipart_data.append(('image_export_mode', (None, image_export_mode)))
+            if pdf_backend:
+                multipart_data.append(('pdf_backend', (None, pdf_backend)))
 
-                for fmt in to_formats:
-                    multipart_data.append(('to_formats', (None, fmt)))
+            data = self._request("POST", "/v1/convert/file/async", files=multipart_data)
 
-                if image_export_mode:
-                    multipart_data.append(('image_export_mode', (None, image_export_mode)))
+        task_id = data.get("task_id")
+        if not task_id:
+            raise DoclingConnectionError(
+                f"Async submit succeeded but response has no task_id: {data}"
+            )
+        logger.info(f"Docling async task submitted: task_id={task_id}")
+        return task_id
 
-                if pdf_backend:
-                    multipart_data.append(('pdf_backend', (None, pdf_backend)))
+    def _poll_until_done(self, task_id: str, deadline: float) -> None:
+        """
+        Poll the task status until success, failure, or timeout.
 
-                response = self._client.post(url, files=multipart_data)
-                response.raise_for_status()
-                data = response.json()
-
-            task_id = data.get("task_id")
-            if not task_id:
-                raise DoclingConnectionError(
-                    f"Async submit succeeded but response has no task_id: {data}"
-                )
-            logger.info(f"Docling async task submitted: task_id={task_id}")
-            return task_id
-
-        except httpx.ConnectError as e:
-            raise DoclingConnectionError(f"Cannot connect to docling service: {e}")
-        except httpx.TimeoutException as e:
-            raise DoclingTimeoutError(f"Submit request timed out: {e}")
-        except httpx.HTTPStatusError as e:
-            raise DoclingConnectionError(f"HTTP error {e.response.status_code}: {e}")
-        except httpx.TransportError as e:
-            raise DoclingConnectionError(f"Transport error during submit: {e}")
-        except (DoclingConnectionError, DoclingTimeoutError):
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error in _submit_file: {e}", exc_info=True)
-            raise
-
-    def _poll_until_done(self, task_id: str) -> None:
-        """Poll the task status until success, failure, or timeout."""
-        deadline = time.monotonic() + self.timeout
+        Transient network errors during polling are tolerated up to
+        _MAX_TRANSIENT_FAILURES consecutive times before giving up.
+        """
+        consecutive_failures = 0
 
         while True:
             remaining = deadline - time.monotonic()
@@ -162,20 +177,18 @@ class DoclingClient:
                 )
 
             try:
-                response = self._client.get(f"/v1/status/poll/{task_id}")
-                response.raise_for_status()
-                data = response.json()
-            except httpx.ConnectError as e:
-                raise DoclingConnectionError(f"Cannot connect to docling service: {e}")
-            except httpx.TimeoutException as e:
-                raise DoclingTimeoutError(f"Poll request timed out: {e}")
-            except httpx.HTTPStatusError as e:
-                raise DoclingConnectionError(f"HTTP error {e.response.status_code}: {e}")
-            except httpx.TransportError as e:
-                raise DoclingConnectionError(f"Transport error during poll: {e}")
-            except Exception as e:
-                logger.error(f"Unexpected error polling task {task_id}: {e}", exc_info=True)
-                raise
+                data = self._request("GET", f"/v1/status/poll/{task_id}")
+                consecutive_failures = 0
+            except (DoclingConnectionError, DoclingTimeoutError) as e:
+                consecutive_failures += 1
+                if consecutive_failures >= _MAX_TRANSIENT_FAILURES:
+                    raise
+                logger.warning(
+                    f"Transient error polling task {task_id} "
+                    f"({consecutive_failures}/{_MAX_TRANSIENT_FAILURES}): {e}"
+                )
+                self._sleep_until(deadline)
+                continue
 
             status = data.get("task_status", "").lower()
             logger.info(f"Docling task {task_id}: status={status}")
@@ -188,25 +201,18 @@ class DoclingClient:
                     f"Docling conversion failed (task_id={task_id}): {error_msg}"
                 )
 
+            self._sleep_until(deadline)
+
+    @staticmethod
+    def _sleep_until(deadline: float) -> None:
+        """Sleep for the poll interval or until the deadline, whichever is sooner."""
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
             time.sleep(min(_POLL_INTERVAL_SECONDS, remaining))
 
     def _fetch_result(self, task_id: str) -> Dict[str, Any]:
         """Fetch the conversion result for a completed task."""
-        try:
-            response = self._client.get(f"/v1/result/{task_id}")
-            response.raise_for_status()
-            return response.json()
-        except httpx.ConnectError as e:
-            raise DoclingConnectionError(f"Cannot connect to docling service: {e}")
-        except httpx.TimeoutException as e:
-            raise DoclingTimeoutError(f"Fetch result timed out: {e}")
-        except httpx.HTTPStatusError as e:
-            raise DoclingConnectionError(f"HTTP error {e.response.status_code}: {e}")
-        except httpx.TransportError as e:
-            raise DoclingConnectionError(f"Transport error fetching result: {e}")
-        except Exception as e:
-            logger.error(f"Unexpected error fetching result for {task_id}: {e}", exc_info=True)
-            raise
+        return self._request("GET", f"/v1/result/{task_id}")
 
     def post_url(
         self, 
@@ -231,39 +237,21 @@ class DoclingClient:
             DoclingConnectionError: If service is unreachable
             DoclingTimeoutError: If request times out
         """
-        url = "/v1/convert/source"
-        
-        try:
-            payload = {
-                "sources": [{"kind": "http", "url": document_url}],
-                "to_formats": to_formats
-            }
-            
-            if image_export_mode:
-                payload["image_export_mode"] = image_export_mode
-            
-            if pdf_backend:
-                payload["pdf_backend"] = pdf_backend
-            
-            response = self._client.post(
-                url,
-                json=payload,
-                headers={"Content-Type": "application/json", "accept": "application/json"},
-            )
-            response.raise_for_status()
-            return response.json()
-            
-        except httpx.ConnectError as e:
-            raise DoclingConnectionError(f"Cannot connect to docling service: {e}")
-        except httpx.TimeoutException as e:
-            raise DoclingTimeoutError(f"Request timed out: {e}")
-        except httpx.HTTPStatusError as e:
-            raise DoclingConnectionError(f"HTTP error {e.response.status_code}: {e}")
-        except httpx.TransportError as e:
-            raise DoclingConnectionError(f"Transport error communicating with docling service: {e}")
-        except Exception as e:
-            logger.error(f"Unexpected error in post_url: {e}", exc_info=True)
-            raise
+        payload = {
+            "sources": [{"kind": "http", "url": document_url}],
+            "to_formats": to_formats
+        }
+        if image_export_mode:
+            payload["image_export_mode"] = image_export_mode
+        if pdf_backend:
+            payload["pdf_backend"] = pdf_backend
+
+        return self._request(
+            "POST",
+            "/v1/convert/source",
+            json=payload,
+            headers={"Content-Type": "application/json", "accept": "application/json"},
+        )
 
     def health_check(self) -> bool:
         """
