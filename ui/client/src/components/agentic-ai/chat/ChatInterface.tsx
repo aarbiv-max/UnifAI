@@ -86,6 +86,16 @@ export default function ChatInterface({
   const [isCancelling, setIsCancelling] = useState(false);
   const wasCancelledByUserRef = useRef(false);
 
+  const markMessageAsCancelled = useCallback((messageId: string) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId
+          ? { ...msg, content: "Workflow was stopped by user.", isCancelled: true }
+          : msg
+      )
+    );
+  }, []);
+
   // ────────────────────────────────────────────────────────────────────────────────
   // Auto-expanding textarea configuration
   // ────────────────────────────────────────────────────────────────────────────────
@@ -570,14 +580,7 @@ export default function ChatInterface({
       wasCancelledByUserRef.current = false;
       
       if (wasCancelled) {
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg.id === messageId) {
-              return { ...msg, content: "Workflow was stopped by user.", isCancelled: true };
-            }
-            return msg;
-          })
-        );
+        markMessageAsCancelled(messageId);
         return;
       }
 
@@ -720,14 +723,7 @@ export default function ChatInterface({
       const response = await triggerExecution(sessionPayload);
 
       if (wasCancelledByUserRef.current) {
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg.id === streamingMessageId) {
-              return { ...msg, content: "Workflow was stopped by user.", isCancelled: true };
-            }
-            return msg;
-          }),
-        );
+        markMessageAsCancelled(streamingMessageId);
       } else {
         setMessages((prev) =>
           prev.map((msg) => {
@@ -742,14 +738,7 @@ export default function ChatInterface({
       console.error("Error in chat interaction:", error);
 
       if (wasCancelledByUserRef.current) {
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg.id === streamingMessageId) {
-              return { ...msg, content: "Workflow was stopped by user.", isCancelled: true };
-            }
-            return msg;
-          }),
-        );
+        markMessageAsCancelled(streamingMessageId);
       } else {
         setMessages((prev) =>
           prev.map((msg) => {

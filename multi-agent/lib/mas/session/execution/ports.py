@@ -2,7 +2,7 @@
 Outbound ports for session execution.
 
 Ports are defined by the use-case owner (session layer) and implemented
-by infrastructure adapters (Temporal, Celery, etc.).
+by infrastructure adapters.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -26,7 +26,6 @@ class BackgroundSessionCanceller(ABC):
     """
     Outbound port for session cancellation.
 
-    Each adapter (Temporal, Celery, RQ, …) implements this port.
     The adapter only requests workflow cancellation; lifecycle transitions
     and channel cleanup are handled by BackgroundLifecycleHandler inside
     the workflow's cancellation handler.
@@ -42,7 +41,6 @@ class BackgroundSessionSubmitter(ABC):
     """
     Outbound port for fire-and-forget session submission.
 
-    Each adapter (Temporal, Celery, RQ, …) implements this port.
     The adapter is responsible for the full session lifecycle
     (prepare → execute → complete/fail) inside its background worker.
 
