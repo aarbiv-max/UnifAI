@@ -23,7 +23,8 @@ from global_utils.docling.exceptions import (
 
 logger = logging.getLogger(__name__)
 
-_POLL_INTERVAL_SECONDS = 10
+_DEFAULT_POLL_INTERVAL_SECONDS = 10
+_DEFAULT_HTTP_TIMEOUT_SECONDS = 60
 _MAX_TRANSIENT_FAILURES = 3
 
 
@@ -52,6 +53,8 @@ class DoclingClient:
         self, 
         base_url: str,
         timeout: int = 300,
+        poll_interval: int = _DEFAULT_POLL_INTERVAL_SECONDS,
+        http_timeout: int = _DEFAULT_HTTP_TIMEOUT_SECONDS,
     ):
         """
         Initialize the HTTP client.
@@ -60,12 +63,15 @@ class DoclingClient:
             base_url: Base URL for the docling service
             timeout: Total wall-clock timeout in seconds for a full
                      submit + poll + fetch cycle
+            poll_interval: Seconds between status polls during async conversion
+            http_timeout: Timeout in seconds for individual HTTP requests
         """
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
+        self._poll_interval = poll_interval
         self._client = httpx.Client(
             base_url=self.base_url,
-            timeout=httpx.Timeout(60),
+            timeout=httpx.Timeout(http_timeout),
         )
         logger.info(f"DoclingClient initialized: {self.base_url}, timeout={self.timeout}s")
 
@@ -203,12 +209,11 @@ class DoclingClient:
 
             self._sleep_until(deadline)
 
-    @staticmethod
-    def _sleep_until(deadline: float) -> None:
+    def _sleep_until(self, deadline: float) -> None:
         """Sleep for the poll interval or until the deadline, whichever is sooner."""
         remaining = deadline - time.monotonic()
         if remaining > 0:
-            time.sleep(min(_POLL_INTERVAL_SECONDS, remaining))
+            time.sleep(min(self._poll_interval, remaining))
 
     def _fetch_result(self, task_id: str) -> Dict[str, Any]:
         """Fetch the conversion result for a completed task."""
