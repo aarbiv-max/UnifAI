@@ -3,7 +3,7 @@ from datetime import datetime
 from mas.session.management.user_session_manager import UserSessionManager
 from mas.session.execution.foreground_runner import ForegroundSessionRunner
 from mas.session.execution.input_projector import SessionInputProjector
-from mas.session.execution.ports import BackgroundSessionSubmitter, BackgroundSessionCanceller, SubmitSessionRequest
+from mas.session.execution.ports import BackgroundSessionEngine, SubmitSessionRequest
 from mas.session.domain.status import SessionStatus
 from mas.session.domain.workflow_session import WorkflowSession
 from mas.session.domain.session_record import SessionRecord
@@ -26,14 +26,12 @@ class SessionService:
         manager: UserSessionManager,
         foreground_runner: ForegroundSessionRunner,
         input_projector: SessionInputProjector,
-        background_submitter: Optional[BackgroundSessionSubmitter] = None,
-        background_canceller: Optional[BackgroundSessionCanceller] = None,
+        background_engine: Optional[BackgroundSessionEngine] = None,
     ):
         self._manager = manager
         self._foreground = foreground_runner
         self._projector = input_projector
-        self._submitter = background_submitter
-        self._canceller = background_canceller
+        self._engine = background_engine
 
     def create(self, user_id: str, blueprint_id: str, metadata: Dict[str, Any] | SessionMeta | None = None) -> str:
         """
@@ -79,16 +77,16 @@ class SessionService:
         Non-blocking submit: stage inputs, then start a background workflow
         and return its handle/ID immediately (HTTP 202 pattern).
         """
-        if self._submitter is None:
+        if self._engine is None:
             raise TypeError(
-                "No BackgroundSessionSubmitter configured — "
+                "No BackgroundSessionEngine configured — "
                 "submit() is not available for this engine."
             )
         self._stage(session_id, inputs)
         session = self._manager.get_session(session_id)
         execution_ctx = session.run_context.with_scope(scope)
         request = SubmitSessionRequest(execution_context=execution_ctx)
-        workflow_id = self._submitter.submit(session, request)
+        workflow_id = self._engine.submit(session, request)
 
         record = self._manager.get_record(session_id)
         record.update_context(tags={**record.run_context.tags, "workflow_id": workflow_id})
@@ -107,16 +105,16 @@ class SessionService:
         Returns True if cancellation was requested, False if the session
         is not in a cancellable state.
         """
-        if self._canceller is None:
+        if self._engine is None:
             raise TypeError(
-                "No BackgroundSessionCanceller configured — "
+                "No BackgroundSessionEngine configured — "
                 "cancel() is not available for this engine."
             )
         record = self._manager.get_record(session_id)
         if record.status not in (SessionStatus.QUEUED, SessionStatus.RUNNING):
             return False
         workflow_id = record.run_context.tags.get("workflow_id")
-        self._canceller.cancel(session_id, workflow_id=workflow_id)
+        self._engine.cancel(session_id, workflow_id=workflow_id)
         return True
 
     # ---- Private staging ----

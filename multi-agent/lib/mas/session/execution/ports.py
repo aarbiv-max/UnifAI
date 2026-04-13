@@ -22,37 +22,21 @@ class SubmitSessionRequest:
     execution_context: ExecutionContext = field(default_factory=ExecutionContext)
 
 
-class BackgroundSessionCanceller(ABC):
+class BackgroundSessionEngine(ABC):
     """
-    Outbound port for session cancellation.
+    Outbound port for background workflow operations on a session.
 
-    The adapter only requests workflow cancellation; lifecycle transitions
-    and channel cleanup are handled by BackgroundLifecycleHandler inside
-    the workflow's cancellation handler.
-    """
-
-    @abstractmethod
-    def cancel(self, session_id: str, workflow_id: Optional[str] = None) -> None:
-        """Request cancellation of a running background session."""
-        ...
-
-
-class BackgroundSessionSubmitter(ABC):
-    """
-    Outbound port for fire-and-forget session submission.
-
-    The adapter is responsible for the full session lifecycle
-    (prepare → execute → complete/fail) inside its background worker.
-
-    Returns a handle/ID the caller can use for polling.
+    Each infrastructure adapter (Temporal, Celery, …) implements this port.
+    Lifecycle transitions and channel cleanup remain in BackgroundLifecycleHandler —
+    this port only handles workflow-level commands.
     """
 
     @abstractmethod
     def submit(self, session: WorkflowSession, request: SubmitSessionRequest) -> str:
-        """
-        Submit the session for background execution.
+        """Start background execution. Returns a workflow/task handle ID."""
+        ...
 
-        Returns:
-            A workflow/task handle that the caller can use for status polling.
-        """
+    @abstractmethod
+    def cancel(self, session_id: str, workflow_id: Optional[str] = None) -> None:
+        """Request cancellation of a running background session."""
         ...

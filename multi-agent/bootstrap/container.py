@@ -134,15 +134,13 @@ class AppContainer(metaclass=SingletonMeta):
             channel_factory=self.channel_factory,
         )
 
-        background_submitter = self._create_background_submitter(cfg.engine_name)
-        background_canceller = self._create_background_canceller(cfg.engine_name)
+        background_engine = self._create_background_engine(cfg.engine_name)
 
         self.session_service = SessionService(
             manager=self.session_manager,
             foreground_runner=foreground_runner,
             input_projector=self.input_projector,
-            background_submitter=background_submitter,
-            background_canceller=background_canceller,
+            background_engine=background_engine,
         )
 
         self.share_repo = MongoShareRepository(
@@ -193,15 +191,8 @@ class AppContainer(metaclass=SingletonMeta):
         return LocalChannelFactory()
 
     @staticmethod
-    def _create_background_submitter(engine_name: str):
+    def _create_background_engine(engine_name: str):
         if engine_name == "temporal":
-            from outbound.temporal.submitter import TemporalSessionSubmitter
-            return TemporalSessionSubmitter()
-        return None
-
-    @staticmethod
-    def _create_background_canceller(engine_name: str):
-        if engine_name == "temporal":
-            from outbound.temporal.canceller import TemporalSessionCanceller
-            return TemporalSessionCanceller()
+            from outbound.temporal.session_engine import TemporalSessionEngine
+            return TemporalSessionEngine()
         return None
