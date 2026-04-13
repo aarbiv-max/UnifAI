@@ -45,13 +45,13 @@ function ActiveNodesStatusBar({
                 status === "PROGRESS"
                   ? "bg-blue-500 bg-opacity-50"
                   : status === "CANCELLED"
-                    ? "bg-red-500 bg-opacity-50"
+                    ? "bg-gray-500 bg-opacity-50"
                     : "bg-green-500 bg-opacity-50"
               }`}
             >
               <motion.div
                 className={`w-2 h-2 rounded-full ${
-                  status === "PROGRESS" ? "bg-blue-400" : status === "CANCELLED" ? "bg-red-400" : "bg-green-400"
+                  status === "PROGRESS" ? "bg-blue-400" : status === "CANCELLED" ? "bg-gray-400" : "bg-green-400"
                 }`}
                 animate={
                   status === "PROGRESS"
@@ -462,7 +462,7 @@ export default function GraphDisplay({
               </>
             ) : isCancelled ? (
               <>
-                <div className="w-2 h-2 bg-red-400 rounded-full" />
+                <div className="w-2 h-2 bg-gray-400 rounded-full" />
                 Session Stopped
               </>
             ) : (
