@@ -28,7 +28,7 @@ interface AboutDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const MODULE_NAMES = ["Backend", "Multi-Agent", "RAG", "SSO", "UI"];
+const MODULE_NAMES = ["Backend", "MultiAgent", "RAG", "SSO", "UI"];
 
 const COLOR_OPTIONS = [
   { hex: "#A60000", name: "Red" },
