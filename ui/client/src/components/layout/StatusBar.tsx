@@ -20,10 +20,10 @@ export default function StatusBar() {
       <div className="flex items-center space-x-4">
         <div>API {apiVersion}</div>
         <div>
-          <a href="#" className="hover:text-white transition-colors">Docs</a>
+          <a href="/get-to-know" className="hover:text-white transition-colors">Docs</a>
         </div>
         <div>
-          <a href="#" className="hover:text-white transition-colors">Support</a>
+          <a href="https://redhat-internal.slack.com/app_redirect?channel=forum-unifai" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Support</a>
         </div>
       </div>
     </footer>
