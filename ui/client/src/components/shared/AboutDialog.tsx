@@ -43,7 +43,7 @@ const TEAM_MEMBERS = [
   "Nir Rashti",
   "Odai Odeh",
   "Omri Sabach",
-  "Saar Firshtein",
+  "Saar Fireshtein",
   "Shani Tzvi",
   "Yosi Habushi",
 ];
