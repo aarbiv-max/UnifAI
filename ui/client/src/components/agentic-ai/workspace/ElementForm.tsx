@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,8 @@ interface ElementFormProps {
   elementSchema: ElementSchema;
   elementActions?: any[];
   editingElement: ElementInstance | null;
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: any) => Promise<any>;
+  existingNames?: string[];
 }
 
 export const ElementForm: React.FC<ElementFormProps> = ({
@@ -37,6 +38,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   elementActions = [],
   editingElement,
   onSave,
+  existingNames = [],
 }) => {
   const [formData, setFormData] = useState<any>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +51,26 @@ export const ElementForm: React.FC<ElementFormProps> = ({
   const [populateResults, setPopulateResults] = useState<{ [fieldName: string]: string[] | any }>({});
 
   const { fetchResourcesForCategory } = useWorkspaceData();
+
+  const existingNamesSet = useMemo(
+    () => new Set(existingNames.map(n => n.toLowerCase())),
+    [existingNames]
+  );
+
+  const nameError = useMemo(() => {
+    const currentName = formData.name?.trim();
+    if (!currentName) return null;
+
+    if (editingElement?.name && editingElement.name.toLowerCase() === currentName.toLowerCase()) {
+      return null;
+    }
+
+    if (existingNamesSet.has(currentName.toLowerCase())) {
+      return `A ${elementType.name} named "${currentName}" already exists. Please choose a different name.`;
+    }
+
+    return null;
+  }, [formData.name, existingNamesSet, editingElement, elementType.name]);
 
   // Helper to check if a field has validation hint
   const fieldHasValidation = useCallback((fieldName: string): boolean => {
@@ -499,7 +521,7 @@ export const ElementForm: React.FC<ElementFormProps> = ({
     // This handles both required and non-required fields with validation hints (ActionHint or ApiHint)
     const noFailedValidations = !Object.values(fieldValidationStates).some(isValid => isValid === false);
 
-    return allRequiredFieldsValid && noFailedValidations;
+    return allRequiredFieldsValid && noFailedValidations && !nameError;
   };
 
   const handleSave = async () => {
@@ -762,7 +784,17 @@ export const ElementForm: React.FC<ElementFormProps> = ({
               // Otherwise, maintain original order
               return 0;
             })
-            .map(([fieldName, fieldSchema]) => renderFormField(fieldName, fieldSchema))}
+            .map(([fieldName, fieldSchema]) => {
+              if (fieldName === 'name' && nameError) {
+                return (
+                  <React.Fragment key={fieldName}>
+                    {renderFormField(fieldName, fieldSchema)}
+                    <p className="text-red-400 text-sm -mt-2">{nameError}</p>
+                  </React.Fragment>
+                );
+              }
+              return renderFormField(fieldName, fieldSchema);
+            })}
 
           <DialogFooter className="mt-6">
             <Button type="button" variant="outline" onClick={onClose}>

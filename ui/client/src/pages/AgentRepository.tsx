@@ -64,11 +64,14 @@ export default function UserWorkspace() {
 
   const handleSaveElement = async (elementData: any) => {
     if (selectedElementType) {
-      await saveElement(selectedElementType.category, selectedElementType.type, elementData, editingElement?.rid);
-      setIsFormOpen(false);
-      // Refresh instances
-      fetchElementInstances(selectedElementType.category, selectedElementType.type);
+      const result = await saveElement(selectedElementType.category, selectedElementType.type, elementData, editingElement?.rid);
+      if (result) {
+        setIsFormOpen(false);
+        fetchElementInstances(selectedElementType.category, selectedElementType.type);
+      }
+      return result;
     }
+    return null;
   };
 
   const handleDeleteElement = (rid: string) => {
@@ -200,6 +203,7 @@ export default function UserWorkspace() {
               elementActions={elementActions}
               editingElement={editingElement}
               onSave={handleSaveElement}
+              existingNames={elementInstances.map(el => el.name).filter((name): name is string => !!name)}
             />
           )}
         </main>
