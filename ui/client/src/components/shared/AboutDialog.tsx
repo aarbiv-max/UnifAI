@@ -37,17 +37,6 @@ const COLOR_OPTIONS = [
   { hex: "#8A2BE2", name: "Purple" },
 ];
 
-const TEAM_MEMBERS = [
-  "Lina Abu Yousef",
-  "Maya Carmi",
-  "Nir Rashti",
-  "Odai Odeh",
-  "Omri Sabach",
-  "Saar Fireshtein",
-  "Shani Tzvi",
-  "Yosi Habushi",
-];
-
 const QUICK_LINKS = [
   { label: "Getting Started", href: "/get-to-know", icon: FaInfoCircle },
   { label: "How-To Guides", href: "/guides", icon: FaBook },
@@ -59,12 +48,33 @@ export default function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
 
   const [versions, setVersions] = useState<Record<string, string>>({});
   const [versionLoading, setVersionLoading] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<string[]>([]);
+  const [supportLink, setSupportLink] = useState("");
 
   const clientMap: Record<string, typeof api> = {
     RAG: api,
     MultiAgent: axios,
     SSO: apiAuth,
     Backend: backendApi,
+  };
+
+  const fetchAppConfig = async () => {
+    try {
+      const res = await fetch("/config.json");
+      const config = await res.json();
+
+      const members = (config?.teamMembers || "")
+        .split(",")
+        .map((m: string) => m.trim())
+        .filter(Boolean);
+      setTeamMembers(members);
+      setSupportLink(config?.supportLink || "");
+
+      return config?.version || "N/A";
+    } catch (err) {
+      console.error("Failed to fetch UI config", err);
+      return "N/A";
+    }
   };
 
   const fetchVersions = async () => {
@@ -75,14 +85,7 @@ export default function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
       await Promise.all(
         MODULE_NAMES.map(async (name) => {
           if (name === "UI") {
-            try {
-              const res = await fetch("/config.json");
-              const config = await res.json();
-              results[name] = config?.version || "N/A";
-            } catch (err) {
-              console.error("Failed to fetch UI version", err);
-              results[name] = "N/A";
-            }
+            results[name] = await fetchAppConfig();
             return;
           }
 
@@ -200,27 +203,29 @@ export default function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contact Team</h3>
 
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-              {TEAM_MEMBERS.map((name) => (
+              {teamMembers.map((name) => (
                 <div key={name} className="flex items-center gap-2">
                   <FaUser className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                   <span className="text-sm text-foreground">{name}</span>
                 </div>
               ))}
             </div>
-            <div className="flex items-center gap-2 pt-1">
-              <FaSlack className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-              <span className="text-sm text-foreground">
-                Reach us on Slack:{" "}
-                <a
-                  href="https://redhat-internal.slack.com/app_redirect?channel=forum-unifai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-primary hover:underline"
-                >
-                  #forum-unifai
-                </a>
-              </span>
-            </div>
+            {supportLink && (
+              <div className="flex items-center gap-2 pt-1">
+                <FaSlack className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-sm text-foreground">
+                  Reach us on Slack:{" "}
+                  <a
+                    href={supportLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Support
+                  </a>
+                </span>
+              </div>
+            )}
           </div>
 
           <Separator />
