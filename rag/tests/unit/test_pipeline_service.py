@@ -1,5 +1,5 @@
 """Unit tests for PipelineService."""
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
@@ -56,7 +56,7 @@ class TestPipelineService:
         Expected: last_updated > old_time; save called with the existing record.
         Logs: No warnings or errors.
         """
-        old_time = datetime(2025, 1, 1)
+        old_time = datetime(2025, 1, 1, tzinfo=timezone.utc)
         existing = PipelineRecord(
             pipeline_id="p1",
             source_type="DOCUMENT",

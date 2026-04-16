@@ -1,5 +1,5 @@
 """Unit tests for DataSourceService (document-focused)."""
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, create_autospec
 
 import pytest
@@ -19,8 +19,8 @@ def _make_source(**overrides):
         source_type="DOCUMENT",
         pipeline_id="pipe_1",
         upload_by="alice",
-        created_at=datetime(2025, 6, 1),
-        last_sync_at=datetime(2025, 6, 1),
+        created_at=datetime(2025, 6, 1, tzinfo=timezone.utc),
+        last_sync_at=datetime(2025, 6, 1, tzinfo=timezone.utc),
         tags=["finance"],
         type_data={"page_count": 10},
     )
