@@ -106,6 +106,53 @@ def pytest_addoption(parser):
         default=None,
         help="Logged-in user sent in embedding pipeline requests (default: stress_test_user)",
     )
+    group.addoption(
+        "--pages-per-doc",
+        action="store",
+        type=int,
+        default=None,
+        help="Fixed number of pages per document (default: 2)",
+    )
+    group.addoption(
+        "--profile",
+        action="store",
+        default=None,
+        help="Content profile: 'simple' (text only) or 'complex' (tables, images, charts) (default: simple)",
+    )
+    group.addoption(
+        "--randomize",
+        action="store_true",
+        default=None,
+        help="Randomize document count and pages-per-doc within min/max ranges",
+    )
+    group.addoption(
+        "--min-docs",
+        action="store",
+        type=int,
+        default=None,
+        help="Minimum document count when --randomize is set (default: 50)",
+    )
+    group.addoption(
+        "--max-docs",
+        action="store",
+        type=int,
+        default=None,
+        help="Maximum document count when --randomize is set (default: 100)",
+    )
+    group.addoption(
+        "--min-pages",
+        action="store",
+        type=int,
+        default=None,
+        help="Minimum pages per doc when --randomize is set (default: 50)",
+    )
+    group.addoption(
+        "--max-pages",
+        action="store",
+        type=int,
+        default=None,
+        help="Maximum pages per doc when --randomize is set (default: 300)",
+    )
 
 
 # =============================================================================

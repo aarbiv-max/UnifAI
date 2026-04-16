@@ -38,6 +38,17 @@ class RagTestConfig:
     concurrent_uploads: int = 10
     pages_per_doc: int = 2
 
+    # Content profile: "simple" (text only) or "complex" (tables, images, charts)
+    profile: str = "simple"
+
+    # Randomization — when enabled, num_documents and pages_per_doc are
+    # ignored and replaced with random values drawn from the ranges below.
+    randomize: bool = False
+    min_documents: int = 10
+    max_documents: int = 50
+    min_pages_per_doc: int = 5
+    max_pages_per_doc: int = 30
+
     # Timeouts (seconds)
     upload_timeout: int = 300
     celery_monitor_timeout: int = 1800
@@ -77,6 +88,16 @@ def rag_config(request) -> RagTestConfig:
             return cast(env_val)
         return default
 
+    def _bool_opt(cli_key: str, env_key: str, default: bool) -> bool:
+        """Resolve a boolean value: CLI → env → default."""
+        cli_val = request.config.getoption(cli_key, default=None)
+        if cli_val is not None:
+            return bool(cli_val)
+        env_val = os.getenv(env_key)
+        if env_val is not None:
+            return env_val.lower() in ("1", "true", "yes")
+        return default
+
     return RagTestConfig(
         api_base_url=_opt("--api-base-url", "API_BASE_URL", "http://localhost:13457/api"),
         mongodb_host=_opt("--mongodb-host", "MONGODB_HOST", "0.0.0.0"),
@@ -84,6 +105,13 @@ def rag_config(request) -> RagTestConfig:
         mongodb_db=_opt("--mongodb-db", "MONGODB_DB", "celery"),
         num_documents=_opt("--num-docs", "NUM_DOCUMENTS", 100, int),
         concurrent_uploads=_opt("--concurrent-uploads", "CONCURRENT_UPLOADS", 10, int),
+        pages_per_doc=_opt("--pages-per-doc", "PAGES_PER_DOC", 2, int),
+        profile=_opt("--profile", "TEST_PROFILE", "simple"),
+        randomize=_bool_opt("--randomize", "RANDOMIZE", False),
+        min_documents=_opt("--min-docs", "MIN_DOCUMENTS", 10, int),
+        max_documents=_opt("--max-docs", "MAX_DOCUMENTS", 50, int),
+        min_pages_per_doc=_opt("--min-pages", "MIN_PAGES_PER_DOC", 5, int),
+        max_pages_per_doc=_opt("--max-pages", "MAX_PAGES_PER_DOC", 30, int),
         upload_timeout=_opt("--upload-timeout", "UPLOAD_TIMEOUT", 300, int),
         celery_monitor_timeout=_opt(
             "--celery-timeout", "CELERY_MONITOR_TIMEOUT", 1800, int

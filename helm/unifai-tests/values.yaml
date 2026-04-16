@@ -34,6 +34,13 @@ env:
   # RAG stress test defaults
   NUM_DOCUMENTS: "10"
   CONCURRENT_UPLOADS: "10"
+  PAGES_PER_DOC: "2"
+  TEST_PROFILE: "complex"        # simple | complex
+  RANDOMIZE: "true"
+  MIN_DOCUMENTS: "10"
+  MAX_DOCUMENTS: "50"
+  MIN_PAGES_PER_DOC: "5"
+  MAX_PAGES_PER_DOC: "30"
   UPLOAD_TIMEOUT: "300"
   UPLOAD_MAX_RETRIES: "3"
 

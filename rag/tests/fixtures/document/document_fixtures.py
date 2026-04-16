@@ -43,11 +43,28 @@ def batch_pdf_documents(rag_config: RagTestConfig) -> List[Tuple[int, str, bytes
     Documents are generated once per session and shared across tests to
     avoid expensive PDF re-generation.
 
+    When ``rag_config.randomize`` is enabled the document count is drawn
+    from ``(min_documents, max_documents)`` and each document receives a
+    random page count from ``(min_pages_per_doc, max_pages_per_doc)``.
+
     Returns:
         List of (doc_id, filename, pdf_bytes) tuples.
     """
+    import random
+
+    if rag_config.randomize:
+        count = random.randint(
+            rag_config.min_documents, rag_config.max_documents,
+        )
+        pages = (rag_config.min_pages_per_doc, rag_config.max_pages_per_doc)
+    else:
+        count = rag_config.num_documents
+        pages = rag_config.pages_per_doc
+
     return DocumentFactory.create_batch(
-        count=rag_config.num_documents,
+        count=count,
         start_id=1,
         prefix="stress_test_doc",
+        pages=pages,
+        profile=rag_config.profile,
     )
