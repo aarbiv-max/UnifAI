@@ -3,18 +3,18 @@ FROM registry.access.redhat.com/ubi9/python-311
 USER root
 RUN dnf update --nobest -y && dnf install -y vim less iputils mesa-libGL && dnf clean all
 
+
+USER default
+RUN pwd
+WORKDIR $HOME
 # --------------------------------------------------------------------------
 # Copy source trees
 # --------------------------------------------------------------------------
-ADD --chown=default:root --chmod=777 ./rag          $HOME/rag
+ADD --chown=default:root --chmod=777 ./rag           $HOME/rag
 ADD --chown=default:root --chmod=777 ./multi-agent   $HOME/multi-agent
 ADD --chown=default:root --chmod=777 ./global_utils  $HOME/global_utils
 
-WORKDIR $HOME
-
-RUN chmod -R g+w .
-
-USER default
+#RUN chmod -R g+w .
 
 # --------------------------------------------------------------------------
 # Virtual environment + dependencies
@@ -32,7 +32,7 @@ RUN pip install -e ./global_utils/
 RUN pip install -e ./rag/
 
 # Multi-agent application dependencies
-RUN pip install -r ./multi-agent/requirements.txt
+RUN pip install -e ./multi-agent/[all]
 
 # Stress test dependencies
 RUN pip install -r ./rag/tests/docs/requirements_stress_test.txt
