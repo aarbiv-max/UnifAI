@@ -14,7 +14,7 @@ ADD --chown=default:root --chmod=777 ./rag           $HOME/rag
 ADD --chown=default:root --chmod=777 ./multi-agent   $HOME/multi-agent
 ADD --chown=default:root --chmod=777 ./global_utils  $HOME/global_utils
 
-#RUN chmod -R g+w .
+RUN chmod -R g+w .
 
 # --------------------------------------------------------------------------
 # Virtual environment + dependencies
