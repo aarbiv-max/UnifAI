@@ -8,7 +8,7 @@ mongodb:
     type: ClusterIP
     port: 27017
   storage:
-    requestedSize: 25G
+    requestedSize: 10G
     className: aws-ebs
 
 qdrant:
@@ -23,7 +23,7 @@ qdrant:
     type: ClusterIP
     port: 6333
   storage:
-    requestedSize: 30Gi
+    requestedSize: 10Gi
     className: aws-ebs
   resources:
     limits:
