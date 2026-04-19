@@ -7,6 +7,9 @@ mongodb:
     #type: LoadBalancer
     type: ClusterIP
     port: 27017
+  storage:
+    requestedSize: 25G
+    className: aws-ebs
 
 qdrant:
   replicaCount: 1
@@ -19,6 +22,9 @@ qdrant:
     #type: LoadBalancer
     type: ClusterIP
     port: 6333
+  storage:
+    requestedSize: 30Gi
+    className: aws-ebs
   resources:
     limits:
       cpu: 8
