@@ -14,7 +14,8 @@ releases:
     chart: ./rag/unifai-rag-shared-storage
     wait: true
     values:
-      - {{- toYaml .Values.storage | nindent 8 }}
+      - storage:
+          {{- toYaml .Values.storage | nindent 10 }}
       - ./values/global-config.yaml
 
   - name: unifai-rag-server
