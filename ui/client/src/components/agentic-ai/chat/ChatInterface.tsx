@@ -39,6 +39,10 @@ import {
   buildExportFilename,
 } from "./exportSession";
 
+const TERMINAL_STATUSES = ['CANCELLED', 'FAILED', 'COMPLETED'] as const;
+const isTerminalStatus = (status?: string): boolean =>
+  !!status && TERMINAL_STATUSES.includes(status as typeof TERMINAL_STATUSES[number]);
+
 // Backend message format
 interface BackendMessage {
   content: string;
@@ -101,15 +105,18 @@ export default function ChatInterface({
   const [isCancelling, setIsCancelling] = useState(false);
   const wasCancelledByUserRef = useRef(false);
 
+  const updateMessageById = useCallback(
+    (messageId: string, updates: Partial<Message>) => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === messageId ? { ...msg, ...updates } : msg))
+      );
+    },
+    []
+  );
+
   const markMessageAsCancelled = useCallback((messageId: string) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === messageId
-          ? { ...msg, content: "Workflow was stopped by user.", isCancelled: true }
-          : msg
-      )
-    );
-  }, []);
+    updateMessageById(messageId, { content: "Workflow was stopped by user.", isCancelled: true });
+  }, [updateMessageById]);
 
   // ────────────────────────────────────────────────────────────────────────────────
   // Auto-expanding textarea configuration
@@ -203,6 +210,11 @@ export default function ChatInterface({
     }
     return "Ask a question about your data...";
   }, [blueprintExists, isSharingDisabled, isValidatingBlueprint, blueprintValid]);
+
+  const isInputDisabled = useMemo(
+    () => !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || isTyping || isLiveRequest,
+    [blueprintExists, isSharingDisabled, blueprintValid, isValidatingBlueprint, isTyping, isLiveRequest]
+  );
 
   // Transform backend messages to frontend format (streamLogs/workPlans, managed separately)
   const transformBackendMessagesToFrontend = useCallback(
@@ -547,7 +559,7 @@ export default function ChatInterface({
     // Skip if user is typing (middle of handleSendMessage)
     if (isTyping) return;
     // Skip reconnection for sessions in terminal states
-    if (sessionStatus === 'CANCELLED' || sessionStatus === 'FAILED' || sessionStatus === 'COMPLETED') return;
+    if (isTerminalStatus(sessionStatus)) return;
     
     // Start polling when session is live and messages are loaded
     if (isLiveRequest && messages.length > 0) {
@@ -612,25 +624,12 @@ export default function ChatInterface({
             }
 
             if (status === 'FAILED') {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === messageId
-                    ? { ...msg, finalAnswer: status_message || 'Workflow failed.' }
-                    : msg
-                )
-              );
+              updateMessageById(messageId, { finalAnswer: status_message || 'Workflow failed.' });
               return;
             }
 
             if (finalAnswer) {
-              setMessages((prev) =>
-                prev.map((msg) => {
-                  if (msg.id === messageId) {
-                    return { ...msg, finalAnswer };
-                  }
-                  return msg;
-                })
-              );
+              updateMessageById(messageId, { finalAnswer });
             }
           } catch (error) {
             console.error('Error fetching final state after reconnection:', error);
@@ -756,14 +755,7 @@ export default function ChatInterface({
       if (wasCancelledByUserRef.current) {
         markMessageAsCancelled(streamingMessageId);
       } else {
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg.id === streamingMessageId) {
-              return { ...msg, finalAnswer: response };
-            }
-            return msg;
-          }),
-        );
+        updateMessageById(streamingMessageId, { finalAnswer: response });
       }
     } catch (error) {
       console.error("Error in chat interaction:", error);
@@ -771,18 +763,9 @@ export default function ChatInterface({
       if (wasCancelledByUserRef.current) {
         markMessageAsCancelled(streamingMessageId);
       } else {
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg.id === streamingMessageId) {
-              return {
-                ...msg,
-                finalAnswer:
-                  "I'm sorry, there was an error processing your request.",
-              };
-            }
-            return msg;
-          }),
-        );
+        updateMessageById(streamingMessageId, {
+          finalAnswer: "I'm sorry, there was an error processing your request.",
+        });
       }
     } finally {
       setIsTyping(false);
@@ -1279,13 +1262,11 @@ export default function ChatInterface({
                 onKeyDown={handleKeyDown}
                 placeholder={getInputPlaceholder()}
                 className={`bg-background-dark resize-none transition-[height] duration-200 ease-out w-full ${
-                  (!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || isTyping || isLiveRequest) 
-                    ? 'opacity-50 cursor-not-allowed' 
-                    : ''
+                  isInputDisabled ? 'opacity-50 cursor-not-allowed' : ''
                 } ${(isAtMaxHeight || isExpanded) ? 'pr-10' : ''}`}
                 style={{ height: `${TEXTAREA_MIN_HEIGHT}px` }}
                 rows={1}
-                disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || isTyping || isLiveRequest}
+                disabled={isInputDisabled}
               />
               {/* Expand/Collapse icon - shows when textarea is at max height or expanded */}
               <AnimatePresence>
@@ -1350,7 +1331,7 @@ export default function ChatInterface({
               >
                 <Button
                   onClick={() => handleSendMessage()}
-                  disabled={inputMessage.trim() === "" || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
+                  disabled={inputMessage.trim() === "" || isInputDisabled}
                   size="icon"
                   className="bg-primary hover:bg-primary/80 mb-0"
                 >
