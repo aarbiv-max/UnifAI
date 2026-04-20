@@ -17,11 +17,21 @@ import SimpleTooltip from "@/components/shared/SimpleTooltip";
 import { FlowObject } from "./graphs/interfaces";
 import GraphDisplay from "./graphs/GraphDisplay";
 import { fetchActiveSessions } from "@/api/agentic";
-import { fetchBlueprintSummaries, deleteBlueprint, fetchResolvedBlueprint } from "@/api/blueprints";
+import {
+  fetchBlueprintSummaries,
+  deleteBlueprint,
+  deleteBlueprintsByIds,
+  fetchResolvedBlueprint,
+} from "@/api/blueprints";
 import { convertGraphFlowToFlowObject } from "@/utils/blueprintHelpers";
 import ShareWorkflow from "./ShareWorkflow";
 import { BlueprintValidationResult } from "@/types/validation";
 import { useBlueprintValidation } from "@/hooks/use-blueprint-validation";
+import { useItemSelection } from "@/hooks/use-item-selection";
+import { useBulkDelete } from "@/hooks/use-bulk-delete";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { SelectionCheckbox } from "@/components/shared/SelectionCheckbox";
+import { SelectionModeControls } from "@/components/shared/SelectionModeControls";
 
 export interface WorkflowsPanelProps {
   selectedFlow: FlowObject | null;
@@ -69,6 +79,36 @@ export default function WorkflowsPanel({
   } | null>(null);
   
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isWorkflowSelectionMode, setIsWorkflowSelectionMode] = useState(false);
+
+  const {
+    selection,
+    setSelection,
+    selectedCount,
+    clearSelection,
+    pruneToIds,
+  } = useItemSelection();
+
+  const {
+    bulkDeleteConfirm,
+    setBulkDeleteConfirm,
+    bulkDeleteLoading,
+    handleDeleteSelected,
+    confirmBulkDelete: confirmBulkDeleteWorkflows,
+  } = useBulkDelete({
+    deleteFunction: deleteBlueprintsByIds,
+    queryKeys: [],
+    itemName: "workflow",
+    onSuccess: (deletedIds) => {
+      clearSelection();
+      setIsWorkflowSelectionMode(false);
+      const deletedSet = new Set(deletedIds);
+      setGraphFlows((prev) => prev.filter((f) => !deletedSet.has(f.id)));
+      if (selectedFlow && deletedSet.has(selectedFlow.id)) {
+        onFlowSelect(null);
+      }
+    },
+  });
 
   const { user } = useAuth();
   const { openShareForItem } = useShared();
@@ -95,6 +135,32 @@ export default function WorkflowsPanel({
         flow.description.toLowerCase().includes(normalizedSearch),
     );
   }, [graphFlows, searchQuery]);
+
+  useEffect(() => {
+    pruneToIds(new Set(filteredFlows.map((f) => f.id)));
+  }, [filteredFlows, pruneToIds]);
+
+  const exitWorkflowSelectionMode = useCallback(() => {
+    clearSelection();
+    setIsWorkflowSelectionMode(false);
+  }, [clearSelection]);
+
+  const allFilteredWorkflowsSelected = useMemo(
+    () =>
+      filteredFlows.length > 0 &&
+      filteredFlows.every((f) => selection[f.id] === true),
+    [filteredFlows, selection],
+  );
+
+  const selectAllFilteredWorkflows = useCallback(() => {
+    setSelection((prev) => {
+      const next = { ...prev };
+      filteredFlows.forEach((f) => {
+        next[f.id] = true;
+      });
+      return next;
+    });
+  }, [filteredFlows, setSelection]);
 
   // Fetch available blueprints from API (resolved – references replaced with actual data)
   const fetchAvailableFlows = async (): Promise<void> => {
@@ -300,7 +366,28 @@ export default function WorkflowsPanel({
         {/* Available Workflows Sidebar */}
         <div className="w-1/3 border-r border-gray-800 bg-background-dark flex flex-col min-h-0 relative">
           <div className="py-3 px-4 border-b border-gray-800 bg-background-surface flex-shrink-0 space-y-2">
-            <h3 className="text-sm font-medium">Available Workflows ({filteredFlows.length})</h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-sm font-medium leading-tight pt-0.5">
+                Available Workflows ({filteredFlows.length})
+              </h3>
+              {showDeleteButton && (
+                <SelectionModeControls
+                  entityPluralLabel="workflows"
+                  isSelectionMode={isWorkflowSelectionMode}
+                  onEnterSelectionMode={() => setIsWorkflowSelectionMode(true)}
+                  onExitSelectionMode={exitWorkflowSelectionMode}
+                  selectedCount={selectedCount}
+                  onBulkDeleteClick={() => handleDeleteSelected(selection)}
+                  bulkDeleteDisabled={bulkDeleteLoading || isDeleting}
+                  itemNameForDelete={selectedCount === 1 ? "workflow" : "workflows"}
+                  totalSelectable={filteredFlows.length}
+                  allSelected={allFilteredWorkflowsSelected}
+                  onSelectAll={selectAllFilteredWorkflows}
+                  onClearSelection={clearSelection}
+                  compact
+                />
+              )}
+            </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
               <Input
@@ -346,7 +433,21 @@ export default function WorkflowsPanel({
                   transition={{ duration: 0.1 }}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center min-w-0 flex-1">
+                    <div className="flex items-center min-w-0 flex-1 gap-1">
+                      {showDeleteButton && isWorkflowSelectionMode && (
+                        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <SelectionCheckbox
+                            checked={selection[flow.id] === true}
+                            onCheckedChange={(checked) => {
+                              const next = { ...selection };
+                              if (checked) next[flow.id] = true;
+                              else delete next[flow.id];
+                              setSelection(next);
+                            }}
+                            ariaLabel={`Select workflow ${flow.name}`}
+                          />
+                        </div>
+                      )}
                       {flow.icon}
                       <span className="text-sm font-medium truncate">{flow.name}</span>
                     </div>
@@ -441,6 +542,21 @@ export default function WorkflowsPanel({
       </div>
 
       {/* Delete Confirmation Modal */}
+      <ConfirmDialog
+        open={bulkDeleteConfirm.open}
+        title="Delete Selected Workflows"
+        message={`Are you sure you want to delete ${bulkDeleteConfirm.count} selected workflow${bulkDeleteConfirm.count > 1 ? "s" : ""}? This action cannot be undone.`}
+        confirmLabel="Yes, Delete"
+        cancelLabel="Cancel"
+        loading={bulkDeleteLoading}
+        onCancel={() => {
+          if (!bulkDeleteLoading) {
+            setBulkDeleteConfirm({ open: false, count: 0 });
+          }
+        }}
+        onConfirm={() => confirmBulkDeleteWorkflows(selection)}
+      />
+
       {showDeleteButton && (
         <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
           <DialogContent className="bg-background-card border-gray-800">

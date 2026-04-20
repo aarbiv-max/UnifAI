@@ -412,7 +412,21 @@ export const useWorkspaceData = () => {
         setIsLoading(false);
       }
     },
-    [toast],
+    [toast, removeResource],
+  );
+
+  /** Parallel deletes for bulk UI; does not toast (caller handles feedback). */
+  const deleteElementsBulk = useCallback(
+    async (rids: string[]) => {
+      if (rids.length === 0) return;
+      await Promise.all(
+        rids.map((rid) =>
+          axios.delete(`/resources/resource.delete?resourceId=${rid}`),
+        ),
+      );
+      rids.forEach((rid) => removeResource(rid));
+    },
+    [removeResource],
   );
 
   // Initialize categories on mount
@@ -436,6 +450,7 @@ export const useWorkspaceData = () => {
     fetchResourceById,
     saveElement,
     deleteElement,
+    deleteElementsBulk,
     refetchCategories: fetchCategories,
   };
 };

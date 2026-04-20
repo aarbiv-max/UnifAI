@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -17,6 +17,7 @@ import ChatInterface from "./chat/ChatInterface";
 import ExecutionStream from "./ExecutionStream";
 import GraphDisplay from "./graphs/GraphDisplay";
 import axios from '../../http/axiosAgentConfig'
+import { deleteSessionsByIds } from '@/api/sessions'
 import { fetchResolvedBlueprint } from '@/api/blueprints'
 import { useStreamingData } from './StreamingDataContext'
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +39,11 @@ import { ChatSession, ChatMessage, ChatSessionData, SessionStateData } from "@/t
 import {transformSessionData, sortSessionsByTimestamp} from "@/utils/sessionHelpers";
 import { useSessionManagement } from "@/hooks/use-session-management";
 import { useSessionStream } from "@/hooks/use-session-stream";
+import { useItemSelection } from "@/hooks/use-item-selection";
+import { useBulkDelete } from "@/hooks/use-bulk-delete";
+import { SelectionModeControls } from "@/components/shared/SelectionModeControls";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { SelectionCheckbox } from "@/components/shared/SelectionCheckbox";
 
 
 /**
@@ -121,6 +127,59 @@ export default function ExecutionTab({
   // Cache: resolved spec_dict per blueprintId for the side GraphDisplay (contains resource names)
   const [blueprintSpecCache, setBlueprintSpecCache] = useState<Map<string, any>>(new Map());
   const [carouselMode, setCarouselMode] = useState<'normal' | 'chat' | 'graph'>('normal');
+  const [isChatSelectionMode, setIsChatSelectionMode] = useState(false);
+
+  const {
+    selection,
+    setSelection,
+    selectedCount,
+    clearSelection,
+    pruneToIds,
+  } = useItemSelection();
+  const {
+    bulkDeleteConfirm,
+    setBulkDeleteConfirm,
+    bulkDeleteLoading,
+    handleDeleteSelected,
+    confirmBulkDelete: confirmBulkDeleteSessions,
+  } = useBulkDelete({
+    deleteFunction: deleteSessionsByIds,
+    queryKeys: [],
+    itemName: "chat session",
+    onSuccess: (deletedIds) => {
+      clearSelection();
+      setIsChatSelectionMode(false);
+      const idSet = new Set(deletedIds);
+      setChatSessions((prev) => prev.filter((s) => !idSet.has(s.id)));
+      setSelectedSession((prev) => {
+        if (prev && idSet.has(prev.id)) {
+          setCurrentSessionMessages([]);
+          return null;
+        }
+        return prev;
+      });
+    },
+  });
+
+  const exitChatSelectionMode = useCallback(() => {
+    clearSelection();
+    setIsChatSelectionMode(false);
+  }, [clearSelection]);
+
+  const allChatSessionsSelected = useMemo(
+    () => chatSessions.length > 0 && chatSessions.every((s) => selection[s.id] === true),
+    [chatSessions, selection],
+  );
+
+  const selectAllChatSessions = useCallback(() => {
+    setSelection((prev) => {
+      const next = { ...prev };
+      chatSessions.forEach((s) => {
+        next[s.id] = true;
+      });
+      return next;
+    });
+  }, [chatSessions, setSelection]);
 
   const { nodeListRef, forceUpdate, clearStream } = useStreamingData();
   const { user } = useAuth();
@@ -252,6 +311,10 @@ export default function ExecutionTab({
       document.body.style.cursor = '';
     };
   }, [isResizing, handleMouseMove, handleMouseUp]);
+
+  useEffect(() => {
+    pruneToIds(new Set(chatSessions.map((s) => s.id)));
+  }, [chatSessions, pruneToIds]);
 
   const { currentMessages, loadSessionMessages, clearMessages, setCurrentMessages } =
     useSessionManagement();
@@ -816,6 +879,21 @@ export default function ExecutionTab({
                     /> */}
                   {/* </Switch.Root> */}
                   {/* </UmamiTrack> */}
+                  <SelectionModeControls
+                    entityPluralLabel="chats"
+                    isSelectionMode={isChatSelectionMode}
+                    onEnterSelectionMode={() => setIsChatSelectionMode(true)}
+                    onExitSelectionMode={exitChatSelectionMode}
+                    selectedCount={selectedCount}
+                    onBulkDeleteClick={() => handleDeleteSelected(selection)}
+                    bulkDeleteDisabled={bulkDeleteLoading || isDeleting}
+                    itemNameForDelete={selectedCount === 1 ? "chat session" : "chat sessions"}
+                    totalSelectable={chatSessions.length}
+                    allSelected={allChatSessionsSelected}
+                    onSelectAll={selectAllChatSessions}
+                    onClearSelection={clearSelection}
+                    compact
+                  />
                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
                     <Users className="h-3 w-3" />
                   </Button>
@@ -857,8 +935,23 @@ export default function ExecutionTab({
                       whileHover={{ x: 2 }}
                       transition={{ duration: 0.1 }}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-1">
                         <div className="flex items-center min-w-0 flex-1">
+                          {isChatSelectionMode && (
+                            <div className="mr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <SelectionCheckbox
+                                checked={selection[session.id] === true}
+                                onCheckedChange={(checked) => {
+                                  const next = { ...selection };
+                                  if (checked) next[session.id] = true;
+                                  else delete next[session.id];
+                                  setSelection(next);
+                                }}
+                                ariaLabel={`Select chat ${session.title}`}
+                                align="left"
+                              />
+                            </div>
+                          )}
                           <MessageSquare className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
                           <span className="text-sm font-medium truncate">
                             {session.title}
@@ -1166,6 +1259,21 @@ export default function ExecutionTab({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConfirmDialog
+        open={bulkDeleteConfirm.open}
+        title="Delete Selected Chats"
+        message={`Are you sure you want to delete ${bulkDeleteConfirm.count} selected chat session${bulkDeleteConfirm.count > 1 ? "s" : ""}? This action cannot be undone.`}
+        confirmLabel="Yes, Delete"
+        cancelLabel="Cancel"
+        loading={bulkDeleteLoading}
+        onCancel={() => {
+          if (!bulkDeleteLoading) {
+            setBulkDeleteConfirm({ open: false, count: 0 });
+          }
+        }}
+        onConfirm={() => confirmBulkDeleteSessions(selection)}
+      />
     </div>
   );
 }

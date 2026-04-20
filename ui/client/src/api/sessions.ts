@@ -89,6 +89,18 @@ export async function getSessionStreamStatus(sessionId: string): Promise<StreamS
  * 
  * @param sessionId - The session to subscribe to
  */
+/**
+ * Delete multiple sessions in parallel (same endpoint as single delete).
+ */
+export async function deleteSessionsByIds(sessionIds: string[]): Promise<void> {
+  if (sessionIds.length === 0) return;
+  await Promise.all(
+    sessionIds.map((sessionId) =>
+      axios.delete(`/sessions/session.delete?sessionId=${sessionId}`),
+    ),
+  );
+}
+
 export async function subscribeToSessionStream(sessionId: string): Promise<Response | null> {
   try {
     const response = await fetch(

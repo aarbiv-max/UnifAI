@@ -141,6 +141,13 @@ export async function deleteBlueprint(blueprintId: string): Promise<DeleteBluepr
   return data;
 }
 
+/** Delete multiple blueprints (sequential API calls; fails fast on first error). */
+export async function deleteBlueprintsByIds(blueprintIds: string[]): Promise<void> {
+  for (const id of blueprintIds) {
+    await deleteBlueprint(id);
+  }
+}
+
 /**
  * Save a new blueprint
  */

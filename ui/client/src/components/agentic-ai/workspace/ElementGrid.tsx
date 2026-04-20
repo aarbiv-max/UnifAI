@@ -23,6 +23,8 @@ import { ElementData } from './ElementData';
 import { ValidationResultModal } from './ValidationResultModal';
 import { formatConfigValue } from '../../../utils/maskSecretFields';
 import { getDisplayValueFromItem } from '../../../utils/displayUtils';
+import { RowSelectionState } from '@tanstack/react-table';
+import { SelectionCheckbox } from '@/components/shared/SelectionCheckbox';
 
 interface ElementGridProps {
   elements: ElementInstance[];
@@ -31,6 +33,8 @@ interface ElementGridProps {
   onEditElement: (element: ElementInstance) => void;
   onDeleteElement: (rid: string) => void;
   elementSchema?: ElementSchema | null;
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: (selection: RowSelectionState) => void;
 }
 
 export const ElementGrid: React.FC<ElementGridProps> = ({
@@ -39,7 +43,9 @@ export const ElementGrid: React.FC<ElementGridProps> = ({
   isLoading,
   onEditElement,
   onDeleteElement,
-  elementSchema
+  elementSchema,
+  rowSelection = {},
+  onRowSelectionChange,
 }) => {
   const [selectedElement, setSelectedElement] = useState<ElementInstance | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -164,6 +170,21 @@ export const ElementGrid: React.FC<ElementGridProps> = ({
                   </CardTitle>
                 </div>
                 <div className="flex items-center gap-1">
+                  {onRowSelectionChange && (
+                    <div className="mr-1" onClick={(e) => e.stopPropagation()}>
+                      <SelectionCheckbox
+                        checked={rowSelection[element.rid] === true}
+                        onCheckedChange={(checked) => {
+                          const next = { ...rowSelection };
+                          if (checked) next[element.rid] = true;
+                          else delete next[element.rid];
+                          onRowSelectionChange(next);
+                        }}
+                        ariaLabel={`Select resource ${element.name || element.rid}`}
+                        align="left"
+                      />
+                    </div>
+                  )}
                   {renderValidationStatus(element.rid)}
                   <SimpleTooltip content={<p>Share this resource</p>}>
                     <Button 

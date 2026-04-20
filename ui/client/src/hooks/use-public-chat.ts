@@ -21,6 +21,8 @@ interface UsePublicChatReturn {
   handleDeleteChat: (session: ChatSession, event: React.MouseEvent) => void;
   confirmDeleteChat: () => Promise<void>;
   cancelDeleteChat: () => void;
+  /** Remove sessions from local state (e.g. after bulk delete). Clears selection when current session is removed. */
+  applySessionsRemoved: (sessionIds: string[]) => void;
   triggerExecution: (sessionPayload: any) => Promise<string>;
   showDeleteModal: boolean;
   setShowDeleteModal: (open: boolean) => void;
@@ -207,22 +209,27 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
     setShowDeleteModal(true);
   }, []);
 
+  const applySessionsRemoved = useCallback((sessionIds: string[]) => {
+    if (sessionIds.length === 0) return;
+    const idSet = new Set(sessionIds);
+    setSessions((prevSessions) => prevSessions.filter((session) => !idSet.has(session.id)));
+    setSelectedSession((prev) => {
+      if (prev && idSet.has(prev.id)) {
+        setChatHistory([]);
+        setRunId(null);
+        return null;
+      }
+      return prev;
+    });
+  }, []);
+
   const confirmDeleteChat = useCallback(async () => {
     if (!chatToDelete) return;
 
     setIsDeleting(true);
     try {
       await axios.delete(`/sessions/session.delete?sessionId=${chatToDelete.id}`);
-
-      // Remove the deleted session from the list
-      setSessions((prevSessions) => prevSessions.filter((session) => session.id !== chatToDelete.id));
-
-      // If the deleted session was selected, clear the selection
-      if (selectedSession?.id === chatToDelete.id) {
-        setSelectedSession(null);
-        setChatHistory([]);
-        setRunId(null);
-      }
+      applySessionsRemoved([chatToDelete.id]);
 
       setShowDeleteModal(false);
       setChatToDelete(null);
@@ -241,7 +248,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
     } finally {
       setIsDeleting(false);
     }
-  }, [chatToDelete, selectedSession, toast]);
+  }, [chatToDelete, toast, applySessionsRemoved]);
 
   const cancelDeleteChat = useCallback(() => {
     setShowDeleteModal(false);
@@ -406,6 +413,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
     handleDeleteChat,
     confirmDeleteChat,
     cancelDeleteChat,
+    applySessionsRemoved,
     triggerExecution,
     showDeleteModal,
     setShowDeleteModal,

@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { RowSelectionState } from "@tanstack/react-table";
+import type { ItemSelectionState } from "@/hooks/use-item-selection";
+
+function selectedIdsFromSelection(selection: ItemSelectionState): string[] {
+  return Object.keys(selection).filter((id) => selection[id] === true);
+}
 
 interface UseBulkDeleteOptions<T> {
   deleteFunction: (ids: string[]) => Promise<any>;
   queryKeys: string[];
   itemName: string; // e.g., "document" or "channel"
-  onSuccess?: () => void;
+  onSuccess?: (deletedIds: string[]) => void;
   getError?: (error: any) => string;
 }
 
@@ -43,7 +47,7 @@ export function useBulkDelete<T>({
         variant: "default",
       });
       
-      onSuccess?.();
+      onSuccess?.(ids);
     } catch (error) {
       console.error(`Error deleting ${itemName}s:`, error);
       const errorMessage = getError 
@@ -62,8 +66,8 @@ export function useBulkDelete<T>({
     }
   };
 
-  const handleDeleteSelected = (rowSelection: RowSelectionState) => {
-    const selectedIds = Object.keys(rowSelection);
+  const handleDeleteSelected = (selection: ItemSelectionState) => {
+    const selectedIds = selectedIdsFromSelection(selection);
     if (selectedIds.length === 0) return;
     setBulkDeleteConfirm({ 
       open: true, 
@@ -71,10 +75,10 @@ export function useBulkDelete<T>({
     });
   };
 
-  const confirmBulkDelete = async (rowSelection: RowSelectionState) => {
+  const confirmBulkDelete = async (selection: ItemSelectionState) => {
     try {
       setBulkDeleteLoading(true);
-      const idsToDelete = Object.keys(rowSelection);
+      const idsToDelete = selectedIdsFromSelection(selection);
       await handleBulkDelete(idsToDelete);
       // Only close modal after successful deletion
       setBulkDeleteConfirm({ open: false, count: 0 });

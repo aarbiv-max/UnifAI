@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PipelineStatus } from "@/constants/pipelineStatus";
 import { StatusBadge } from "./StatusBadge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { SelectionCheckbox } from "@/components/shared/SelectionCheckbox";
 
 export interface CardAction {
   icon: React.ReactNode;
@@ -113,16 +113,12 @@ export const DataCard: React.FC<DataCardProps> = ({
                 {actions.map((action, idx) => {
                   if (action.isCheckbox) {
                     return (
-                      <div
-                        key={idx}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Checkbox
+                      <div key={idx} onClick={(e) => e.stopPropagation()}>
+                        <SelectionCheckbox
                           checked={action.checked || false}
-                          onCheckedChange={(checked) => {
-                            action.onCheckboxChange?.(checked === true);
-                          }}
-                          aria-label="Select card"
+                          onCheckedChange={(checked) => action.onCheckboxChange?.(checked)}
+                          ariaLabel="Select document"
+                          align="center"
                         />
                       </div>
                     );

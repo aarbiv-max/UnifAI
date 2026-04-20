@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,10 @@ import { ElementForm } from '../components/agentic-ai/workspace/ElementForm';
 import { ElementType, ElementInstance } from '../types/workspace';
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
+import { useItemSelection } from '@/hooks/use-item-selection';
+import { useBulkDelete } from '@/hooks/use-bulk-delete';
+import { SelectionModeControls } from '@/components/shared/SelectionModeControls';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 export default function UserWorkspace() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -21,6 +25,14 @@ export default function UserWorkspace() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [elementToDelete, setElementToDelete] = useState<ElementInstance | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isResourceSelectionMode, setIsResourceSelectionMode] = useState(false);
+  const {
+    selection,
+    setSelection,
+    selectedCount,
+    clearSelection,
+    pruneToIds,
+  } = useItemSelection();
   const {
     categories,
     elementInstances,
@@ -32,8 +44,28 @@ export default function UserWorkspace() {
     fetchElementSchema,
     fetchElementActions,
     saveElement,
-    deleteElement
+    deleteElement,
+    deleteElementsBulk,
   } = useWorkspaceData();
+
+  const {
+    bulkDeleteConfirm,
+    setBulkDeleteConfirm,
+    bulkDeleteLoading,
+    handleDeleteSelected,
+    confirmBulkDelete: confirmBulkDeleteBase,
+  } = useBulkDelete({
+    deleteFunction: deleteElementsBulk,
+    queryKeys: [],
+    itemName: 'resource',
+    onSuccess: () => {
+      clearSelection();
+      setIsResourceSelectionMode(false);
+      if (selectedElementType) {
+        fetchElementInstances(selectedElementType.category, selectedElementType.type);
+      }
+    },
+  });
 
   // Fetch element instances when element type is selected
   useEffect(() => {
@@ -41,6 +73,33 @@ export default function UserWorkspace() {
       fetchElementInstances(selectedElementType.category, selectedElementType.type);
     }
   }, [selectedElementType, fetchElementInstances]);
+
+  useEffect(() => {
+    const ids = new Set(elementInstances.map((el) => el.rid));
+    pruneToIds(ids);
+  }, [elementInstances, pruneToIds]);
+
+  const exitResourceSelectionMode = useCallback(() => {
+    clearSelection();
+    setIsResourceSelectionMode(false);
+  }, [clearSelection]);
+
+  const allResourcesSelected = useMemo(
+    () =>
+      elementInstances.length > 0 &&
+      elementInstances.every((el) => selection[el.rid] === true),
+    [elementInstances, selection],
+  );
+
+  const selectAllResources = useCallback(() => {
+    setSelection((prev) => {
+      const next = { ...prev };
+      elementInstances.forEach((el) => {
+        next[el.rid] = true;
+      });
+      return next;
+    });
+  }, [elementInstances, setSelection]);
 
   const handleElementTypeSelect = async (category: string, elementType: ElementType) => {
     // Ensure category is set before element type to avoid race conditions
@@ -140,8 +199,8 @@ export default function UserWorkspace() {
               <div className="flex flex-col h-full">
                 {/* Header with Create Button */}
                 {selectedElementType && (
-                  <div className="flex justify-between items-center mb-6 sticky top-0 z-10 pb-4 pt-px -mt-px bg-[hsl(var(--background-dark))] shadow-[0_4px_12px_-2px_rgba(0,0,0,0.4)]">
-                    <div>
+                  <div className="flex justify-between items-center gap-4 mb-6 sticky top-0 z-10 pb-4 pt-px -mt-px bg-[hsl(var(--background-dark))] shadow-[0_4px_12px_-2px_rgba(0,0,0,0.4)]">
+                    <div className="min-w-0 flex-1">
                       <h2 className="text-2xl font-heading font-bold">
                         {selectedElementType.name} Instances
                       </h2>
@@ -149,7 +208,21 @@ export default function UserWorkspace() {
                         Manage your {selectedElementType.name.toLowerCase()} configurations
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                      <SelectionModeControls
+                        entityPluralLabel="resources"
+                        isSelectionMode={isResourceSelectionMode}
+                        onEnterSelectionMode={() => setIsResourceSelectionMode(true)}
+                        onExitSelectionMode={exitResourceSelectionMode}
+                        selectedCount={selectedCount}
+                        onBulkDeleteClick={() => handleDeleteSelected(selection)}
+                        bulkDeleteDisabled={bulkDeleteLoading || isDeleting}
+                        itemNameForDelete={selectedCount === 1 ? 'resource' : 'resources'}
+                        totalSelectable={elementInstances.length}
+                        allSelected={allResourcesSelected}
+                        onSelectAll={selectAllResources}
+                        onClearSelection={clearSelection}
+                      />
                       <Button
                         variant="outline"
                         onClick={() => {
@@ -189,6 +262,8 @@ export default function UserWorkspace() {
                       onEditElement={handleEditElement}
                       onDeleteElement={handleDeleteElement}
                       elementSchema={elementSchema}
+                      rowSelection={selection}
+                      onRowSelectionChange={isResourceSelectionMode ? setSelection : undefined}
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full">
@@ -246,6 +321,21 @@ export default function UserWorkspace() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConfirmDialog
+        open={bulkDeleteConfirm.open}
+        title="Delete Selected Resources"
+        message={`Are you sure you want to delete ${bulkDeleteConfirm.count} selected resource${bulkDeleteConfirm.count > 1 ? 's' : ''}? This action cannot be undone.`}
+        confirmLabel="Yes, Delete"
+        cancelLabel="Cancel"
+        loading={bulkDeleteLoading}
+        onCancel={() => {
+          if (!bulkDeleteLoading) {
+            setBulkDeleteConfirm({ open: false, count: 0 });
+          }
+        }}
+        onConfirm={() => confirmBulkDeleteBase(selection)}
+      />
     </div>
   );
 }

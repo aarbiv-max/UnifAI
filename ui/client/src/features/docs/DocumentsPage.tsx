@@ -11,11 +11,11 @@ import { DocumentTable } from "./DocumentsTable";
 import { PageLoader } from "@/components/shared/PageLoader";
 import { DocumentGrid } from "./DocumentGrid";
 import { deleteDocs, fetchDocumentDetails, fetchDocuments } from "@/api/docs";
-import { RowSelectionState } from "@tanstack/react-table";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { useItemSelection } from "@/hooks/use-item-selection";
 import { useToast } from "@/hooks/use-toast";
 import { isEmbeddingActivelyProcessing } from "@/features/helpers";
-import { BulkDeleteButton } from "@/components/shared/BulkDeleteButton";
+import { SelectionModeControls } from "@/components/shared/SelectionModeControls";
 import { useBulkDelete } from "@/hooks/use-bulk-delete";
 import { Pagination } from "@/components/shared/Pagination";
 import { UmamiTrack } from '@/components/ui/umamitrack';
@@ -33,13 +33,15 @@ export default function Documents() {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const { selection, setSelection, selectedCount, pruneToIds, clearSelection } =
+    useItemSelection();
   const [expandedDocDetails, setExpandedDocDetails] = useState<Document | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   
   // Grid pagination state
   const [gridPageIndex, setGridPageIndex] = useState(0);
   const gridPageSize = 15;
+  const [isDocSelectionMode, setIsDocSelectionMode] = useState(false);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -100,7 +102,10 @@ export default function Documents() {
     deleteFunction: deleteDocs,
     queryKeys: ['documents'],
     itemName: 'document',
-    onSuccess: () => setRowSelection({}),
+    onSuccess: () => {
+      clearSelection();
+      setIsDocSelectionMode(false);
+    },
   });
 
   const hasActiveOperations = (docs: Document[] | undefined) => {
@@ -159,22 +164,53 @@ export default function Documents() {
     />
   );
 
-  const selectedCount = Object.keys(rowSelection).length;
+  useEffect(() => {
+    const ids = new Set(filteredDocuments.map((d) => d.source_id));
+    pruneToIds(ids);
+  }, [filteredDocuments, pruneToIds]);
+
+  const exitDocSelectionMode = useCallback(() => {
+    clearSelection();
+    setIsDocSelectionMode(false);
+  }, [clearSelection]);
+
+  const allFilteredDocumentsSelected = useMemo(
+    () =>
+      filteredDocuments.length > 0 &&
+      filteredDocuments.every((d) => selection[d.source_id] === true),
+    [filteredDocuments, selection],
+  );
+
+  const selectAllFilteredDocuments = useCallback(() => {
+    setSelection((prev) => {
+      const next = { ...prev };
+      filteredDocuments.forEach((d) => {
+        next[d.source_id] = true;
+      });
+      return next;
+    });
+  }, [filteredDocuments, setSelection]);
 
   const handleBulkDeleteClick = () => {
     setBulkDeleteConfirm({ open: true, count: selectedCount });
   };
 
   const viewButtons = (
-    <div className="flex items-center space-x-4">
-        {selectedCount > 0 && (
-          <BulkDeleteButton
-            selectedCount={selectedCount}
-            onClick={handleBulkDeleteClick}
-            disabled={bulkDeleteLoading || deleteLoading}
-            itemName={selectedCount === 1 ? "document" : "documents"}
-          />
-        )}
+    <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        <SelectionModeControls
+          entityPluralLabel="documents"
+          isSelectionMode={isDocSelectionMode}
+          onEnterSelectionMode={() => setIsDocSelectionMode(true)}
+          onExitSelectionMode={exitDocSelectionMode}
+          selectedCount={selectedCount}
+          onBulkDeleteClick={handleBulkDeleteClick}
+          bulkDeleteDisabled={bulkDeleteLoading || deleteLoading}
+          itemNameForDelete={selectedCount === 1 ? "document" : "documents"}
+          totalSelectable={filteredDocuments.length}
+          allSelected={allFilteredDocumentsSelected}
+          onSelectAll={selectAllFilteredDocuments}
+          onClearSelection={clearSelection}
+        />
         <UmamiTrack event={UmamiEvents.UPLOAD_DOCUMENT_BUTTON}>
           <TooltipProvider>
             <Tooltip>
@@ -249,7 +285,7 @@ export default function Documents() {
   };
 
   const confirmBulkDelete = async () => {
-    await confirmBulkDeleteBase(rowSelection);
+    await confirmBulkDeleteBase(selection);
   };
 
   const onActiveDocChange = () => {
@@ -335,8 +371,8 @@ export default function Documents() {
                           onDeleteConfirmed={onDeleteConfirmed}
                           retrying={retrying}
                           handleRetry={handleRetry}
-                          rowSelection={rowSelection}
-                          onRowSelectionChange={setRowSelection}
+                          rowSelection={selection}
+                          onRowSelectionChange={isDocSelectionMode ? setSelection : undefined}
                           onRefresh={refetch}
                           expandedDocDetails={expandedDocDetails}
                           isLoadingDetails={isLoadingDetails}
@@ -369,8 +405,8 @@ export default function Documents() {
                             onDeleteConfirmed={onDeleteConfirmed}
                             retrying={retrying}
                             handleRetry={handleRetry}
-                            rowSelection={rowSelection}
-                            onRowSelectionChange={setRowSelection}
+                            rowSelection={isDocSelectionMode ? selection : undefined}
+                            onRowSelectionChange={isDocSelectionMode ? setSelection : undefined}
                             onRefresh={refetch}
                             expandedDocDetails={expandedDocDetails}
                             isLoadingDetails={isLoadingDetails}

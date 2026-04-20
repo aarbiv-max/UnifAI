@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { deleteSessionsByIds } from "@/api/sessions";
+import { useItemSelection } from "@/hooks/use-item-selection";
+import { useBulkDelete } from "@/hooks/use-bulk-delete";
+import { SelectionModeControls } from "@/components/shared/SelectionModeControls";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { SelectionCheckbox } from "@/components/shared/SelectionCheckbox";
 import { useRoute } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -43,6 +49,7 @@ export default function PublicChat() {
   const [isSharingDisabled, setIsSharingDisabled] = useState<boolean>(false);
   const [isBlueprintValid, setIsBlueprintValid] = useState<boolean>(true);
   const [isValidatingBlueprint, setIsValidatingBlueprint] = useState<boolean>(false);
+  const [isChatSelectionMode, setIsChatSelectionMode] = useState(false);
 
   // Use the cached blueprint validation from context
   const { validateBlueprintWithCache } = useAgenticAI();
@@ -61,11 +68,61 @@ export default function PublicChat() {
     handleDeleteChat,
     confirmDeleteChat,
     cancelDeleteChat,
+    applySessionsRemoved,
     triggerExecution,
     showDeleteModal,
     setShowDeleteModal,
     chatToDelete,
   } = usePublicChat(blueprintId);
+
+  const {
+    selection,
+    setSelection,
+    selectedCount,
+    clearSelection,
+    pruneToIds,
+  } = useItemSelection();
+
+  const {
+    bulkDeleteConfirm,
+    setBulkDeleteConfirm,
+    bulkDeleteLoading,
+    handleDeleteSelected,
+    confirmBulkDelete: confirmBulkDeleteSessions,
+  } = useBulkDelete({
+    deleteFunction: deleteSessionsByIds,
+    queryKeys: [],
+    itemName: "chat session",
+    onSuccess: (deletedIds) => {
+      clearSelection();
+      setIsChatSelectionMode(false);
+      applySessionsRemoved(deletedIds);
+    },
+  });
+
+  useEffect(() => {
+    pruneToIds(new Set(chatSessions.map((s) => s.id)));
+  }, [chatSessions, pruneToIds]);
+
+  const exitChatSelectionMode = useCallback(() => {
+    clearSelection();
+    setIsChatSelectionMode(false);
+  }, [clearSelection]);
+
+  const allChatSessionsSelected = useMemo(
+    () => chatSessions.length > 0 && chatSessions.every((s) => selection[s.id] === true),
+    [chatSessions, selection],
+  );
+
+  const selectAllChatSessions = useCallback(() => {
+    setSelection((prev) => {
+      const next = { ...prev };
+      chatSessions.forEach((s) => {
+        next[s.id] = true;
+      });
+      return next;
+    });
+  }, [chatSessions, setSelection]);
 
   // Check sharing status for the blueprint using getBlueprintInfo (usageScope is part of metadata)
   const checkSharingStatus = useCallback(async (blueprintId: string) => {
@@ -263,22 +320,39 @@ export default function PublicChat() {
         <div className="w-80 border-r border-gray-800 bg-background-card flex flex-col flex-shrink-0">
           <Card className="bg-background-card shadow-card border-0 h-full flex flex-col">
             <CardHeader className="py-3 px-4 border-b border-gray-800">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
                 <CardTitle className="text-sm font-medium">
                   Chat History ({chatSessions.length})
                 </CardTitle>
-                <UmamiTrack event={UmamiEvents.PUBLIC_CHAT_NEW_SESSION}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-primary hover:bg-primary/20"
-                    onClick={handleNewChat}
-                    disabled={isCreatingSession || isSharingDisabled || !isBlueprintValid || isValidatingBlueprint}
-                    title="Start new chat"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </UmamiTrack>
+                <div className="flex items-center gap-1 shrink-0">
+                  <SelectionModeControls
+                    entityPluralLabel="chats"
+                    isSelectionMode={isChatSelectionMode}
+                    onEnterSelectionMode={() => setIsChatSelectionMode(true)}
+                    onExitSelectionMode={exitChatSelectionMode}
+                    selectedCount={selectedCount}
+                    onBulkDeleteClick={() => handleDeleteSelected(selection)}
+                    bulkDeleteDisabled={bulkDeleteLoading || isDeleting}
+                    itemNameForDelete={selectedCount === 1 ? "chat session" : "chat sessions"}
+                    totalSelectable={chatSessions.length}
+                    allSelected={allChatSessionsSelected}
+                    onSelectAll={selectAllChatSessions}
+                    onClearSelection={clearSelection}
+                    compact
+                  />
+                  <UmamiTrack event={UmamiEvents.PUBLIC_CHAT_NEW_SESSION}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-primary hover:bg-primary/20"
+                      onClick={handleNewChat}
+                      disabled={isCreatingSession || isSharingDisabled || !isBlueprintValid || isValidatingBlueprint}
+                      title="Start new chat"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </UmamiTrack>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0 flex-grow overflow-y-auto">
@@ -308,8 +382,23 @@ export default function PublicChat() {
                       whileHover={{ x: 2 }}
                       transition={{ duration: 0.1 }}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-1">
                         <div className="flex items-center min-w-0 flex-1">
+                          {isChatSelectionMode && (
+                            <div className="mr-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <SelectionCheckbox
+                                checked={selection[session.id] === true}
+                                onCheckedChange={(checked) => {
+                                  const next = { ...selection };
+                                  if (checked) next[session.id] = true;
+                                  else delete next[session.id];
+                                  setSelection(next);
+                                }}
+                                ariaLabel={`Select chat ${session.title}`}
+                                align="left"
+                              />
+                            </div>
+                          )}
                           <MessageSquare className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
                           <span className="text-sm font-medium truncate text-white">
                             {session.title}
@@ -411,6 +500,21 @@ export default function PublicChat() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ConfirmDialog
+        open={bulkDeleteConfirm.open}
+        title="Delete Selected Chats"
+        message={`Are you sure you want to delete ${bulkDeleteConfirm.count} selected chat session${bulkDeleteConfirm.count > 1 ? "s" : ""}? This action cannot be undone.`}
+        confirmLabel="Yes, Delete"
+        cancelLabel="Cancel"
+        loading={bulkDeleteLoading}
+        onCancel={() => {
+          if (!bulkDeleteLoading) {
+            setBulkDeleteConfirm({ open: false, count: 0 });
+          }
+        }}
+        onConfirm={() => confirmBulkDeleteSessions(selection)}
+      />
     </div>
   );
 }
