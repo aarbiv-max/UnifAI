@@ -8,6 +8,7 @@ import {transformSessionData, sortSessionsByTimestamp,} from '@/utils/sessionHel
 import { useSessionManagement } from '@/hooks/use-session-management';
 import { useSessionStream } from '@/hooks/use-session-stream';
 import { getBlueprintInfo } from '@/api/blueprints';
+import { createSessionError } from '@/components/agentic-ai/chat/types';
 
 interface UsePublicChatReturn {
   sessions: ChatSession[];
@@ -405,10 +406,10 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
         const { output, status, status_message } = sessionResponse.data;
 
         if (status === 'CANCELLED') {
-          throw new Error(status_message || 'Workflow was stopped.');
+          throw createSessionError(status_message || 'Workflow was stopped.', 'CANCELLED');
         }
         if (status === 'FAILED') {
-          throw new Error(status_message || 'Workflow failed.');
+          throw createSessionError(status_message || 'Workflow failed.', 'FAILED');
         }
 
         return output && output.trim() !== '' ? output : 'Execution completed, but no output was generated.';

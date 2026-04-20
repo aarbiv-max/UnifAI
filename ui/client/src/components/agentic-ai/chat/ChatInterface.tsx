@@ -20,7 +20,7 @@ import axios from "../../../http/axiosAgentConfig";
 import { MarkdownComponents, preprocessText } from "./helpers/TextComponents";
 import { SessionPayload } from "../ExecutionTab";
 import { useStreamingData } from "../StreamingDataContext";
-import { Message, StreamLogEntry, WorkPlanSnapshot } from "./types";
+import { Message, StreamLogEntry, WorkPlanSnapshot, isSessionCancellation } from "./types";
 import { StreamLogDisplay } from "./StreamLogDisplay";
 import { useToast } from "@/hooks/use-toast";
 import { UmamiTrack } from '@/components/ui/umamitrack';
@@ -115,7 +115,11 @@ export default function ChatInterface({
   );
 
   const markMessageAsCancelled = useCallback((messageId: string) => {
-    updateMessageById(messageId, { content: "Workflow was stopped by user.", isCancelled: true });
+    updateMessageById(messageId, {
+      content: "Workflow was stopped by user.",
+      finalAnswer: "Workflow was stopped by user.",
+      isCancelled: true,
+    });
   }, [updateMessageById]);
 
   // ────────────────────────────────────────────────────────────────────────────────
@@ -248,11 +252,13 @@ export default function ChatInterface({
             ...transformedMessages[lastAiIndex],
             isCancelled: true,
             content: cancelText,
+            finalAnswer: cancelText,
           };
         } else {
           transformedMessages.push({
             id: `${Date.now()}-cancelled`,
             content: cancelText,
+            finalAnswer: cancelText,
             sender: "ai",
             isCancelled: true,
           });
@@ -760,11 +766,12 @@ export default function ChatInterface({
     } catch (error) {
       console.error("Error in chat interaction:", error);
 
-      if (wasCancelledByUserRef.current) {
+      if (wasCancelledByUserRef.current || isSessionCancellation(error)) {
         markMessageAsCancelled(streamingMessageId);
       } else {
+        const errorMessage = error instanceof Error ? error.message : '';
         updateMessageById(streamingMessageId, {
-          finalAnswer: "I'm sorry, there was an error processing your request.",
+          finalAnswer: errorMessage || "I'm sorry, there was an error processing your request.",
         });
       }
     } finally {
@@ -1058,7 +1065,7 @@ export default function ChatInterface({
 
           {/* Cancelled message display */}
           {message.isCancelled && (
-            <div className="flex items-center gap-2 text-gray-400 text-sm italic mt-2" role="status" aria-live="polite">
+            <div className="flex items-center gap-2 text-gray-400 text-sm mt-2" role="status" aria-live="polite">
               <Square className="h-3.5 w-3.5 flex-shrink-0" />
               <span>{message.content}</span>
             </div>

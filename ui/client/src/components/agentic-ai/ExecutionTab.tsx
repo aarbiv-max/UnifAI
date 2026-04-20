@@ -14,6 +14,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, Users, Clock, Trash2, Plus, Columns3, Network } from "lucide-react";
 import ChatInterface from "./chat/ChatInterface";
+import { createSessionError } from "./chat/types";
 import ExecutionStream from "./ExecutionStream";
 import GraphDisplay from "./graphs/GraphDisplay";
 import axios from '../../http/axiosAgentConfig'
@@ -760,10 +761,10 @@ export default function ExecutionTab({
       const { output, status, status_message } = session_response.data;
 
       if (status === 'CANCELLED') {
-        throw new Error(status_message || 'Workflow was stopped.');
+        throw createSessionError(status_message || 'Workflow was stopped.', 'CANCELLED');
       }
       if (status === 'FAILED') {
-        throw new Error(status_message || 'Workflow failed.');
+        throw createSessionError(status_message || 'Workflow failed.', 'FAILED');
       }
 
       return output;
