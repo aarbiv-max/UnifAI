@@ -19,18 +19,19 @@ export default defineConfig({
         ]
       : []),
       process.env.NODE_ENV !== "production" && visualizer({
-        open: true, // Automatically opens the report in your browser after build
-        filename: 'bundle-report.html', // Name of the generated report file
-        gzipSize: true, // Show sizes after gzip compression
-        brotliSize: true, // Show sizes after brotli compression (if available)
+        open: !!process.env.BUNDLE_ANALYZE,
+        filename: 'bundle-report.html',
+        gzipSize: true,
+        brotliSize: true,
     }),
   ],
   server: {
-    port: 5173, // Or whatever port Vite is running on by default
+    host: '0.0.0.0',
+    port: 5000,
     proxy: {
       // Proxy for api1
       '/api1': {
-        target: process.env.RAG_HOST,
+        target: 'http://127.0.0.1:13457',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api1/, '/api'), // This rewrites /api1 to /api
         secure: false, // Set to true for production if target is HTTPS and has valid cert.
@@ -38,12 +39,23 @@ export default defineConfig({
       },
       // Proxy for api2 (assuming this is still local or another service)
       '/api2': {
-        target: process.env.MULTIAGENT_HOST,//'http://127.0.0.1:13457', // Your second backend
+        target: 'http://127.0.0.1:8002/',//'http://127.0.0.1:13457', // Your second backend
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api2/, '/api'), // This rewrites /api2 to nothing
         // secure: false, // Only needed if this target is HTTPS and you have SSL issues
       },
-      // You can add more proxies here if needed
+      '/api3': {
+          target: 'http://127.0.0.1:13456',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api3/, '/api'), // This rewrites /api3 to /api
+          secure: false, // Set to true for production if target is HTTPS and has valid cert.
+                          // Set to false for dev if you're getting SSL errors with self-signed or invalid certs.
+        },
+      '/api4': {
+          target: 'http://127.0.0.1:8005',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api4/, '/api'),
+        },
     }
   },
 

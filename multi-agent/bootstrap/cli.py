@@ -57,7 +57,7 @@ def dev(
     flask_app = create_app(container, config=cfg)
     bind_host = host or cfg.hostname
     bind_port = port or int(cfg.port)
-    flask_app.run(host=bind_host, port=bind_port, debug=True)
+    flask_app.run(host="127.0.0.1", port="8002", debug=True)
 
 
 # ── API: serve ───────────────────────────────────────────────────

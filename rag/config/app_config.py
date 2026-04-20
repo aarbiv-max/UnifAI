@@ -18,7 +18,7 @@ class AppConfig(SharedConfig):
 
     # Server Configuration
     hostname_local: str = "0.0.0.0"
-    port: str = "13456"
+    port: str = "13457"
 
     # Qdrant Configuration
     qdrant_ip: str = "0.0.0.0"
@@ -29,7 +29,7 @@ class AppConfig(SharedConfig):
     default_slack_user_token: str = ""
 
     # Flask Configuration
-    frontend_url: str = "http://localhost:5000"
+    frontend_url: str = "http://0.0.0.0:5000/"
     upload_folder: str = "/app/shared"
     backend_env: str = "development"
     version: str = "1.0.0"
