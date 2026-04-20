@@ -757,7 +757,16 @@ export default function ExecutionTab({
       const session_response = await axios.get(
         `/sessions/session.chat.get?sessionId=${sessionPayload.sessionId}`
       );
-      return session_response.data.output;
+      const { output, status, status_message } = session_response.data;
+
+      if (status === 'CANCELLED') {
+        throw new Error(status_message || 'Workflow was stopped.');
+      }
+      if (status === 'FAILED') {
+        throw new Error(status_message || 'Workflow failed.');
+      }
+
+      return output;
     } catch (error) {
       console.error('Error in session execution:', error);
       setIsLiveRequest(false);

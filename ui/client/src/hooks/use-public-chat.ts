@@ -6,8 +6,8 @@ import { ChatSession, ChatMessage, ChatSessionData } from '@/types/session';
 import { checkSessionSharingStatus } from '@/hooks/use-sharing-status';
 import {transformSessionData, sortSessionsByTimestamp,} from '@/utils/sessionHelpers';
 import { useSessionManagement } from '@/hooks/use-session-management';
+import { useSessionStream } from '@/hooks/use-session-stream';
 import { getBlueprintInfo } from '@/api/blueprints';
-import { cancelSession } from '@/api/sessions';
 
 interface UsePublicChatReturn {
   sessions: ChatSession[];
@@ -17,6 +17,7 @@ interface UsePublicChatReturn {
   isDeleting: boolean;
   chatHistory: ChatMessage[];
   runId: string | null;
+  isLiveRequest: boolean;
   handleNewChat: () => Promise<void>;
   handleSessionSelect: (session: ChatSession) => Promise<void>;
   handleDeleteChat: (session: ChatSession, event: React.MouseEvent) => void;
@@ -42,11 +43,33 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
   const [chatToDelete, setChatToDelete] = useState<ChatSession | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [runId, setRunId] = useState<string | null>(null);
+  const [isLiveRequest, setIsLiveRequest] = useState(false);
 
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const streamCompleteResolverRef = useRef<(() => void) | null>(null);
 
-  const { currentMessages, loadSessionMessages, clearMessages, setCurrentMessages } =
-    useSessionManagement();
+  const { loadSessionMessages } = useSessionManagement();
+
+  const sessionStream = useSessionStream({
+    onChunk: useCallback(() => {
+      // Chat-only mode: intermediate chunks are not displayed.
+      // Final answer is fetched via session.chat.get after stream completes.
+    }, []),
+    onStreamEnd: useCallback(() => {
+      setIsLiveRequest(false);
+      if (streamCompleteResolverRef.current) {
+        streamCompleteResolverRef.current();
+        streamCompleteResolverRef.current = null;
+      }
+    }, []),
+    onError: useCallback((error: string) => {
+      console.error('Stream error:', error);
+      setIsLiveRequest(false);
+      if (streamCompleteResolverRef.current) {
+        streamCompleteResolverRef.current();
+        streamCompleteResolverRef.current = null;
+      }
+    }, []),
+  });
 
   // Transform API data to ChatSession format
   const transformApiDataToSessions = useCallback(
@@ -184,6 +207,8 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
   // Handle session selection
   const handleSessionSelect = useCallback(
     async (session: ChatSession) => {
+      sessionStream.cancelStream();
+      setIsLiveRequest(false);
       setSelectedSession(session);
 
       const updatedSession = await loadSessionMessages(session);
@@ -200,8 +225,20 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
         setChatHistory([]);
         setRunId(session.id);
       }
+
+      // Reconnect to an active Redis stream if the session is still running
+      const sessionStatus = updatedSession?.status;
+      const isTerminal = sessionStatus === 'CANCELLED' || sessionStatus === 'FAILED' || sessionStatus === 'COMPLETED';
+
+      if (!isTerminal) {
+        sessionStream.checkAndReconnect(session.id).then(hasActiveStream => {
+          if (hasActiveStream) {
+            setIsLiveRequest(true);
+          }
+        });
+      }
     },
-    [loadSessionMessages]
+    [loadSessionMessages, sessionStream]
   );
 
   // Handle delete chat
@@ -315,13 +352,17 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
   const handleCancelSession = useCallback(async () => {
     if (!runId) return;
 
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
+    await sessionStream.cancelSessionExecution(runId);
+    sessionStream.cancelStream();
+    setIsLiveRequest(false);
 
-    await cancelSession(runId);
-  }, [runId]);
+    if (streamCompleteResolverRef.current) {
+      streamCompleteResolverRef.current();
+      streamCompleteResolverRef.current = null;
+    }
+  }, [runId, sessionStream]);
 
-  // Trigger execution
+  // Trigger execution using Temporal submit + Redis stream (same path as Agentic-Chats)
   const triggerExecution = useCallback(
     async (sessionPayload: any): Promise<string> => {
       if (!runId) {
@@ -329,7 +370,6 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
       }
 
       // Check sharing status before allowing execution (fresh check each time)
-      // Uses getBlueprintInfo to avoid separate API call - usageScope is in metadata
       if (blueprintId) {
         try {
           const blueprintInfo = await getBlueprintInfo(blueprintId);
@@ -338,68 +378,47 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
             throw new Error("This workflow's chat sharing has been disabled and can no longer be continued.");
           }
         } catch (error: any) {
-          // If status check fails or sharing is disabled, prevent execution
           if (error.message && error.message.includes('disabled')) {
-            throw error; // Re-throw the disabled error
+            throw error;
           }
           throw new Error("This workflow's chat sharing has been disabled and can no longer be continued.");
         }
       }
 
       try {
-        const controller = new AbortController();
-        abortControllerRef.current = controller;
+        setIsLiveRequest(true);
 
-        const response = await fetch(`/api2/sessions/user.session.execute`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            sessionId: runId,
-            inputs: sessionPayload.inputs || {},
-            stream: true,
-            streamMode: ['custom'],
-            scope: 'public',
-            loggedInUser: user?.username || '',
-          }),
+        const streamCompletePromise = new Promise<void>((resolve) => {
+          streamCompleteResolverRef.current = resolve;
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        await sessionStream.submitAndSubscribe({
+          sessionId: runId,
+          inputs: sessionPayload.inputs || {},
+          scope: 'public',
+          loggedInUser: user?.username || '',
+        });
 
-        // Read the stream to completion (streaming updates are handled by ChatInterface via StreamingDataContext)
-        if (response.body) {
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
+        await streamCompletePromise;
 
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              // Decode but don't process - ChatInterface handles streaming separately
-              decoder.decode(value, { stream: true });
-            }
-          } finally {
-            reader.releaseLock();
-          }
-        }
-
-        // After stream completes, fetch the final output
         const sessionResponse = await axios.get(`/sessions/session.chat.get?sessionId=${runId}`);
+        const { output, status, status_message } = sessionResponse.data;
 
-        const output = sessionResponse.data.output;
+        if (status === 'CANCELLED') {
+          throw new Error(status_message || 'Workflow was stopped.');
+        }
+        if (status === 'FAILED') {
+          throw new Error(status_message || 'Workflow failed.');
+        }
 
-        // Return the output if available, otherwise return a default message
         return output && output.trim() !== '' ? output : 'Execution completed, but no output was generated.';
       } catch (error: any) {
         console.error('Error in triggerExecution:', error);
+        setIsLiveRequest(false);
         throw new Error(error.response?.data?.error || error.message || 'Failed to execute session');
       }
     },
-    [runId, blueprintId, user]
+    [runId, blueprintId, user, sessionStream]
   );
 
   // Load chat sessions when authenticated and blueprint is available
@@ -417,6 +436,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
     isDeleting,
     chatHistory,
     runId,
+    isLiveRequest,
     handleNewChat,
     handleSessionSelect,
     handleDeleteChat,

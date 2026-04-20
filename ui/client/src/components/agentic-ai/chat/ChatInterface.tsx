@@ -589,8 +589,24 @@ export default function ChatInterface({
         (async () => {
           try {
             const response = await axios.get(`/sessions/session.chat.get?sessionId=${runId}`);
-            const finalAnswer = response.data?.output;
-            
+            const { output: finalAnswer, status, status_message } = response.data;
+
+            if (status === 'CANCELLED') {
+              markMessageAsCancelled(messageId);
+              return;
+            }
+
+            if (status === 'FAILED') {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === messageId
+                    ? { ...msg, finalAnswer: status_message || 'Workflow failed.' }
+                    : msg
+                )
+              );
+              return;
+            }
+
             if (finalAnswer) {
               setMessages((prev) =>
                 prev.map((msg) => {
