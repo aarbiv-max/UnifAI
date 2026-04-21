@@ -88,4 +88,7 @@ class SessionLifecycle:
         record.status = SessionStatus.CANCELLED
         record.metadata.tags[CANCELLED_TAG] = "true"
         record.metadata.status_message = CANCELLED_STATUS_MESSAGE
+        msgs = record.graph_state.messages
+        if msgs:
+            msgs[-1] = msgs[-1].model_copy(update={"is_cancelled": True})
         self._repo.save(record)

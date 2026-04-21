@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Square, Trash2, Loader2, Sparkles, Info, Copy, RotateCcw,
   ThumbsUp, ThumbsDown, Check, Columns3, MessageSquare, Network,
-  Maximize2, Minimize2, Download, FileText, FileJson,
+  Maximize2, Minimize2, Download, FileText, FileJson, Ban, ChevronDown, ChevronUp,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -47,6 +47,7 @@ const isTerminalStatus = (status?: string): boolean =>
 interface BackendMessage {
   content: string;
   role: "user" | "assistant";
+  is_cancelled?: boolean;
 }
 
 interface ChatInterfaceProps {
@@ -103,7 +104,12 @@ export default function ChatInterface({
   const [userPromptsMap, setUserPromptsMap] = useState<Record<string, string>>({});
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelledExpanded, setCancelledExpanded] = useState<Record<string, boolean>>({});
+  const toggleCancelledExpansion = useCallback((messageId: string) => {
+    setCancelledExpanded(prev => ({ ...prev, [messageId]: !prev[messageId] }));
+  }, []);
   const wasCancelledByUserRef = useRef(false);
+  const activeUserMessageIdRef = useRef<string | null>(null);
 
   const updateMessageById = useCallback(
     (messageId: string, updates: Partial<Message>) => {
@@ -114,13 +120,21 @@ export default function ChatInterface({
     []
   );
 
-  const markMessageAsCancelled = useCallback((messageId: string) => {
-    updateMessageById(messageId, {
-      content: "Workflow was stopped by user.",
-      finalAnswer: "Workflow was stopped by user.",
-      isCancelled: true,
+  const markMessageAsCancelled = useCallback((aiMessageId: string) => {
+    const userMsgId = activeUserMessageIdRef.current;
+    setMessages((prev) => {
+      const filtered = prev.filter((m) => m.id !== aiMessageId);
+      const targetUserId = userMsgId
+        || filtered.findLast((m) => m.sender === "user")?.id;
+      if (targetUserId) {
+        return filtered.map((m) =>
+          m.id === targetUserId ? { ...m, isCancelled: true } : m
+        );
+      }
+      return filtered;
     });
-  }, [updateMessageById]);
+    activeUserMessageIdRef.current = null;
+  }, []);
 
   // ────────────────────────────────────────────────────────────────────────────────
   // Auto-expanding textarea configuration
@@ -227,10 +241,10 @@ export default function ChatInterface({
         id: `${Date.now()}-${index}`,
         content: msg.content,
         sender: msg.role === "user" ? "user" : "ai",
-        // For AI messages, we might want to add finalAnswer if it's the last assistant message
         ...(msg.role === "assistant" && {
           finalAnswer: msg.content,
         }),
+        ...(msg.is_cancelled && { isCancelled: true }),
       }));
     },
     [],
@@ -242,26 +256,17 @@ export default function ChatInterface({
       const transformedMessages =
         transformBackendMessagesToFrontend(initialMessages);
 
-      if (sessionStatus === "CANCELLED") {
-        const cancelText = statusMessage || "Workflow was stopped by user.";
-        const lastAiIndex = transformedMessages.findLastIndex(
-          (m) => m.sender === "ai"
+      // Fallback for sessions cancelled before is_cancelled was deployed
+      const hasCancelledFromBackend = transformedMessages.some((m) => m.isCancelled);
+      if (sessionStatus === "CANCELLED" && !hasCancelledFromBackend) {
+        const lastUserIndex = transformedMessages.findLastIndex(
+          (m) => m.sender === "user"
         );
-        if (lastAiIndex !== -1) {
-          transformedMessages[lastAiIndex] = {
-            ...transformedMessages[lastAiIndex],
+        if (lastUserIndex !== -1) {
+          transformedMessages[lastUserIndex] = {
+            ...transformedMessages[lastUserIndex],
             isCancelled: true,
-            content: cancelText,
-            finalAnswer: cancelText,
           };
-        } else {
-          transformedMessages.push({
-            id: `${Date.now()}-cancelled`,
-            content: cancelText,
-            finalAnswer: cancelText,
-            sender: "ai",
-            isCancelled: true,
-          });
         }
       }
 
@@ -717,6 +722,7 @@ export default function ChatInterface({
     setInputMessage("");
     setIsTyping(true);
     wasCancelledByUserRef.current = false;
+    activeUserMessageIdRef.current = userMessage.id;
 
     // Reset textarea to compact state and focus
     setTimeout(() => {
@@ -777,6 +783,7 @@ export default function ChatInterface({
     } finally {
       setIsTyping(false);
       wasCancelledByUserRef.current = false;
+      activeUserMessageIdRef.current = null;
       stopStreamingLogs(streamingMessageId);
       setCurrentStreamingMessageId(null);
     }
@@ -1043,6 +1050,34 @@ export default function ChatInterface({
     }, [message, streamLogs, workPlans]);
 
     if (message.sender === "user") {
+      if (message.isCancelled) {
+        const isExpanded = cancelledExpanded[message.id];
+        return (
+          <div>
+            <div className="text-sm whitespace-pre-line text-gray-400">
+              <div className={!isExpanded ? "line-clamp-2" : ""}>
+                {message.content}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-700" role="status" aria-live="polite">
+              <Ban className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+              <span className="text-xs text-gray-400 font-medium">Workflow was stopped by user.</span>
+              {message.content.length > 120 && (
+                <button
+                  onClick={() => toggleCancelledExpansion(message.id)}
+                  className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-100 ml-auto transition-colors"
+                >
+                  {isExpanded ? (
+                    <><ChevronUp className="h-3 w-3" /> Show less</>
+                  ) : (
+                    <><ChevronDown className="h-3 w-3" /> Show more</>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      }
       return (
         <div className="text-sm whitespace-pre-line">{message.content}</div>
       );
@@ -1050,7 +1085,7 @@ export default function ChatInterface({
 
     if (
       message.sender === "ai" &&
-      (streamLogs.length > 0 || workPlans.length > 0 || message.finalAnswer || message.isCancelled)
+      (streamLogs.length > 0 || workPlans.length > 0 || message.finalAnswer)
     ) {
       return (
         <div className="space-y-3 w-full">
@@ -1063,16 +1098,8 @@ export default function ChatInterface({
             />
           )}
 
-          {/* Cancelled message display */}
-          {message.isCancelled && (
-            <div className="flex items-center gap-2 text-gray-400 text-sm mt-2" role="status" aria-live="polite">
-              <Square className="h-3.5 w-3.5 flex-shrink-0" />
-              <span>{message.content}</span>
-            </div>
-          )}
-
           {/* Final answer with markdown rendering */}
-          {message.finalAnswer && !message.isCancelled && (
+          {message.finalAnswer && (
             <div
               className="mt-3 p-3 rounded-lg"
               style={{
@@ -1204,7 +1231,9 @@ export default function ChatInterface({
                 <div
                   className={`max-w-[90%] rounded-2xl p-3 ${
                     message.sender === "user"
-                      ? "bg-primary text-white rounded-tr-none"
+                      ? message.isCancelled
+                        ? "bg-gray-800/50 text-gray-100 rounded-tr-none border border-gray-700"
+                        : "bg-primary text-white rounded-tr-none"
                       : "bg-background-dark border border-gray-800 rounded-tl-none"
                   }`}
                 >
