@@ -1,9 +1,79 @@
 from flask import Blueprint, jsonify, current_app
 from global_utils.helpers.apiargs import from_body, from_query
 from webargs import fields
+from mas.core.enums import ResourceCategory
 from mas.resources.errors import ResourceInUseError
 
 resources_bp = Blueprint("resources", __name__)
+
+
+def _usage_payload_from_resource_in_use_error(svc, resource_id: str, err: ResourceInUseError) -> dict:
+    """Build usage JSON from the exception when detailed lookup is unavailable."""
+    category = None
+    allowed_mode = None
+    try:
+        resource = svc.get(resource_id)
+        category = resource.category
+        allowed_mode = ResourceCategory(category).delete_mode
+    except KeyError:
+        pass
+    return {
+        "in_use": True,
+        "category": category,
+        "allowed_mode": allowed_mode,
+        "blueprints": [{"id": bid, "name": bid} for bid in err.by_blueprints],
+        "resources": [
+            {"id": rid, "name": rid, "category": None, "type": None}
+            for rid in err.by_resources
+        ],
+    }
+
+
+def _merge_in_use_usage(svc, resource_id: str, err: ResourceInUseError) -> dict:
+    """
+    Prefer check_usage_detailed for names/modes, but preserve IDs from the
+    ResourceInUseError when enrichment fails, returns empty usage, or omits entries.
+    """
+    detailed = None
+    try:
+        detailed = svc.check_usage_detailed(resource_id)
+    except Exception:
+        detailed = None
+
+    if not detailed or not detailed.get("in_use"):
+        return _usage_payload_from_resource_in_use_error(svc, resource_id, err)
+
+    blueprints = list(detailed.get("blueprints") or [])
+    resources = list(detailed.get("resources") or [])
+
+    def _collect_ids(items):
+        out = set()
+        for it in items:
+            if isinstance(it, dict):
+                i = it.get("id")
+                if i:
+                    out.add(i)
+        return out
+
+    bp_ids = _collect_ids(blueprints)
+    res_ids = _collect_ids(resources)
+
+    for bid in err.by_blueprints:
+        if bid not in bp_ids:
+            blueprints.append({"id": bid, "name": bid})
+            bp_ids.add(bid)
+    for rid in err.by_resources:
+        if rid not in res_ids:
+            resources.append({"id": rid, "name": rid, "category": None, "type": None})
+            res_ids.add(rid)
+
+    return {
+        "in_use": True,
+        "category": detailed.get("category"),
+        "allowed_mode": detailed.get("allowed_mode"),
+        "blueprints": blueprints,
+        "resources": resources,
+    }
 
 
 @resources_bp.route("/resource.save", methods=["POST"])
@@ -131,8 +201,8 @@ def delete_resource(resource_id):
         return jsonify({"status": "deleted"}), 200
     except KeyError:
         return jsonify({"error": f"Resource not found: {resource_id}"}), 404
-    except ResourceInUseError:
-        usage = svc.check_usage_detailed(resource_id)
+    except ResourceInUseError as e:
+        usage = _merge_in_use_usage(svc, resource_id, e)
         return jsonify({
             "error": "Resource is in use",
             "code": "RESOURCE_IN_USE",

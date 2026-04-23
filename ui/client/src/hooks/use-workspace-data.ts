@@ -403,7 +403,7 @@ export const useWorkspaceData = () => {
         return { inUse: false };
       } catch (err: any) {
         console.error("Error checking element usage:", err);
-        return { inUse: false };
+        throw err;
       }
     },
     [],

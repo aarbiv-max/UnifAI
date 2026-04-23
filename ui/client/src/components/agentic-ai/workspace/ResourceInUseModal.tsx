@@ -38,6 +38,8 @@ interface ResourceInUseModalProps {
   inUseData: InUseData;
   replacementOptions: ReplacementOption[];
   isLoadingReplacements: boolean;
+  /** While a dependent resource preview is loading (e.g. after clicking the eye icon). */
+  isLoadingResourcePreview?: boolean;
   onForceDelete: (mode: "replace" | "detach" | "cascade", replacementId?: string) => Promise<void>;
   onBlueprintClick?: (id: string) => void;
   onResourceClick?: (id: string, category?: string, type?: string) => void;
@@ -49,10 +51,12 @@ function DependentList({
   items,
   label,
   onItemClick,
+  isActionDisabled,
 }: {
   items: Array<{ id: string; name: string; category?: string; type?: string }>;
   label: string;
   onItemClick?: (item: { id: string; name: string; category?: string; type?: string }) => void;
+  isActionDisabled?: boolean;
 }) {
   if (items.length === 0) return null;
   return (
@@ -69,8 +73,9 @@ function DependentList({
               <button
                 type="button"
                 aria-label={`View details for ${item.name}`}
+                disabled={isActionDisabled}
                 onClick={() => onItemClick(item)}
-                className="text-gray-500 hover:text-gray-300 flex-shrink-0 ml-2 rounded-sm p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                className="text-gray-500 hover:text-gray-300 flex-shrink-0 ml-2 rounded-sm p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-40 disabled:pointer-events-none"
               >
                 <Eye className="h-3.5 w-3.5" />
               </button>
@@ -89,6 +94,7 @@ export function ResourceInUseModal({
   inUseData,
   replacementOptions,
   isLoadingReplacements,
+  isLoadingResourcePreview = false,
   onForceDelete,
   onBlueprintClick,
   onResourceClick,
@@ -144,6 +150,7 @@ export function ResourceInUseModal({
               blueprints={inUseData.blueprints}
               replacementOptions={replacementOptions}
               isLoadingReplacements={isLoadingReplacements}
+              isLoadingResourcePreview={isLoadingResourcePreview}
               selectedReplacement={selectedReplacement}
               onSelectReplacement={setSelectedReplacement}
               onBlueprintClick={onBlueprintClick}
@@ -155,6 +162,7 @@ export function ResourceInUseModal({
             <DetachFlow
               label={label}
               resources={inUseData.resources}
+              isLoadingResourcePreview={isLoadingResourcePreview}
               onResourceClick={onResourceClick}
             />
           )}
@@ -238,6 +246,7 @@ function ReplaceFlow({
   blueprints,
   replacementOptions,
   isLoadingReplacements,
+  isLoadingResourcePreview,
   selectedReplacement,
   onSelectReplacement,
   onBlueprintClick,
@@ -249,6 +258,7 @@ function ReplaceFlow({
   blueprints: InUseData["blueprints"];
   replacementOptions: ReplacementOption[];
   isLoadingReplacements: boolean;
+  isLoadingResourcePreview: boolean;
   selectedReplacement: string;
   onSelectReplacement: (rid: string) => void;
   onBlueprintClick?: (id: string) => void;
@@ -271,6 +281,7 @@ function ReplaceFlow({
         <DependentList
           items={resources}
           label="Used by these agents"
+          isActionDisabled={isLoadingResourcePreview}
           onItemClick={
             onResourceClick
               ? (item) => onResourceClick(item.id, item.category, item.type)
@@ -316,10 +327,12 @@ function ReplaceFlow({
 function DetachFlow({
   label,
   resources,
+  isLoadingResourcePreview,
   onResourceClick,
 }: {
   label: string;
   resources: InUseData["resources"];
+  isLoadingResourcePreview: boolean;
   onResourceClick?: (id: string, category?: string, type?: string) => void;
 }) {
   return (
@@ -331,6 +344,7 @@ function DetachFlow({
       <DependentList
         items={resources}
         label="Used by these agents"
+        isActionDisabled={isLoadingResourcePreview}
         onItemClick={
           onResourceClick
             ? (item) => onResourceClick(item.id, item.category, item.type)

@@ -42,6 +42,7 @@ export default function UserWorkspace() {
   const [previewResource, setPreviewResource] = useState<ElementInstance | null>(null);
   const [previewResourceType, setPreviewResourceType] = useState<ElementType | null>(null);
   const [isResourcePreviewOpen, setIsResourcePreviewOpen] = useState(false);
+  const [isLoadingResourcePreview, setIsLoadingResourcePreview] = useState(false);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -168,13 +169,33 @@ export default function UserWorkspace() {
       const result = await deleteElement(elementToDelete.rid);
       if (result.deleted) {
         await fetchElementInstances(selectedElementType.category, selectedElementType.type);
+        setShowDeleteModal(false);
+        setElementToDelete(null);
+      } else if ("inUse" in result && result.inUse) {
+        setShowDeleteModal(false);
+        setInUseData({
+          category: result.category,
+          allowed_mode: result.allowed_mode as "replace" | "detach" | "cascade",
+          blueprints: result.blueprints,
+          resources: result.resources,
+        });
+        setShowInUseModal(true);
+        if (result.allowed_mode === "replace") {
+          setIsLoadingReplacements(true);
+          try {
+            const options = await fetchResourcesForCategory(result.category);
+            setReplacementOptions(
+              options.filter((o: { rid: string }) => o.rid !== elementToDelete.rid),
+            );
+          } finally {
+            setIsLoadingReplacements(false);
+          }
+        }
       }
     } catch (error) {
-      console.error('Error deleting element:', error);
+      console.error("Error deleting element:", error);
     } finally {
       setIsDeleting(false);
-      setShowDeleteModal(false);
-      setElementToDelete(null);
     }
   };
 
@@ -228,27 +249,60 @@ export default function UserWorkspace() {
     }
   };
 
-  const handleDependentResourceClick = async (resourceId: string, resourceCategory?: string, resourceType?: string) => {
-    const resource = await fetchResourceById(resourceId);
-    if (!resource) return;
+  const handleDependentResourceClick = async (
+    resourceId: string,
+    resourceCategory?: string,
+    resourceType?: string,
+  ) => {
+    setIsLoadingResourcePreview(true);
+    try {
+      let resource;
+      try {
+        resource = await fetchResourceById(resourceId);
+      } catch (err) {
+        console.error("Error loading dependent resource:", err);
+        toast({
+          title: "Error",
+          description: "Failed to load resource preview. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!resource) {
+        toast({
+          title: "Not Found",
+          description: "That resource could not be loaded.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const matchedCategory = categories.find(c => c.category === (resourceCategory || resource.category));
-    const elType: ElementType = matchedCategory?.elements.find(e => e.type === (resourceType || resource.type))
-      || { type: resource.type, name: resource.type, category: resource.category };
+      const matchedCategory = categories.find(
+        (c) => c.category === (resourceCategory || resource.category),
+      );
+      const elType: ElementType =
+        matchedCategory?.elements.find((e) => e.type === (resourceType || resource.type)) || {
+          type: resource.type,
+          name: resource.type,
+          category: resource.category,
+        };
 
-    setPreviewResource({
-      rid: resource.rid,
-      name: resource.name,
-      config: resource.cfg_dict,
-      category: resource.category,
-      type: resource.type,
-      version: resource.version,
-      created: resource.created,
-      updated: resource.updated,
-      nested_refs: resource.nested_refs,
-    });
-    setPreviewResourceType(elType);
-    setIsResourcePreviewOpen(true);
+      setPreviewResource({
+        rid: resource.rid,
+        name: resource.name,
+        config: resource.cfg_dict,
+        category: resource.category,
+        type: resource.type,
+        version: resource.version,
+        created: resource.created,
+        updated: resource.updated,
+        nested_refs: resource.nested_refs,
+      });
+      setPreviewResourceType(elType);
+      setIsResourcePreviewOpen(true);
+    } finally {
+      setIsLoadingResourcePreview(false);
+    }
   };
 
   return (
@@ -420,6 +474,7 @@ export default function UserWorkspace() {
           inUseData={inUseData}
           replacementOptions={replacementOptions}
           isLoadingReplacements={isLoadingReplacements}
+          isLoadingResourcePreview={isLoadingResourcePreview}
           onForceDelete={handleForceDelete}
           onBlueprintClick={handleBlueprintClick}
           onResourceClick={handleDependentResourceClick}

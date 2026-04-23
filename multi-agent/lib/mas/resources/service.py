@@ -124,7 +124,7 @@ class ResourcesService:
             try:
                 bp_doc = self._store.get_blueprint_summary(bp_id)
                 bp_details.append(bp_doc)
-            except Exception:
+            except KeyError:
                 bp_details.append({"id": bp_id, "name": bp_id})
 
         res_details = []
@@ -135,7 +135,7 @@ class ResourcesService:
                     "id": res_id, "name": res.name,
                     "category": res.category, "type": res.type,
                 })
-            except Exception:
+            except KeyError:
                 res_details.append({"id": res_id, "name": res_id})
 
         return {
