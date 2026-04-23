@@ -1,24 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
 import { Plus, Info, Search, X } from 'lucide-react';
-import { FaProjectDiagram } from "react-icons/fa";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useWorkspaceData } from "@/hooks/use-workspace-data";
 import { CategorySidebar } from '../components/agentic-ai/workspace/CategorySidebar';
 import { ElementGrid } from '../components/agentic-ai/workspace/ElementGrid';
 import { ElementForm } from '../components/agentic-ai/workspace/ElementForm';
-import { ElementData } from '../components/agentic-ai/workspace/ElementData';
-import { ResourceInUseModal, InUseData } from '../components/agentic-ai/workspace/ResourceInUseModal';
+import {
+  WorkspaceElementDeletionFlow,
+  type WorkspaceElementDeletionFlowHandle,
+} from '../components/agentic-ai/workspace/WorkspaceElementDeletionFlow';
 import { ElementType, ElementInstance } from '../types/workspace';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import GraphDisplay from "@/components/agentic-ai/graphs/GraphDisplay";
-import { fetchResolvedBlueprint, WorkflowBlueprint } from "@/api/blueprints";
-import { useAuth } from "@/contexts/AuthContext";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
-import { useToast } from "@/hooks/use-toast";
 
 export default function UserWorkspace() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -26,26 +21,8 @@ export default function UserWorkspace() {
   const [selectedElementType, setSelectedElementType] = useState<ElementType | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingElement, setEditingElement] = useState<ElementInstance | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [elementToDelete, setElementToDelete] = useState<ElementInstance | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-
-  const [showInUseModal, setShowInUseModal] = useState(false);
-  const [inUseData, setInUseData] = useState<InUseData | null>(null);
-  const [replacementOptions, setReplacementOptions] = useState<Array<{ rid: string; name: string; type: string }>>([]);
-  const [isLoadingReplacements, setIsLoadingReplacements] = useState(false);
-
-  const [previewWorkflow, setPreviewWorkflow] = useState<WorkflowBlueprint | null>(null);
-  const [isWorkflowPreviewOpen, setIsWorkflowPreviewOpen] = useState(false);
-
-  const [previewResource, setPreviewResource] = useState<ElementInstance | null>(null);
-  const [previewResourceType, setPreviewResourceType] = useState<ElementType | null>(null);
-  const [isResourcePreviewOpen, setIsResourcePreviewOpen] = useState(false);
-  const [isLoadingResourcePreview, setIsLoadingResourcePreview] = useState(false);
-
-  const { user } = useAuth();
-  const { toast } = useToast();
+  const deletionFlowRef = useRef<WorkspaceElementDeletionFlowHandle>(null);
 
   const {
     categories,
@@ -64,6 +41,25 @@ export default function UserWorkspace() {
     deleteElement,
     forceDeleteElement,
   } = useWorkspaceData();
+
+  const deletionWorkspace = useMemo(
+    () => ({
+      fetchElementInstances,
+      fetchResourceById,
+      checkElementUsage,
+      deleteElement,
+      forceDeleteElement,
+      fetchResourcesForCategory,
+    }),
+    [
+      fetchElementInstances,
+      fetchResourceById,
+      checkElementUsage,
+      deleteElement,
+      forceDeleteElement,
+      fetchResourcesForCategory,
+    ],
+  );
 
   useEffect(() => {
     if (selectedElementType) {
@@ -117,192 +113,6 @@ export default function UserWorkspace() {
       fetchElementInstances(selectedElementType.category, selectedElementType.type);
     }
     return result;
-  };
-
-  const handleDeleteElement = async (rid: string) => {
-    const element = elementInstances.find(el => el.rid === rid);
-    if (!element) return;
-
-    setElementToDelete(element);
-
-    try {
-      const usage = await checkElementUsage(rid);
-      if ('inUse' in usage && usage.inUse) {
-        setInUseData({
-          category: usage.category,
-          allowed_mode: usage.allowed_mode as "replace" | "detach" | "cascade",
-          blueprints: usage.blueprints,
-          resources: usage.resources,
-        });
-        setShowInUseModal(true);
-
-        if (usage.allowed_mode === "replace") {
-          setIsLoadingReplacements(true);
-          try {
-            const options = await fetchResourcesForCategory(usage.category);
-            setReplacementOptions(
-              options.filter((o: { rid: string }) => o.rid !== element.rid)
-            );
-          } finally {
-            setIsLoadingReplacements(false);
-          }
-        }
-      } else {
-        setShowDeleteModal(true);
-      }
-    } catch (error) {
-      console.error("Error during element deletion check:", error);
-      toast({
-        title: "Error",
-        description: "Failed to check element usage. Please try again.",
-        variant: "destructive",
-      });
-      setElementToDelete(null);
-    }
-  };
-
-  const confirmDeleteElement = async () => {
-    if (!elementToDelete || !selectedElementType) return;
-
-    setIsDeleting(true);
-    try {
-      const result = await deleteElement(elementToDelete.rid);
-      if (result.deleted) {
-        await fetchElementInstances(selectedElementType.category, selectedElementType.type);
-        setShowDeleteModal(false);
-        setElementToDelete(null);
-      } else if ("inUse" in result && result.inUse) {
-        setShowDeleteModal(false);
-        setInUseData({
-          category: result.category,
-          allowed_mode: result.allowed_mode as "replace" | "detach" | "cascade",
-          blueprints: result.blueprints,
-          resources: result.resources,
-        });
-        setShowInUseModal(true);
-        if (result.allowed_mode === "replace") {
-          setIsLoadingReplacements(true);
-          try {
-            const options = await fetchResourcesForCategory(result.category);
-            setReplacementOptions(
-              options.filter((o: { rid: string }) => o.rid !== elementToDelete.rid),
-            );
-          } finally {
-            setIsLoadingReplacements(false);
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Error deleting element:", error);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const cancelDeleteElement = () => {
-    setShowDeleteModal(false);
-    setElementToDelete(null);
-  };
-
-  const handleForceDelete = async (
-    mode: "replace" | "detach" | "cascade",
-    replacementId?: string,
-  ) => {
-    if (!elementToDelete || !selectedElementType) return;
-    const success = await forceDeleteElement(elementToDelete.rid, mode, replacementId);
-    if (success) {
-      setShowInUseModal(false);
-      setInUseData(null);
-      setElementToDelete(null);
-      setReplacementOptions([]);
-      await fetchElementInstances(selectedElementType.category, selectedElementType.type);
-    }
-  };
-
-  const closeInUseModal = () => {
-    setShowInUseModal(false);
-    setInUseData(null);
-    setElementToDelete(null);
-    setReplacementOptions([]);
-  };
-
-  const handleBlueprintClick = async (blueprintId: string) => {
-    try {
-      const bp = await fetchResolvedBlueprint(blueprintId, user?.username);
-      if (!bp) {
-        toast({
-          title: "Not Found",
-          description: "Blueprint not found",
-          variant: "destructive",
-        });
-        return;
-      }
-      setPreviewWorkflow(bp);
-      setIsWorkflowPreviewOpen(true);
-    } catch (err) {
-      console.error("Error loading blueprint preview:", err);
-      toast({
-        title: "Error",
-        description: "Failed to load blueprint preview",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDependentResourceClick = async (
-    resourceId: string,
-    resourceCategory?: string,
-    resourceType?: string,
-  ) => {
-    setIsLoadingResourcePreview(true);
-    try {
-      let resource;
-      try {
-        resource = await fetchResourceById(resourceId);
-      } catch (err) {
-        console.error("Error loading dependent resource:", err);
-        toast({
-          title: "Error",
-          description: "Failed to load resource preview. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (!resource) {
-        toast({
-          title: "Not Found",
-          description: "That resource could not be loaded.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const matchedCategory = categories.find(
-        (c) => c.category === (resourceCategory || resource.category),
-      );
-      const elType: ElementType =
-        matchedCategory?.elements.find((e) => e.type === (resourceType || resource.type)) || {
-          type: resource.type,
-          name: resource.type,
-          category: resource.category,
-        };
-
-      setPreviewResource({
-        rid: resource.rid,
-        name: resource.name,
-        config: resource.cfg_dict,
-        category: resource.category,
-        type: resource.type,
-        version: resource.version,
-        created: resource.created,
-        updated: resource.updated,
-        nested_refs: resource.nested_refs,
-      });
-      setPreviewResourceType(elType);
-      setIsResourcePreviewOpen(true);
-    } finally {
-      setIsLoadingResourcePreview(false);
-    }
   };
 
   return (
@@ -413,7 +223,9 @@ export default function UserWorkspace() {
                       elementType={selectedElementType}
                       isLoading={isLoadingInstances}
                       onEditElement={handleEditElement}
-                      onDeleteElement={handleDeleteElement}
+                      onDeleteElement={(rid) =>
+                        deletionFlowRef.current?.handleDeleteElement(rid)
+                      }
                       elementSchema={elementSchema}
                     />
                   )}
@@ -438,95 +250,13 @@ export default function UserWorkspace() {
         </main>
       </div>
 
-      <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-        <AlertDialogContent className="bg-background-card border-gray-800">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedElementType?.name || 'Element'}</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{elementToDelete?.name || `${selectedElementType?.name || 'Element'} Instance`}"?
-              <br /><br />
-              <strong>Be aware that this action is irreversible.</strong>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel 
-              onClick={cancelDeleteElement}
-              className="bg-background-dark border-gray-700 hover:bg-background-surface"
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteElement}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              {isDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {inUseData && (
-        <ResourceInUseModal
-          open={showInUseModal}
-          onClose={closeInUseModal}
-          elementName={elementToDelete?.name || "Element"}
-          inUseData={inUseData}
-          replacementOptions={replacementOptions}
-          isLoadingReplacements={isLoadingReplacements}
-          isLoadingResourcePreview={isLoadingResourcePreview}
-          onForceDelete={handleForceDelete}
-          onBlueprintClick={handleBlueprintClick}
-          onResourceClick={handleDependentResourceClick}
-        />
-      )}
-
-      <Dialog open={isWorkflowPreviewOpen} onOpenChange={(open) => {
-        if (!open) {
-          setIsWorkflowPreviewOpen(false);
-          setPreviewWorkflow(null);
-        }
-      }}>
-        <DialogContent className="bg-background-card border-gray-800 max-w-6xl w-[90vw] h-[85vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b border-gray-800 flex-shrink-0">
-            <DialogTitle className="text-xl flex items-center gap-2">
-              <FaProjectDiagram className="text-primary" />
-              {previewWorkflow?.spec_dict?.name || "Workflow View"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-hidden p-6 min-h-0">
-            {previewWorkflow && (
-              <div className="h-full w-full">
-                <GraphDisplay
-                  blueprintId={previewWorkflow.blueprint_id}
-                  specDict={previewWorkflow.spec_dict}
-                  height="100%"
-                  showBackground={true}
-                  interactive={true}
-                  centerInView={true}
-                  animated={true}
-                />
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {previewResourceType && (
-        <ElementData
-          element={previewResource}
-          elementType={previewResourceType}
-          isOpen={isResourcePreviewOpen}
-          onOpenChange={(open) => {
-            setIsResourcePreviewOpen(open);
-            if (!open) {
-              setPreviewResource(null);
-              setPreviewResourceType(null);
-            }
-          }}
-          elementSchema={null}
-        />
-      )}
+      <WorkspaceElementDeletionFlow
+        ref={deletionFlowRef}
+        selectedElementType={selectedElementType}
+        elementInstances={elementInstances}
+        categories={categories}
+        workspace={deletionWorkspace}
+      />
     </div>
   );
 }

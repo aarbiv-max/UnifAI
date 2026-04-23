@@ -6,12 +6,12 @@ from mas.resources.errors import ResourceInUseError
 from typing import List, Tuple, Dict, Any
 from mas.core.dto import GroupedCount
 from mas.core.ref import RefRemapper
-from mas.core.enums import ResourceCategory
-
-
-_CATALOGUE_KEYS = tuple(c.value for c in ResourceCategory)
-
-
+from mas.core.ref.raw_blueprint_spec import (
+    dedupe_blueprint_catalogue,
+    extract_ref_ids_from_raw_spec,
+    remove_resource_ref_from_catalogue,
+    remove_resource_ref_from_nested_dict,
+)
 class ResourcesRegistry:
     """Low-level CRUD + business rules (no Pydantic parsing)."""
 
@@ -107,7 +107,7 @@ class ResourcesRegistry:
         """Remove all references to *rid* from nested resources and blueprints."""
         for dep_rid in self._repo.list_nested_usage(rid):
             doc = self._repo.get(dep_rid)
-            doc.cfg_dict = _remove_ref_from_dict(doc.cfg_dict, rid)
+            doc.cfg_dict = remove_resource_ref_from_nested_dict(doc.cfg_dict, rid)
             doc.nested_refs = [r for r in doc.nested_refs if r != rid]
             self._bump_and_save(doc)
 
@@ -131,13 +131,13 @@ class ResourcesRegistry:
 
         if remap:
             spec = RefRemapper.remap(spec, remap)
-            spec = _dedup_catalogue(spec)
+            spec = dedupe_blueprint_catalogue(spec)
 
         if remove_rid:
-            spec = _remove_ref_from_catalogue(spec, remove_rid)
-            spec = _remove_ref_from_dict(spec, remove_rid)
+            spec = remove_resource_ref_from_catalogue(spec, remove_rid)
+            spec = remove_resource_ref_from_nested_dict(spec, remove_rid)
 
-        rid_refs = list(_extract_ref_ids(spec))
+        rid_refs = list(extract_ref_ids_from_raw_spec(spec))
         self._bp_repo.update_raw(blueprint_id=bp_id, spec_dict=spec, rid_refs=rid_refs)
 
     def get_blueprint_summary(self, bp_id: str) -> dict:
@@ -188,75 +188,3 @@ class ResourcesRegistry:
             List of GroupedCount DTOs with grouped field values and count.
         """
         return self._repo.group_count(user_id, group_by, filter)
-
-
-# ---------- pure helpers for ref extraction & manipulation on raw dicts ----------
-
-_REF_PREFIX = "$ref:"
-
-
-def _extract_ref_ids(node: Any) -> set[str]:
-    """Extract all resource IDs from $ref:xxx strings in a raw spec dict."""
-    bucket: set[str] = set()
-    _scan_refs(node, bucket)
-    return bucket
-
-
-def _scan_refs(node: Any, bucket: set[str]) -> None:
-    if isinstance(node, str):
-        if node.startswith(_REF_PREFIX):
-            bucket.add(node[len(_REF_PREFIX):])
-    elif isinstance(node, dict):
-        for v in node.values():
-            _scan_refs(v, bucket)
-    elif isinstance(node, (list, tuple)):
-        for v in node:
-            _scan_refs(v, bucket)
-
-def _remove_ref_from_dict(d: dict, rid: str) -> dict:
-    """Remove $ref:rid from a raw config dict — nullify scalars, filter from lists."""
-    ref_str = f"$ref:{rid}"
-
-    def walk(node):
-        if isinstance(node, str):
-            return None if node == ref_str else node
-        if isinstance(node, dict):
-            return {k: walk(v) for k, v in node.items()}
-        if isinstance(node, list):
-            return [walk(v) for v in node if not (isinstance(v, str) and v == ref_str)]
-        return node
-
-    return walk(d)
-
-
-def _remove_ref_from_catalogue(spec_dict: dict, rid: str) -> dict:
-    """Remove catalogue entries whose rid matches from a blueprint spec_dict."""
-    ref_str = f"$ref:{rid}"
-    result = dict(spec_dict)
-    for cat_key in _CATALOGUE_KEYS:
-        entries = result.get(cat_key)
-        if isinstance(entries, list):
-            result[cat_key] = [
-                e for e in entries
-                if not (isinstance(e, dict) and e.get("rid") == ref_str)
-            ]
-    return result
-
-
-def _dedup_catalogue(spec_dict: dict) -> dict:
-    """Remove duplicate catalogue entries (same rid) from a blueprint spec_dict."""
-    result = dict(spec_dict)
-    for cat_key in _CATALOGUE_KEYS:
-        entries = result.get(cat_key)
-        if isinstance(entries, list):
-            seen: set = set()
-            deduped = []
-            for entry in entries:
-                rid = entry.get("rid") if isinstance(entry, dict) else None
-                if rid and rid in seen:
-                    continue
-                if rid:
-                    seen.add(rid)
-                deduped.append(entry)
-            result[cat_key] = deduped
-    return result

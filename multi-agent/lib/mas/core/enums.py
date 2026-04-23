@@ -35,6 +35,10 @@ class ResourceCategory(str, Enum):
             ResourceCategory.RETRIEVER: "detach",
             ResourceCategory.NODE: "cascade",
         }
+        if self not in _modes:
+            raise NotImplementedError(
+                f"ResourceCategory {self!r} has no delete_mode; add it to delete_mode mapping."
+            )
         return _modes[self]
 
 
