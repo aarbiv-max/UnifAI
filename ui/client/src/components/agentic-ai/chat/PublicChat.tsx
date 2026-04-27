@@ -63,6 +63,7 @@ export default function PublicChat() {
     cancelDeleteChat,
     triggerExecution,
     handleCancelSession,
+    isSubmitting,
     showDeleteModal,
     setShowDeleteModal,
     chatToDelete,
@@ -384,6 +385,7 @@ export default function PublicChat() {
                 isBlueprintGraphHidden={true}
                 isChatOnlyMode={true}
                 isLiveRequest={isLiveRequest}
+                isSubmitting={isSubmitting}
               />
             </StreamingDataProvider>
           )}

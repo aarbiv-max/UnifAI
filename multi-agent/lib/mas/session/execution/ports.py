@@ -6,7 +6,6 @@ by infrastructure adapters.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional
 
 from mas.session.domain.workflow_session import WorkflowSession
 from mas.core.execution_context import ExecutionContext
@@ -18,6 +17,7 @@ class SubmitSessionRequest:
 
     Inputs are already staged into the SessionRecord before submission,
     so this only carries the execution context (scope, user, etc.).
+    The engine handle lives in execution_context.engine_handle.
     """
     execution_context: ExecutionContext = field(default_factory=ExecutionContext)
 
@@ -32,11 +32,24 @@ class BackgroundSessionEngine(ABC):
     """
 
     @abstractmethod
-    def submit(self, session: WorkflowSession, request: SubmitSessionRequest) -> str:
-        """Start background execution. Returns a workflow/task handle ID."""
+    def generate_handle(self, session_id: str) -> str:
+        """Pre-generate a unique handle for the background workflow.
+
+        Called before submit() so the handle can be persisted atomically
+        with input staging, eliminating the race window between workflow
+        start and handle persistence.
+        """
         ...
 
     @abstractmethod
-    def cancel(self, session_id: str, workflow_id: Optional[str] = None) -> None:
+    def submit(self, session: WorkflowSession, request: SubmitSessionRequest) -> None:
+        """Start background execution.
+
+        The engine handle is read from request.execution_context.engine_handle.
+        """
+        ...
+
+    @abstractmethod
+    def cancel(self, handle: str) -> None:
         """Request cancellation of a running background session."""
         ...

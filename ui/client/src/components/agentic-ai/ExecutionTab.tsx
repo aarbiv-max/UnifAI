@@ -984,6 +984,7 @@ export default function ExecutionTab({
                 onSetCarouselMode={handleSetCarouselMode}
                 carouselMode={carouselMode}
                 isLiveRequest={isLiveRequest}
+                isSubmitting={sessionStream.isSubmitting}
               />
             )}
           </div>

@@ -66,6 +66,7 @@ interface ChatInterfaceProps {
   onSetCarouselMode?: (mode: 'normal' | 'chat' | 'graph') => void;
   carouselMode?: 'normal' | 'chat' | 'graph';
   isLiveRequest?: boolean;
+  isSubmitting?: boolean;
 }
 
 export default function ChatInterface({
@@ -84,6 +85,7 @@ export default function ChatInterface({
   onSetCarouselMode,
   carouselMode = 'normal',
   isLiveRequest = false,
+  isSubmitting = false,
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
@@ -1333,13 +1335,13 @@ export default function ChatInterface({
             {(isTyping || isLiveRequest) ? (
               <Button
                 onClick={handleCancelClick}
-                disabled={isCancelling || !onCancelSession}
+                disabled={isCancelling || !onCancelSession || isSubmitting}
                 size="icon"
                 className="bg-primary hover:bg-primary/80 mb-0"
                 title="Stop generation"
                 aria-label="Stop generation"
               >
-                {isCancelling ? (
+                {(isCancelling || isSubmitting) ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <span className="flex flex-col items-center gap-0.5">

@@ -10,7 +10,6 @@ into Temporal's async API.
 import asyncio
 import uuid
 import logging
-from typing import Optional
 
 from mas.session.execution.ports import BackgroundSessionEngine, SubmitSessionRequest
 from mas.session.domain.workflow_session import WorkflowSession
@@ -28,9 +27,14 @@ class TemporalSessionEngine(BackgroundSessionEngine):
     """
     Temporal implementation of background session operations.
 
+    generate_handle():
+      Creates a unique Temporal workflow ID that can be persisted before
+      the workflow starts, eliminating race windows.
+
     submit():
       Starts a durable SessionWorkflow that owns the execution lifecycle
       (begin → execute → complete/fail) inside the Temporal cluster.
+      Reads the pre-generated handle from request.execution_context.engine_handle.
       Requires the session's executable_graph to be a TemporalGraphExecutor.
 
     cancel():
@@ -39,30 +43,20 @@ class TemporalSessionEngine(BackgroundSessionEngine):
       the lifecycle transition and channel cleanup via BackgroundLifecycleHandler.
     """
 
-    def submit(self, session: WorkflowSession, request: SubmitSessionRequest) -> str:
-        return asyncio.run(self._start_session_workflow(session, request))
+    def generate_handle(self, session_id: str) -> str:
+        return f"session-{session_id}-{uuid.uuid4().hex[:8]}"
 
-    def cancel(self, session_id: str, workflow_id: Optional[str] = None) -> None:
-        if not workflow_id:
-            logger.warning(
-                "No workflow_id available for session %s — cannot cancel",
-                session_id,
-            )
-            return
-        try:
-            asyncio.run(self._cancel_workflow(workflow_id))
-        except Exception:
-            logger.warning(
-                "Failed to cancel Temporal workflow %s for session %s "
-                "(may have already completed)",
-                workflow_id, session_id, exc_info=True,
-            )
+    def submit(self, session: WorkflowSession, request: SubmitSessionRequest) -> None:
+        asyncio.run(self._start_session_workflow(session, request))
+
+    def cancel(self, handle: str) -> None:
+        asyncio.run(self._cancel_workflow(handle))
 
     async def _start_session_workflow(
         self,
         session: WorkflowSession,
         request: SubmitSessionRequest,
-    ) -> str:
+    ) -> None:
         executor = session.executable_graph
         if not isinstance(executor, TemporalGraphExecutor):
             raise TypeError(
@@ -74,7 +68,11 @@ class TemporalSessionEngine(BackgroundSessionEngine):
         cfg = AppConfig.get_instance()
         client = await get_temporal_client()
 
-        workflow_id = f"session-{session.get_run_id()}-{uuid.uuid4().hex[:8]}"
+        handle = request.execution_context.engine_handle
+        if not handle:
+            raise ValueError(
+                "engine_handle must be set on execution_context before submit()"
+            )
 
         graph_params = GraphExecutionParams(
             state=session.graph_state,
@@ -90,12 +88,11 @@ class TemporalSessionEngine(BackgroundSessionEngine):
         await client.start_workflow(
             _WORKFLOW_NAME,
             params,
-            id=workflow_id,
+            id=handle,
             task_queue=cfg.temporal_task_queue,
         )
-        return workflow_id
 
-    async def _cancel_workflow(self, workflow_id: str) -> None:
+    async def _cancel_workflow(self, handle: str) -> None:
         client = await get_temporal_client()
-        handle = client.get_workflow_handle(workflow_id)
-        await handle.cancel()
+        wf_handle = client.get_workflow_handle(handle)
+        await wf_handle.cancel()

@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from mas.session.management.user_session_manager import UserSessionManager
@@ -11,6 +12,8 @@ from mas.session.domain.dto import SessionListItem
 from mas.session.domain.models import SessionChat, SessionMeta, TimeSeriesPoint, SystemAnalyticsData
 from mas.session.domain.exceptions import BlueprintNotFoundError
 from mas.core.dto import GroupedCount
+
+logger = logging.getLogger(__name__)
 
 class SessionService:
     """
@@ -76,23 +79,27 @@ class SessionService:
         """
         Non-blocking submit: stage inputs, then start a background workflow
         and return its handle/ID immediately (HTTP 202 pattern).
+
+        The engine handle is persisted atomically with input staging
+        (before the workflow starts), eliminating the race window where
+        a cancel request could arrive before the handle is in Mongo.
         """
         if self._engine is None:
             raise TypeError(
                 "No BackgroundSessionEngine configured — "
                 "submit() is not available for this engine."
             )
-        self._stage(session_id, inputs)
+        record = self._manager.get_record(session_id)
+        handle = self._engine.generate_handle(session_id)
+        record.update_context(engine_handle=handle)
+        self._projector.apply(record, inputs or {})
+
         session = self._manager.get_session(session_id)
         execution_ctx = session.run_context.with_scope(scope)
         request = SubmitSessionRequest(execution_context=execution_ctx)
-        workflow_id = self._engine.submit(session, request)
+        self._engine.submit(session, request)
 
-        record = self._manager.get_record(session_id)
-        record.update_context(tags={**record.run_context.tags, "workflow_id": workflow_id})
-        self._manager.save_record(record)
-
-        return workflow_id
+        return handle
 
     def cancel(self, session_id: str) -> bool:
         """Request cancellation of a running or queued background session.
@@ -103,7 +110,7 @@ class SessionService:
         keeping lifecycle ownership in a single place.
 
         Returns True if cancellation was requested, False if the session
-        is not in a cancellable state.
+        is not in a cancellable state or the engine call failed.
         """
         if self._engine is None:
             raise TypeError(
@@ -113,15 +120,30 @@ class SessionService:
         record = self._manager.get_record(session_id)
         if record.status not in (SessionStatus.QUEUED, SessionStatus.RUNNING):
             return False
-        workflow_id = record.run_context.tags.get("workflow_id")
-        self._engine.cancel(session_id, workflow_id=workflow_id)
+        handle = record.run_context.engine_handle
+        if handle is None:
+            return False
+        try:
+            self._engine.cancel(handle)
+        except Exception:
+            logger.warning(
+                "Failed to cancel background workflow %s for session %s",
+                handle, session_id, exc_info=True,
+            )
+            return False
         return True
 
     # ---- Private staging ----
 
     def _stage(self, session_id: str, inputs: Dict[str, Any]) -> None:
-        """Project raw inputs onto the record and persist (QUEUED)."""
+        """Project raw inputs onto the record and persist (QUEUED).
+
+        Clears any stale engine_handle from a previous background run
+        so that cancel() won't target a dead workflow if this session
+        is now being executed via the foreground run() path.
+        """
         record = self._manager.get_record(session_id)
+        record.update_context(engine_handle=None)
         self._projector.apply(record, inputs or {})
 
     def list_for_user(self, user_id: str) -> list:

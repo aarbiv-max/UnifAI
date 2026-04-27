@@ -26,6 +26,7 @@ interface UsePublicChatReturn {
   cancelDeleteChat: () => void;
   triggerExecution: (sessionPayload: any) => Promise<string>;
   handleCancelSession: () => Promise<void>;
+  isSubmitting: boolean;
   showDeleteModal: boolean;
   setShowDeleteModal: (open: boolean) => void;
   chatToDelete: ChatSession | null;
@@ -445,6 +446,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
     cancelDeleteChat,
     triggerExecution,
     handleCancelSession,
+    isSubmitting: sessionStream.isSubmitting,
     showDeleteModal,
     setShowDeleteModal,
     chatToDelete,

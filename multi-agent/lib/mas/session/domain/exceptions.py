@@ -1,3 +1,11 @@
+class SessionAlreadyCancelledError(Exception):
+    """Raised when a session is already in CANCELLED state at begin() time."""
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        super().__init__(f"Session '{session_id}' is already cancelled")
+
+
 class SessionBlueprintError(Exception):
     """Base class for session blueprint-related errors."""
     pass

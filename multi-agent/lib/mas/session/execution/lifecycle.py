@@ -16,6 +16,7 @@ from mas.session.repository.repository import SessionRepository
 from mas.session.domain.session_record import SessionRecord
 from mas.session.domain.status import SessionStatus
 from mas.session.domain.constants import CANCELLED_TAG, CANCELLED_STATUS_MESSAGE
+from mas.session.domain.exceptions import SessionAlreadyCancelledError
 
 
 class SessionLifecycle:
@@ -37,7 +38,11 @@ class SessionLifecycle:
         Start execution: bind scope into run context, mark RUNNING, persist.
 
         Called AFTER inputs have already been staged by SessionInputProjector.
+        Raises SessionAlreadyCancelledError if the session was cancelled
+        before the workflow started, causing the runner to abort early.
         """
+        if record.status == SessionStatus.CANCELLED:
+            raise SessionAlreadyCancelledError(record.run_id)
         record.update_context(scope=scope)
         record.status = SessionStatus.RUNNING
         self._repo.save(record)
