@@ -807,6 +807,7 @@ export default function ChatInterface({
       await onCancelSession?.();
     } catch (error) {
       console.error('Error cancelling session:', error);
+      wasCancelledByUserRef.current = false; 
       toast({
         title: "Cancel Failed",
         description: "Failed to cancel the session. It may have already completed.",

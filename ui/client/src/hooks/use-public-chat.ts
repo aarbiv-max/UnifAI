@@ -417,7 +417,7 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
       } catch (error: any) {
         console.error('Error in triggerExecution:', error);
         setIsLiveRequest(false);
-        throw new Error(error.response?.data?.error || error.message || 'Failed to execute session');
+        throw error;
       }
     },
     [runId, blueprintId, user, sessionStream]
