@@ -13,12 +13,14 @@ into the layers that need them.
 from mas.catalog.element_registry import ElementRegistry
 from mas.catalog.service import CatalogService
 from mas.catalog.card_service import ElementCardService
+from mas.blueprints.ref_service import BlueprintRefService
 from mas.blueprints.service import BlueprintService
 from mas.blueprints.resolver import BlueprintResolver
 from mas.session.building import WorkflowSessionFactory
 from mas.session.management import UserSessionManager
 from mas.session.execution import SessionLifecycle, ForegroundSessionRunner, SessionInputProjector
 from mas.session.service import SessionService
+from mas.resources.deletion.service import ResourceDeletionService
 from mas.resources.registry import ResourcesRegistry
 from mas.resources.service import ResourcesService
 from mas.graph.service import GraphService
@@ -79,6 +81,8 @@ class AppContainer(metaclass=SingletonMeta):
             coll_name=cfg.blueprint_coll
         )
 
+        self.blueprint_ref_service = BlueprintRefService(repo=self.blueprint_repo)
+
         resource_registry = ResourcesRegistry(
             repo=MongoResourceRepository(
                 cfg.mongodb_port,
@@ -94,6 +98,11 @@ class AppContainer(metaclass=SingletonMeta):
             element_registry=self.element_registry,
             validation_service=self.validation_service,
             card_service=self.card_service,
+        )
+
+        self.deletion_service = ResourceDeletionService(
+            registry=resource_registry,
+            bp_refs=self.blueprint_ref_service,
         )
 
         self.blueprint_resolver = BlueprintResolver(

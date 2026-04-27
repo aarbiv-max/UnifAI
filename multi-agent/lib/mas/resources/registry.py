@@ -6,19 +6,19 @@ from mas.resources.errors import ResourceInUseError
 from typing import List, Tuple, Dict, Any
 from mas.core.dto import GroupedCount
 from mas.core.ref import RefRemapper
-from mas.core.ref.raw_blueprint_spec import (
-    dedupe_blueprint_catalogue,
-    extract_ref_ids_from_raw_spec,
-    remove_resource_ref_from_catalogue,
-    remove_resource_ref_from_nested_dict,
-)
+from mas.core.ref.raw_blueprint_spec import remove_resource_ref_from_nested_dict
 class ResourcesRegistry:
-    """Low-level CRUD + business rules (no Pydantic parsing)."""
+    """
+    Low-level CRUD + business rules for the resource aggregate (no Pydantic parsing).
+
+    ``bp_repo`` is used read-only for usage checks. Blueprint mutations belong
+    in BlueprintRefService.
+    """
 
     def __init__(
             self,
             repo: ResourceRepository,
-            bp_repo: BlueprintRepository,  # for delete guard
+            bp_repo: BlueprintRepository,  # read-only: check_usage / delete guard
     ):
         self._repo = repo
         self._bp_repo = bp_repo
@@ -56,94 +56,31 @@ class ResourcesRegistry:
                                      by_resources=nested_res)
         self._repo.delete(rid)
 
-    # ---------- force-delete variants ----------
-    def replace_and_delete(self, rid: str, replacement_rid: str) -> None:
-        """Replace all references to rid with replacement_rid, then delete rid."""
-        if replacement_rid == rid:
-            raise ValueError("Replacement cannot be the same as the resource")
+    def delete_unchecked(self, rid: str) -> None:
+        """Delete after an orchestrator has removed all inbound references."""
+        self._repo.delete(rid)
 
-        original = self._repo.get(rid)
-        replacement = self._repo.get(replacement_rid)
-
-        if original.category != replacement.category:
-            raise ValueError(
-                f"Replacement must be the same category "
-                f"(got {replacement.category}, expected {original.category})"
-            )
-
-        mapping = {rid: replacement_rid}
-
+    def remap_nested_refs(self, rid: str, mapping: Dict[str, str]) -> None:
+        """In resources that nest rid in their config, swap old->new refs."""
         for dep_rid in self._repo.list_nested_usage(rid):
             doc = self._repo.get(dep_rid)
             doc.cfg_dict = RefRemapper.remap(doc.cfg_dict, mapping)
-            doc.nested_refs = list({replacement_rid if r == rid else r for r in doc.nested_refs})
+            doc.nested_refs = list({mapping.get(r, r) for r in doc.nested_refs})
             self._bump_and_save(doc)
 
-        for bp_id in self._bp_repo.list_direct_usage(rid):
-            self._update_blueprint_refs(bp_id, remap=mapping)
-
-        self._repo.delete(rid)
-
-    def detach_and_delete(self, rid: str) -> None:
-        """Remove all references to rid from dependents, then delete rid."""
-        self._strip_ref_from_dependents(rid)
-        self._repo.delete(rid)
-
-    def cascade_delete(self, rid: str) -> None:
-        """Delete the resource and all blueprints that reference it."""
-        for bp_id in self._bp_repo.list_direct_usage(rid):
-            self._bp_repo.delete(bp_id)
-
-        self._strip_ref_from_dependents(rid)
-        self._repo.delete(rid)
-
-    def _bump_and_save(self, doc: Resource) -> None:
-        """Increment version, stamp updated-at, and persist."""
-        doc.version += 1
-        doc.updated = datetime.now(timezone.utc)
-        self._repo.update(doc)
-
-    def _strip_ref_from_dependents(self, rid: str) -> None:
-        """Remove all references to *rid* from nested resources and blueprints."""
+    def strip_nested_refs(self, rid: str) -> None:
+        """In resources that nest rid in their config, remove all traces."""
         for dep_rid in self._repo.list_nested_usage(rid):
             doc = self._repo.get(dep_rid)
             doc.cfg_dict = remove_resource_ref_from_nested_dict(doc.cfg_dict, rid)
             doc.nested_refs = [r for r in doc.nested_refs if r != rid]
             self._bump_and_save(doc)
 
-        for bp_id in self._bp_repo.list_direct_usage(rid):
-            self._update_blueprint_refs(bp_id, remove_rid=rid)
-
-    def _update_blueprint_refs(
-        self,
-        bp_id: str,
-        *,
-        remap: Dict[str, str] | None = None,
-        remove_rid: str | None = None,
-    ) -> None:
-        """
-        Update a blueprint's spec_dict and rid_refs after a ref change.
-        Operates on the raw spec dict to avoid Pydantic validation failures
-        caused by legacy fields in stored blueprints.
-        """
-        bp_doc = self._bp_repo.load(bp_id)
-        spec = bp_doc.spec_dict
-
-        if remap:
-            spec = RefRemapper.remap(spec, remap)
-            spec = dedupe_blueprint_catalogue(spec)
-
-        if remove_rid:
-            spec = remove_resource_ref_from_catalogue(spec, remove_rid)
-            spec = remove_resource_ref_from_nested_dict(spec, remove_rid)
-
-        rid_refs = list(extract_ref_ids_from_raw_spec(spec))
-        self._bp_repo.update_raw(blueprint_id=bp_id, spec_dict=spec, rid_refs=rid_refs)
-
-    def get_blueprint_summary(self, bp_id: str) -> dict:
-        """Return {id, name} for a blueprint."""
-        bp_doc = self._bp_repo.load(bp_id)
-        return {"id": bp_id, "name": bp_doc.spec_dict.get("name", bp_id)}
+    def _bump_and_save(self, doc: Resource) -> None:
+        """Increment version, stamp updated-at, and persist."""
+        doc.version += 1
+        doc.updated = datetime.now(timezone.utc)
+        self._repo.update(doc)
 
     # ---------- read ----------
     def get(self, rid: str) -> Resource:
