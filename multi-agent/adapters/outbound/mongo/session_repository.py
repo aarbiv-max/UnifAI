@@ -1,6 +1,6 @@
 import pymongo
 from pymongo.collection import Collection
-from typing import List, Mapping, Any, Dict, Optional
+from typing import List, Mapping, Any, Dict, Optional, Tuple
 from datetime import datetime, timezone, timedelta
 import logging
 
@@ -113,6 +113,26 @@ class MongoSessionRepository(SessionRepository):
             {self._USER_FIELD: user_id},
             {"_id": 0}
         ))
+
+    def list_docs_paginated(
+        self,
+        user_id: str,
+        *,
+        blueprint_id: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 10,
+    ) -> Tuple[List[Mapping[str, Any]], int]:
+        match: Dict[str, Any] = {self._USER_FIELD: user_id}
+        if blueprint_id:
+            match[self._BLUEPRINT_FIELD] = blueprint_id
+        total = self._col.count_documents(match)
+        cursor = (
+            self._col.find(match, {"_id": 0})
+            .sort(self._TIME_FIELD, pymongo.DESCENDING)
+            .skip(skip)
+            .limit(limit)
+        )
+        return list(cursor), total
 
     def delete(self, run_id: str) -> bool:
         """Delete a session by run_id. Returns True if deleted, False if not found."""

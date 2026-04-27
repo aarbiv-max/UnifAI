@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { usePublicChat } from "@/hooks/use-public-chat";
+import ChatSessionsPager from "@/components/agentic-ai/ChatSessionsPager";
 import { getBlueprintInfo } from "@/api/blueprints";
 import { useAgenticAI } from "@/contexts/AgenticAIContext";
 import { UmamiTrack } from "@/components/ui/umamitrack";
@@ -50,6 +51,11 @@ export default function PublicChat() {
   // Use the custom hook for chat management
   const {
     sessions: chatSessions,
+    sessionsTotal,
+    sessionsPage,
+    sessionsMaxPage,
+    goSessionsPrevPage,
+    goSessionsNextPage,
     selectedSession,
     isLoading: isLoadingSessions,
     isCreatingSession,
@@ -265,7 +271,7 @@ export default function PublicChat() {
             <CardHeader className="py-3 px-4 border-b border-gray-800">
               <div className="flex justify-between items-center">
                 <CardTitle className="text-sm font-medium">
-                  Chat History ({chatSessions.length})
+                  Chat History ({sessionsTotal})
                 </CardTitle>
                 <UmamiTrack event={UmamiEvents.PUBLIC_CHAT_NEW_SESSION}>
                   <Button
@@ -281,59 +287,69 @@ export default function PublicChat() {
                 </UmamiTrack>
               </div>
             </CardHeader>
-            <CardContent className="p-0 flex-grow overflow-y-auto">
+            <CardContent className="p-0 flex-grow min-h-0 flex flex-col overflow-hidden">
               {isLoadingSessions ? (
                 <div className="p-4 text-center">
                   <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />
                 </div>
-              ) : chatSessions.length === 0 ? (
+              ) : sessionsTotal === 0 ? (
                 <div className="p-4 text-center text-gray-400 text-sm">
                   No chat sessions yet. Click + to start a new chat.
                 </div>
               ) : (
-                <div className="py-2">
-                  {chatSessions.map((session) => (
-                    <motion.div
-                      key={session.id}
-                      className={`group px-4 py-3 border-l-2 cursor-pointer ${
-                        selectedSession?.id === session.id
-                          ? "border-[hsl(var(--primary))] bg-primary/20"
-                          : "border-transparent hover:bg-background-surface"
-                      } ${
-                        !session.blueprintExists
-                          ? "opacity-50 bg-gray-800/30"
-                          : ""
-                      }`}
-                      onClick={() => handleSessionSelect(session)}
-                      whileHover={{ x: 2 }}
-                      transition={{ duration: 0.1 }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center min-w-0 flex-1">
-                          <MessageSquare className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
-                          <span className="text-sm font-medium truncate text-white">
-                            {session.title}
-                          </span>
+                <>
+                  <div className="flex-1 min-h-0 overflow-y-auto py-2">
+                    {chatSessions.map((session) => (
+                      <motion.div
+                        key={session.id}
+                        className={`group px-4 py-3 border-l-2 cursor-pointer ${
+                          selectedSession?.id === session.id
+                            ? "border-[hsl(var(--primary))] bg-primary/20"
+                            : "border-transparent hover:bg-background-surface"
+                        } ${
+                          !session.blueprintExists
+                            ? "opacity-50 bg-gray-800/30"
+                            : ""
+                        }`}
+                        onClick={() => handleSessionSelect(session)}
+                        whileHover={{ x: 2 }}
+                        transition={{ duration: 0.1 }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center min-w-0 flex-1">
+                            <MessageSquare className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
+                            <span className="text-sm font-medium truncate text-white">
+                              {session.title}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                            onClick={(e) => handleDeleteChat(session, e)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                          onClick={(e) => handleDeleteChat(session, e)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <div className="mt-1 flex items-center text-xs text-gray-400">
-                        <Clock className="h-3 w-3 mr-1" />
-                        <span>{session.lastActive}</span>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500 truncate">
-                        {session.preview}
-                      </p>
-                    </motion.div>
-                  ))}
-                </div>
+                        <div className="mt-1 flex items-center text-xs text-gray-400">
+                          <Clock className="h-3 w-3 mr-1" />
+                          <span>{session.lastActive}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500 truncate">
+                          {session.preview}
+                        </p>
+                      </motion.div>
+                    ))}
+                  </div>
+                  <ChatSessionsPager
+                    total={sessionsTotal}
+                    currentPage={sessionsPage}
+                    maxPageIndex={sessionsMaxPage}
+                    onPrev={goSessionsPrevPage}
+                    onNext={goSessionsNextPage}
+                    disabled={isLoadingSessions}
+                  />
+                </>
               )}
             </CardContent>
           </Card>

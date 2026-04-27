@@ -35,8 +35,13 @@ import { UmamiEvents } from '@/config/umamiEvents';
 import { useBlueprintValidation } from "@/hooks/use-blueprint-validation";
 
 import { ChatSession, ChatMessage, ChatSessionData, SessionStateData } from "@/types/session";
-import {transformSessionData, sortSessionsByTimestamp} from "@/utils/sessionHelpers";
+import { transformSessionData, sortSessionsByTimestamp } from "@/utils/sessionHelpers";
 import { useSessionManagement } from "@/hooks/use-session-management";
+import {
+  useChatSessionsPagination,
+  CHAT_SESSIONS_PAGE_SIZE,
+} from "@/hooks/use-chat-sessions-pagination";
+import ChatSessionsPager from "@/components/agentic-ai/ChatSessionsPager";
 import { useSessionStream } from "@/hooks/use-session-stream";
 
 
@@ -91,13 +96,11 @@ const SessionMessagesLoader: React.FC = () => (
 export default function ExecutionTab({
   runId
 }: ExecutionTabProps): React.ReactElement {
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<ChatSession | null>(null);
   const [currentSessionMessages, setCurrentSessionMessages] = useState<ChatMessage[]>([]);
   const [showExecutionStream, setShowExecutionStream] = useState(false);
   const [isActiveChatSession, setIsActiveChatSession] = useState(true);
   const [isLiveRequest, setIsLiveRequest] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [globalScope, setGlobalScope] = useState<'public' | 'private'>('public');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -140,6 +143,29 @@ export default function ExecutionTab({
   // checks "is this still the active request?" before writing state.  If the user
   // switched away in the meantime, the stale response is silently discarded.
   const sessionSelectRequestId = useRef(0);
+  const didInitialSessionPick = useRef(false);
+
+  const transformSessionsPage = useCallback(
+    async (items: ChatSessionData[], pageIndex: number): Promise<ChatSession[]> => {
+      const baseOffset = pageIndex * CHAT_SESSIONS_PAGE_SIZE;
+      return items.map((sessionData, i) => {
+        const base = transformSessionData(sessionData, baseOffset + i);
+        let isSharingDisabled = false;
+        if (base.fromSharedLink && base.blueprintExists && base.blueprintId) {
+          isSharingDisabled = !(sessionData.metadata?.public_usage_scope ?? false);
+        }
+        return { ...base, isSharingDisabled };
+      });
+    },
+    [],
+  );
+
+  const userIdForSessions = user?.username || "default";
+  const chatPagination = useChatSessionsPagination({
+    userId: userIdForSessions,
+    enabled: true,
+    transformPage: transformSessionsPage,
+  });
   
   // Derived state: Chat-only mode is active for shared link sessions
   // This single flag drives all chat-only experience behaviors (no graph, no resize, etc.)
@@ -260,53 +286,6 @@ export default function ExecutionTab({
     setGlobalScope(prevScope => prevScope === 'public' ? 'private' : 'public');
   };
 
-  // Derives sessions from the sessions API data only – no extra API calls.
-  // Blueprint names and fresh sharing status are loaded on-demand
-  // in handleSessionSelect via fetchResolvedBlueprint.
-  // (Will simplify further once Odai's lightweight resolved API lands.)
-  const transformApiDataToSessions = (apiData: ChatSessionData[]): ChatSession[] => {
-    return apiData.map((sessionData, index) => {
-      const base = transformSessionData(sessionData, index);
-
-      // Derive initial sharing status from session metadata.
-      // Re-verified against the blueprint in handleSessionSelect.
-      let isSharingDisabled = false;
-      if (base.fromSharedLink && base.blueprintExists && base.blueprintId) {
-        isSharingDisabled = !(sessionData.metadata?.public_usage_scope ?? false);
-      }
-
-      return { ...base, isSharingDisabled };
-    });
-  };
-
-  // Fetch chat sessions from API
-  const fetchChatSessions = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const userId = user?.username || "default";
-      const response = await axios.get(`/sessions/session.user.list?userId=${userId}`);
-      const transformedSessions = transformApiDataToSessions(response.data);
-
-      // Sort chat sessions based on the latest date
-      const sortedSessions = sortSessionsByTimestamp(transformedSessions);
-      setChatSessions(sortedSessions);
-
-      // Auto-select the first session if available - use handleSessionSelect to trigger status checks
-      if (sortedSessions.length > 0 && !selectedSession) {
-        const firstSession = sortedSessions[0];
-        // Use handleSessionSelect to ensure status checks and other logic run
-        await handleSessionSelect(firstSession);
-      }
-    } catch (err) {
-      console.error('Error fetching chat sessions:', err);
-      setError('Failed to load chat sessions');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Handle session selection
   const handleSessionSelect = async (session: ChatSession) => {
     // Increment request id so that any in-flight async work from a previous
@@ -383,13 +362,16 @@ export default function ExecutionTab({
             const disabled = !isPublic;
             setIsSharingDisabled(disabled);
             currentSession = { ...currentSession, isSharingDisabled: disabled };
-            setChatSessions(prev => prev.map(s => 
-              s.id === currentSession.id ? { ...s, blueprintName, isSharingDisabled: disabled } : s
-            ));
+            chatPagination.mergeSessionInCache({
+              ...currentSession,
+              blueprintName,
+              isSharingDisabled: disabled,
+            });
           } else if (blueprintName) {
-            setChatSessions(prev => prev.map(s => 
-              s.id === currentSession.id ? { ...s, blueprintName } : s
-            ));
+            chatPagination.mergeSessionInCache({
+              ...currentSession,
+              blueprintName,
+            });
           }
           setSelectedSession(currentSession);
         }
@@ -418,9 +400,7 @@ export default function ExecutionTab({
       const merged = { ...currentSession, ...updatedSession };
       setSelectedSession(merged);
       setCurrentSessionMessages(merged.messages);
-      setChatSessions(prevSessions =>
-        prevSessions.map(s => (s.id === currentSession.id ? merged : s))
-      );
+      chatPagination.mergeSessionInCache(merged);
     } else {
       setCurrentSessionMessages([]);
     }
@@ -447,13 +427,20 @@ export default function ExecutionTab({
   const confirmDeleteChat = async () => {
     if (!chatToDelete) return;
 
+    const onlyRowOnPage =
+      chatPagination.displayedSessions.length === 1 &&
+      chatPagination.displayedSessions[0]?.id === chatToDelete.id;
+    const pageBefore = chatPagination.currentPage;
+
     setIsDeleting(true);
     try {
       const userId = user?.username || "default";
       await axios.delete(`/sessions/session.delete?sessionId=${chatToDelete.id}`);
 
-      // Remove the deleted session from the list
-      setChatSessions(prevSessions => prevSessions.filter(session => session.id !== chatToDelete.id));
+      chatPagination.removeSessionFromCache(chatToDelete.id);
+      if (onlyRowOnPage && pageBefore > 0) {
+        chatPagination.setCurrentPage(pageBefore - 1);
+      }
 
       // If the deleted session was selected, clear the selection
       if (selectedSession?.id === chatToDelete.id) {
@@ -502,15 +489,10 @@ export default function ExecutionTab({
         selectedBlueprint,
       );
 
-      // Fetch updated sessions
-      const userId = user?.username || "default";
-      const response = await axios.get(`/sessions/session.user.list?userId=${userId}`);
-      const transformedSessions = transformApiDataToSessions(response.data);
-      const sortedSessions = sortSessionsByTimestamp(transformedSessions);
-      setChatSessions(sortedSessions);
-
-      // Auto-select the newly created session
-      const newestSession = sortedSessions.find(session => session.blueprintId === graphId);
+      await chatPagination.refresh();
+      const page0 = chatPagination.peekPage(0);
+      const sortedPage0 = sortSessionsByTimestamp([...page0]);
+      const newestSession = sortedPage0.find((session) => session.blueprintId === graphId);
       if (newestSession) {
         await handleSessionSelect(newestSession);
       }
@@ -529,10 +511,25 @@ export default function ExecutionTab({
     setSelectedFlowForModal(null);
   };
 
-  // Initialize component with API call
+  const firstSidebarSessionId = chatPagination.displayedSessions[0]?.id;
+
   useEffect(() => {
-    fetchChatSessions();
-  }, []);
+    if (chatPagination.isLoading || didInitialSessionPick.current) return;
+    if (!firstSidebarSessionId) return;
+    const first =
+      chatPagination.displayedSessions.find((s) => s.id === firstSidebarSessionId) ??
+      chatPagination.peekPage(0)[0];
+    if (!first) return;
+    didInitialSessionPick.current = true;
+    void handleSessionSelect(first);
+    // Intentionally only pick once when the first session row appears; handleSessionSelect is stable enough for mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatPagination.isLoading, firstSidebarSessionId]);
+
+  // Sync list loading / error with paginated hook
+  useEffect(() => {
+    setError(chatPagination.listLoadError);
+  }, [chatPagination.listLoadError]);
 
   // Cleanup effect when modal closes to prevent ReactFlow state interference
   useEffect(() => {
@@ -741,7 +738,7 @@ export default function ExecutionTab({
   };
 
   // Loading state
-  if (isLoading) {
+  if (chatPagination.isLoading) {
     return (
       <div className="space-y-6">
         <div className="flex justify-center items-center h-64">
@@ -792,7 +789,7 @@ export default function ExecutionTab({
             <CardHeader className="py-3 px-4 border-b border-gray-800 overflow-hidden flex-shrink-0">
               <div className="flex justify-between items-center min-w-0 w-full max-w-full">
                 <CardTitle className="text-sm font-medium truncate flex-1 min-w-0 mr-2">
-                  Available Chats ({chatSessions.length})
+                  Available Chats ({chatPagination.total})
                 </CardTitle>
                 <div className="flex items-center gap-1 flex-shrink-0 max-w-fit">
                   {/* Commenting the next part out since it's related to our RAG system. If and when commenting back in need to take care of coloring. */}
@@ -834,14 +831,17 @@ export default function ExecutionTab({
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-0 flex-grow min-h-0 overflow-hidden">
-              {chatSessions.length === 0 ? (
+            <CardContent className="p-0 flex-grow min-h-0 overflow-hidden flex flex-col">
+              {chatPagination.total === 0 && !chatPagination.isCurrentPageLoading ? (
                 <div className="p-4 text-center text-gray-400 text-sm">
                   No chat sessions available
                 </div>
               ) : (
-                <div className="h-full overflow-y-auto py-2">
-                  {chatSessions.map((session) => (
+                <div className="flex-1 min-h-0 overflow-y-auto py-2">
+                  {chatPagination.isCurrentPageLoading && chatPagination.displayedSessions.length === 0 ? (
+                    <div className="p-4 flex justify-center text-gray-400 text-sm">Loading…</div>
+                  ) : null}
+                  {chatPagination.displayedSessions.map((session) => (
                     <motion.div
                       key={session.id}
                       className={`group px-4 py-3 border-l-2 cursor-pointer ${
@@ -886,6 +886,14 @@ export default function ExecutionTab({
                   ))}
                 </div>
               )}
+              <ChatSessionsPager
+                total={chatPagination.total}
+                currentPage={chatPagination.currentPage}
+                maxPageIndex={chatPagination.maxPageIndex}
+                onPrev={chatPagination.goToPrevPage}
+                onNext={chatPagination.goToNextPage}
+                disabled={chatPagination.isLoading}
+              />
             </CardContent>
           </Card>
         </div>

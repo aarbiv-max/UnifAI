@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 from mas.session.repository.repository import SessionRepository
 from mas.session.building.workflow_session_factory import WorkflowSessionFactory
 from mas.session.domain.workflow_session import WorkflowSession
@@ -102,6 +102,18 @@ class UserSessionManager:
     def list_docs(self, user_id: str) -> List[Mapping[str, Any]]:
         """Raw documents for bulk listing (chat history, etc.)."""
         return self._repo.list_docs(user_id)
+
+    def list_docs_paginated(
+        self,
+        user_id: str,
+        *,
+        blueprint_id: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 10,
+    ) -> Tuple[List[Mapping[str, Any]], int]:
+        return self._repo.list_docs_paginated(
+            user_id, blueprint_id=blueprint_id, skip=skip, limit=limit
+        )
 
     def delete_session(self, run_id: str) -> bool:
         """Delete a session by run_id. Returns True if deleted, False if not found."""

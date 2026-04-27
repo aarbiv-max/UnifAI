@@ -155,6 +155,55 @@ class SessionService:
 
         return items
 
+    def list_user_sessions_page(
+        self,
+        user_id: str,
+        *,
+        offset: int = 0,
+        limit: int = 10,
+        blueprint_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Paginated session list (metadata only), newest first.
+        When blueprint_id is set and the blueprint no longer exists, returns an empty page.
+        """
+        if blueprint_id and not self._manager.blueprint_exists(blueprint_id):
+            return {"items": [], "total": 0}
+
+        docs, total = self._manager.list_docs_paginated(
+            user_id,
+            blueprint_id=blueprint_id,
+            skip=offset,
+            limit=limit,
+        )
+        items: List[Any] = []
+        for doc in docs:
+            blueprint_id_doc = doc.get("blueprint_id", "")
+            blueprint_exists = (
+                self._manager.blueprint_exists(blueprint_id_doc) if blueprint_id_doc else False
+            )
+            bp_metadata = (
+                self._manager.get_blueprint_metadata(blueprint_id_doc)
+                if blueprint_exists
+                else {}
+            )
+
+            public_usage_scope = False
+            if blueprint_exists and blueprint_id_doc:
+                source = doc.get("metadata", {}).get("source", "")
+                if source == "public_link":
+                    public_usage_scope = bp_metadata.get("usageScope") == "public"
+
+            item = SessionListItem.from_doc(
+                doc,
+                blueprint_exists=blueprint_exists,
+                public_usage_scope=public_usage_scope,
+                blueprint_metadata=bp_metadata,
+            )
+            items.append(item.model_dump())
+
+        return {"items": items, "total": total}
+
     def get_user_blueprints(self, user_id) -> List[str]:
         """
         Get all blueprints created by a user.

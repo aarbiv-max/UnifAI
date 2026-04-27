@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Mapping, Any, Dict, Optional
+from typing import List, Mapping, Any, Dict, Optional, Tuple
 from datetime import datetime
 from mas.session.domain.session_record import SessionRecord
 from mas.session.domain.models import SessionChat, TimeSeriesPoint, SystemAnalyticsData
@@ -34,6 +34,22 @@ class SessionRepository(ABC):
     @abstractmethod
     def list_docs(self, user_id: str) -> List[Mapping[str, Any]]:
         """Return all session documents for a user in a single query."""
+        ...
+
+    @abstractmethod
+    def list_docs_paginated(
+        self,
+        user_id: str,
+        *,
+        blueprint_id: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 10,
+    ) -> Tuple[List[Mapping[str, Any]], int]:
+        """
+        Return a page of session documents for a user, newest first, plus total count.
+
+        When blueprint_id is set, only sessions for that blueprint are included.
+        """
         ...
 
     @abstractmethod

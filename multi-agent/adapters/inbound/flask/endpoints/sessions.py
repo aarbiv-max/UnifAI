@@ -165,6 +165,33 @@ def list_user_sessions(user_id):
         return jsonify({"error": str(e)}), 500
 
 
+@sessions_bp.route("/session.user.list.page", methods=["GET"])
+@from_query({
+    "user_id": fields.Str(data_key="userId", required=True),
+    "offset": fields.Int(data_key="offset", required=False, load_default=0),
+    "limit": fields.Int(data_key="limit", required=False, load_default=10),
+    "blueprint_id": fields.Str(data_key="blueprintId", required=False, load_default=None),
+})
+def list_user_sessions_page(user_id, offset, limit, blueprint_id):
+    try:
+        if offset < 0:
+            offset = 0
+        if limit < 1:
+            limit = 10
+        if limit > 100:
+            limit = 100
+        svc = current_app.container.session_service
+        payload = svc.list_user_sessions_page(
+            user_id,
+            offset=offset,
+            limit=limit,
+            blueprint_id=blueprint_id,
+        )
+        return jsonify(payload), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @sessions_bp.route("/session.user.blueprints.get", methods=["GET"])
 @from_query({
     "user_id": fields.Str(data_key="userId", required=True),
