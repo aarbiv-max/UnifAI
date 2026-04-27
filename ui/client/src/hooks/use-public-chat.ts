@@ -354,13 +354,18 @@ export const usePublicChat = (blueprintId: string | null): UsePublicChatReturn =
   const handleCancelSession = useCallback(async () => {
     if (!runId) return;
 
-    await sessionStream.cancelSessionExecution(runId);
-    sessionStream.cancelStream();
-    setIsLiveRequest(false);
+    try {
+      await sessionStream.cancelSessionExecution(runId);
+    } catch (error) {
+      console.error('Error cancelling session execution:', error);
+    } finally {
+      sessionStream.cancelStream();
+      setIsLiveRequest(false);
 
-    if (streamCompleteResolverRef.current) {
-      streamCompleteResolverRef.current();
-      streamCompleteResolverRef.current = null;
+      if (streamCompleteResolverRef.current) {
+        streamCompleteResolverRef.current();
+        streamCompleteResolverRef.current = null;
+      }
     }
   }, [runId, sessionStream]);
 

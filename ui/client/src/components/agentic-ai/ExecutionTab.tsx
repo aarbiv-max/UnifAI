@@ -706,14 +706,19 @@ export default function ExecutionTab({
   const handleCancelSession = useCallback(async () => {
     if (!selectedSession?.id) return;
 
-    await sessionStream.cancelSessionExecution(selectedSession.id);
-    sessionStream.cancelStream();
-    setIsCancelled(true);
-    setIsLiveRequest(false);
+    try {
+      await sessionStream.cancelSessionExecution(selectedSession.id);
+    } catch (error) {
+      console.error('Error cancelling session execution:', error);
+    } finally {
+      sessionStream.cancelStream();
+      setIsCancelled(true);
+      setIsLiveRequest(false);
 
-    if (streamCompleteResolverRef.current) {
-      streamCompleteResolverRef.current();
-      streamCompleteResolverRef.current = null;
+      if (streamCompleteResolverRef.current) {
+        streamCompleteResolverRef.current();
+        streamCompleteResolverRef.current = null;
+      }
     }
   }, [selectedSession, sessionStream]);
 
