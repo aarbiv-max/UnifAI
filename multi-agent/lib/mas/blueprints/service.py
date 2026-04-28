@@ -145,8 +145,8 @@ class BlueprintService:
         doc = self._repo.load(blueprint_id)
         return self._resolve_doc(doc)
 
-    def count(self, *, user_id: str | None = None) -> int:
-        return self._repo.count(user_id=user_id)
+    def count(self, *, user_id: str | None = None, search: str | None = None) -> int:
+        return self._repo.count(user_id=user_id, search=search)
 
     @staticmethod
     def get_draft_schema() -> Dict[str, Any]:

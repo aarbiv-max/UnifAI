@@ -87,6 +87,36 @@ export async function fetchBlueprintSummaries(userId?: string): Promise<Blueprin
   return response.data || [];
 }
 
+export interface BlueprintSummariesPageResponse {
+  items: BlueprintSummary[];
+  total: number;
+}
+
+/**
+ * Paginated blueprint summaries (same response shape as chat session list page).
+ */
+export async function fetchBlueprintSummariesPage(
+  userId: string | undefined,
+  offset: number,
+  limit: number,
+  search?: string,
+): Promise<BlueprintSummariesPageResponse> {
+  const userIdParam = userId || 'default';
+  const params = new URLSearchParams({
+    userId: userIdParam,
+    offset: String(offset),
+    limit: String(limit),
+  });
+  const trimmed = (search ?? '').trim();
+  if (trimmed) {
+    params.set('search', trimmed);
+  }
+  const { data } = await axios.get<BlueprintSummariesPageResponse>(
+    `/blueprints/available.blueprints.summary.page?${params.toString()}`,
+  );
+  return { items: data?.items ?? [], total: data?.total ?? 0 };
+}
+
 /**
  * Paginated response for resolved blueprints list
  */

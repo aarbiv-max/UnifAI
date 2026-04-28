@@ -114,6 +114,38 @@ def available_blueprint_summaries(user_id):
         return jsonify({"error": str(e)}), 500
 
 
+@blueprints_bp.route("/available.blueprints.summary.page", methods=["GET"])
+@from_query({
+    "user_id": fields.Str(data_key="userId", required=True),
+    "offset": fields.Int(data_key="offset", required=False, load_default=0),
+    "limit": fields.Int(data_key="limit", required=False, load_default=10),
+    "search": fields.Str(data_key="search", required=False, load_default=None),
+})
+def available_blueprint_summaries_page(user_id, offset, limit, search):
+    """
+    Paginated lightweight blueprint summaries with optional substring search
+    on name/description (same shape as session.user.list.page: items + total).
+    """
+    try:
+        if offset < 0:
+            offset = 0
+        if limit < 1:
+            limit = 10
+        if limit > 100:
+            limit = 100
+        svc = current_app.container.blueprint_service
+        total = svc.count(user_id=user_id, search=search)
+        items = svc.list_summaries(
+            user_id=user_id, skip=offset, limit=limit, search=search
+        )
+        return jsonify({
+            "items": [s.model_dump(mode="json") for s in items],
+            "total": total,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @blueprints_bp.route("/available.blueprints.resolved.get", methods=["GET"])
 @from_query({
     "user_id": fields.Str(data_key="userId", required=True),

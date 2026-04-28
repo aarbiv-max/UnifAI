@@ -1,7 +1,8 @@
+import re
 import pymongo
 from uuid import uuid4
 from datetime import datetime, timezone
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from mas.blueprints.models.blueprint import BlueprintDraft, BlueprintDocument, BlueprintSummary
 from mas.blueprints.repository.repository import BlueprintRepository
 from mas.core.enums import ResourceCategory
@@ -86,6 +87,20 @@ class MongoBlueprintRepository(BlueprintRepository):
     def _user_q(self, user_id: str | None) -> Dict[str, Any]:
         return {} if user_id is None else {"user_id": user_id}
 
+    def _summary_list_filter(self, user_id: str | None, search: Optional[str]) -> Dict[str, Any]:
+        base = self._user_q(user_id)
+        q = (search or "").strip()
+        if not q:
+            return base
+        escaped = re.escape(q)
+        text_or = [
+            {"spec_dict.name": {"$regex": escaped, "$options": "i"}},
+            {"spec_dict.description": {"$regex": escaped, "$options": "i"}},
+        ]
+        if not base:
+            return {"$or": text_or}
+        return {"$and": [base, {"$or": text_or}]}
+
     def list_ids(
             self, *, user_id: str | None = None, skip=0, limit=100, sort_desc=True
     ) -> List[str]:
@@ -121,6 +136,7 @@ class MongoBlueprintRepository(BlueprintRepository):
             skip: int = 0,
             limit: int = 100,
             sort_desc: bool = True,
+            search: Optional[str] = None,
     ) -> List[BlueprintSummary]:
         projection = {
             "_id": 0,
@@ -132,8 +148,9 @@ class MongoBlueprintRepository(BlueprintRepository):
             "spec_dict.name": 1,
             "spec_dict.description": 1,
         }
+        flt = self._summary_list_filter(user_id, search)
         cursor = (
-            self._col.find(self._user_q(user_id), projection)
+            self._col.find(flt, projection)
             .sort("updated_at", pymongo.DESCENDING if sort_desc else pymongo.ASCENDING)
             .skip(skip)
             .limit(limit)
@@ -167,5 +184,5 @@ class MongoBlueprintRepository(BlueprintRepository):
         ors = [{fld: rid} for fld in fields]
         return self._col.count_documents({"$or": ors})
 
-    def count(self, user_id: str | None = None) -> int:
-        return self._col.count_documents(self._user_q(user_id))
+    def count(self, user_id: str | None = None, search: Optional[str] = None) -> int:
+        return self._col.count_documents(self._summary_list_filter(user_id, search))

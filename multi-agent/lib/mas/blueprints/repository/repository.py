@@ -78,6 +78,7 @@ class BlueprintRepository(ABC):
             skip: int = 0,
             limit: int = 100,
             sort_desc: bool = True,
+            search: Optional[str] = None,
     ) -> List[BlueprintSummary]:
         """
         Return lightweight blueprint summaries (id, name, description,
@@ -100,8 +101,8 @@ class BlueprintRepository(ABC):
         """
 
     @abstractmethod
-    def count(self, user_id: Optional[str] = None) -> int:
+    def count(self, user_id: Optional[str] = None, search: Optional[str] = None) -> int:
         """
         Return the total number of blueprints, or the number belonging to
-        `user_id` if provided.
+        `user_id` if provided. Optional `search` matches name or description (case-insensitive).
         """

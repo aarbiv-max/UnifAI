@@ -10,6 +10,8 @@ type ChatSessionsPagerProps = {
   onPrev: () => void;
   onNext: () => void;
   disabled?: boolean;
+  /** Defaults to chat sessions page size; pass the same value as the list hook. */
+  pageSize?: number;
 };
 
 export default function ChatSessionsPager({
@@ -19,13 +21,14 @@ export default function ChatSessionsPager({
   onPrev,
   onNext,
   disabled,
+  pageSize = CHAT_SESSIONS_PAGE_SIZE,
 }: ChatSessionsPagerProps) {
-  if (total <= CHAT_SESSIONS_PAGE_SIZE) {
+  if (total <= pageSize) {
     return null;
   }
 
-  const start = currentPage * CHAT_SESSIONS_PAGE_SIZE + 1;
-  const end = Math.min(total, (currentPage + 1) * CHAT_SESSIONS_PAGE_SIZE);
+  const start = currentPage * pageSize + 1;
+  const end = Math.min(total, (currentPage + 1) * pageSize);
 
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-gray-800 bg-background-card/80 flex-shrink-0">
