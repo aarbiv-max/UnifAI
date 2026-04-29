@@ -25,13 +25,6 @@ class TemporalWorkerService(BaseService):
     def required_infrastructure(self) -> list[str]:
         return ["mongo", "redis", "temporal"]
 
-    def venv_build_commands(self, python: str) -> list[list[str]]:
-        return [
-            [python, "-m", "venv", "venv"],
-            ["venv/bin/pip", "install", "-e", ".[all]"],
-            ["venv/bin/pip", "install", "-e", "../global_utils"],
-        ]
-
     def run_command(self) -> str:
         d = self.absolute_directory
         return (

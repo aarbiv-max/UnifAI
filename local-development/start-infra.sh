@@ -22,6 +22,9 @@
 
 set -euo pipefail
 
+LOG_FILE="${TMPDIR:-/tmp}/start-infra.log"
+: > "$LOG_FILE"
+
 # ── Container definitions ────────────────────────────────────────────────────
 
 declare -A CONTAINER_IMAGES
@@ -78,9 +81,22 @@ SERVICE_INFRA=(
 # ── Detect container runtime ─────────────────────────────────────────────────
 
 detect_runtime() {
-    if command -v podman &> /dev/null && podman info &> /dev/null 2>&1; then
-        echo "podman"
-        return
+    if command -v podman &> /dev/null; then
+        if podman info &> /dev/null 2>&1; then
+            echo "podman"
+            return
+        fi
+        # Podman found but not responding — try to start the machine
+        echo "Podman is not connected. Attempting to start Podman machine..." >&2
+        if podman machine list --format '{{.Name}}' 2>/dev/null | grep -q "."; then
+            podman machine start 2>/dev/null && podman info &> /dev/null 2>&1 && {
+                echo "podman"
+                return
+            }
+            echo "Warning: Could not start Podman machine automatically." >&2
+        else
+            echo "Warning: No Podman machine found." >&2
+        fi
     fi
     if command -v docker &> /dev/null && docker info &> /dev/null 2>&1; then
         echo "docker"
@@ -107,22 +123,22 @@ ensure_container() {
     local ports="${CONTAINER_PORTS[$name]}"
     local extra="${CONTAINER_EXTRA_ARGS[$name]}"
 
-    if $CONTAINER_CMD ps --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
+    if $CONTAINER_CMD ps --format '{{.Names}}' 2>>"$LOG_FILE" | grep -qx "$name"; then
         echo "  ✔ $label is already running."
         return
     fi
 
-    if $CONTAINER_CMD ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
+    if $CONTAINER_CMD ps -a --format '{{.Names}}' 2>>"$LOG_FILE" | grep -qx "$name"; then
         echo "  ↻ Starting stopped $label container…"
-        $CONTAINER_CMD start "$name" 2>/dev/null || {
-            echo "  ⚠ Failed to start $label."
+        $CONTAINER_CMD start "$name" 2>>"$LOG_FILE" || {
+            echo "  ⚠ Failed to start $label. Check $LOG_FILE for details."
             return 1
         }
     else
         echo "  ⊕ Creating $label container…"
         # shellcheck disable=SC2086
-        $CONTAINER_CMD run -d --name "$name" $ports $image $extra 2>/dev/null || {
-            echo "  ⚠ Failed to create $label."
+        $CONTAINER_CMD run -d --name "$name" $ports $image $extra 2>>"$LOG_FILE" || {
+            echo "  ⚠ Failed to create $label. Check $LOG_FILE for details."
             return 1
         }
     fi
@@ -133,9 +149,9 @@ show_status() {
     echo "Infrastructure container status:"
     for name in "${ALL_CONTAINERS[@]}"; do
         local label="${CONTAINER_LABELS[$name]}"
-        if $CONTAINER_CMD ps --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
+        if $CONTAINER_CMD ps --format '{{.Names}}' 2>>"$LOG_FILE" | grep -qx "$name"; then
             echo "  ✔ $label ($name) — running"
-        elif $CONTAINER_CMD ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
+        elif $CONTAINER_CMD ps -a --format '{{.Names}}' 2>>"$LOG_FILE" | grep -qx "$name"; then
             echo "  ⏹ $label ($name) — stopped"
         else
             echo "  ✖ $label ($name) — not created"
@@ -146,8 +162,8 @@ show_status() {
 stop_all() {
     echo "Stopping infrastructure containers…"
     for name in "${ALL_CONTAINERS[@]}"; do
-        if $CONTAINER_CMD ps --format '{{.Names}}' 2>/dev/null | grep -qx "$name"; then
-            $CONTAINER_CMD stop "$name" 2>/dev/null
+        if $CONTAINER_CMD ps --format '{{.Names}}' 2>>"$LOG_FILE" | grep -qx "$name"; then
+            $CONTAINER_CMD stop "$name" 2>>"$LOG_FILE"
             echo "  ⏹ ${CONTAINER_LABELS[$name]} stopped."
         fi
     done
@@ -236,3 +252,4 @@ done
 
 echo ""
 echo "✅ Infrastructure ready."
+echo "   Logs: $LOG_FILE"

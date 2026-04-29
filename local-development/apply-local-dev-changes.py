@@ -88,11 +88,21 @@ def apply_changes(registry: ServiceRegistry, root: Path, *, force_env: bool = Fa
     for svc in registry.all():
         for spec in svc.patch_specs():
             abs_path = root / spec.file
-            content = abs_path.read_text()
-            content = content.replace(spec.find, spec.replace)
-            abs_path.write_text(content)
-            print(f"  📝 Updating {spec.file}...")
-            modified.append(str(spec.file))
+            if not abs_path.exists():
+                print(f"  ⚠  WARNING: {spec.file} not found — skipping patch")
+                continue
+            original = abs_path.read_text()
+            patched = original.replace(spec.find, spec.replace)
+            if patched == original:
+                if spec.find not in original and spec.replace not in original:
+                    print(f"  ⚠  WARNING: pattern not found in {spec.file} — patch may be stale")
+                    print(f"     Expected: {spec.find!r}")
+                else:
+                    print(f"  ✔  {spec.file} already patched")
+            else:
+                abs_path.write_text(patched)
+                print(f"  📝 Patching {spec.file}")
+                modified.append(str(spec.file))
 
         entries = svc.env_entries()
         env_path = svc.env_file_path

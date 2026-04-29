@@ -207,7 +207,7 @@ The helper scripts below automate local development. They live inside the repo u
 > The setup script patches a few source files for local development. **You MUST revert these changes before pushing to avoid breaking production deployments.** Run the following command from the repo root before any `git add` or `git push`:
 >
 > ```bash
-> git checkout rag/bootstrap/flask_app.py backend/run/dev.py shared-resources/sso-backend/app.py ui/vite.config.ts
+> git checkout rag/bootstrap/flask_app.py backend/run/dev.py shared-resources/sso-backend/app.py
 > ```
 >
 > The `.env` files (`rag/.env`, `shared-resources/sso-backend/.env`, `ui/.env.local`) are gitignored and safe — they will **not** appear in `git status`.
@@ -291,7 +291,7 @@ done
 This script configures all services to run side-by-side on `localhost`. It does two things:
 
 1. **Generates `.env` files** (gitignored) — these override Pydantic `SharedConfig` defaults for Python services, and provide environment variables for the Vite dev server. Existing `.env` files are **never overwritten** unless you pass `--force-env`. Since `.env` files are in `.gitignore`, they **cannot be accidentally pushed** to the repo.
-2. **Patches a few source files** — bind-host decoupling (`0.0.0.0`) and the `/api3` Vite proxy route. These are minimal changes that can be reverted with `git checkout`.
+2. **Patches a few source files** — bind-host decoupling (`0.0.0.0`). These are minimal changes that can be reverted with `git checkout`.
 
 To run it manually from the repo root:
 
@@ -323,7 +323,6 @@ export UNIFAI_ROOT=/path/to/your/UnifAI
 | `rag/bootstrap/flask_app.py`          | Bind host → `0.0.0.0`    |
 | `backend/run/dev.py`                  | Bind host → `0.0.0.0`    |
 | `shared-resources/sso-backend/app.py` | Bind host → `0.0.0.0`    |
-| `ui/vite.config.ts`                   | Adds `/api3` proxy route |
 
 
 ---

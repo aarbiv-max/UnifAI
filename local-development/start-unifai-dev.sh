@@ -326,62 +326,10 @@ else
     # Starts all containers and all services in a tmux session.
     # ─────────────────────────────────────────────────────────────────────────
 
-    # Determine container runtime (podman or docker)
-    CONTAINER_CMD=""
-    if command -v podman &> /dev/null; then
-        if ! podman info &>> "$LOG_FILE"; then
-            echo "Podman is not connected. Attempting to start Podman machine..."
-            if podman machine list --format '{{.Name}}\t{{.Running}}' | grep -q "true"; then
-                echo "Podman machine is listed but not connected. Trying to reconnect..."
-            else
-                if podman machine list --format '{{.Name}}' | grep -q "."; then
-                    echo "Starting Podman machine..."
-                    podman machine start 2>>"$LOG_FILE" || {
-                        echo "Warning: Could not start Podman machine automatically."
-                        echo "Please run 'podman machine start' manually, or use Docker instead."
-                        echo "Skipping container checks..."
-                        CONTAINER_CMD=""
-                    }
-                else
-                    echo "Warning: No Podman machine found. Please run 'podman machine init' and 'podman machine start'"
-                    echo "Or install Docker as an alternative."
-                    echo "Skipping container checks..."
-                    CONTAINER_CMD=""
-                fi
-            fi
-        fi
-
-        if podman info &>> "$LOG_FILE"; then
-            CONTAINER_CMD="podman"
-        fi
-    fi
-
-    if [ -z "$CONTAINER_CMD" ] && command -v docker &> /dev/null; then
-        if docker info &>> "$LOG_FILE"; then
-            CONTAINER_CMD="docker"
-            echo "Using Docker instead of Podman."
-        fi
-    fi
-
-    ensure_container() {
-        local name="$1"
-        local label="$2"
-        shift 2
-        local run_args=("$@")
-
-        echo "Checking $label container..."
-        if $CONTAINER_CMD ps --format '{{.Names}}' 2>>"$LOG_FILE" | grep -qx "$name"; then
-            echo "$label is already running."
-            return
-        fi
-
-        echo "$label not running. Starting..."
-        if $CONTAINER_CMD ps -a --format '{{.Names}}' 2>>"$LOG_FILE" | grep -qx "$name"; then
-            $CONTAINER_CMD start "$name" 2>>"$LOG_FILE" || echo "Warning: Failed to start $label container."
-        else
-            echo "$label container doesn't exist. Creating and starting..."
-            $CONTAINER_CMD run -d --name "$name" "${run_args[@]}" 2>>"$LOG_FILE" || echo "Warning: Failed to create $label container."
-        fi
+    # Start all infrastructure containers (start-infra.sh handles runtime detection)
+    "$SCRIPT_DIR/start-infra.sh" || {
+        echo "Warning: Infrastructure startup failed. Services may fail to connect to their dependencies."
+        echo "   Check ${TMPDIR:-/tmp}/start-infra.log for details."
     }
 
     # Pre-flight: verify all venvs exist and match the detected Python version
@@ -411,16 +359,6 @@ else
     verify_venv "Backend"     "$ROOT_DIR/backend/venv"
     verify_venv "Multi-Agent" "$ROOT_DIR/multi-agent/venv"
     verify_venv "SSO Backend" "$ROOT_DIR/shared-resources/sso-backend/venv"
-
-    if [ -n "$CONTAINER_CMD" ]; then
-        ensure_container "mongo"    "MongoDB"   -p 27017:27017 mongo:latest
-        ensure_container "rabbitmq" "RabbitMQ"  -p 5672:5672 -p 15672:15672 rabbitmq:3-management
-        ensure_container "qdrant"   "Qdrant"    -p 6333:6333 -p 6334:6334 qdrant/qdrant:latest
-        ensure_container "redis"    "Redis"     -p 6379:6379 redis:latest
-        ensure_container "temporal" "Temporal"  -p 7233:7233 -p 8233:8233 temporalio/temporal:latest server start-dev --ip 0.0.0.0 --ui-port 8233
-    else
-        echo "Warning: No container runtime available (Podman or Docker). Skipping container startup."
-    fi
 
     sleep 2
 

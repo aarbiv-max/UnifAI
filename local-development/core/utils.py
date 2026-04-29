@@ -26,7 +26,7 @@ def write_env(filepath: Path, entries: dict[str, str], *, force: bool = False) -
 def run_command(cmd: list[str], cwd: Path, *, log_file: Path | None = None) -> None:
     """Run a command.
 
-    Stream stdout only to log file if povided, otherwise stream to terminal
+    Stream stdout only to log file if provided, otherwise stream to terminal
     """
     print(f"    $ {' '.join(cmd)}")
     if log_file is None:
