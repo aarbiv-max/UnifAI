@@ -17,7 +17,7 @@ from pydantic.json import pydantic_encoder
 from redis import Redis
 
 from mas.core.channels import SessionChannel
-from .constants import STREAM_PREFIX, ACTIVE_SESSIONS_KEY, StreamField, ControlSignal
+from .constants import STREAM_PREFIX, ACTIVE_SESSIONS_KEY, CANCELLED_PREFIX, CANCEL_FLAG_TTL, StreamField, ControlSignal
 
 
 class RedisSessionChannel(SessionChannel):
@@ -26,9 +26,11 @@ class RedisSessionChannel(SessionChannel):
         self._session_id = session_id
         self._redis = redis_client
         self._stream_key = f"{STREAM_PREFIX}{session_id}"
+        self._cancel_key = f"{CANCELLED_PREFIX}{session_id}"
         self._ttl = ttl
         self._closed = False
         self._close_lock = threading.Lock()
+        self._redis.delete(self._cancel_key)
         self._redis.sadd(ACTIVE_SESSIONS_KEY, session_id)
 
     @property
@@ -37,6 +39,9 @@ class RedisSessionChannel(SessionChannel):
 
     def emit(self, data: Any) -> None:
         if self._closed:
+            return
+        if self._redis.exists(self._cancel_key):
+            self._closed = True
             return
         self._redis.xadd(
             self._stream_key,
@@ -47,11 +52,13 @@ class RedisSessionChannel(SessionChannel):
     def is_active(self) -> bool:
         return not self._closed
 
-    def close(self) -> None:
+    def close(self, *, cancelled: bool = False) -> None:
         with self._close_lock:
             if self._closed:
                 return
             self._closed = True
+        if cancelled:
+            self._redis.set(self._cancel_key, "1", ex=CANCEL_FLAG_TTL)
         self._redis.xadd(
             self._stream_key,
             {StreamField.CONTROL: ControlSignal.CLOSE},

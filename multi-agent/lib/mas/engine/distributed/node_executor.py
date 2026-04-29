@@ -8,7 +8,7 @@ Like a Flask handler — any worker can execute any node.
 If a pre-built SessionChannel is provided, it is injected into
 streaming-capable nodes so background workers can emit events.
 """
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from mas.blueprints.models.blueprint import BlueprintSpec
 from mas.core.channels import SessionChannel
@@ -42,12 +42,15 @@ class NodeExecutor:
         state: GraphState,
         channel: Optional[SessionChannel] = None,
         execution_context: Optional[ExecutionContext] = None,
+        cancel_check: Optional[Callable[[], bool]] = None,
     ) -> GraphState:
         """
         Build ONE node from its mini-blueprint, inject context, run it.
 
         If a channel is provided, it is injected into the node so that
         streaming-capable nodes can emit events during execution.
+        If a cancel_check is provided, it is injected so that
+        cancellation-capable nodes can detect cooperative cancellation.
         """
         mini_bp = BlueprintSpec.model_validate(node_blueprint)
 
@@ -64,6 +67,9 @@ class NodeExecutor:
 
         if channel and hasattr(step.func, "set_streaming_channel"):
             step.func.set_streaming_channel(channel)
+
+        if cancel_check and hasattr(step.func, "set_cancel_check"):
+            step.func.set_cancel_check(cancel_check)
 
         return step.func(state, config={})
 

@@ -14,6 +14,11 @@ class SupportsStreaming(Protocol):
     def is_streaming(self) -> bool: ...
 
 
+@runtime_checkable
+class SupportsCancellation(Protocol):
+    def is_cancelled(self) -> bool: ...
+
+
 @runtime_checkable  
 class SupportsStateContext(Protocol):
     """

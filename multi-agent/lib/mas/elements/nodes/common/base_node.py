@@ -6,16 +6,17 @@ from typing import Optional, Any, Mapping, ClassVar
 from mas.elements.llms.common.chat.message import ChatMessage, Role
 from mas.core.contracts import SupportsStateContext
 from mas.elements.nodes.common.capabilities.streaming_capable import StreamingCapableMixin
+from mas.elements.nodes.common.capabilities.cancellation_capable import CancellationCapableMixin
 
 
-class BaseNode(StreamingCapableMixin, SupportsStateContext, ABC):
+class BaseNode(CancellationCapableMixin, StreamingCapableMixin, SupportsStateContext, ABC):
     """
     Base node for all graph elements.
     
+    Cancellation is provided via CancellationCapableMixin.
     Streaming is provided via StreamingCapableMixin.
-    Channel is injected via set_streaming_channel() before execution.
     
-    MRO: StreamingCapableMixin → SupportsStateContext → ABC → object
+    MRO: CancellationCapableMixin → StreamingCapableMixin → SupportsStateContext → ABC → object
     Subclasses should list their mixins BEFORE BaseNode:
         class MyNode(SomeMixin, OtherMixin, BaseNode): ...
     """
@@ -40,19 +41,18 @@ class BaseNode(StreamingCapableMixin, SupportsStateContext, ABC):
     def __call__(self,
                  state: GraphState,
                  config) -> GraphState:
-        # Create StateView with all channels (base + mixin + node-specific)
         all_reads = self.total_reads()
         all_writes = self.total_writes()
         wrapped_state = StateView(state, reads=all_reads, writes=all_writes)
 
-        # Store state for helper methods
         self._state = wrapped_state
 
-        # Run node logic
+        if self.is_cancelled():
+            return wrapped_state.backing_state
+
         self.run(wrapped_state)
         result = wrapped_state.backing_state
 
-        # Stream completion with only streamable fields
         self._stream({
             "type": "complete",
             "state": result.get_streamable_state(),

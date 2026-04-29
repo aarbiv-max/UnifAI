@@ -60,9 +60,9 @@ class BackgroundLifecycleHandler:
     def cancel(self, run_id: str) -> None:
         record = self._manager.get_record(run_id)
         self._lifecycle.cancel(record)
-        self._close_channel(run_id)
+        self._close_channel(run_id, cancelled=True)
 
-    def _close_channel(self, session_id: str) -> None:
+    def _close_channel(self, session_id: str, *, cancelled: bool = False) -> None:
         if self._channel_factory:
             channel = self._channel_factory.create(session_id)
-            channel.close()
+            channel.close(cancelled=cancelled)
