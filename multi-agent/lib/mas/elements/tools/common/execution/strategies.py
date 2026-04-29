@@ -7,6 +7,7 @@ from typing import Callable, List, Awaitable
 from .models import ToolExecutionRequest, ToolExecutionResponse
 from .interfaces import ExecutionStrategy
 from .exceptions import StrategyError
+from mas.core.channels import SessionCancelledException
 
 
 
@@ -71,13 +72,14 @@ class ParallelStrategy(ExecutionStrategy):
         # Convert exceptions to error responses
         processed_responses = []
         for i, response in enumerate(responses):
-            if isinstance(response, Exception):
-                # Create error response for failed requests
+            if isinstance(response, SessionCancelledException):
+                raise response
+            elif isinstance(response, BaseException):
                 processed_responses.append(ToolExecutionResponse(
                     tool_call_id=requests[i].tool_call_id,
                     tool_name=requests[i].tool_name,
                     success=False,
-                    error=response,  # Pass Exception directly
+                    error=response,
                     execution_time=0.0
                 ))
             else:
@@ -144,13 +146,14 @@ class ConcurrentLimitedStrategy(ExecutionStrategy):
         # Process responses (they should already be ToolExecutionResponse objects)
         processed_responses = []
         for i, response in enumerate(responses):
-            if isinstance(response, Exception):
-                # Create error response for failed requests
+            if isinstance(response, SessionCancelledException):
+                raise response
+            elif isinstance(response, BaseException):
                 processed_responses.append(ToolExecutionResponse(
                     tool_call_id=requests[i].tool_call_id,
                     tool_name=requests[i].tool_name,
                     success=False,
-                    error=response,  # Pass Exception directly
+                    error=response,
                     execution_time=0.0
                 ))
             else:

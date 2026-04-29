@@ -45,6 +45,7 @@ class BackgroundLifecycleHandler:
         """Mark RUNNING, bind context, persist. Return the staged GraphState."""
         record = self._manager.get_record(run_id)
         self._lifecycle.begin(record, execution_context.scope)
+        self._clear_stale_cancellation(run_id)
         return record.graph_state
 
     def complete(self, run_id: str, final_state: GraphState) -> None:
@@ -60,9 +61,26 @@ class BackgroundLifecycleHandler:
     def cancel(self, run_id: str) -> None:
         record = self._manager.get_record(run_id)
         self._lifecycle.cancel(record)
+        self._mark_cancelled(run_id)
         self._close_channel(run_id)
+
+    # ── Private helpers ──────────────────────────────────────────
 
     def _close_channel(self, session_id: str) -> None:
         if self._channel_factory:
             channel = self._channel_factory.create(session_id)
             channel.close()
+
+    def _mark_cancelled(self, session_id: str) -> None:
+        """Set the cross-process cancellation flag (cancel path only)."""
+        if self._channel_factory:
+            token = self._channel_factory.create_cancellation_token(session_id)
+            if token:
+                token.mark_cancelled()
+
+    def _clear_stale_cancellation(self, session_id: str) -> None:
+        """Remove any leftover cancellation flag from a previous run."""
+        if self._channel_factory:
+            token = self._channel_factory.create_cancellation_token(session_id)
+            if token:
+                token.clear()

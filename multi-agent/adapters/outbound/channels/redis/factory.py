@@ -9,11 +9,14 @@ from typing import Optional
 from redis import ConnectionPool, Redis
 
 from mas.core.channels import (
+    CancellationToken,
     ChannelFactory,
     SessionChannel,
     SessionChannelReader,
     SessionStreamMonitor,
 )
+
+from .cancellation_token import RedisCancellationToken
 from .channel import RedisSessionChannel
 from .reader import RedisSessionChannelReader
 from .monitor import RedisStreamMonitor
@@ -53,3 +56,9 @@ class RedisChannelFactory(ChannelFactory):
         if self._monitor is None:
             self._monitor = RedisStreamMonitor(Redis(connection_pool=self._pool))
         return self._monitor
+
+    def create_cancellation_token(self, session_id: str) -> CancellationToken:
+        return RedisCancellationToken(
+            session_id,
+            Redis(connection_pool=self._pool),
+        )

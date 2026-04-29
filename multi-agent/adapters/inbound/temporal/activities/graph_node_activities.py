@@ -34,8 +34,12 @@ class GraphNodeActivities:
     @activity.defn(name="execute_graph_node")
     def execute_node(self, params: ExecuteNodeParams) -> GraphState:
         channel = None
+        cancellation_token = None
         if self._channel_factory and params.session_id:
             channel = self._channel_factory.create(params.session_id)
+            cancellation_token = (
+                self._channel_factory.create_cancellation_token(params.session_id)
+            )
 
         return self._executor.execute_node(
             node_uid=params.node_uid,
@@ -43,6 +47,7 @@ class GraphNodeActivities:
             step_context=params.step_context,
             state=params.state,
             channel=channel,
+            cancellation_token=cancellation_token,
             execution_context=params.execution_context,
         )
 

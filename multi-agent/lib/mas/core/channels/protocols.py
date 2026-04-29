@@ -87,12 +87,52 @@ class SessionStreamMonitor(ABC):
         ...
 
 
+class SessionCancelledException(BaseException):
+    """Raised when a running session detects it has been cancelled.
+
+    Extends BaseException (not Exception) so that existing except-Exception
+    blocks in the agent iterator, tool hooks, and other layers do not
+    swallow it.  Only explicit catch sites handle it.
+    """
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        super().__init__(f"Session '{session_id}' was cancelled during execution")
+
+
+class CancellationToken(ABC):
+    """Token that reports and controls whether a session has been cancelled.
+
+    Domain code checks this at natural execution checkpoints.
+    The lifecycle handler marks it on the cancel path and clears it on begin.
+    Infrastructure adapters (Redis, local) provide the implementation.
+    """
+
+    @abstractmethod
+    def is_cancelled(self) -> bool: ...
+
+    @abstractmethod
+    def mark_cancelled(self, ttl: int = 90) -> None:
+        """Signal cancellation. Called only from the cancel path."""
+        ...
+
+    @abstractmethod
+    def clear(self) -> None:
+        """Remove the cancellation signal.
+
+        Called by the lifecycle handler at session begin to clear any
+        stale flag left by a previous cancelled run of the same session.
+        """
+        ...
+
+
 class ChannelFactory(ABC):
     """
     Abstract factory for session-scoped streaming channels.
 
-    Creates writers (always), and optionally readers and monitors
-    when the backend supports cross-process communication.
+    Creates writers (always), and optionally readers, monitors, and
+    cancellation tokens when the backend supports cross-process
+    communication.
     """
 
     @abstractmethod
@@ -115,6 +155,16 @@ class ChannelFactory(ABC):
 
         Returns None when the backend does not support monitoring
         (e.g. LocalChannelFactory).
+        """
+        return None
+
+    def create_cancellation_token(
+        self, session_id: str,
+    ) -> Optional["CancellationToken"]:
+        """Create a cancellation token for the given session.
+
+        Returns None when the backend does not support cross-process
+        cancellation (e.g. LocalChannelFactory).
         """
         return None
 

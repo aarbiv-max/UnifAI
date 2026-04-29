@@ -1,3 +1,6 @@
+from mas.core.channels import SessionCancelledException  # re-export from canonical home
+
+
 class SessionAlreadyCancelledError(Exception):
     """Raised when a session is already in CANCELLED state at begin() time."""
 

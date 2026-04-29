@@ -8,15 +8,18 @@ Like a Flask handler — any worker can execute any node.
 If a pre-built SessionChannel is provided, it is injected into
 streaming-capable nodes so background workers can emit events.
 """
+import logging
 from typing import Any, Dict, Optional
 
 from mas.blueprints.models.blueprint import BlueprintSpec
-from mas.core.channels import SessionChannel
+from mas.core.channels import SessionChannel, CancellationToken, SessionCancelledException
 from mas.core.enums import ResourceCategory
 from mas.core.execution_context import ExecutionContext, ExecutionContextHolder
 from mas.graph.models.step_context import StepContext
 from mas.graph.state.graph_state import GraphState
 from mas.session.building.workflow_session_factory import WorkflowSessionFactory
+
+logger = logging.getLogger(__name__)
 
 
 class NodeExecutor:
@@ -41,6 +44,7 @@ class NodeExecutor:
         step_context: Optional[StepContext],
         state: GraphState,
         channel: Optional[SessionChannel] = None,
+        cancellation_token: Optional[CancellationToken] = None,
         execution_context: Optional[ExecutionContext] = None,
     ) -> GraphState:
         """
@@ -48,6 +52,9 @@ class NodeExecutor:
 
         If a channel is provided, it is injected into the node so that
         streaming-capable nodes can emit events during execution.
+
+        If a cancellation_token is provided, it is injected so that the
+        node can detect cancellation at natural execution checkpoints.
         """
         mini_bp = BlueprintSpec.model_validate(node_blueprint)
 
@@ -65,7 +72,15 @@ class NodeExecutor:
         if channel and hasattr(step.func, "set_streaming_channel"):
             step.func.set_streaming_channel(channel)
 
-        return step.func(state, config={})
+        if cancellation_token and hasattr(step.func, "set_cancellation_token"):
+            step.func.set_cancellation_token(cancellation_token)
+
+        try:
+            return step.func(state, config={})
+        except SessionCancelledException as exc:
+            print(f"🛑 [CANCELLED] Session '{exc.session_id}' — node '{node_uid}' stopped due to cancellation")
+            logger.info("Session cancelled during node execution: %s", exc.session_id)
+            return state
 
     def evaluate_condition(
         self,

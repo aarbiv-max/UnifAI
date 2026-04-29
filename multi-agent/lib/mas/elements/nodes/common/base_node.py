@@ -6,6 +6,7 @@ from typing import Optional, Any, Mapping, ClassVar
 from mas.elements.llms.common.chat.message import ChatMessage, Role
 from mas.core.contracts import SupportsStateContext
 from mas.elements.nodes.common.capabilities.streaming_capable import StreamingCapableMixin
+from mas.core.channels import SessionCancelledException
 
 
 class BaseNode(StreamingCapableMixin, SupportsStateContext, ABC):
@@ -52,11 +53,13 @@ class BaseNode(StreamingCapableMixin, SupportsStateContext, ABC):
         self.run(wrapped_state)
         result = wrapped_state.backing_state
 
-        # Stream completion with only streamable fields
-        self._stream({
-            "type": "complete",
-            "state": result.get_streamable_state(),
-        })
+        try:
+            self._stream({
+                "type": "complete",
+                "state": result.get_streamable_state(),
+            })
+        except SessionCancelledException:
+            pass  # result is valid; just skip the stream event
 
         return result
 
