@@ -1,10 +1,14 @@
-from flask import Blueprint, jsonify, current_app, Response
+import logging
+
+from flask import Blueprint, jsonify, current_app, Response, request
 from global_utils.helpers.apiargs import from_body, from_query
 from webargs import fields
 import json
 from pydantic.json import pydantic_encoder
 from mas.core.channels import with_heartbeats
 from mas.session.domain.exceptions import BlueprintNotFoundError
+
+logger = logging.getLogger(__name__)
 
 sessions_bp = Blueprint("sessions", __name__)
 
@@ -112,6 +116,85 @@ def submit_user_session(session_id, inputs, scope, logged_in_user):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@sessions_bp.route("/session.files.upload", methods=["POST"])
+def upload_session_files():
+    """Upload files for a session via multipart/form-data.
+
+    Backend validates MIME type and per-file size inline and returns
+    descriptive per-file errors.  The frontend enforces max file count
+    client-side.
+    """
+    session_id = request.form.get("sessionId")
+    if not session_id:
+        return jsonify({
+            "files": [],
+            "errors": [{"filename": "", "error": "sessionId is required"}],
+        }), 400
+
+    uploaded_files = request.files.getlist("files")
+    if not uploaded_files:
+        return jsonify({
+            "files": [],
+            "errors": [{"filename": "", "error": "No files provided"}],
+        }), 400
+
+    allowed_mimes = current_app.config.get("ALLOWED_MIME_TYPES", [])
+    max_size = current_app.config.get("FILE_UPLOAD_MAX_SIZE_BYTES", 20 * 1024 * 1024)
+
+    valid_files = []
+    validation_errors = []
+
+    for f in uploaded_files:
+        fname = f.filename or "unnamed"
+        content_type = f.content_type or "application/octet-stream"
+
+        if allowed_mimes and content_type not in allowed_mimes:
+            friendly = ", ".join(
+                t.split("/")[-1].upper() for t in allowed_mimes
+            )
+            validation_errors.append({
+                "filename": fname,
+                "error": (
+                    f"File type {content_type} is not allowed. "
+                    f"Supported: {friendly}"
+                ),
+            })
+            continue
+
+        data = f.read()
+        if len(data) > max_size:
+            max_mb = max_size // (1024 * 1024)
+            validation_errors.append({
+                "filename": fname,
+                "error": f"File exceeds maximum size of {max_mb} MB",
+            })
+            continue
+
+        valid_files.append((fname, data, content_type))
+
+    if not valid_files:
+        return jsonify({"files": [], "errors": validation_errors}), 400
+
+    try:
+        svc = current_app.container.session_service
+        refs, upload_errors = svc.upload_files(session_id, valid_files)
+    except ValueError as exc:
+        return jsonify({"files": [], "errors": [{"filename": "", "error": str(exc)}]}), 400
+    except TimeoutError as exc:
+        return jsonify({"files": [], "errors": [{"filename": "", "error": str(exc)}]}), 504
+    except Exception as exc:
+        logger.exception("Unexpected error during file upload")
+        return jsonify({"files": [], "errors": [{"filename": "", "error": str(exc)}]}), 500
+
+    all_errors = validation_errors + upload_errors
+    result = {
+        "files": [r.model_dump(mode="json") for r in refs],
+        "errors": all_errors,
+    }
+    status = 200 if not all_errors else 207
+    return jsonify(result), status
 
 
 @sessions_bp.route("/session.state.get", methods=["GET"])

@@ -18,9 +18,34 @@ You receive one of:
 
 ## Design Process
 
-1. **Understand the requirement** — clarify the problem, scope, and success criteria.
-2. **Explore the codebase** — identify existing patterns, modules, and conventions that the design must align with.
-3. **Produce the design** — following the output format below.
+### 1. Understand the Requirement
+- Clarify the problem, scope, and success criteria.
+- If a Jira ticket ID is provided, fetch the ticket details via MCP. If Jira is unreachable, state exactly what information is missing and proceed with available context.
+
+### 2. Explore the Codebase (MANDATORY)
+
+Before producing any design, you MUST use search/read tools to explore the actual source code. Do NOT design from imagination.
+
+**Step A — Identify the relevant area:**
+- Use search tools to find existing modules, services, and files related to the task.
+- Read the directory structure of the affected area(s) to understand the current layout.
+
+**Step B — Read existing patterns:**
+- Read at least 5 existing files in the affected area to learn the dominant patterns: naming, folder structure, dependency injection, error handling, logging, DTO mapping, repository usage.
+- If the task touches multiple areas, read files from each area.
+
+**Step C — Check for reusable components:**
+- Search for existing utilities, base classes, services, mappers, and helpers that could be reused.
+- For each component you propose to create, search the codebase first to confirm no similar component exists.
+
+**Step D — Document what you explored:**
+- List every file you read in the "Codebase Exploration Evidence" output section.
+- If you propose a file path, you MUST have verified its parent directory exists.
+
+Designing without codebase exploration is a failure of this phase.
+
+### 3. Produce the Design
+- Follow the output format below.
 
 ## Architectural Constraints
 
@@ -65,10 +90,21 @@ Describe the request/response flow through the layers, from adapter entry to dom
 ### 6. Open Questions
 List anything that needs clarification before implementation begins.
 
+### 7. Codebase Exploration Evidence
+List every source file you read during Step 2 and what you learned from each. If any proposed component references a file path or class name you did not verify by reading the actual code, flag it as **UNVERIFIED**.
+
+| File Read | What It Informed |
+|-----------|-----------------|
+
+### 8. Reuse Check Results
+For each new component proposed in the design, confirm you searched for existing alternatives.
+
+| Proposed Component | Search Performed | Existing Alternative Found? | Decision |
+|--------------------|-----------------|----------------------------|----------|
+
 ## Rules
 
 - Keep the design concise — aim for clarity, not length.
-- Reference actual file paths and class names from the codebase.
+- Every file path and class name referenced MUST be verified by reading the actual source code. Do NOT invent paths.
 - Do NOT produce implementation code — only signatures and pseudocode.
-- If a Jira ticket is provided but Jira is unreachable, state what information is missing and design based on available context.
 - Wrap the entire output inside a `## PHASE 1: DESIGN` header so the pipeline can identify it.

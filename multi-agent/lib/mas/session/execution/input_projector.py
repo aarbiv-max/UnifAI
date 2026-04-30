@@ -15,6 +15,7 @@ After staging, the UI can immediately read messages from the DB.
 from typing import Any, Dict
 
 from mas.elements.llms.common.chat.message import ChatMessage, Role
+from mas.elements.llms.common.file_reference import FileReference
 from mas.session.domain.session_record import SessionRecord
 from mas.session.domain.status import SessionStatus
 from mas.session.management.utils import derive_title
@@ -44,10 +45,17 @@ class SessionInputProjector:
 
         record.graph_state.update(inputs)
 
+        raw_refs = inputs.get("file_references", [])
+        file_references = FileReference.from_dicts(raw_refs)
+
         prompt = (inputs.get("user_prompt") or "").strip()
-        if prompt:
+        if prompt or file_references:
             record.graph_state.messages.append(
-                ChatMessage(role=Role.USER, content=prompt)
+                ChatMessage(
+                    role=Role.USER,
+                    content=prompt or "",
+                    file_references=file_references,
+                )
             )
 
         record.status = SessionStatus.QUEUED

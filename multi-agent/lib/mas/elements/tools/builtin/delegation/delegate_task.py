@@ -171,6 +171,12 @@ class DelegateTaskTool(BaseTool):
         
         # Add work item reference (always present now)
         task.data["work_item_id"] = work_item_id
+
+        file_refs_data = workspace_service.get_variable(
+            current_thread.thread_id, "_file_references",
+        )
+        if file_refs_data:
+            task.data["file_references"] = file_refs_data
         
         # Set response destination
         task.response_to = self._get_owner_uid()

@@ -1,10 +1,19 @@
+export interface FileReference {
+  file_uri: string;
+  mime_type: string;
+  display_name: string;
+  size_bytes: number;
+  uploaded_at: string;
+}
+
 export interface Message {
   id: string;
   content: string;
   sender: 'user' | 'ai';
   finalAnswer?: string;
   streamLogs?: StreamLogEntry[];
-  workPlans?: WorkPlanSnapshot[]; // Add support for workplans
+  workPlans?: WorkPlanSnapshot[];
+  fileReferences?: FileReference[];
 }
 
 export interface StreamLogEntry {

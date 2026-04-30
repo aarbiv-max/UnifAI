@@ -2,6 +2,12 @@
 export interface ChatMessage {
   content: string;
   role: "user" | "assistant";
+  file_references?: {
+    display_name: string;
+    mime_type: string;
+    size_bytes: number;
+    file_uri: string;
+  }[];
 }
 
 // Shared ChatSession interface used across components

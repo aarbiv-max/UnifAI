@@ -631,17 +631,25 @@ class OrchestratorNode(
 
         # Pop the user prompt from the end if it matches the content
         # (we re-add it at the very end to guarantee ordering)
+        popped_file_refs = None
         if content and (
             messages
             and hasattr(messages[-1], "role")
             and messages[-1].role == Role.USER
             and messages[-1].content == content
         ):
-            messages.pop()
+            popped_msg = messages.pop()
+            popped_file_refs = getattr(popped_msg, "file_references", None)
+
+        file_references = None
+        if popped_file_refs and self.llm.supports_multimodal:
+            file_references = popped_file_refs
 
         # User prompt is always last
         if content:
-            messages.append(ChatMessage(role=Role.USER, content=content))
+            messages.append(ChatMessage(
+                role=Role.USER, content=content, file_references=file_references,
+            ))
 
         return messages
 

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 from mas.session.management.user_session_manager import UserSessionManager
 from mas.session.execution.foreground_runner import ForegroundSessionRunner
@@ -9,6 +9,9 @@ from mas.session.domain.session_record import SessionRecord
 from mas.session.domain.dto import SessionListItem
 from mas.session.domain.models import SessionChat, SessionMeta, TimeSeriesPoint, SystemAnalyticsData
 from mas.session.domain.exceptions import BlueprintNotFoundError
+from mas.elements.llms.common.file_reference import FileReference
+from mas.elements.llms.common.file_uploader import FileUploader
+from mas.elements.llms.common.file_upload_credential_resolver import FileUploadCredentialResolver
 from mas.core.dto import GroupedCount
 
 class SessionService:
@@ -26,11 +29,15 @@ class SessionService:
         foreground_runner: ForegroundSessionRunner,
         input_projector: SessionInputProjector,
         background_submitter: Optional[BackgroundSessionSubmitter] = None,
+        file_uploader: Optional[FileUploader] = None,
+        credential_resolver: Optional[FileUploadCredentialResolver] = None,
     ):
         self._manager = manager
         self._foreground = foreground_runner
         self._projector = input_projector
         self._submitter = background_submitter
+        self._file_uploader = file_uploader
+        self._credential_resolver = credential_resolver
 
     def create(self, user_id: str, blueprint_id: str, metadata: Dict[str, Any] | SessionMeta | None = None) -> str:
         """
@@ -86,6 +93,26 @@ class SessionService:
         execution_ctx = session.run_context.with_scope(scope)
         request = SubmitSessionRequest(execution_context=execution_ctx)
         return self._submitter.submit(session, request)
+
+    # ---- File upload ----
+
+    def upload_files(
+        self,
+        session_id: str,
+        files: List[Tuple[str, bytes, str]],
+    ) -> Tuple[List[FileReference], List[Dict[str, str]]]:
+        """Upload files via the configured FileUploader port.
+
+        Resolves credentials from the session's blueprint, then delegates
+        to the uploader adapter.
+        """
+        if self._file_uploader is None:
+            raise TypeError("No FileUploader configured")
+        if self._credential_resolver is None:
+            raise TypeError("No FileUploadCredentialResolver configured")
+        record = self._manager.get_record(session_id)
+        credentials = self._credential_resolver.resolve(record.blueprint_id)
+        return self._file_uploader.upload_batch(files, credentials)
 
     # ---- Private staging ----
 

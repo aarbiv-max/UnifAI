@@ -1,4 +1,5 @@
 from global_utils.config.config import SharedConfig
+from mas.elements.llms.common.file_reference import DEFAULT_ALLOWED_MIME_TYPES
 
 
 class AppConfig(SharedConfig):
@@ -19,3 +20,7 @@ class AppConfig(SharedConfig):
     redis_stream_ttl: int = 3600
     redis_stream_block_ms: int = 5000
     redis_stream_batch_size: int = 50
+    # File upload limits
+    file_upload_max_count: int = 3
+    file_upload_max_size_mb: int = 20
+    file_upload_allowed_mime_types: list = DEFAULT_ALLOWED_MIME_TYPES

@@ -56,13 +56,18 @@ class ReadWorkspaceSummaryTool(BaseTool):
         # Include recent messages
         if workspace.context.conversation_history:
             recent_messages = workspace.context.conversation_history[-args.max_messages:]
-            summary["recent_messages"] = [
-                {
+            serialized = []
+            for msg in recent_messages:
+                entry = {
                     "role": msg.role.value,
-                    "content": msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
+                    "content": msg.content[:200] + "..." if len(msg.content) > 200 else msg.content,
                 }
-                for msg in recent_messages
-            ]
+                if getattr(msg, "file_references", None):
+                    entry["attached_files"] = [
+                        ref.display_name for ref in msg.file_references
+                    ]
+                serialized.append(entry)
+            summary["recent_messages"] = serialized
             summary["total_messages"] = len(workspace.context.conversation_history)
         
         # Include agent results

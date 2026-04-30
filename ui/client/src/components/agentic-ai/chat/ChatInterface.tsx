@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Trash2, Loader2, Sparkles, Info, Copy, RotateCcw,
   ThumbsUp, ThumbsDown, Check, Columns3, MessageSquare, Network,
-  Maximize2, Minimize2, Download, FileText, FileJson,
+  Maximize2, Minimize2, Download, FileText, FileJson, Paperclip, X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -20,7 +20,8 @@ import axios from "../../../http/axiosAgentConfig";
 import { MarkdownComponents, preprocessText } from "./helpers/TextComponents";
 import { SessionPayload } from "../ExecutionTab";
 import { useStreamingData } from "../StreamingDataContext";
-import { Message, StreamLogEntry, WorkPlanSnapshot } from "./types";
+import { Message, StreamLogEntry, WorkPlanSnapshot, FileReference } from "./types";
+import { uploadSessionFiles, MAX_FILE_COUNT } from "@/api/sessions";
 import { StreamLogDisplay } from "./StreamLogDisplay";
 import { useToast } from "@/hooks/use-toast";
 import { UmamiTrack } from '@/components/ui/umamitrack';
@@ -43,6 +44,7 @@ import {
 interface BackendMessage {
   content: string;
   role: "user" | "assistant";
+  file_references?: { display_name: string; mime_type: string; size_bytes: number; file_uri: string }[];
 }
 
 interface ChatInterfaceProps {
@@ -77,6 +79,10 @@ export default function ChatInterface({
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const isSendingRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<
     string | null
   >(null);
@@ -623,10 +629,19 @@ export default function ChatInterface({
   // Completion → Final answer appears and streaming stops
   // Cleanup → All intervals are properly cleared
   const handleSendMessage = async (messageToSend?: string) => {
+    if (isSendingRef.current) return;
     const messageContent = messageToSend || inputMessage;
-    if (messageContent.trim() === "") return;
+    if (messageContent.trim() === "" && selectedFiles.length === 0) return;
 
-    // Check if flow is loaded (runId should not be empty or null)
+    if (selectedFiles.length > 0 && messageContent.trim() === "") {
+      toast({
+        title: "Text required",
+        description: "Please type a message along with your file attachments.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!runId || runId.trim() === "") {
       toast({
         title: "No Flow Loaded",
@@ -636,18 +651,27 @@ export default function ChatInterface({
       return;
     }
 
-    // Add user message
+    isSendingRef.current = true;
+    const filesToSend = [...selectedFiles];
+    setSelectedFiles([]);
+
     const userMessage: Message = {
       id: Date.now().toString(),
       content: messageContent,
       sender: "user",
+      fileReferences: filesToSend.map(f => ({
+        file_uri: "",
+        mime_type: f.type,
+        display_name: f.name,
+        size_bytes: f.size,
+        uploaded_at: new Date().toISOString(),
+      })),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInputMessage("");
     setIsTyping(true);
 
-    // Reset textarea to compact state and focus
     setTimeout(() => {
       resetTextareaHeight();
       if (textareaRef.current) {
@@ -656,7 +680,6 @@ export default function ChatInterface({
       }
     }, 0);
 
-    // Create initial AI message for streaming (no streamLogs, managed separately)
     const streamingMessageId = (Date.now() + 1).toString();
     const initialAiMessage: Message = {
       id: streamingMessageId,
@@ -673,50 +696,76 @@ export default function ChatInterface({
       [streamingMessageId]: messageContent
     }));
 
-    // Start streaming logs and workplans
     startStreamingLogs(streamingMessageId);
     startStreamingWorkPlans(streamingMessageId);
 
     try {
+      let fileRefs: any[] | undefined;
+
+      if (filesToSend.length > 0) {
+        setIsUploading(true);
+        try {
+          const uploadResult = await uploadSessionFiles(runId, filesToSend);
+          if (uploadResult.files.length === 0 && uploadResult.errors.length > 0) {
+            throw new Error(uploadResult.errors.map(e => e.error).join('; '));
+          }
+          if (uploadResult.errors.length > 0) {
+            toast({
+              title: "Some files failed to upload",
+              description: uploadResult.errors.map(e => `${e.filename}: ${e.error}`).join('\n'),
+              variant: "destructive",
+            });
+          }
+          fileRefs = uploadResult.files;
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
       const sessionPayload: SessionPayload = {
         sessionId: runId || "",
-        inputs: { user_prompt: messageContent },
+        inputs: {
+          user_prompt: messageContent,
+          ...(fileRefs ? { file_references: fileRefs } : {}),
+        },
         scope: "public",
         loggedInUser: "default",
       };
 
       const response = await triggerExecution(sessionPayload);
 
-      // Update the message with final answer
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id === streamingMessageId) {
-            return {
-              ...msg,
-              finalAnswer: response,
-            };
+            return { ...msg, finalAnswer: response };
           }
           return msg;
         }),
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in chat interaction:", error);
 
-      // Update with error message
+      toast({
+        title: "Error",
+        description: error?.message || "There was an error processing your request.",
+        variant: "destructive",
+      });
+
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id === streamingMessageId) {
             return {
               ...msg,
-              finalAnswer:
-                "I'm sorry, there was an error processing your request.",
+              finalAnswer: "I'm sorry, there was an error processing your request.",
             };
           }
           return msg;
         }),
       );
     } finally {
+      isSendingRef.current = false;
       setIsTyping(false);
+      setIsUploading(false);
       stopStreamingLogs(streamingMessageId);
       setCurrentStreamingMessageId(null);
     }
@@ -1172,8 +1221,68 @@ export default function ChatInterface({
             <WorkflowStatusBanner {...WorkflowBannerMessages.validating} />
           )}
           
+          {/* File chips */}
+          {selectedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1 px-1 pb-1">
+              {selectedFiles.map((file, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                >
+                  <FileText className="h-3 w-3" />
+                  {file.name}
+                  <span className="text-[10px] opacity-60">
+                    ({(file.size / 1024).toFixed(0)} KB)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
+                    className="ml-0.5 hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Input area */}
           <div className="flex space-x-2 items-end">
+            {/* Paperclip button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              accept=".pdf,.txt,.csv,.html,.md"
+              onChange={(e) => {
+                const newFiles = Array.from(e.target.files || []);
+                setSelectedFiles(prev => {
+                  const combined = [...prev, ...newFiles];
+                  if (combined.length > MAX_FILE_COUNT) {
+                    toast({
+                      title: "Too many files",
+                      description: `Maximum ${MAX_FILE_COUNT} files allowed.`,
+                      variant: "destructive",
+                    });
+                    return combined.slice(0, MAX_FILE_COUNT);
+                  }
+                  return combined;
+                });
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || isTyping || isUploading}
+              className="mb-0 shrink-0"
+              title="Attach files"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+
             {/* Textarea container with expand/collapse icon */}
             <div className="relative flex-1">
               <Textarea
@@ -1222,7 +1331,7 @@ export default function ChatInterface({
             >
               <Button
                 onClick={() => handleSendMessage()}
-                disabled={inputMessage.trim() === "" || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
+                disabled={(inputMessage.trim() === "" && selectedFiles.length === 0) || isTyping || isUploading || isSendingRef.current || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
                 className="bg-primary hover:bg-[#7525c9] mb-0"
               >
                 <Send className="h-4 w-4" />

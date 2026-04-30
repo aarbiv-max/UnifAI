@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Iterator, List, Tuple, Set, get_type_hints
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Set, get_type_hints
 from typing_extensions import Annotated
 from pydantic import BaseModel, Field, ConfigDict
 from mas.elements.llms.common.chat.message import ChatMessage
@@ -73,6 +73,16 @@ class GraphState(BaseModel):
     workspaces: Annotated[Dict[str, Any], merge_workspaces] = Field(
         default_factory=dict,
         json_schema_extra={'streamable': False}
+    )
+
+    # —————– FILE ATTACHMENTS —————–
+
+    file_references: Annotated[
+        Optional[List[Dict[str, Any]]],
+        lambda old, new: new,
+    ] = Field(
+        default=None,
+        json_schema_extra={'external': True, 'streamable': False},
     )
 
     # —————– Dict-like API —————–

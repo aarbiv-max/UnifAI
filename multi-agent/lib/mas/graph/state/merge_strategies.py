@@ -1,6 +1,10 @@
+import logging
 from typing import Any, Dict, List, Sequence, Optional, Union
 from itertools import islice
+from pydantic import ValidationError
 from mas.elements.llms.common.chat.message import ChatMessage, Role
+
+logger = logging.getLogger(__name__)
 
 
 def merge_string_dicts(existing: Dict[str, str], new_item: Any) -> Dict[str, str]:
@@ -23,11 +27,28 @@ def merge_string_dicts(existing: Dict[str, str], new_item: Any) -> Dict[str, str
 
 
 def _to_chat(msg: Any):
-    """Single-pass conversion to ChatMessage (or None)."""
+    """Single-pass conversion to ChatMessage (or None).
+
+    Two-stage fallback for dicts: if full construction fails (e.g.
+    malformed ``file_references``), strip that field and retry so
+    the text content is preserved.
+    """
     if isinstance(msg, ChatMessage):
         return msg
     if isinstance(msg, dict) and "role" in msg and "content" in msg:
-        return ChatMessage(**msg)
+        try:
+            return ChatMessage(**msg)
+        except ValidationError:
+            sanitized = {k: v for k, v in msg.items() if k != "file_references"}
+            try:
+                logger.warning(
+                    "Stripped malformed file_references from message: %r",
+                    msg.get("file_references"),
+                )
+                return ChatMessage(**sanitized)
+            except ValidationError:
+                logger.warning("Could not parse message dict in _to_chat: %r", msg)
+                return None
     if isinstance(msg, str):
         return ChatMessage(role=Role.ASSISTANT, content=msg)
     return None

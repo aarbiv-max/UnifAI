@@ -45,7 +45,7 @@ import { useSessionStream } from "@/hooks/use-session-stream";
  */
 export type SessionPayload = {
   sessionId: string;
-  inputs: { user_prompt: string };
+  inputs: { user_prompt: string; file_references?: { file_uri: string; mime_type: string; display_name: string; size_bytes: number; uploaded_at: string }[] };
   scope?: 'public' | 'private';
   loggedInUser?: string;
 };

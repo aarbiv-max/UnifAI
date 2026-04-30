@@ -34,6 +34,11 @@ class BaseLLM(ABC):
         """
         pass
 
+    @property
+    def supports_multimodal(self) -> bool:
+        """Whether this LLM can process multimodal content (e.g. file attachments)."""
+        return False
+
     @abstractmethod
     def bind_tools(self, tools: List[BaseTool]) -> "BaseLLM":
         """

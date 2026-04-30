@@ -109,13 +109,28 @@ Compare the implementation against the approved design:
 ### 7. Mandatory Codebase Verification (STRICT)
 
 Before issuing any verdict, you MUST:
-- Use search/read tools to explore the actual source code -- do NOT review only the diff or design document in isolation.
-- Verify at least 3 specific claims by reading the relevant source files (e.g., "this port exists," "this adapter implements it," "this dependency flows inward").
+
+**Step A — Enumerate ALL modified files:**
+- Use the "Files Modified Summary" table from Phase 3's output. If not available, run `git diff --name-only` (or equivalent) to get the complete list of files created or modified by the Coder in Phase 3.
+- Print this list in your output under "Files Reviewed."
+- You MUST read EVERY file in this list. No exceptions. Do NOT sample or skip files.
+
+**Step B — Full file review:**
+- For each modified file, read the ENTIRE file (not just the diff hunk) using the Read tool.
+- Analyze imports, class structure, dependency direction, naming, and patterns for each file.
+- If a file is too large, read it in chunks — but you must cover the whole file.
+
+**Step C — Cross-file verification:**
+- Verify at least 3 specific architectural claims by cross-referencing multiple source files (e.g., "this port exists," "this adapter implements it," "this dependency flows inward").
 - Check existing code for patterns the implementation should follow but doesn't.
 - Trace the full request path through the layers at least once to confirm correct wiring.
 - If you cannot verify a claim, flag it as **UNVERIFIED** and request clarification.
 
-Reviewing without codebase exploration is a failure of this phase.
+**Step D — Completeness check:**
+- Before writing your verdict, confirm that every file from Step A appears in your "Files Reviewed" list and was actually read.
+- If any file was skipped, go back and read it before proceeding.
+
+Reviewing without reading ALL modified files is a failure of this phase. Partial file coverage is not acceptable.
 
 ### 8. Revision Loop Verification (when reviewing a revision)
 
@@ -177,8 +192,14 @@ Deviations from the approved design, if any.
 | Previous Issue | Status | Evidence |
 |----------------|--------|----------|
 
+### Files Reviewed
+List EVERY file modified in Phase 3 (from the "Files Modified Summary" table or `git diff --name-only`). For each file, confirm it was fully read and note key observations. If any file is missing from this list, the review is incomplete and the verdict is invalid.
+
+| File | Read? | Key Observations |
+|------|-------|------------------|
+
 ### Codebase Verification Evidence
-List the specific source files you read and what claims they verified or contradicted.
+List the specific cross-file claims you verified and what source files confirmed or contradicted them.
 
 ### Code Health Score: X/10
 Brief reasoning.

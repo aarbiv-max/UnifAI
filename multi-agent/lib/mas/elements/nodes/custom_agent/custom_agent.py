@@ -2,6 +2,7 @@ from typing import Optional, Any, List, ClassVar, Set, Dict
 from copy import deepcopy
 from mas.graph.state.state_view import StateView
 from mas.elements.llms.common.chat.message import ChatMessage, Role
+from mas.elements.llms.common.file_reference import FileReference
 from mas.elements.tools.common.base_tool import BaseTool
 from mas.elements.nodes.common.base_node import BaseNode
 from mas.elements.nodes.common.capabilities.iem_capable import IEMCapableMixin
@@ -214,8 +215,15 @@ class CustomAgentNode(
         if agent_results_context:
             context_messages.append(agent_results_context)
 
-        # 4. User prompt is always last
-        context_messages.append(ChatMessage(role=Role.USER, content=task.content))
+        # 4. User prompt is always last — attach file references if LLM supports multimodal
+        file_references = None
+        if self.llm.supports_multimodal:
+            file_references = FileReference.from_dicts(
+                task.data.get("file_references"),
+            )
+        context_messages.append(ChatMessage(
+            role=Role.USER, content=task.content, file_references=file_references,
+        ))
 
         return context_messages
 

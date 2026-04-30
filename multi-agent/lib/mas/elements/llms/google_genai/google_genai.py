@@ -97,7 +97,7 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
             call_params["max_output_tokens"] = max_tokens
         call_params.update(kwargs)
 
-        lc_messages = LangChainConverter.to_lc(messages)
+        lc_messages = LangChainConverter.to_lc(messages, supports_multimodal=True)
         response = self.client.invoke(lc_messages, **call_params)
 
         if hasattr(response, 'content') and isinstance(response.content, list):
@@ -118,7 +118,7 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
           and, at the very end, yields **one** `ChatMessage` representing
           the full assistant reply with `tool_calls=[…]`.
         """
-        lc_history = LangChainConverter.to_lc(messages)
+        lc_history = LangChainConverter.to_lc(messages, supports_multimodal=True)
         aggregated: Any | None = None
 
         for chunk in self.client.stream(lc_history, **call_params):
@@ -145,6 +145,10 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
         new_llm = copy.copy(self)
         new_llm.client = self.client.bind_tools(GoogleGenAIToolsConverter.to_lc(tools))
         return new_llm
+
+    @property
+    def supports_multimodal(self) -> bool:
+        return True
 
     @property
     def name(self) -> str:

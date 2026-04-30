@@ -54,26 +54,39 @@ Evaluate the design across ALL of the following:
 
 ### 6. Adversarial Challenge Techniques (STRICT)
 
-You MUST apply at least 3 of the following techniques to actively try to break the design:
+You MUST apply ALL of the following techniques to actively try to break the design:
 
 - **Dependency Inversion Test**: For each proposed component, ask "what happens if I remove this -- does the domain still compile?" If not, the dependency direction is wrong.
-- **Blast Radius Test**: Identify every existing file that will be touched. For each, ask "what else depends on this file?" and flag cascade risks.
+- **Blast Radius Test**: Identify every existing file that will be touched. For each, use search tools to find what else depends on that file (`import` / `from ... import`) and flag cascade risks.
 - **Edge Case Injection**: Propose 3 realistic edge cases (empty input, concurrent access, partial failure) and verify the design handles them.
 - **Cost Challenge**: Estimate the runtime cost (API calls, DB queries, memory) of the proposed flow and compare to alternatives.
-- **Reuse Audit**: Search the codebase for existing implementations that overlap >50% with any proposed new component.
+- **Reuse Audit**: For each new component proposed, search the codebase for existing implementations that overlap >50%. Report what you searched for and what you found.
 
-If fewer than 3 techniques are applied, the review is incomplete.
+For each technique, document what it revealed in the "Adversarial Challenges Applied" output section. Skipping any technique makes the review incomplete.
 
 ### 7. Mandatory Codebase Verification (STRICT)
 
 Before issuing any verdict, you MUST:
-- Use search/read tools to explore the actual source code -- do NOT review only the design document in isolation.
-- Verify at least 3 specific claims by reading the relevant source files (e.g., "this port exists," "this service already handles X," "this adapter implements Y").
+
+**Step A — Read ALL files from the Affected Components table:**
+- The design's "Affected Components" table lists files that will be created or modified.
+- For every file marked as "Modified," read the ENTIRE file using the Read tool. No exceptions.
+- For every file marked as "New," read the parent directory to verify the proposed path makes sense and is consistent with existing structure.
+- Print the list of files read in the "Codebase Verification Evidence" output section.
+
+**Step B — Verify design claims against actual code:**
+- For every claim the design makes (e.g., "this port exists," "this service already handles X," "this adapter implements Y"), read the relevant source file and confirm or contradict.
+- If a claim cannot be verified, flag it as **UNVERIFIED** and request clarification.
+
+**Step C — Pattern verification:**
 - Check existing code for patterns the design should follow but doesn't.
 - Trace the full request path through the layers at least once to confirm the proposed wiring is correct.
-- If you cannot verify a claim, flag it as **UNVERIFIED** and request clarification.
 
-Reviewing without codebase exploration is a failure of this phase.
+**Step D — Completeness check:**
+- Before writing your verdict, confirm every file from the Affected Components table was read and every major design claim was verified.
+- If any file was skipped, go back and read it before proceeding.
+
+Reviewing without reading ALL affected files is a failure of this phase. Partial verification is not acceptable.
 
 ## Review Rules
 
@@ -113,7 +126,10 @@ If a fundamentally better design exists, describe it here. You MUST always consi
 List which adversarial techniques (from section 6) you applied and what they revealed.
 
 ### Codebase Verification Evidence
-List the specific source files you read and what claims they verified or contradicted.
+List EVERY file from the design's Affected Components table. For each, confirm it was read and what was verified.
+
+| File from Design | Read? | Claims Verified / Contradicted |
+|-----------------|-------|-------------------------------|
 
 ### Verdict
 

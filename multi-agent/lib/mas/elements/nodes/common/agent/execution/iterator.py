@@ -249,7 +249,7 @@ class AgentIterator:
     def _serialize_step_data(self, data: Any) -> Dict[str, Any]:
         """Serialize step data for streaming."""
         if isinstance(data, ChatMessage):
-            return {
+            result = {
                 "role": data.role.value,
                 "content": data.content,
                 "tool_calls": [
@@ -261,6 +261,16 @@ class AgentIterator:
                     for tc in (data.tool_calls or [])
                 ]
             }
+            if data.file_references:
+                result["file_references"] = [
+                    {
+                        "display_name": ref.display_name,
+                        "mime_type": ref.mime_type,
+                        "size_bytes": ref.size_bytes,
+                    }
+                    for ref in data.file_references
+                ]
+            return result
         elif isinstance(data, AgentAction):
             return {
                 "tool": data.tool,

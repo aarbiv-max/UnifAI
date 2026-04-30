@@ -29,7 +29,7 @@ class UserQuestionNode(WorkloadCapableMixin, IEMCapableMixin, BaseNode):
     """
 
     # Channel permissions - includes workload channels
-    READS: ClassVar[set[str]] = {Channel.USER_PROMPT, Channel.MESSAGES}
+    READS: ClassVar[set[str]] = {Channel.USER_PROMPT, Channel.MESSAGES, Channel.FILE_REFERENCES}
     WRITES: ClassVar[set[str]] = {Channel.MESSAGES}
 
     def __init__(self, *, name: str = "user_question", **kwargs):
@@ -120,6 +120,9 @@ class UserQuestionNode(WorkloadCapableMixin, IEMCapableMixin, BaseNode):
         
         # Copy current conversation to workspace using new SOLID API
         self.copy_graphstate_messages_to_workspace(thread.thread_id)
+
+        file_refs = state.get(Channel.FILE_REFERENCES, None)
+        self.workspaces.set_variable(thread.thread_id, "_file_references", file_refs)
         
         # Add workflow context to workspace
         self.workspaces.add_fact(thread.thread_id, f"User query: {user_query}")

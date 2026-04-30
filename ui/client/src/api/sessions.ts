@@ -1,5 +1,74 @@
 import axios from '@/http/axiosAgentConfig';
 
+// ---- File upload types ----
+
+export interface FileReference {
+  file_uri: string;
+  mime_type: string;
+  display_name: string;
+  size_bytes: number;
+  uploaded_at: string;
+}
+
+export interface UploadResult {
+  files: FileReference[];
+  errors: { filename: string; error: string }[];
+}
+
+export const MAX_FILE_COUNT = 3;
+
+export async function uploadSessionFiles(
+  sessionId: string,
+  files: File[],
+): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append('sessionId', sessionId);
+  for (const file of files) {
+    formData.append('files', file);
+  }
+  const response = await axios.post('/sessions/session.files.upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 180_000,
+  });
+  return response.data;
+}
+
+export async function sendMessageWithFiles(
+  sessionId: string,
+  message: string,
+  files: File[],
+  triggerExecution: (payload: any) => Promise<string>,
+  scope: 'public' | 'private' = 'public',
+): Promise<{ response: string; uploadResult?: UploadResult }> {
+  let uploadResult: UploadResult | undefined;
+  let fileReferences: FileReference[] | undefined;
+
+  if (files.length > 0) {
+    uploadResult = await uploadSessionFiles(sessionId, files);
+    if (uploadResult.files.length === 0 && uploadResult.errors.length > 0) {
+      throw new Error(
+        uploadResult.errors.map((e) => e.error).join('; '),
+      );
+    }
+    fileReferences = uploadResult.files;
+  }
+
+  const payload = {
+    sessionId,
+    inputs: {
+      user_prompt: message,
+      ...(fileReferences ? { file_references: fileReferences } : {}),
+    },
+    scope,
+    loggedInUser: 'default',
+  };
+
+  const response = await triggerExecution(payload);
+  return { response, uploadResult };
+}
+
+// ---- Session management ----
+
 export interface CreateSessionParams {
   blueprintId: string;
   userId: string;

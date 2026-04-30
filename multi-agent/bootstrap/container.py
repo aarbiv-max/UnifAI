@@ -10,6 +10,9 @@ points (run/dev.py, run/wsgi.py, inbound/temporal/__main__.py, …)
 create an AppContainer and pass it — or individual services from it —
 into the layers that need them.
 """
+import logging
+from typing import Any, Dict
+
 from mas.catalog.element_registry import ElementRegistry
 from mas.catalog.service import CatalogService
 from mas.catalog.card_service import ElementCardService
@@ -38,9 +41,14 @@ from outbound.mongo import (
     MongoShareRepository,
     MongoTemplateRepository,
 )
+from outbound.llm.gemini_file_uploader import GeminiFileUploader
+from outbound.llm.gemini_credential_resolver import GeminiCredentialResolver
+from mas.elements.llms.google_genai.config import GoogleGenAIConfig
 
 from global_utils.utils.singleton import SingletonMeta
 from global_utils.utils.util import get_redis_url
+
+_logger = logging.getLogger(__name__)
 
 
 class AppContainer(metaclass=SingletonMeta):
@@ -136,11 +144,28 @@ class AppContainer(metaclass=SingletonMeta):
 
         background_submitter = self._create_background_submitter(cfg.engine_name)
 
+        self.file_uploader = GeminiFileUploader()
+
+        def _resolve_gemini_credentials(blueprint_id: str) -> Dict[str, Any]:
+            blueprint = self.blueprint_service.load_resolved(blueprint_id)
+            for resource in blueprint.llms:
+                if isinstance(resource.config, GoogleGenAIConfig):
+                    return {"api_key": resource.config.api_key}
+            raise ValueError(
+                f"No GoogleGenAIConfig found in blueprint {blueprint_id}"
+            )
+
+        self.credential_resolver = GeminiCredentialResolver(
+            resolve_fn=_resolve_gemini_credentials,
+        )
+
         self.session_service = SessionService(
             manager=self.session_manager,
             foreground_runner=foreground_runner,
             input_projector=self.input_projector,
             background_submitter=background_submitter,
+            file_uploader=self.file_uploader,
+            credential_resolver=self.credential_resolver,
         )
 
         self.share_repo = MongoShareRepository(

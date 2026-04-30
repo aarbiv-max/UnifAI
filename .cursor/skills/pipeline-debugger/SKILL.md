@@ -69,15 +69,18 @@ Explain WHY the issue occurs, not just WHERE.
 
 ### Step 5: Propose Fix
 
-Present the fix before applying it. Wait for user confirmation in standalone mode.
+Present the fix before applying it.
 - Describe what needs to change and why.
 - If the root cause is an architecture violation, the fix MUST correct the violation -- do NOT work around it.
 - The fix must follow existing codebase patterns (naming, folder structure, error handling, logging).
 - The fix must reuse existing utilities, base classes, or services where applicable.
 - If multiple fix approaches exist, present them with trade-offs and recommend one.
 
-After user confirms (or immediately in pipeline mode):
-- Apply the fix.
+**Standalone mode**: After presenting the proposed fix, you MUST STOP and explicitly ask the user: "Should I apply this fix? (yes/no)". Do NOT proceed to apply the fix or run any edit/write tools until the user responds. This is a hard stop — not optional.
+
+**Pipeline mode**: Apply the fix immediately after presenting it.
+
+When applying:
 - Keep changes minimal and focused on the root cause.
 
 ### Step 6: Verify
@@ -88,7 +91,11 @@ Confirm the fix works and check for regressions.
 - If the fix touched shared code, run the full test suite: `uv run pytest -xvs`.
 - Report the verification results.
 
-If verification fails, go back to Step 3 with the new evidence.
+If verification fails, go back to Step 3 with the new evidence. **Maximum 3 retry loops.** If the issue is not resolved after 3 attempts, STOP and report:
+- What was tried in each iteration.
+- Why each attempt failed.
+- Your best hypothesis for what the underlying issue is.
+- Recommended next steps for the user.
 
 ## Rules
 
@@ -103,8 +110,8 @@ If verification fails, go back to Step 3 with the new evidence.
 
 ## Interaction Mode
 
-- **Standalone** (`/pipeline debug`): After Step 4 (Diagnose), present findings and WAIT for user confirmation before applying the fix in Step 5. The user may want to discuss the root cause, provide additional context, or choose between fix approaches.
-- **Pipeline** (auto-invoked when stuck): Apply the fix immediately after diagnosis, then verify. Present the full debug session output for the user to review.
+- **Standalone** (`/pipeline debug`): After Step 4 (Diagnose), present findings and STOP. Do NOT apply any fix until the user explicitly confirms. The user may want to discuss the root cause, provide additional context, or choose between fix approaches. Applying a fix without user confirmation in standalone mode is a failure of this phase.
+- **Pipeline** (auto-invoked when stuck): Apply the fix immediately after diagnosis, then verify. Present the full debug session output for the user to review. Maximum 3 retry loops before escalating to the user.
 
 ## Output Format
 

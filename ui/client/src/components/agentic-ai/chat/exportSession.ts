@@ -4,6 +4,7 @@ import type {
   ToolEntry,
   WorkPlanSnapshot,
   WorkItem,
+  FileReference,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -154,6 +155,12 @@ export function exportSessionAsMarkdown(
     if (msg.sender === "user") {
       lines.push("## User\n");
       lines.push(msg.content);
+      if (msg.fileReferences && msg.fileReferences.length > 0) {
+        lines.push("\n**Attached files:**");
+        for (const ref of msg.fileReferences) {
+          lines.push(`- ${ref.display_name} (${ref.mime_type})`);
+        }
+      }
     } else {
       lines.push("## Assistant\n");
 
@@ -189,6 +196,7 @@ interface CleanedMessage {
   finalAnswer?: string;
   streamLogs?: Omit<StreamLogEntry, "isExpanded">[];
   workPlans?: Omit<WorkPlanSnapshot, "isExpanded">[];
+  fileReferences?: FileReference[];
 }
 
 interface ExportPayload {
@@ -219,6 +227,10 @@ function stripUiFields(messages: Message[]): CleanedMessage[] {
       cleaned.workPlans = msg.workPlans.map(
         ({ isExpanded: _, ...rest }) => rest,
       );
+    }
+
+    if (msg.fileReferences && msg.fileReferences.length > 0) {
+      cleaned.fileReferences = msg.fileReferences;
     }
 
     return cleaned;
