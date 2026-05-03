@@ -5,7 +5,7 @@ tiktoken
 langchain-text-splitters
 numpy
 qdrant-client
-pydantic==2.11.7
+pydantic
 umami-analytics
 pymongo
 webargs
