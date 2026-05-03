@@ -1,0 +1,119 @@
+"""Application service: dependency-aware restart engine."""
+
+from __future__ import annotations
+
+import os
+import subprocess
+from pathlib import Path
+
+from devtool.domain.models import ContainerStatus, ServiceType
+from devtool.domain.registry import Registry
+from devtool.ports.container_runtime import ContainerRuntime
+from devtool.ports.session_manager import SessionManager
+from devtool.ports.venv_manager import VenvManager
+from devtool.services import health_checker
+
+
+class Recovery:
+    """Dependency-aware restart: checks infra first, then the service."""
+
+    def __init__(
+        self,
+        registry: Registry,
+        runtime: ContainerRuntime,
+        session: SessionManager,
+        venv_mgr: VenvManager,
+    ) -> None:
+        self._registry = registry
+        self._runtime = runtime
+        self._session = session
+        self._venv = venv_mgr
+
+    def restart_service(self, service_name: str, root: Path) -> None:
+        """Restart a single service after ensuring its infra is healthy."""
+        svc = self._registry.get_service(service_name)
+        print(f"\n🔄 Restarting {svc.name}…\n")
+
+        # Ensure infra dependencies are running
+        infra = self._registry.infra_for_services([svc])
+        restarted_infra: list[str] = []
+        for comp in infra:
+            st = self._runtime.status(comp)
+            if st is not ContainerStatus.RUNNING:
+                print(f"  ↻ Starting dependency: {comp.label}")
+                self._runtime.ensure_running(comp)
+                restarted_infra.append(comp.name)
+
+        if restarted_infra:
+            print(f"  Restarted infra: {', '.join(restarted_infra)}\n")
+
+        # Send restart signal via tmux if session is running
+        from devtool.services.orchestrator import SESSION_NAME
+
+        if self._session.is_running(SESSION_NAME):
+            self._send_restart_to_pane(SESSION_NAME, svc.name)
+            print(f"  ✔ Sent restart signal to {svc.name}")
+        else:
+            print(f"  ⚠ No active session — start services first.")
+
+    def restart_failed(self, root: Path) -> None:
+        """Scan all services and restart any that are unhealthy."""
+        print("\n🔍 Scanning for failed services…\n")
+
+        failed: list[str] = []
+        for svc in self._registry.all_services():
+            health = health_checker.check_service(self._registry, svc.name)
+            if svc.port and health.status not in ("healthy", "no port"):
+                failed.append(svc.name)
+                print(f"  ✖ {svc.name} — {health.status}")
+
+        if not failed:
+            print("  ✔ All services are healthy.")
+            return
+
+        # Restart in dependency order: infra first, then primaries, then workers
+        primary_failed = [
+            n for n in failed
+            if self._registry.get_service(n).is_primary
+        ]
+        worker_failed = [
+            n for n in failed
+            if not self._registry.get_service(n).is_primary
+        ]
+
+        for name in primary_failed + worker_failed:
+            self.restart_service(name, root)
+
+    @staticmethod
+    def _send_restart_to_pane(session_name: str, service_name: str) -> None:
+        """Send Ctrl-C then re-run in the tmux pane matching *service_name*.
+
+        This is a best-effort approach — it sends C-c followed by Up+Enter
+        to the pane, which re-runs the last command.
+        """
+        # Find the pane by searching for the service name in pane content
+        result = subprocess.run(
+            [
+                "tmux", "list-panes", "-s", "-t", session_name,
+                "-F", "#{pane_id} #{pane_current_command}",
+            ],
+            capture_output=True, text=True,
+        )
+
+        # Fallback: try all panes with C-c + Up + Enter
+        panes = result.stdout.strip().splitlines()
+        for pane_line in panes:
+            pane_id = pane_line.split()[0]
+            # Check if this pane's captured text contains the service name
+            capture = subprocess.run(
+                ["tmux", "capture-pane", "-t", pane_id, "-p"],
+                capture_output=True, text=True,
+            )
+            if service_name in capture.stdout:
+                subprocess.run(["tmux", "send-keys", "-t", pane_id, "C-c", ""])
+                subprocess.run(
+                    ["tmux", "send-keys", "-t", pane_id, "Up", "C-m"],
+                )
+                return
+
+        print(f"  ⚠ Could not find pane for {service_name}")

@@ -1,0 +1,139 @@
+"""Adapter: virtual-environment manager using python -m venv / npm."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+from devtool.domain.models import Service, ServiceType, VenvStrategy
+from devtool.ports.venv_manager import VenvManager
+
+
+class LocalVenvManager(VenvManager):
+    """Creates and verifies venvs on the local filesystem."""
+
+    def __init__(self, process_runner: "ProcessManager | None" = None) -> None:
+        self._runner = process_runner
+
+    def create(
+        self, service: Service, python: str, root: Path,
+        *, log_dir: Path | None = None, force: bool = False,
+    ) -> None:
+        svc_dir = root / service.directory
+        strategy = service.venv.strategy
+        log_file = (log_dir / f"{service.name}.log") if log_dir else None
+
+        if strategy is VenvStrategy.NONE:
+            return
+
+        if not force and self.exists(service, root):
+            return
+
+        if force:
+            venv_dir = svc_dir / ("node_modules" if strategy is VenvStrategy.NODE else "venv")
+            if venv_dir.exists():
+                shutil.rmtree(venv_dir)
+
+        if strategy is VenvStrategy.NODE:
+            self._create_node(svc_dir, log_file)
+            return
+
+        if strategy is VenvStrategy.CUSTOM:
+            self._create_custom(service, python, svc_dir, log_file)
+            return
+
+        self._create_requirements(service, python, root, svc_dir, log_file)
+
+    def verify(self, service: Service, python_minor: str, root: Path) -> None:
+        svc_dir = root / service.directory
+
+        if service.type is ServiceType.NODE:
+            return
+
+        if service.venv.strategy is VenvStrategy.NONE:
+            return
+
+        venv_python = svc_dir / "venv" / "bin" / "python"
+        if not venv_python.exists():
+            raise RuntimeError(
+                f"No venv found for {service.name} at {svc_dir / 'venv'}/"
+            )
+
+        result = subprocess.run(
+            [str(venv_python), "--version"],
+            capture_output=True, text=True,
+        )
+        venv_ver = result.stdout.strip().split()[-1]
+        venv_minor = ".".join(venv_ver.split(".")[:2])
+
+        if venv_minor != python_minor:
+            raise RuntimeError(
+                f"Python version mismatch for {service.name}!\n"
+                f"  Detected interpreter: {python_minor}\n"
+                f"  Venv Python: {venv_python} ({venv_ver})\n"
+                f"  Recreate with: unifai-dev venv setup {service.name}"
+            )
+
+    def exists(self, service: Service, root: Path) -> bool:
+        svc_dir = root / service.directory
+        if service.type is ServiceType.NODE:
+            return (svc_dir / "node_modules").exists()
+        if service.venv.strategy is VenvStrategy.NONE:
+            return True
+        return (svc_dir / "venv" / "bin" / "activate").exists()
+
+    # -- private helpers -----------------------------------------------------
+
+    def _create_requirements(
+        self, service: Service, python: str, root: Path, svc_dir: Path,
+        log_file: Path | None,
+    ) -> None:
+        reqs = svc_dir / "requirements.txt"
+        if not reqs.exists():
+            raise RuntimeError(
+                f"{service.name}: no requirements.txt found in {svc_dir}"
+            )
+
+        global_utils_rel = os.path.relpath(root / "global_utils", svc_dir)
+        cmds: list[list[str]] = [
+            [python, "-m", "venv", "venv"],
+            ["venv/bin/pip", "install", "-r", "requirements.txt"],
+            ["venv/bin/pip", "install", "-e", global_utils_rel],
+        ]
+        for cmd in cmds:
+            self._run(cmd, svc_dir, log_file)
+
+    def _create_custom(
+        self, service: Service, python: str, svc_dir: Path,
+        log_file: Path | None,
+    ) -> None:
+        for cmd_template in service.venv.commands:
+            cmd_str = cmd_template.replace("{python}", python)
+            self._run(cmd_str.split(), svc_dir, log_file)
+
+    def _create_node(self, svc_dir: Path, log_file: Path | None) -> None:
+        if shutil.which("pnpm"):
+            self._run(["pnpm", "install"], svc_dir, log_file)
+        elif shutil.which("npm"):
+            self._run(["npm", "install"], svc_dir, log_file)
+        else:
+            raise RuntimeError("Neither pnpm nor npm found on PATH.")
+
+    def _run(self, cmd: list[str], cwd: Path, log_file: Path | None) -> None:
+        if log_file is not None:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(log_file, "a") as f:
+                result = subprocess.run(
+                    cmd, cwd=cwd, stdout=f, stderr=subprocess.STDOUT,
+                )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"Command failed: {' '.join(cmd)}\n"
+                    f"  See log: {log_file}"
+                )
+        else:
+            print(f"    $ {' '.join(cmd)}")
+            subprocess.check_call(cmd, cwd=cwd)

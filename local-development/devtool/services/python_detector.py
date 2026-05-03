@@ -9,7 +9,9 @@ import subprocess
 def _parse_version(python_path: str) -> tuple[int, int, str] | None:
     """Return (major, minor, full_version_string) or None on failure."""
     try:
-        out = subprocess.check_output([python_path, "--version"], text=True).strip()
+        out = subprocess.check_output(
+            [python_path, "--version"], text=True,
+        ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
     ver_str = out.split()[-1]
@@ -23,16 +25,19 @@ def find_python(
     *,
     env_override: str | None = None,
 ) -> str:
-    """Find a suitable Python interpreter.
+    """Find a suitable Python interpreter within the given version range.
 
     *env_override* is an explicit interpreter path/name (e.g. from
     ``UNIFAI_PYTHON``).  When provided, only that candidate is tried.
 
-    Raises RuntimeError if no valid interpreter is found.
+    Returns the resolved path.  Raises RuntimeError when no valid
+    interpreter is found.
     """
-    candidates = [env_override] if env_override else [
-        "python3.11", "python3.12", "python3.13", "python3",
-    ]
+    candidates = (
+        [env_override]
+        if env_override
+        else ["python3.11", "python3.12", "python3.13", "python3"]
+    )
 
     for candidate in candidates:
         path = shutil.which(candidate)
@@ -60,7 +65,8 @@ def find_python(
             if env_override:
                 raise RuntimeError(
                     f"{env_override} is Python {ver_str} — too new "
-                    f"(max {python_max[0]}.{python_max[1]}, PyO3 does not support 3.14+)."
+                    f"(max {python_max[0]}.{python_max[1]}, "
+                    f"PyO3 does not support 3.14+)."
                 )
             continue
 
@@ -68,6 +74,6 @@ def find_python(
 
     raise RuntimeError(
         f"No suitable Python "
-        f"({python_min[0]}.{python_min[1]}–{python_max[0]}.{python_max[1]}) found. "
-        f"Install one or set UNIFAI_PYTHON."
+        f"({python_min[0]}.{python_min[1]}–{python_max[0]}.{python_max[1]}) "
+        f"found. Install one or set UNIFAI_PYTHON."
     )
