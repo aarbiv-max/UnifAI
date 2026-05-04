@@ -9,18 +9,22 @@ A step-by-step guide for running UnifAI locally — launch the **full stack** in
    ```bash
    pipx install -e local-development/
    ```
-2. **[Generate .env files](#44-environment-and-patches)** and fill in SSO credentials:
+2. **[Run first-time setup](#410-first-time-setup)** — creates venvs, generates `.env` files, starts infra, and prompts for Keycloak credentials:
    ```bash
-   unifai-dev env generate
+   unifai-dev init
    ```
-3. **[Edit SSO credentials](#sso-client-credentials-required)** — fill in `client_id` and `client_secret` in `shared-resources/sso-backend/.env`
-4. **[Run](#4-running-the-development-environment)** — start the dev environment (add `--setup-venv` on first run):
+3. **[Run](#4-running-the-development-environment)** — start the dev environment:
    ```bash
-   unifai-dev start --setup-venv   # full-stack, first time
-   unifai-dev start backend --fg   # or single service
+   unifai-dev start              # full-stack
+   unifai-dev start backend --fg # or single service
    ```
 
-> Steps 1–3 are one-time setup. On subsequent runs, just use step 4 without `--setup-venv`.
+> Steps 0–2 are one-time setup. On subsequent runs, just use step 3.
+>
+> If you prefer manual control over each step, skip `init` and follow these instead:
+> - `unifai-dev env generate` — generate `.env` files
+> - Edit `shared-resources/identity/.env` — fill in `client_id` and `client_secret`
+> - `unifai-dev start --setup-venv` — create venvs and start services
 
 ---
 
@@ -32,7 +36,7 @@ UnifAI is composed of five services that run side-by-side during local developme
 | Service         | Directory                       | Port  | Language   |
 | --------------- | ------------------------------- | ----- | ---------- |
 | RAG Backend     | `rag/`                          | 13457 | Python     |
-| SSO Backend     | `shared-resources/sso-backend/` | 13456 | Python     |
+| Identity        | `shared-resources/identity/`    | 13456 | Python     |
 | Multi-Agent API | `multi-agent/`                  | 8002  | Python     |
 | Backend         | `backend/`                      | 8005  | Python     |
 | UI (Vite)       | `ui/`                           | 5000  | TypeScript |
@@ -68,6 +72,7 @@ local-development/
 │   │   ├── process_manager.py
 │   │   └── venv_manager.py
 │   ├── adapters/            # Implementations
+│   │   ├── container_base.py   # Runtime auto-detection (Podman/Docker)
 │   │   ├── podman.py / docker.py
 │   │   ├── tmux.py / foreground.py
 │   │   └── venv.py
@@ -97,6 +102,7 @@ All service definitions, infrastructure containers, port assignments, and servic
 - **Node.js 22+** and **pnpm** (the UI's `package.json` pins `pnpm` via `packageManager`)
 - **MongoDB** — used by all Python backends for persistence
 - **Qdrant** — vector database for RAG embeddings
+- **Redis** — used by Identity (session/cache) and Multi-Agent (streaming)
 - **tmux** — used for multi-service mode (auto-created session with panes)
 
 ### Install the CLI
@@ -111,7 +117,7 @@ This installs the `unifai-dev` command globally in an isolated environment. You 
 
 ### SSO Client Credentials *(Required)*
 
-The SSO backend requires a `client_id` and `client_secret` for Keycloak authentication.
+The Identity service requires a `client_id` and `client_secret` for Keycloak authentication.
 
 1. **Request credentials** from the team — we will provide the values. (See Slack channel #forum-unifai)
 2. **Generate `.env` files** (including placeholders for the credentials):
@@ -120,7 +126,7 @@ The SSO backend requires a `client_id` and `client_secret` for Keycloak authenti
    unifai-dev env generate
    ```
 
-3. **Edit** `shared-resources/sso-backend/.env` — replace the placeholders with the actual values:
+3. **Edit** `shared-resources/identity/.env` — replace the placeholders with the actual values:
 
    ```
    client_id=<your-client-id>
@@ -139,7 +145,6 @@ The SSO backend requires a `client_id` and `client_secret` for Keycloak authenti
 
 ### Optional
 
-- **Redis** — distributed streaming (multi-agent)
 - **Temporal** — distributed workflow execution (multi-agent)
 - **RabbitMQ** — async RAG pipelines (Celery broker)
 - **Keycloak** — OAuth 2.0 / OIDC authentication
@@ -166,7 +171,7 @@ Not every service needs every container. The tool starts only the required ones 
 | `backend`         | x       |          |        |       |          |
 | `rag`             | x       | x        | x      |       |          |
 | `multi-agent`     | x       |          |        | x     | x        |
-| `sso`             |         |          |        |       |          |
+| `identity`        |         |          |        | x     |          |
 | `ui`              |         |          |        |       |          |
 | `celery-worker`   | x       | x        | x      |       |          |
 | `temporal-worker` | x       |          |        | x     | x        |
@@ -221,7 +226,7 @@ Service-specific values:
 | multi-agent | `multi-agent/`                  | `pip install -e ".[all]"`         | `../global_utils`    |
 | backend     | `backend/`                      | `pip install -r requirements.txt` | `../global_utils`    |
 | rag         | `rag/`                          | `pip install -r requirements.txt` | `../global_utils`    |
-| sso         | `shared-resources/sso-backend/` | `pip install -r requirements.txt` | `../../global_utils` |
+| identity    | `shared-resources/identity/`    | `pip install -e .`                | `../../global_utils` |
 
 
 For the **UI** (React/TypeScript — no Python venv):
@@ -241,10 +246,12 @@ The `unifai-dev` CLI automates local development. Install it once with `pipx ins
 > The tool patches a few source files for local development. **You MUST revert these changes before pushing to avoid breaking production deployments.** Run from the repo root before any `git add` or `git push`:
 >
 > ```bash
-> git checkout rag/bootstrap/flask_app.py backend/run/dev.py shared-resources/sso-backend/app.py
+> unifai-dev patch revert
 > ```
 >
-> The `.env` files (`rag/.env`, `shared-resources/sso-backend/.env`, `ui/.env.local`) are gitignored and safe — they will **not** appear in `git status`.
+> Or manually: `git checkout rag/bootstrap/flask_app.py backend/run/dev.py shared-resources/identity/bootstrap/flask_app.py`
+>
+> The `.env` files (`rag/.env`, `shared-resources/identity/.env`, `ui/.env.local`) are gitignored and safe — they will **not** appear in `git status`.
 >
 > **Quick check:** run `git diff --name-only` before pushing. If you see any of the files above, revert them first.
 
@@ -256,22 +263,30 @@ unifai-dev <command> [options]
 
 **Service lifecycle:**
 
-| Command                       | Description                                                                   |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| `start [targets...] [flags]` | Start services (tmux or `--fg` foreground). Defaults to group `all`.          |
-| `stop`                        | Stop the tmux session                                                         |
-| `restart <service>`           | Dependency-aware restart of a single service                                  |
-| `restart --failed`            | Auto-restart all unhealthy services                                           |
-| `destroy`                     | Kill the tmux session and stop all infrastructure containers                  |
+| Command                          | Description                                                                   |
+| -------------------------------- | ----------------------------------------------------------------------------- |
+| `start [targets...] [flags]`    | Start services (tmux or `--fg` foreground). Defaults to group `all`.          |
+| `stop`                           | Stop the tmux session                                                         |
+| `restart [targets...] [--failed]`| Dependency-aware restart of one or more services/groups                       |
+| `destroy`                        | Kill the tmux session and stop all infrastructure containers                  |
 
 **Start flags:**
 
-| Flag           | Description                                                                      |
-| -------------- | -------------------------------------------------------------------------------- |
-| `--fg`         | Foreground mode — run a single primary service in your terminal                  |
-| `--setup-venv` | Create virtual environments before starting                                      |
+| Flag                              | Description                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `--fg`                            | Foreground mode — run a single primary service in your terminal                  |
+| `--setup-venv`                    | Create virtual environments before starting                                      |
+| `--window [name=]svc1,svc2,...`   | Group services into a custom tmux window (repeatable)                            |
 
 **Targets** can be service names, group names, or a mix. When omitted, defaults to the `all` group.
+
+**Context helpers:**
+
+| Command                       | Description                                                        |
+| ----------------------------- | ------------------------------------------------------------------ |
+| `shell <service>`             | Open an interactive shell with the service's venv and env loaded   |
+| `exec <service> <command...>` | Run a command inside the service's context, then exit              |
+| `attach <service>`            | Jump to the tmux pane running a specific service                   |
 
 **Monitoring:**
 
@@ -284,19 +299,22 @@ unifai-dev <command> [options]
 
 **Infrastructure:**
 
-| Command                         | Description                                        |
-| ------------------------------- | -------------------------------------------------- |
-| `infra start [containers...]`   | Start all or named containers                      |
-| `infra start --for <service>`   | Start only the containers a service needs          |
-| `infra stop`                    | Stop all infrastructure containers                 |
-| `infra status`                  | Show status of all containers                      |
+| Command                              | Description                                         |
+| ------------------------------------ | --------------------------------------------------- |
+| `infra start [containers...]`        | Start all or named containers                       |
+| `infra start --for <service>`        | Start only the containers a service needs           |
+| `infra stop`                         | Stop all infrastructure containers                  |
+| `infra status`                       | Show status of all containers                       |
+| `infra logs <component> [--follow]`  | View (or tail) a container's logs                   |
+| `infra reset [components...]`        | Stop, remove, and recreate containers               |
 
 **Virtual environments:**
 
-| Command                | Description                          |
-| ---------------------- | ------------------------------------ |
-| `venv setup [service]` | Create venv(s) — all or one service  |
-| `venv check`           | Verify Python versions match         |
+| Command                       | Description                                          |
+| ----------------------------- | ---------------------------------------------------- |
+| `venv setup [service]`        | Create venv(s) — all or one service                  |
+| `venv setup [service] --force`| Delete and recreate existing venvs                   |
+| `venv check`                  | Verify Python versions match                         |
 
 **Environment files:**
 
@@ -306,18 +324,35 @@ unifai-dev <command> [options]
 | `env generate --force` | Regenerate .env files even if they exist       |
 | `env show <service>`   | Print current env config for a service         |
 
+**Source-file patches:**
+
+| Command          | Description                                          |
+| ---------------- | ---------------------------------------------------- |
+| `patch apply`    | Apply local-dev patches to source files              |
+| `patch revert`   | Revert previously applied patches                    |
+
+**Setup and maintenance:**
+
+| Command                  | Description                                              |
+| ------------------------ | -------------------------------------------------------- |
+| `init [--non-interactive]`| First-time setup (infra, venvs, env, patches)           |
+| `clean [--dry-run]`      | Remove stale log files and stopped containers            |
+| `clean --logs`           | Only clean log files                                     |
+| `clean --venvs`          | Only clean virtual environments                          |
+| `clean --containers`     | Only clean stopped containers                            |
+
 ### 4.2 Service groups
 
 Services can be launched individually by name or as predefined groups. Groups are defined in `services.yaml`:
 
 | Group          | Services                                                              |
 | -------------- | --------------------------------------------------------------------- |
-| `all`          | backend, rag, multi-agent, sso, ui, celery-worker, temporal-worker   |
-| `services`     | backend, rag, multi-agent, sso, ui                                   |
-| `workers`      | celery-worker, temporal-worker                                        |
-| `agents`       | multi-agent, temporal-worker                                          |
-| `rag-stack`    | rag, celery-worker                                                    |
-| `backend-only` | backend, sso                                                          |
+| `all`          | backend, rag, multi-agent, identity, ui, celery-worker, temporal-worker |
+| `services`     | backend, rag, multi-agent, identity, ui                                 |
+| `workers`      | celery-worker, temporal-worker                                          |
+| `agents`       | multi-agent, temporal-worker                                            |
+| `rag-stack`    | rag, celery-worker                                                      |
+| `backend-only` | backend, identity                                                       |
 
 You can mix service names and group names freely:
 
@@ -357,7 +392,7 @@ The `start` command automatically generates `.env` files and applies source patc
 ```bash
 unifai-dev env generate           # create .env files (skip existing)
 unifai-dev env generate --force    # overwrite existing .env files
-unifai-dev env show sso            # inspect a service's env config
+unifai-dev env show identity        # inspect a service's env config
 ```
 
 **Generated `.env` files (gitignored):**
@@ -366,7 +401,7 @@ unifai-dev env show sso            # inspect a service's env config
 | File                                | Contents                                                                             |
 | ----------------------------------- | ------------------------------------------------------------------------------------ |
 | `rag/.env`                          | `hostname_local=127.0.0.1`, `port=13457`                                             |
-| `shared-resources/sso-backend/.env` | `keycloak_base_url`, `keycloak_realm`, `client_id`, `client_secret` (placeholders), `hostname_local`, `port`, `frontend_url`, `backend_env` |
+| `shared-resources/identity/.env`    | `keycloak_base_url`, `keycloak_realm`, `client_id`, `client_secret` (placeholders), `hostname_local`, `port`, `frontend_url`, `backend_env` |
 | `ui/.env.local`                     | `DEV_PORT=5000`, `DEV_HOST=0.0.0.0`, proxy targets for all backends                  |
 
 
@@ -377,7 +412,7 @@ unifai-dev env show sso            # inspect a service's env config
 | ------------------------------------- | ------------------------ |
 | `rag/bootstrap/flask_app.py`          | Bind host → `0.0.0.0`    |
 | `backend/run/dev.py`                  | Bind host → `0.0.0.0`    |
-| `shared-resources/sso-backend/app.py` | Bind host → `0.0.0.0`    |
+| `shared-resources/identity/bootstrap/flask_app.py` | Bind host → `0.0.0.0`    |
 
 
 ### 4.5 Python version enforcement
@@ -499,6 +534,13 @@ unifai-dev infra start mongo qdrant
 # Check what's running
 unifai-dev infra status
 
+# View container logs
+unifai-dev infra logs mongo
+unifai-dev infra logs mongo --follow        # tail in real time
+
+# Reset a misbehaving container (stop → remove → recreate)
+unifai-dev infra reset mongo
+
 # Stop all infrastructure
 unifai-dev infra stop
 ```
@@ -521,16 +563,103 @@ For a full diagnostic (Python, venvs, containers, ports, env files):
 unifai-dev doctor
 ```
 
-To restart a failed service (checks infra dependencies first):
+To restart failed services (checks infra dependencies first):
 
 ```bash
 unifai-dev restart backend
-unifai-dev restart --failed    # auto-restart all unhealthy services
+unifai-dev restart backend rag              # restart multiple services
+unifai-dev restart agents                   # restart a group
+unifai-dev restart --failed                 # auto-restart all unhealthy services
 ```
 
 ---
 
-### 4.10 Verifying the setup
+### 4.10 First-time setup
+
+The `init` command runs the full first-time setup in one go — checks prerequisites, starts infrastructure, creates venvs, generates `.env` files, prompts for placeholder values, and applies patches:
+
+```bash
+unifai-dev init
+```
+
+In CI or scripted environments, use `--non-interactive` to skip credential prompts (you'll need to fill in placeholders manually afterwards):
+
+```bash
+unifai-dev init --non-interactive
+```
+
+---
+
+### 4.11 Context helpers: shell, exec, attach
+
+These commands let you interact with a service's environment without manually activating venvs or sourcing `.env` files.
+
+**`shell`** — drop into an interactive bash session with the service's venv activated and env loaded:
+
+```bash
+unifai-dev shell backend
+# You're now in backend/ with the venv active — run pytest, manage.py, etc.
+```
+
+**`exec`** — run a single command in the service's context:
+
+```bash
+unifai-dev exec backend python -m pytest tests/
+unifai-dev exec rag pip list
+```
+
+**`attach`** — jump directly to a running service's tmux pane:
+
+```bash
+unifai-dev attach backend
+```
+
+---
+
+### 4.12 Custom tmux window layouts
+
+By default, `start` puts primary services in a "services" window and workers in a "workers" window. Use `--window` to override this layout:
+
+```bash
+# Put rag and celery-worker together in a named window
+unifai-dev start --window rag=rag,celery-worker --window agents=multi-agent,temporal-worker backend identity ui
+
+# Unnamed windows get auto-generated names
+unifai-dev start --window backend,identity --window rag,celery-worker
+```
+
+Each `--window` creates a separate tmux window with the listed services as panes. Services named as bare positional arguments go into a default "services" window. Any remaining services go into an "other" window.
+
+---
+
+### 4.13 Cleaning up stale resources
+
+Remove old log files, stopped containers, or virtual environments:
+
+```bash
+unifai-dev clean                    # remove logs + stopped containers
+unifai-dev clean --dry-run          # preview what would be removed
+unifai-dev clean --logs             # only clean log files
+unifai-dev clean --venvs            # only clean virtual environments
+unifai-dev clean --containers       # only clean stopped containers
+```
+
+---
+
+### 4.14 Managing source-file patches
+
+The `start` command automatically applies patches, but you can manage them independently:
+
+```bash
+unifai-dev patch apply              # apply local-dev patches
+unifai-dev patch revert             # revert to original source files
+```
+
+This is especially useful before committing or pushing — run `patch revert` to ensure no local-dev changes leak into your commits.
+
+---
+
+### 4.15 Verifying the setup
 
 Once all services are running, open a browser and navigate to:
 
@@ -545,7 +674,7 @@ The Vite dev server proxies API requests to the backends automatically:
 | --------- | ------------------------ |
 | `/api1/*` | RAG (port 13457)         |
 | `/api2/*` | Multi-Agent (port 8002)  |
-| `/api3/*` | SSO Backend (port 13456) |
+| `/api3/*` | Identity (port 13456)    |
 | `/api4/*` | Backend (port 8005)      |
 
 
@@ -599,17 +728,14 @@ unifai-dev start multi-agent --fg
 # 1. Install the CLI (one-time)
 pipx install -e local-development/
 
-# 2. Generate .env files
-unifai-dev env generate
+# 2. Run first-time setup — creates venvs, generates .env, starts infra, prompts for credentials
+unifai-dev init
 
-# 3. Edit shared-resources/sso-backend/.env — fill in client_id and client_secret
-#    (see "SSO Client Credentials" in Prerequisites)
-
-# 4. Launch (--setup-venv creates venvs; your .env files are preserved automatically)
-unifai-dev start --setup-venv
+# 3. Launch
+unifai-dev start
 
 # — or single-service:
-unifai-dev start backend --fg --setup-venv
+unifai-dev start backend --fg
 ```
 
 ---
@@ -639,7 +765,7 @@ unifai-dev start backend --fg --setup-venv
 | Backend     | 8005  | [http://127.0.0.1:8005](http://127.0.0.1:8005)   |
 | RAG         | 13457 | [http://127.0.0.1:13457](http://127.0.0.1:13457) |
 | Multi-Agent | 8002  | [http://127.0.0.1:8002](http://127.0.0.1:8002)   |
-| SSO Backend | 13456 | [http://127.0.0.1:13456](http://127.0.0.1:13456) |
+| Identity    | 13456 | [http://127.0.0.1:13456](http://127.0.0.1:13456) |
 | UI (Vite)   | 5000  | [http://127.0.0.1:5000](http://127.0.0.1:5000)   |
 
 
@@ -831,7 +957,7 @@ The proxy target mapping is:
 | --------- | ------------------------ |
 | `/api1/*` | RAG (port 13457)         |
 | `/api2/*` | Multi-Agent (port 8002)  |
-| `/api3/*` | SSO Backend (port 13456) |
+| `/api3/*` | Identity (port 13456)    |
 | `/api4/*` | Backend (port 8005)      |
 
 

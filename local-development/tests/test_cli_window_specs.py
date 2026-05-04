@@ -17,8 +17,8 @@ class TestParseWindowSpecs:
         assert result == [(None, ["backend"])]
 
     def test_unnamed_multiple_services(self) -> None:
-        result = _parse_window_specs(["backend,sso"])
-        assert result == [(None, ["backend", "sso"])]
+        result = _parse_window_specs(["backend,identity"])
+        assert result == [(None, ["backend", "identity"])]
 
     def test_named_window(self) -> None:
         result = _parse_window_specs(["workers=celery-worker,temporal-worker"])
@@ -26,12 +26,12 @@ class TestParseWindowSpecs:
 
     def test_multiple_windows(self) -> None:
         result = _parse_window_specs([
-            "main=backend,sso",
+            "main=backend,identity",
             "rag,celery-worker",
             "agents=multi-agent,temporal-worker",
         ])
         assert result == [
-            ("main", ["backend", "sso"]),
+            ("main", ["backend", "identity"]),
             (None, ["rag", "celery-worker"]),
             ("agents", ["multi-agent", "temporal-worker"]),
         ]

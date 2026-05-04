@@ -14,6 +14,7 @@ class ServiceType(Enum):
 
 class VenvStrategy(Enum):
     REQUIREMENTS = "requirements"
+    TOML = "toml"
     CUSTOM = "custom"
     NODE = "node"
     NONE = "none"

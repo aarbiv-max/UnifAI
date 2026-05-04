@@ -77,13 +77,13 @@ services:
         - "venv/bin/pip install -e ../global_utils"
     launch: "HOSTNAME=0.0.0.0 mas api dev"
 
-  sso:
-    directory: "shared-resources/sso-backend"
+  identity:
+    directory: "shared-resources/identity"
     port: 13456
     host: "127.0.0.1"
     type: python
     health_endpoint: "/api/health/"
-    infrastructure: []
+    infrastructure: [redis]
     env_file: ".env"
     env_entries:
       keycloak_base_url: "https://auth.stage.redhat.com/auth"
@@ -95,12 +95,12 @@ services:
       frontend_url: "http://127.0.0.1:5000"
       backend_env: "development"
     patches:
-      - file: "shared-resources/sso-backend/app.py"
-        find: "app.run(host=config.hostname_local, port=config.port, debug=True)"
-        replace: 'app.run("0.0.0.0", port=config.port, debug=True)'
+      - file: "shared-resources/identity/bootstrap/flask_app.py"
+        find: "host=config.hostname_local,"
+        replace: 'host="0.0.0.0",'
     venv:
-      strategy: "requirements"
-    launch: "python app.py"
+      strategy: "toml"
+    launch: "python -m bootstrap.flask_app"
 
   ui:
     directory: "ui"
@@ -114,7 +114,7 @@ services:
       DEV_HOST: "0.0.0.0"
       RAG_HOST: "http://127.0.0.1:13457"
       MULTIAGENT_HOST: "http://0.0.0.0:8002"
-      SSO_HOST: "http://127.0.0.1:13456"
+      IDENTITY_HOST: "http://127.0.0.1:13456"
       BACKEND_HOST: "http://0.0.0.0:8005"
     venv:
       strategy: "node"
@@ -142,12 +142,12 @@ services:
     launch: "mas temporal-worker --threads 20"
 
 groups:
-  all:          [backend, rag, multi-agent, sso, ui, celery-worker, temporal-worker]
-  services:     [backend, rag, multi-agent, sso, ui]
+  all:          [backend, rag, multi-agent, identity, ui, celery-worker, temporal-worker]
+  services:     [backend, rag, multi-agent, identity, ui]
   workers:      [celery-worker, temporal-worker]
   agents:       [multi-agent, temporal-worker]
   rag-stack:    [rag, celery-worker]
-  backend-only: [backend, sso]
+  backend-only: [backend, identity]
 
 logging:
   directory: "/tmp/unifai-dev/logs"

@@ -45,6 +45,10 @@ class LocalVenvManager(VenvManager):
             self._create_custom(service, python, svc_dir, log_file)
             return
 
+        if strategy is VenvStrategy.TOML:
+            self._create_toml(service, python, root, svc_dir, log_file)
+            return
+
         self._create_requirements(service, python, root, svc_dir, log_file)
 
     def verify(self, service: Service, python_minor: str, root: Path) -> None:
@@ -101,6 +105,24 @@ class LocalVenvManager(VenvManager):
         cmds: list[list[str]] = [
             [python, "-m", "venv", "venv"],
             ["venv/bin/pip", "install", "-r", "requirements.txt"],
+            ["venv/bin/pip", "install", "-e", global_utils_rel],
+        ]
+        for cmd in cmds:
+            self._run(cmd, svc_dir, log_file)
+
+    def _create_toml(
+        self, service: Service, python: str, root: Path, svc_dir: Path,
+        log_file: Path | None,
+    ) -> None:
+        toml = svc_dir / "pyproject.toml"
+        if not toml.exists():
+            raise RuntimeError(
+                f"{service.name}: no pyproject.toml found in {svc_dir}"
+            )
+        global_utils_rel = os.path.relpath(root / "global_utils", svc_dir)
+        cmds: list[list[str]] = [
+            [python, "-m", "venv", "venv"],
+            ["venv/bin/pip", "install", "-e", "."],
             ["venv/bin/pip", "install", "-e", global_utils_rel],
         ]
         for cmd in cmds:

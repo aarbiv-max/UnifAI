@@ -450,7 +450,7 @@ class Orchestrator:
     # -- init ----------------------------------------------------------------
 
     def init(self, *, non_interactive: bool = False) -> None:
-        """First-time setup wizard: prerequisites, infra, venvs, env, patches."""
+        """First-time setup: prerequisites, infra, venvs, env, patches."""
         print("🚀 UnifAI first-time setup\n")
 
         # 1. Prerequisites

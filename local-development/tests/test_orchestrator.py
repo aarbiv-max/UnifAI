@@ -523,7 +523,7 @@ class TestInit:
 
     def test_init_non_interactive_warns_placeholders(self, capsys) -> None:
         svc = _make_service(
-            "sso", env_file=".env",
+            "identity", env_file=".env",
             env_entries={"client_id": "<REPLACE_WITH_YOUR_CLIENT_ID>"},
         )
         orch = _make_orchestrator([svc])

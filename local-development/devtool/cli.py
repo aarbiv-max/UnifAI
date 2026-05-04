@@ -111,7 +111,7 @@ def _build_parser() -> argparse.ArgumentParser:
     patch_sub.add_parser("revert", help="Revert previously applied patches")
 
     # -- init ----------------------------------------------------------------
-    p_init = sub.add_parser("init", help="First-time setup wizard")
+    p_init = sub.add_parser("init", help="First-time setup")
     p_init.add_argument(
         "--non-interactive", action="store_true",
         help="Skip interactive prompts (warn about placeholders instead)",
