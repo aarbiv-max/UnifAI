@@ -38,18 +38,15 @@ class LocalVenvManager(VenvManager):
                 shutil.rmtree(venv_dir)
 
         if strategy is VenvStrategy.NODE:
-            self._create_node(svc_dir, log_file)
+            self._install_deps(service, python, root, svc_dir, log_file)
             return
 
         if strategy is VenvStrategy.CUSTOM:
-            self._create_custom(service, python, svc_dir, log_file)
+            self._install_deps(service, python, root, svc_dir, log_file)
             return
 
-        if strategy is VenvStrategy.TOML:
-            self._create_toml(service, python, root, svc_dir, log_file)
-            return
-
-        self._create_requirements(service, python, root, svc_dir, log_file)
+        self._create_venv_dir(service, python, svc_dir, log_file)
+        self._install_deps(service, python, root, svc_dir, log_file)
 
     def verify(self, service: Service, python_minor: str, root: Path) -> None:
         svc_dir = root / service.directory
@@ -89,42 +86,71 @@ class LocalVenvManager(VenvManager):
             return True
         return (svc_dir / "venv" / "bin" / "activate").exists()
 
+    def sync(
+        self, service: Service, python: str, root: Path,
+        *, log_dir: Path | None = None,
+    ) -> None:
+        svc_dir = root / service.directory
+        log_file = (log_dir / f"{service.name}.log") if log_dir else None
+
+        if service.venv.strategy is VenvStrategy.NONE:
+            return
+
+        if not self.exists(service, root):
+            raise RuntimeError(
+                f"No venv found for {service.name}. "
+                f"Run 'unifai-dev venv setup {service.name}' first."
+            )
+
+        self._install_deps(service, python, root, svc_dir, log_file)
+
     # -- private helpers -----------------------------------------------------
 
-    def _create_requirements(
-        self, service: Service, python: str, root: Path, svc_dir: Path,
+    def _create_venv_dir(
+        self, service: Service, python: str, svc_dir: Path,
         log_file: Path | None,
     ) -> None:
-        reqs = svc_dir / "requirements.txt"
-        if not reqs.exists():
-            raise RuntimeError(
-                f"{service.name}: no requirements.txt found in {svc_dir}"
-            )
+        """Create the venv directory, validating that the expected manifest exists."""
+        strategy = service.venv.strategy
+        if strategy is VenvStrategy.TOML:
+            if not (svc_dir / "pyproject.toml").exists():
+                raise RuntimeError(
+                    f"{service.name}: no pyproject.toml found in {svc_dir}"
+                )
+        elif strategy is VenvStrategy.REQUIREMENTS:
+            if not (svc_dir / "requirements.txt").exists():
+                raise RuntimeError(
+                    f"{service.name}: no requirements.txt found in {svc_dir}"
+                )
+        self._run([python, "-m", "venv", "venv"], svc_dir, log_file)
 
-        global_utils_rel = os.path.relpath(root / "global_utils", svc_dir)
-        cmds: list[list[str]] = [
-            [python, "-m", "venv", "venv"],
-            ["venv/bin/pip", "install", "-r", "requirements.txt"],
-            ["venv/bin/pip", "install", "-e", global_utils_rel],
-        ]
-        for cmd in cmds:
-            self._run(cmd, svc_dir, log_file)
-
-    def _create_toml(
-        self, service: Service, python: str, root: Path, svc_dir: Path,
-        log_file: Path | None,
+    def _install_deps(
+        self, service: Service, python: str, root: Path,
+        svc_dir: Path, log_file: Path | None,
     ) -> None:
-        toml = svc_dir / "pyproject.toml"
-        if not toml.exists():
-            raise RuntimeError(
-                f"{service.name}: no pyproject.toml found in {svc_dir}"
-            )
+        """Install/update dependencies into an existing venv."""
+        strategy = service.venv.strategy
+
+        if strategy is VenvStrategy.NONE:
+            return
+        if strategy is VenvStrategy.NODE:
+            self._create_node(svc_dir, log_file)
+            return
+        if strategy is VenvStrategy.CUSTOM:
+            self._create_custom(service, python, svc_dir, log_file)
+            return
+
         global_utils_rel = os.path.relpath(root / "global_utils", svc_dir)
-        cmds: list[list[str]] = [
-            [python, "-m", "venv", "venv"],
-            ["venv/bin/pip", "install", "-e", "."],
-            ["venv/bin/pip", "install", "-e", global_utils_rel],
-        ]
+        if strategy is VenvStrategy.TOML:
+            cmds: list[list[str]] = [
+                ["venv/bin/pip", "install", "-e", "."],
+                ["venv/bin/pip", "install", "-e", global_utils_rel],
+            ]
+        else:
+            cmds = [
+                ["venv/bin/pip", "install", "-r", "requirements.txt"],
+                ["venv/bin/pip", "install", "-e", global_utils_rel],
+            ]
         for cmd in cmds:
             self._run(cmd, svc_dir, log_file)
 

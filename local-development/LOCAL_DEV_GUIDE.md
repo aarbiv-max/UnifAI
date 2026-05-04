@@ -4,8 +4,8 @@ A step-by-step guide for running UnifAI locally — launch the **full stack** in
 
 ## Quick Start
 
-0. **[Prerequisites](#2-prerequisites)** — make sure you have Python 3.11–3.13, Node.js 22+, pnpm, tmux, and Podman/Docker installed
-1. **[Install the CLI](#install-the-cli)**:
+0. **[Prerequisites](#2-prerequisites)** — make sure you have Python 3.11–3.13, pipx, Node.js 22+, pnpm, tmux, and Podman/Docker installed
+1. **[Install the CLI](#install-the-cli)** (from the **repo root**):
    ```bash
    pipx install -e local-development/
    ```
@@ -24,7 +24,8 @@ A step-by-step guide for running UnifAI locally — launch the **full stack** in
 > If you prefer manual control over each step, skip `init` and follow these instead:
 > - `unifai-dev env generate` — generate `.env` files
 > - Edit `shared-resources/identity/.env` — fill in `client_id` and `client_secret`
-> - `unifai-dev start --setup-venv` — create venvs and start services
+> - `unifai-dev venv setup` — create virtual environments
+> - `unifai-dev start` — start services
 
 ---
 
@@ -63,6 +64,7 @@ local-development/
 ├── LOCAL_DEV_GUIDE.md       # This file
 │
 ├── devtool/                 # Python package
+│   ├── cli.py               # Typer CLI → orchestrator
 │   ├── domain/              # Core models + YAML registry
 │   │   ├── models.py        # Service, InfraComponent, ServiceGroup
 │   │   └── registry.py      # Loads services.yaml → typed lookups
@@ -76,16 +78,23 @@ local-development/
 │   │   ├── podman.py / docker.py
 │   │   ├── tmux.py / foreground.py
 │   │   └── venv.py
-│   ├── services/            # Application services
-│   │   ├── orchestrator.py  # Composes ports for start/stop flows
-│   │   ├── env_generator.py
-│   │   ├── patcher.py
-│   │   ├── python_detector.py
-│   │   ├── health_checker.py
-│   │   └── recovery.py
-│   └── cli.py               # Argparse CLI → orchestrator
+│   └── services/            # Application services
+│       ├── orchestrator.py  # Composes ports for start/stop flows
+│       ├── env_generator.py
+│       ├── patcher.py
+│       ├── python_detector.py
+│       ├── health_checker.py
+│       └── recovery.py
 │
 └── tests/
+    ├── test_orchestrator.py
+    ├── test_registry.py
+    ├── test_env_generator.py
+    ├── test_patcher.py
+    ├── test_health_checker.py
+    ├── test_container_runtime.py
+    ├── test_graceful_stop.py
+    └── test_cli_window_specs.py
 ```
 
 All service definitions, infrastructure containers, port assignments, and service groups are declared in `services.yaml` — there is no per-service Python class or hardcoded bash logic.
@@ -98,7 +107,24 @@ All service definitions, infrastructure containers, port assignments, and servic
 
 - **Red Hat SSO connection** — you must be connected to the Red Hat SSO (VPN / internal network) for authentication to work
 - **Python 3.11 – 3.13** (3.11 or 3.12 recommended; 3.14+ is **not** supported because PyO3's maximum supported version is 3.13)
-- **pipx** — used to install the `unifai-dev` CLI. [Install pipx](https://pipx.pypa.io/stable/installation/) if you don't have it
+- **pipx** — used to install the `unifai-dev` CLI in an isolated environment. If you don't have it:
+
+  ```bash
+  # Fedora / RHEL
+  sudo dnf install pipx && pipx ensurepath
+
+  # macOS (Homebrew)
+  brew install pipx && pipx ensurepath
+
+  # Ubuntu / Debian
+  sudo apt install pipx && pipx ensurepath
+
+  # Fallback (any system with pip)
+  python3 -m pip install --user pipx && pipx ensurepath
+  ```
+
+  Restart your shell (or run `source ~/.bashrc`) after `ensurepath` so that the `~/.local/bin` path takes effect.
+
 - **Node.js 22+** and **pnpm** (the UI's `package.json` pins `pnpm` via `packageManager`)
 - **MongoDB** — used by all Python backends for persistence
 - **Qdrant** — vector database for RAG embeddings
@@ -115,32 +141,46 @@ pipx install -e local-development/
 
 This installs the `unifai-dev` command globally in an isolated environment. You only need to do this once.
 
+> [!NOTE]
+> The path is relative — you must run this from the repo root (the directory containing `local-development/`).
+> Alternatively, use an absolute path from anywhere:
+>
+> ```bash
+> pipx install -e /path/to/UnifAI/local-development/
+> ```
+
+> [!TIP]
+> If your default `python3` is 3.14+, specify a supported interpreter so the CLI's own venv matches the service requirements:
+>
+> ```bash
+> pipx install -e local-development/ --python python3.12
+> ```
+
 ### SSO Client Credentials *(Required)*
 
 The Identity service requires a `client_id` and `client_secret` for Keycloak authentication.
 
 1. **Request credentials** from the team — we will provide the values. (See Slack channel #forum-unifai)
-2. **Generate `.env` files** (including placeholders for the credentials):
+2. **Run `unifai-dev init`** — during first-time setup, the CLI generates `.env` files and **prompts you interactively** for `client_id` and `client_secret`. Just paste the values when asked.
 
-   ```bash
-   unifai-dev env generate
-   ```
+That's it — your credentials are written to `shared-resources/identity/.env` (gitignored) and preserved across restarts.
 
-3. **Edit** `shared-resources/identity/.env` — replace the placeholders with the actual values:
-
-   ```
-   client_id=<your-client-id>
-   client_secret=<your-client-secret>
-   ```
-
-4. **Start the dev environment** — your `.env` files are preserved automatically on subsequent runs:
-
-   ```bash
-   unifai-dev start --setup-venv
-   ```
+> [!TIP]
+> **Manual alternative** — if you skipped `init` or ran with `--non-interactive`, fill in the placeholders yourself:
+>
+> ```bash
+> unifai-dev env generate          # create .env files (if not already generated)
+> ```
+>
+> Then edit `shared-resources/identity/.env` and replace the placeholders:
+>
+> ```
+> client_id=<your-client-id>
+> client_secret=<your-client-secret>
+> ```
 
 > [!NOTE]
-> The env generator **never overwrites** existing `.env` files — your credentials are safe across restarts. To regenerate from scratch (e.g. after a config change), use `unifai-dev env generate --force` and then re-edit the SSO credentials.
+> The env generator **never overwrites** existing `.env` files — your credentials are safe across restarts. To regenerate from scratch (e.g. after a config change), use `unifai-dev env generate --force` and then re-enter the SSO credentials.
 
 ### Flask Secret Key *(Auto-Generated)*
 
@@ -198,13 +238,11 @@ Not every service needs every container. The tool starts only the required ones 
 ## 3. Setting Up Virtual Environments
 
 > [!NOTE]
-> **This step is optional.** The `start` command creates virtual environments automatically when you pass `--setup-venv`.
+> **This section is for manual control only.** If you ran `unifai-dev init` (recommended), virtual environments were already created — skip to [Section 4](#4-running-the-development-environment).
 >
-> You have three choices:
->
-> 1. Run it via the devtool — see [3.1 Automated setup](#31-automated-setup)
-> 2. Set up manually — see [3.2 Manual setup](#32-manual-setup)
-> 3. **Skip to [Section 4](#4-running-the-development-environment) *(Recommended)*** — the start command handles this for you
+> You can also create venvs on demand with:
+> - `unifai-dev venv setup` — create all venvs at once
+> - `unifai-dev start --setup-venv` — create venvs and start services in one step
 
 ### 3.1 Automated setup
 
@@ -330,6 +368,7 @@ unifai-dev <command> [options]
 | ----------------------------- | ---------------------------------------------------- |
 | `venv setup [service]`        | Create venv(s) — all or one service                  |
 | `venv setup [service] --force`| Delete and recreate existing venvs                   |
+| `venv sync [service]`         | Update dependencies in existing venv(s) without recreating |
 | `venv check`                  | Verify Python versions match                         |
 
 **Environment files:**
@@ -352,9 +391,9 @@ unifai-dev <command> [options]
 | Command                  | Description                                              |
 | ------------------------ | -------------------------------------------------------- |
 | `init [--non-interactive]`| First-time setup (infra, venvs, env, patches)           |
-| `clean [--dry-run]`      | Remove stale log files and stopped containers            |
+| `clean [--dry-run]`      | Remove log files and stopped containers (venvs excluded by default) |
 | `clean --logs`           | Only clean log files                                     |
-| `clean --venvs`          | Only clean virtual environments                          |
+| `clean --venvs`          | Only clean virtual environments (opt-in)                 |
 | `clean --containers`     | Only clean stopped containers                            |
 
 ### 4.2 Service groups
@@ -465,10 +504,10 @@ unifai-dev start backend --fg
 
 The tool will:
 
-1. Generate `.env` files and apply source patches
-2. Verify the service's venv exists and its Python version matches
-3. Start only the required infrastructure containers
-4. Source the service's `.env` file
+1. Start only the required infrastructure containers
+2. Generate `.env` files and auto-resolve `secret_key`
+3. Apply source patches
+4. Verify the service's venv exists and its Python version matches
 5. Launch the service in your foreground terminal with debug/auto-reload
 
 Press `Ctrl+C` to stop.
@@ -476,11 +515,9 @@ Press `Ctrl+C` to stop.
 **Examples:**
 
 ```bash
-# Standard usage
 unifai-dev start rag --fg
-
-# First time — create the venv automatically
-unifai-dev start rag --fg --setup-venv
+unifai-dev start backend --fg
+unifai-dev start multi-agent --fg
 ```
 
 > [!NOTE]
@@ -492,21 +529,14 @@ unifai-dev start rag --fg --setup-venv
 
 When you start multiple services (or omit `--fg`), the tool creates a tmux session with auto-windowed panes.
 
-**First time** (creates virtual environments before starting):
 ```bash
-unifai-dev start --setup-venv
-```
-
-**Subsequent runs** (venvs already exist):
-```bash
-unifai-dev start
-```
-
-**Start a subset:**
-```bash
-unifai-dev start rag-stack      # rag + celery-worker
+unifai-dev start                 # full stack (all services + workers)
+unifai-dev start rag-stack       # rag + celery-worker
 unifai-dev start services        # all 5 primary services (no workers)
 ```
+
+> [!NOTE]
+> This assumes you already ran `unifai-dev init` (which creates venvs, generates `.env` files, etc.). If you haven't, you can pass `--setup-venv` to create venvs on the fly: `unifai-dev start --setup-venv`.
 
 If a previous tmux session is still open, destroy it first:
 
@@ -517,13 +547,15 @@ unifai-dev start
 
 The tool will:
 
-1. Verify all venvs exist and Python versions match
-2. Start required infrastructure containers via Podman/Docker
-3. Kill any processes occupying required ports
-4. Create a tmux session (`unifai-dev`) with auto-windowed panes:
+1. Start required infrastructure containers via Podman/Docker
+2. Generate `.env` files and auto-resolve `secret_key`
+3. Apply source patches
+4. Verify all venvs exist and Python versions match
+5. Kill any processes occupying required ports
+6. Create a tmux session (`unifai-dev`) with auto-windowed panes:
    - **Window "services"** — one pane per primary service (tiled layout)
    - **Window "workers"** — one pane per worker (if any workers are selected)
-5. All output is captured to log files via `tee`
+7. All output is captured to log files via `tee`
 
 **Useful tmux commands once attached:**
 
@@ -597,11 +629,23 @@ unifai-dev restart --failed                 # auto-restart all unhealthy service
 
 ### 4.10 First-time setup
 
-The `init` command runs the full first-time setup in one go — checks prerequisites, starts infrastructure, creates venvs, generates `.env` files, prompts for placeholder values, and applies patches:
+The `init` command runs the full first-time setup in one go:
 
 ```bash
 unifai-dev init
 ```
+
+It performs these steps in order:
+
+1. **Check prerequisites** — Python version, container runtime, tmux
+2. **Start infrastructure** — all containers (MongoDB, Redis, etc.)
+3. **Create virtual environments** — for all Python services and the UI
+4. **Generate `.env` files** — with defaults and placeholders
+5. **Resolve auto-generated values** — prompts for `secret_key` (auto-generate or enter your own)
+6. **Resolve placeholders** — prompts for `client_id` and `client_secret` interactively
+7. **Apply source patches** — bind Flask services to `0.0.0.0`
+
+After `init` completes, you can run `unifai-dev start` directly — no additional setup flags needed.
 
 In CI or scripted environments, use `--non-interactive` to skip credential prompts (you'll need to fill in placeholders manually afterwards):
 
@@ -856,12 +900,27 @@ unifai-dev venv setup backend
 
 Or use `--setup-venv` with start.
 
+#### Dependencies out of date
+
+If `requirements.txt` or `pyproject.toml` was updated, sync the venv without recreating it:
+
+```bash
+unifai-dev venv sync              # all services
+unifai-dev venv sync backend      # single service
+```
+
 #### `ModuleNotFoundError: No module named 'global_utils'`
 
 You forgot to install `global_utils` into that service's venv. Activate the venv and run:
 
 ```bash
 pip install -e /path/to/UnifAI/global_utils
+```
+
+Or re-sync the venv (which reinstalls all dependencies including `global_utils`):
+
+```bash
+unifai-dev venv sync backend
 ```
 
 #### `PyYAML is required`

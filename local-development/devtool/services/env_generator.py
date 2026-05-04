@@ -150,12 +150,12 @@ def resolve_auto_generate_key(
         env_path = root / svc.directory / svc.env_file
         if not env_path.exists():
             continue
-        _replace_env_value(env_path, key, value)
+        replace_env_value(env_path, key, value)
         updated += 1
     return updated
 
 
-def _replace_env_value(env_path: Path, key: str, new_value: str) -> None:
+def replace_env_value(env_path: Path, key: str, new_value: str) -> None:
     """Rewrite a single ``key=...`` line in an env file."""
     lines = env_path.read_text().splitlines(keepends=True)
     with open(env_path, "w") as f:

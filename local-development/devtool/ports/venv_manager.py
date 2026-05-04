@@ -34,3 +34,13 @@ class VenvManager(ABC):
     @abstractmethod
     def exists(self, service: Service, root: Path) -> bool:
         """Return True if the venv directory already exists."""
+
+    @abstractmethod
+    def sync(
+        self, service: Service, python: str, root: Path,
+        *, log_dir: Path | None = None,
+    ) -> None:
+        """Update dependencies in an existing venv without recreating it.
+
+        Raises RuntimeError if the venv does not exist.
+        """

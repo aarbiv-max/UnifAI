@@ -309,6 +309,34 @@ class Orchestrator:
         else:
             print("\n✅ Virtual environment(s) created.")
 
+    def venv_sync(self, service_name: str | None = None) -> None:
+        """Update dependencies in existing venvs without recreating them."""
+        python, _ = self._detect_python()
+        if service_name:
+            svc = self._registry.get_service(service_name)
+            targets = [svc]
+        else:
+            targets = self._registry.primary_services()
+
+        log_dir = self._registry.log_dir
+        log_dir.mkdir(parents=True, exist_ok=True)
+        errors: list[str] = []
+
+        print(f"🔄 Syncing virtual environments with {python}\n")
+        for svc in targets:
+            try:
+                self._venv.sync(svc, python, self._root, log_dir=log_dir)
+                print(f"  ✔ {svc.name}")
+            except RuntimeError as exc:
+                print(f"  ✖ {svc.name}: {exc}")
+                errors.append(svc.name)
+
+        if errors:
+            print(f"\n⚠ Sync failed for: {', '.join(errors)}")
+            print(f"  Check logs in {log_dir}/")
+        else:
+            print("\n✅ Dependencies synced.")
+
     def venv_check(self) -> None:
         _, python_minor = self._detect_python()
         errors: list[str] = []
@@ -480,12 +508,41 @@ class Orchestrator:
 
         # 3. Venvs
         print("3/6  Setting up virtual environments…")
-        self.venv_setup()
+        existing_venvs = [
+            svc for svc in self._registry.primary_services()
+            if self._venv.exists(svc, self._root)
+        ]
+        if existing_venvs and not non_interactive:
+            names = ", ".join(s.name for s in existing_venvs)
+            print(f"  ℹ Existing venvs found: {names}")
+            answer = input("  Recreate virtual environments? [y/N]: ").strip().lower()
+            if answer in ("y", "yes"):
+                self.venv_setup(force=True)
+            else:
+                print("  ⏭ Skipping venv recreation.")
+        else:
+            self.venv_setup()
         print()
 
         # 4. Env generation
         print("4/6  Generating .env files…")
-        self.env_generate()
+        existing_envs = [
+            svc for svc in self._registry.all_services()
+            if svc.env_file
+            and (self._root / svc.directory / svc.env_file).exists()
+        ]
+        if existing_envs and not non_interactive:
+            names = ", ".join(s.name for s in existing_envs)
+            print(f"  ℹ Existing .env files found: {names}")
+            answer = input("  Regenerate .env files? [y/N]: ").strip().lower()
+            if answer in ("y", "yes"):
+                env_generator.get_or_create_shared_secret(self._root)
+                self.env_generate(force=True)
+                self._auto_resolve_generated_keys()
+            else:
+                print("  ⏭ Keeping existing .env files.")
+        else:
+            self.env_generate()
         print()
 
         # 5. Auto-generate and placeholder prompts
@@ -506,18 +563,6 @@ class Orchestrator:
         print("║    unifai-dev start         Start all services              ║")
         print("║    unifai-dev doctor        Verify everything is healthy    ║")
         print("╚══════════════════════════════════════════════════════════════╝")
-
-    @staticmethod
-    def _replace_placeholder(env_path: Path, key: str, new_value: str) -> None:
-        """Rewrite a single key=<placeholder> line in an env file."""
-        lines = env_path.read_text().splitlines(keepends=True)
-        with open(env_path, "w") as f:
-            for line in lines:
-                stripped = line.lstrip()
-                if stripped.startswith(f"{key}="):
-                    f.write(f"{key}={new_value}\n")
-                else:
-                    f.write(line)
 
     def _auto_resolve_generated_keys(self) -> None:
         """Silently resolve any ``<AUTO_GENERATE>`` markers left in .env files.
@@ -597,7 +642,7 @@ class Orchestrator:
                 for key in placeholders:
                     value = input(f"  Enter value for {svc.name} / {key}: ").strip()
                     if value:
-                        self._replace_placeholder(env_path, key, value)
+                        env_generator.replace_env_value(env_path, key, value)
                         print(f"    ✔ {key} updated")
                     else:
                         print(f"    ⏭ {key} skipped")
@@ -846,6 +891,12 @@ class Orchestrator:
         print("║                                                             ║")
         print(f"║  Attach:  tmux attach -t {SESSION_NAME:<34}║")
         print(f"║  Destroy: unifai-dev destroy{' ':<31}║")
+        groups = self._registry.group_names()
+        if groups:
+            group_str = ", ".join(groups)
+            if len(group_str) > 49:
+                group_str = group_str[:46] + "..."
+            print(f"║  Groups:  {group_str:<49}║")
         print("║                                                             ║")
         print("╚══════════════════════════════════════════════════════════════╝")
         print()

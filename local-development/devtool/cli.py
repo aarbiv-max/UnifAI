@@ -2,133 +2,54 @@
 
 from __future__ import annotations
 
-import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Optional
+
+import typer
+
+# -- Root app ----------------------------------------------------------------
+
+app = typer.Typer(
+    name="unifai-dev",
+    help="UnifAI local development tool",
+    no_args_is_help=True,
+    pretty_exceptions_enable=False,
+)
+
+# -- Sub-apps ----------------------------------------------------------------
+
+infra_app = typer.Typer(
+    name="infra",
+    help="Manage infrastructure containers",
+    no_args_is_help=True,
+)
+app.add_typer(infra_app)
+
+venv_app = typer.Typer(
+    name="venv",
+    help="Manage virtual environments",
+    no_args_is_help=True,
+)
+app.add_typer(venv_app)
+
+env_app = typer.Typer(
+    name="env",
+    help="Manage .env files",
+    no_args_is_help=True,
+)
+app.add_typer(env_app)
+
+patch_app = typer.Typer(
+    name="patch",
+    help="Manage source-file patches",
+    no_args_is_help=True,
+)
+app.add_typer(patch_app)
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="unifai-dev",
-        description="UnifAI local development tool",
-    )
-    sub = parser.add_subparsers(dest="command")
-
-    # -- start ---------------------------------------------------------------
-    p_start = sub.add_parser("start", help="Start services")
-    p_start.add_argument(
-        "targets", nargs="*", default=None,
-        help="Service and/or group names (default: all)",
-    )
-    p_start.add_argument("--fg", action="store_true", help="Foreground single service")
-    p_start.add_argument("--setup-venv", action="store_true", help="Create venvs first")
-    p_start.add_argument(
-        "--window", action="append", default=None,
-        metavar="[name=]svc1,svc2,...",
-        help="Group services into a tmux window (repeatable). "
-             "Each --window creates a new window with the listed services as panes. "
-             "Optionally prefix with 'name=' to name the window.",
-    )
-
-    # -- shell ---------------------------------------------------------------
-    p_shell = sub.add_parser("shell", help="Open a shell in a service's context")
-    p_shell.add_argument("service", help="Service name")
-
-    # -- exec ----------------------------------------------------------------
-    p_exec = sub.add_parser("exec", help="Run a command in a service's context")
-    p_exec.add_argument("service", help="Service name")
-    p_exec.add_argument("exec_command", nargs=argparse.REMAINDER, help="Command to run")
-
-    # -- attach --------------------------------------------------------------
-    p_attach = sub.add_parser("attach", help="Jump to a service's tmux pane")
-    p_attach.add_argument("service", help="Service name")
-
-    # -- stop ----------------------------------------------------------------
-    sub.add_parser("stop", help="Stop the tmux session")
-
-    # -- restart -------------------------------------------------------------
-    p_restart = sub.add_parser("restart", help="Dependency-aware restart")
-    p_restart.add_argument(
-        "services", nargs="*", default=None,
-        help="Service and/or group names",
-    )
-    p_restart.add_argument("--failed", action="store_true", help="Auto-restart all broken services")
-
-    # -- status --------------------------------------------------------------
-    sub.add_parser("status", help="Health dashboard")
-
-    # -- logs ----------------------------------------------------------------
-    p_logs = sub.add_parser("logs", help="View service logs")
-    p_logs.add_argument("service", help="Service name")
-    p_logs.add_argument("--follow", "-f", action="store_true", help="Tail the log")
-
-    # -- doctor --------------------------------------------------------------
-    sub.add_parser("doctor", help="Full diagnostic")
-
-    # -- infra ---------------------------------------------------------------
-    p_infra = sub.add_parser("infra", help="Manage infrastructure containers")
-    infra_sub = p_infra.add_subparsers(dest="infra_command")
-
-    p_infra_start = infra_sub.add_parser("start", help="Start containers")
-    p_infra_start.add_argument("containers", nargs="*", default=None)
-    p_infra_start.add_argument("--for", dest="for_service", help="Only what a service needs")
-
-    infra_sub.add_parser("stop", help="Stop all containers")
-    infra_sub.add_parser("status", help="Container status")
-
-    p_infra_logs = infra_sub.add_parser("logs", help="View container logs")
-    p_infra_logs.add_argument("component", help="Infrastructure component name")
-    p_infra_logs.add_argument("--follow", "-f", action="store_true", help="Tail the log")
-
-    p_infra_reset = infra_sub.add_parser("reset", help="Reset containers (stop, remove, recreate)")
-    p_infra_reset.add_argument("components", nargs="*", default=None)
-
-    # -- venv ----------------------------------------------------------------
-    p_venv = sub.add_parser("venv", help="Manage virtual environments")
-    venv_sub = p_venv.add_subparsers(dest="venv_command")
-
-    p_venv_setup = venv_sub.add_parser("setup", help="Create venv(s)")
-    p_venv_setup.add_argument("service", nargs="?", default=None)
-    p_venv_setup.add_argument("--force", action="store_true", help="Delete and recreate existing venvs")
-
-    venv_sub.add_parser("check", help="Verify Python versions match")
-
-    # -- env -----------------------------------------------------------------
-    p_env = sub.add_parser("env", help="Manage .env files")
-    env_sub = p_env.add_subparsers(dest="env_command")
-
-    p_env_gen = env_sub.add_parser("generate", help="Create/regenerate .env files")
-    p_env_gen.add_argument("--force", action="store_true")
-
-    p_env_show = env_sub.add_parser("show", help="Print env config for a service")
-    p_env_show.add_argument("service", help="Service name")
-
-    # -- patch ---------------------------------------------------------------
-    p_patch = sub.add_parser("patch", help="Manage source-file patches")
-    patch_sub = p_patch.add_subparsers(dest="patch_command")
-    patch_sub.add_parser("apply", help="Apply patches to source files")
-    patch_sub.add_parser("revert", help="Revert previously applied patches")
-
-    # -- init ----------------------------------------------------------------
-    p_init = sub.add_parser("init", help="First-time setup")
-    p_init.add_argument(
-        "--non-interactive", action="store_true",
-        help="Skip interactive prompts (warn about placeholders instead)",
-    )
-
-    # -- clean ---------------------------------------------------------------
-    p_clean = sub.add_parser("clean", help="Remove stale resources")
-    p_clean.add_argument("--dry-run", action="store_true", help="Show what would be removed")
-    p_clean.add_argument("--logs", action="store_true", help="Only clean log files")
-    p_clean.add_argument("--venvs", action="store_true", help="Only clean virtual environments")
-    p_clean.add_argument("--containers", action="store_true", help="Only clean stopped containers")
-
-    # -- destroy -------------------------------------------------------------
-    sub.add_parser("destroy", help="Kill everything")
-
-    return parser
-
+# -- Helpers (unchanged) -----------------------------------------------------
 
 def _parse_window_specs(
     raw: list[str] | None,
@@ -189,133 +110,248 @@ def _create_orchestrator(*, fg: bool = False):
     )
 
 
-def main(argv: list[str] | None = None) -> None:
-    parser = _build_parser()
-    args = parser.parse_args(argv)
+# -- Top-level commands ------------------------------------------------------
 
-    if not args.command:
-        parser.print_help()
-        raise SystemExit(0)
+@app.command()
+def start(
+    targets: Optional[list[str]] = typer.Argument(
+        None, help="Service and/or group names (default: all)",
+    ),
+    fg: bool = typer.Option(False, "--fg", help="Foreground single service"),
+    setup_venv: bool = typer.Option(False, "--setup-venv", help="Create venvs first"),
+    window: Optional[list[str]] = typer.Option(
+        None, "--window",
+        help="Group services into a tmux window (repeatable). "
+             "Format: [name=]svc1,svc2,...",
+    ),
+):
+    """Start services."""
+    orch = _create_orchestrator(fg=fg)
+    window_specs = _parse_window_specs(window)
+    orch.start(
+        targets=targets or None,
+        fg=fg,
+        setup_venv=setup_venv,
+        window_specs=window_specs,
+    )
 
-    try:
-        _dispatch(args)
-    except KeyboardInterrupt:
-        print("\nInterrupted.")
-        raise SystemExit(130)
-    except SystemExit:
-        raise
-    except Exception as exc:
-        print(f"\n❌ Error: {exc}", file=sys.stderr)
+
+@app.command()
+def shell(service: str = typer.Argument(..., help="Service name")):
+    """Open a shell in a service's context."""
+    orch = _create_orchestrator()
+    orch.shell(service)
+
+
+@app.command(
+    "exec",
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
+)
+def exec_cmd(
+    ctx: typer.Context,
+    service: str = typer.Argument(..., help="Service name"),
+):
+    """Run a command in a service's context."""
+    if not ctx.args:
+        print("Usage: unifai-dev exec <service> <command...>")
         raise SystemExit(1)
+    orch = _create_orchestrator()
+    orch.exec_in_context(service, ctx.args)
 
 
-def _dispatch(args: argparse.Namespace) -> None:
-    cmd = args.command
+@app.command()
+def attach(service: str = typer.Argument(..., help="Service name")):
+    """Jump to a service's tmux pane."""
+    orch = _create_orchestrator()
+    orch.attach(service)
 
-    if cmd == "start":
-        orch = _create_orchestrator(fg=args.fg)
-        window_specs = _parse_window_specs(args.window)
-        orch.start(
-            targets=args.targets or None,
-            fg=args.fg,
-            setup_venv=args.setup_venv,
-            window_specs=window_specs,
-        )
 
-    elif cmd == "shell":
-        orch = _create_orchestrator()
-        orch.shell(args.service)
+@app.command()
+def stop():
+    """Stop the tmux session."""
+    orch = _create_orchestrator()
+    orch.stop()
 
-    elif cmd == "exec":
-        orch = _create_orchestrator()
-        if not args.exec_command:
-            print("Usage: unifai-dev exec <service> <command...>")
-            raise SystemExit(1)
-        orch.exec_in_context(args.service, args.exec_command)
 
-    elif cmd == "attach":
-        orch = _create_orchestrator()
-        orch.attach(args.service)
+@app.command()
+def restart(
+    services: Optional[list[str]] = typer.Argument(
+        None, help="Service and/or group names",
+    ),
+    failed: bool = typer.Option(False, "--failed", help="Auto-restart all broken services"),
+):
+    """Dependency-aware restart."""
+    orch = _create_orchestrator()
+    orch.restart(targets=services or None, failed=failed)
 
-    elif cmd == "stop":
-        orch = _create_orchestrator()
-        orch.stop()
 
-    elif cmd == "restart":
-        orch = _create_orchestrator()
-        orch.restart(targets=args.services or None, failed=args.failed)
+@app.command()
+def status():
+    """Health dashboard."""
+    orch = _create_orchestrator()
+    orch.status()
 
-    elif cmd == "status":
-        orch = _create_orchestrator()
-        orch.status()
 
-    elif cmd == "logs":
-        orch = _create_orchestrator()
-        orch.logs(args.service, follow=args.follow)
+@app.command()
+def logs(
+    service: str = typer.Argument(..., help="Service name"),
+    follow: bool = typer.Option(False, "--follow", "-f", help="Tail the log"),
+):
+    """View service logs."""
+    orch = _create_orchestrator()
+    orch.logs(service, follow=follow)
 
-    elif cmd == "doctor":
-        orch = _create_orchestrator()
-        orch.doctor()
 
-    elif cmd == "infra":
-        orch = _create_orchestrator()
-        if args.infra_command == "start":
-            orch.infra_start(
-                targets=args.containers or None,
-                for_service=args.for_service,
-            )
-        elif args.infra_command == "stop":
-            orch.infra_stop()
-        elif args.infra_command == "status":
-            orch.infra_status()
-        elif args.infra_command == "logs":
-            orch.infra_logs(args.component, follow=args.follow)
-        elif args.infra_command == "reset":
-            orch.infra_reset(targets=args.components or None)
-        else:
-            print("Usage: unifai-dev infra {start|stop|status|logs|reset}")
+@app.command()
+def doctor():
+    """Full diagnostic."""
+    orch = _create_orchestrator()
+    orch.doctor()
 
-    elif cmd == "venv":
-        orch = _create_orchestrator()
-        if args.venv_command == "setup":
-            orch.venv_setup(service_name=args.service, force=args.force)
-        elif args.venv_command == "check":
-            orch.venv_check()
-        else:
-            print("Usage: unifai-dev venv {setup|check}")
 
-    elif cmd == "env":
-        orch = _create_orchestrator()
-        if args.env_command == "generate":
-            orch.env_generate(force=args.force)
-        elif args.env_command == "show":
-            orch.env_show(args.service)
-        else:
-            print("Usage: unifai-dev env {generate|show}")
+@app.command()
+def init(
+    non_interactive: bool = typer.Option(
+        False, "--non-interactive",
+        help="Skip interactive prompts (warn about placeholders instead)",
+    ),
+):
+    """First-time setup."""
+    orch = _create_orchestrator()
+    orch.init(non_interactive=non_interactive)
 
-    elif cmd == "patch":
-        orch = _create_orchestrator()
-        if args.patch_command == "apply":
-            orch.patch_apply()
-        elif args.patch_command == "revert":
-            orch.patch_revert()
-        else:
-            print("Usage: unifai-dev patch {apply|revert}")
 
-    elif cmd == "init":
-        orch = _create_orchestrator()
-        orch.init(non_interactive=args.non_interactive)
+@app.command()
+def clean(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be removed"),
+    logs: bool = typer.Option(False, "--logs", help="Only clean log files"),
+    venvs: bool = typer.Option(False, "--venvs", help="Only clean virtual environments"),
+    containers: bool = typer.Option(False, "--containers", help="Only clean stopped containers"),
+):
+    """Remove stale resources."""
+    orch = _create_orchestrator()
+    has_filter = logs or venvs or containers
+    orch.clean(
+        dry_run=dry_run,
+        clean_logs=logs or not has_filter,
+        clean_venvs=venvs,
+        clean_containers=containers or not has_filter,
+    )
 
-    elif cmd == "clean":
-        orch = _create_orchestrator()
-        has_filter = args.logs or args.venvs or args.containers
-        orch.clean(
-            dry_run=args.dry_run,
-            clean_logs=args.logs or not has_filter,
-            clean_venvs=args.venvs,
-            clean_containers=args.containers or not has_filter,
-        )
 
-    elif cmd == "destroy":
-        orch = _create_orchestrator()
-        orch.destroy()
+@app.command()
+def destroy():
+    """Kill everything."""
+    orch = _create_orchestrator()
+    orch.destroy()
+
+
+# -- infra subcommands -------------------------------------------------------
+
+@infra_app.command("start")
+def infra_start(
+    containers: Optional[list[str]] = typer.Argument(None, help="Container names"),
+    for_service: Optional[str] = typer.Option(
+        None, "--for", help="Only what a service needs",
+    ),
+):
+    """Start infrastructure containers."""
+    orch = _create_orchestrator()
+    orch.infra_start(targets=containers or None, for_service=for_service)
+
+
+@infra_app.command("stop")
+def infra_stop():
+    """Stop all infrastructure containers."""
+    orch = _create_orchestrator()
+    orch.infra_stop()
+
+
+@infra_app.command("status")
+def infra_status():
+    """Container status."""
+    orch = _create_orchestrator()
+    orch.infra_status()
+
+
+@infra_app.command("logs")
+def infra_logs(
+    component: str = typer.Argument(..., help="Infrastructure component name"),
+    follow: bool = typer.Option(False, "--follow", "-f", help="Tail the log"),
+):
+    """View container logs."""
+    orch = _create_orchestrator()
+    orch.infra_logs(component, follow=follow)
+
+
+@infra_app.command("reset")
+def infra_reset(
+    components: Optional[list[str]] = typer.Argument(None, help="Component names"),
+):
+    """Reset containers (stop, remove, recreate)."""
+    orch = _create_orchestrator()
+    orch.infra_reset(targets=components or None)
+
+
+# -- venv subcommands --------------------------------------------------------
+
+@venv_app.command("setup")
+def venv_setup(
+    service: Optional[str] = typer.Argument(None, help="Service name"),
+    force: bool = typer.Option(False, "--force", help="Delete and recreate existing venvs"),
+):
+    """Create virtual environment(s)."""
+    orch = _create_orchestrator()
+    orch.venv_setup(service_name=service, force=force)
+
+
+@venv_app.command("sync")
+def venv_sync(
+    service: Optional[str] = typer.Argument(None, help="Service name"),
+):
+    """Update dependencies in existing venv(s)."""
+    orch = _create_orchestrator()
+    orch.venv_sync(service_name=service)
+
+
+@venv_app.command("check")
+def venv_check():
+    """Verify Python versions match."""
+    orch = _create_orchestrator()
+    orch.venv_check()
+
+
+# -- env subcommands ---------------------------------------------------------
+
+@env_app.command("generate")
+def env_generate(
+    force: bool = typer.Option(False, "--force", help="Overwrite existing .env files"),
+):
+    """Create/regenerate .env files."""
+    orch = _create_orchestrator()
+    orch.env_generate(force=force)
+
+
+@env_app.command("show")
+def env_show(
+    service: str = typer.Argument(..., help="Service name"),
+):
+    """Print env config for a service."""
+    orch = _create_orchestrator()
+    orch.env_show(service)
+
+
+# -- patch subcommands -------------------------------------------------------
+
+@patch_app.command("apply")
+def patch_apply():
+    """Apply patches to source files."""
+    orch = _create_orchestrator()
+    orch.patch_apply()
+
+
+@patch_app.command("revert")
+def patch_revert():
+    """Revert previously applied patches."""
+    orch = _create_orchestrator()
+    orch.patch_revert()

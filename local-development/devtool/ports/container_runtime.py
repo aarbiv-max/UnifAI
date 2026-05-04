@@ -46,3 +46,7 @@ class ContainerRuntime(ABC):
     @abstractmethod
     def remove(self, component: InfraComponent) -> None:
         """Remove a stopped container (and its volumes)."""
+
+    @abstractmethod
+    def reset(self, component: InfraComponent) -> None:
+        """Stop, remove, and recreate a container."""
