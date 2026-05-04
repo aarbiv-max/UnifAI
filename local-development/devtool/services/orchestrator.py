@@ -91,13 +91,14 @@ class Orchestrator:
                 print(f"  Check logs in {log_dir}/")
             print()
 
-        # 3. Env generation
+        # 3. Env generation + auto-generate resolution
         print("🔧 Generating .env files…")
         _generated, _skipped, env_warnings = env_generator.generate_all(
             self._registry, self._root,
         )
         for w in env_warnings:
             print(w)
+        self._auto_resolve_generated_keys()
         print()
 
         # 4. Source patches
@@ -413,9 +414,11 @@ class Orchestrator:
                 rel = env_path.relative_to(self._root)
                 if env_path.exists():
                     print(f"  ✔ {svc.name}: {rel}")
-                    placeholders = env_generator.check_placeholders(svc, self._root)
+                    placeholders, auto_gen = env_generator.check_unresolved(svc, self._root)
                     for key in placeholders:
                         print(f"  ⚠ {svc.name}: {rel}  {key} is still a placeholder!")
+                    for key in auto_gen:
+                        print(f"  ⚠ {svc.name}: {rel}  {key} is unresolved (run 'unifai-dev init' or 'unifai-dev env generate --force')")
                 else:
                     if svc.env_entries:
                         print(f"  ✖ {svc.name}: {rel} missing")
@@ -485,28 +488,10 @@ class Orchestrator:
         self.env_generate()
         print()
 
-        # 5. Placeholder prompts
-        print("5/6  Checking for placeholder values…")
-        any_placeholders = False
-        for svc in self._registry.all_services():
-            placeholders = env_generator.check_placeholders(svc, self._root)
-            if not placeholders:
-                continue
-            any_placeholders = True
-            env_path = self._root / svc.directory / svc.env_file
-            if non_interactive:
-                for key in placeholders:
-                    print(f"  ⚠ {svc.name}: {key} is still a placeholder")
-            else:
-                for key in placeholders:
-                    value = input(f"  Enter value for {svc.name} / {key}: ").strip()
-                    if value:
-                        self._replace_placeholder(env_path, key, value)
-                        print(f"    ✔ {key} updated")
-                    else:
-                        print(f"    ⏭ {key} skipped")
-        if not any_placeholders:
-            print("  ✔ No placeholders to fill.")
+        # 5. Auto-generate and placeholder prompts
+        print("5/6  Resolving auto-generated and placeholder values…")
+        self._resolve_auto_generate_keys(non_interactive=non_interactive)
+        self._resolve_placeholders(non_interactive=non_interactive)
         print()
 
         # 6. Patches
@@ -533,6 +518,91 @@ class Orchestrator:
                     f.write(f"{key}={new_value}\n")
                 else:
                     f.write(line)
+
+    def _auto_resolve_generated_keys(self) -> None:
+        """Silently resolve any ``<AUTO_GENERATE>`` markers left in .env files.
+
+        Called during ``start`` to ensure services always have real values
+        without interactive prompts.
+        """
+        grouped = env_generator.collect_auto_generate_keys(
+            self._registry, self._root,
+        )
+        if not grouped:
+            return
+
+        by_name = {s.name: s for s in self._registry.all_services()}
+        value = env_generator.get_or_create_shared_secret(self._root)
+
+        for key, svc_names in grouped.items():
+            services = [by_name[n] for n in svc_names if n in by_name]
+            count = env_generator.resolve_auto_generate_key(
+                key, value, services, self._root,
+            )
+            print(f"  🔑 Auto-generated {key} for {count} service(s)")
+
+    def _resolve_auto_generate_keys(self, *, non_interactive: bool = False) -> None:
+        """Prompt (or auto-resolve) ``<AUTO_GENERATE>`` env entries."""
+        grouped = env_generator.collect_auto_generate_keys(
+            self._registry, self._root,
+        )
+        if not grouped:
+            return
+
+        by_name = {s.name: s for s in self._registry.all_services()}
+
+        for key, svc_names in grouped.items():
+            affected = ", ".join(svc_names)
+            services = [by_name[n] for n in svc_names if n in by_name]
+
+            if non_interactive:
+                value = env_generator.get_or_create_shared_secret(self._root)
+                count = env_generator.resolve_auto_generate_key(
+                    key, value, services, self._root,
+                )
+                print(f"  ✔ {key}: auto-generated and applied to {count} service(s)")
+                continue
+
+            print(f"\n  🔑 {key} (used by: {affected}):")
+            print(f"    [1] Auto-generate a shared dev key (recommended)")
+            print(f"    [2] Enter your own value")
+            choice = input("  Choice [1]: ").strip() or "1"
+
+            if choice == "2":
+                value = input(f"  Enter value for {key}: ").strip()
+                if not value:
+                    print(f"    ⏭ {key} skipped")
+                    continue
+            else:
+                value = env_generator.get_or_create_shared_secret(self._root)
+
+            count = env_generator.resolve_auto_generate_key(
+                key, value, services, self._root,
+            )
+            print(f"    ✔ {key} applied to {count} service(s)")
+
+    def _resolve_placeholders(self, *, non_interactive: bool = False) -> None:
+        """Prompt for ``<REPLACE...>`` placeholder values."""
+        any_placeholders = False
+        for svc in self._registry.all_services():
+            placeholders, _ = env_generator.check_unresolved(svc, self._root)
+            if not placeholders:
+                continue
+            any_placeholders = True
+            env_path = self._root / svc.directory / svc.env_file
+            if non_interactive:
+                for key in placeholders:
+                    print(f"  ⚠ {svc.name}: {key} is still a placeholder")
+            else:
+                for key in placeholders:
+                    value = input(f"  Enter value for {svc.name} / {key}: ").strip()
+                    if value:
+                        self._replace_placeholder(env_path, key, value)
+                        print(f"    ✔ {key} updated")
+                    else:
+                        print(f"    ⏭ {key} skipped")
+        if not any_placeholders:
+            print("  ✔ No placeholders to fill.")
 
     # -- clean ---------------------------------------------------------------
 

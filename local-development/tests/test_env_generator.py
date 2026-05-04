@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from devtool.domain.models import Service, ServiceType, VenvConfig, VenvStrategy
-from devtool.services.env_generator import generate, check_placeholders, _ENV_HEADER
+from devtool.services.env_generator import generate, check_placeholders, check_unresolved, _ENV_HEADER
 
 
 def _make_service(

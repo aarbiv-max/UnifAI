@@ -35,6 +35,8 @@ services:
     health_endpoint: "/api/health/"
     infrastructure: [mongo]
     env_file: ".env"
+    env_entries:
+      secret_key: "<AUTO_GENERATE>"
     patches:
       - file: "backend/run/dev.py"
         find: "app.run(host=config.hostname_local, port=config.port, debug=True)"
@@ -54,6 +56,7 @@ services:
     env_entries:
       hostname_local: "127.0.0.1"
       port: "13457"
+      secret_key: "<AUTO_GENERATE>"
     patches:
       - file: "rag/bootstrap/flask_app.py"
         find: "host=config.hostname_local,"
@@ -69,6 +72,9 @@ services:
     type: python
     health_endpoint: "/api/health/"
     infrastructure: [mongo, redis, temporal]
+    env_file: ".env"
+    env_entries:
+      secret_key: "<AUTO_GENERATE>"
     venv:
       strategy: "custom"
       commands:
@@ -94,6 +100,7 @@ services:
       port: "13456"
       frontend_url: "http://127.0.0.1:5000"
       backend_env: "development"
+      secret_key: "<AUTO_GENERATE>"
     patches:
       - file: "shared-resources/identity/bootstrap/flask_app.py"
         find: "host=config.hostname_local,"
@@ -137,6 +144,7 @@ services:
     type: python
     is_primary: false
     infrastructure: [mongo, redis, temporal]
+    env_file: ".env"
     venv:
       strategy: "none"
     launch: "mas temporal-worker --threads 20"

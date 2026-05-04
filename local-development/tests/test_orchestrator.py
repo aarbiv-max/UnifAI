@@ -534,8 +534,8 @@ class TestInit:
         orch.patch_apply = MagicMock()
 
         with patch(
-            "devtool.services.env_generator.check_placeholders",
-            return_value={"client_id"},
+            "devtool.services.env_generator.check_unresolved",
+            return_value=({"client_id"}, set()),
         ):
             orch.init(non_interactive=True)
 

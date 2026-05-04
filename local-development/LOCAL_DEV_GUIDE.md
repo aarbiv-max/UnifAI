@@ -9,7 +9,7 @@ A step-by-step guide for running UnifAI locally — launch the **full stack** in
    ```bash
    pipx install -e local-development/
    ```
-2. **[Run first-time setup](#410-first-time-setup)** — creates venvs, generates `.env` files, starts infra, and prompts for Keycloak credentials:
+2. **[Run first-time setup](#410-first-time-setup)** — creates venvs, generates `.env` files, auto-generates the Flask `secret_key`, starts infra, and prompts for Keycloak credentials:
    ```bash
    unifai-dev init
    ```
@@ -141,6 +141,22 @@ The Identity service requires a `client_id` and `client_secret` for Keycloak aut
 
 > [!NOTE]
 > The env generator **never overwrites** existing `.env` files — your credentials are safe across restarts. To regenerate from scratch (e.g. after a config change), use `unifai-dev env generate --force` and then re-edit the SSO credentials.
+
+### Flask Secret Key *(Auto-Generated)*
+
+All Flask services require a `secret_key` for signing session cookies. In local development, this is handled automatically:
+
+- During `unifai-dev init`, you are prompted to **auto-generate** a shared key or **enter your own**.
+- During `unifai-dev start`, any unresolved `secret_key` values are auto-generated silently.
+- The generated key is stored in `local-development/.dev-secret-key` (gitignored) and shared across all services, so sessions are consistent and survive restarts.
+
+You do not need to configure `secret_key` manually. If you want to reset it:
+
+```bash
+rm local-development/.dev-secret-key
+unifai-dev env generate --force
+unifai-dev start
+```
 
 
 ### Optional
@@ -400,9 +416,14 @@ unifai-dev env show identity        # inspect a service's env config
 
 | File                                | Contents                                                                             |
 | ----------------------------------- | ------------------------------------------------------------------------------------ |
-| `rag/.env`                          | `hostname_local=127.0.0.1`, `port=13457`                                             |
-| `shared-resources/identity/.env`    | `keycloak_base_url`, `keycloak_realm`, `client_id`, `client_secret` (placeholders), `hostname_local`, `port`, `frontend_url`, `backend_env` |
+| `backend/.env`                      | `secret_key` (auto-generated)                                                        |
+| `rag/.env`                          | `hostname_local=127.0.0.1`, `port=13457`, `secret_key` (auto-generated)              |
+| `multi-agent/.env`                  | `secret_key` (auto-generated)                                                        |
+| `shared-resources/identity/.env`    | `keycloak_base_url`, `keycloak_realm`, `client_id`, `client_secret` (placeholders), `hostname_local`, `port`, `frontend_url`, `backend_env`, `secret_key` (auto-generated) |
 | `ui/.env.local`                     | `DEV_PORT=5000`, `DEV_HOST=0.0.0.0`, proxy targets for all backends                  |
+
+> [!NOTE]
+> The `secret_key` value is auto-generated on first run and shared across all Flask services. The generated key is stored in `local-development/.dev-secret-key` (gitignored). See [Flask Secret Key](#flask-secret-key-auto-generated) for details.
 
 
 **Source-file patches (revert with `git checkout`):**
