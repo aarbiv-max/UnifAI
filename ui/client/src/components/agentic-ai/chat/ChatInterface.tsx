@@ -23,6 +23,7 @@ import { useStreamingData } from "../StreamingDataContext";
 import { Message, StreamLogEntry, WorkPlanSnapshot, FileReference } from "./types";
 import { uploadSessionFiles, MAX_FILE_COUNT } from "@/api/sessions";
 import { StreamLogDisplay } from "./StreamLogDisplay";
+import ChatAttachments from "./ChatAttachments";
 import { useToast } from "@/hooks/use-toast";
 import { UmamiTrack } from '@/components/ui/umamitrack';
 import { UmamiEvents } from '@/config/umamiEvents';
@@ -199,9 +200,17 @@ export default function ChatInterface({
         id: `${Date.now()}-${index}`,
         content: msg.content,
         sender: msg.role === "user" ? "user" : "ai",
-        // For AI messages, we might want to add finalAnswer if it's the last assistant message
         ...(msg.role === "assistant" && {
           finalAnswer: msg.content,
+        }),
+        ...(msg.file_references && msg.file_references.length > 0 && {
+          fileReferences: msg.file_references.map(ref => ({
+            file_uri: ref.file_uri,
+            mime_type: ref.mime_type,
+            display_name: ref.display_name,
+            size_bytes: ref.size_bytes,
+            uploaded_at: "",
+          })),
         }),
       }));
     },
@@ -1014,7 +1023,12 @@ export default function ChatInterface({
 
     if (message.sender === "user") {
       return (
-        <div className="text-sm whitespace-pre-line">{message.content}</div>
+        <div className="text-sm whitespace-pre-line">
+          {message.content}
+          {message.fileReferences && message.fileReferences.length > 0 && (
+            <ChatAttachments files={message.fileReferences} />
+          )}
+        </div>
       );
     }
 
@@ -1221,34 +1235,8 @@ export default function ChatInterface({
             <WorkflowStatusBanner {...WorkflowBannerMessages.validating} />
           )}
           
-          {/* File chips */}
-          {selectedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-1 px-1 pb-1">
-              {selectedFiles.map((file, idx) => (
-                <span
-                  key={idx}
-                  className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-                >
-                  <FileText className="h-3 w-3" />
-                  {file.name}
-                  <span className="text-[10px] opacity-60">
-                    ({(file.size / 1024).toFixed(0)} KB)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
-                    className="ml-0.5 hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
           {/* Input area */}
           <div className="flex space-x-2 items-end">
-            {/* Paperclip button */}
             <input
               ref={fileInputRef}
               type="file"
@@ -1272,26 +1260,41 @@ export default function ChatInterface({
                 if (fileInputRef.current) fileInputRef.current.value = '';
               }}
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || isTyping || isUploading}
-              className="mb-0 shrink-0"
-              title="Attach files"
-            >
-              <Paperclip className="h-4 w-4" />
-            </Button>
 
-            {/* Textarea container with expand/collapse icon */}
+            {/* Textarea container with paperclip inside */}
             <div className="relative flex-1">
+              {/* File chips inside the field */}
+              {selectedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-1 px-3 pt-2 pb-1 ml-8">
+                  {selectedFiles.map((file, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                    >
+                      <FileText className="h-3 w-3" />
+                      {file.name}
+                      <span className="text-[10px] opacity-60">
+                        ({(file.size / 1024).toFixed(0)} KB)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}
+                        className="ml-0.5 hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <Textarea
                 ref={textareaRef}
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={getInputPlaceholder()}
-                className={`bg-background-dark resize-none transition-[height] duration-200 ease-out w-full ${
+                className={`bg-background-dark resize-none transition-[height] duration-200 ease-out w-full pl-10 ${
                   (!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint) 
                     ? 'opacity-50 cursor-not-allowed' 
                     : ''
@@ -1300,7 +1303,19 @@ export default function ChatInterface({
                 rows={1}
                 disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
               />
-              {/* Expand/Collapse icon - shows when textarea is at max height or expanded */}
+
+              {/* Paperclip button inside the textarea, bottom-left */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || isTyping || isUploading}
+                className="absolute left-2 bottom-2 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                title="Attach files"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
+
+              {/* Expand/Collapse icon */}
               <AnimatePresence>
                 {(isAtMaxHeight || isExpanded) && (
                   <motion.button
