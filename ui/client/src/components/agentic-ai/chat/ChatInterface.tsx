@@ -1291,93 +1291,77 @@ export default function ChatInterface({
           )}
           
           {/* Input area */}
-          <div className="flex space-x-2 items-end">
-            {/* Textarea container with expand/collapse icon */}
-            <div className="relative flex-1">
-              <Textarea
-                ref={textareaRef}
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={getInputPlaceholder()}
-                className={`bg-background-dark resize-none transition-[height] duration-200 ease-out w-full ${
-                  isInputDisabled ? 'opacity-50 cursor-not-allowed' : ''
-                } ${(isAtMaxHeight || isExpanded) ? 'pr-10' : ''}`}
-                style={{ height: `${TEXTAREA_MIN_HEIGHT}px` }}
-                rows={1}
-                disabled={isInputDisabled}
-              />
-              {/* Expand/Collapse icon - shows when textarea is at max height or expanded */}
-              <AnimatePresence>
-                {(isAtMaxHeight || isExpanded) && (
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ duration: 0.15 }}
-                    onClick={toggleExpandedHeight}
-                    className={`absolute top-2 right-2 p-1.5 rounded-md transition-colors border ${
-                      isExpanded 
-                        ? 'bg-primary/20 text-primary border-primary/50 hover:bg-primary/30' 
-                        : 'bg-background-surface/90 hover:bg-primary/20 text-gray-400 hover:text-primary border-gray-700 hover:border-primary/50'
-                    }`}
-                    title={isExpanded ? "Collapse input area" : "Expand input area"}
-                    type="button"
-                  >
-                    {isExpanded ? (
-                      <Minimize2 className="h-3.5 w-3.5" />
-                    ) : (
-                      <Maximize2 className="h-3.5 w-3.5" />
-                    )}
-                  </motion.button>
-                )}
-              </AnimatePresence>
-            </div>
-            {(isTyping || isLiveRequest) ? (
-              <Button
-                onClick={handleCancelClick}
-                disabled={isCancelling || !onCancelSession || isSubmitting}
-                size="icon"
-                className="bg-primary hover:bg-primary/80 mb-0"
-                title="Stop generation"
-                aria-label="Stop generation"
-              >
-                {(isCancelling || isSubmitting) ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <span className="flex flex-col items-center gap-0.5">
-                    <Square className="h-4 w-4" />
-                    <span className="flex items-center gap-0.5">
-                      {[0, 1, 2].map((i) => (
-                        <motion.span
-                          key={i}
-                          className="block h-[3px] w-[3px] rounded-full bg-white"
-                          animate={{ opacity: [0.3, 1, 0.3] }}
-                          transition={{
-                            duration: 1,
-                            repeat: Infinity,
-                            delay: i * 0.2,
-                          }}
-                        />
-                      ))}
-                    </span>
-                  </span>
-                )}
-              </Button>
-            ) : (
-              <UmamiTrack 
-                event={UmamiEvents.AGENT_CHAT_SEND_MESSAGE_BUTTON}
-              >
-                <Button
-                  onClick={() => handleSendMessage()}
-                  disabled={inputMessage.trim() === "" || isInputDisabled}
-                  size="icon"
-                  className="bg-primary hover:bg-primary/80 mb-0"
+          <div className="relative">
+            <Textarea
+              ref={textareaRef}
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={getInputPlaceholder()}
+              className={`bg-background-dark resize-none transition-[height] duration-200 ease-out w-full pr-12 ${
+                isInputDisabled ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              style={{ height: `${TEXTAREA_MIN_HEIGHT}px` }}
+              rows={1}
+              disabled={isInputDisabled}
+            />
+            {/* Expand/Collapse icon - shows when textarea is at max height or expanded */}
+            <AnimatePresence>
+              {(isAtMaxHeight || isExpanded) && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={toggleExpandedHeight}
+                  className={`absolute top-2 right-2 p-1.5 rounded-md transition-colors border ${
+                    isExpanded 
+                      ? 'bg-primary/20 text-primary border-primary/50 hover:bg-primary/30' 
+                      : 'bg-background-surface/90 hover:bg-primary/20 text-gray-400 hover:text-primary border-gray-700 hover:border-primary/50'
+                  }`}
+                  title={isExpanded ? "Collapse input area" : "Expand input area"}
+                  type="button"
                 >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </UmamiTrack>
-            )}
+                  {isExpanded ? (
+                    <Minimize2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  )}
+                </motion.button>
+              )}
+            </AnimatePresence>
+            {/* Send/Cancel button inside textarea */}
+            <div className="absolute bottom-2 right-2">
+              {(isTyping || isLiveRequest) ? (
+                <button
+                  onClick={handleCancelClick}
+                  disabled={isCancelling || !onCancelSession || isSubmitting}
+                  className="relative h-7 w-7 flex items-center justify-center rounded-md text-white disabled:opacity-50 disabled:cursor-not-allowed animate-pulse"
+                  style={{ backgroundColor: 'hsl(var(--primary))' }}
+                  title="Stop generation"
+                  aria-label="Stop generation"
+                >
+                  {(isCancelling || isSubmitting) ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <span className="h-3 w-3 bg-white" />
+                  )}
+                </button>
+              ) : (
+                <UmamiTrack 
+                  event={UmamiEvents.AGENT_CHAT_SEND_MESSAGE_BUTTON}
+                >
+                  <Button
+                    onClick={() => handleSendMessage()}
+                    disabled={inputMessage.trim() === "" || isInputDisabled}
+                    size="icon"
+                    className="bg-primary hover:bg-primary/80 h-7 w-7"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </UmamiTrack>
+              )}
+            </div>
           </div>
           <div className="flex items-start gap-2 mt-2 px-1">
             <Info className="h-3.5 w-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
