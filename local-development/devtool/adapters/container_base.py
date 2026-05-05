@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import time
@@ -15,13 +16,13 @@ from devtool.ports.container_runtime import ContainerRuntime
 class SubprocessContainerRuntime(ContainerRuntime):
     """Base class that drives either ``podman`` or ``docker`` via subprocess."""
 
-    def __init__(self, executable: str) -> None:
-        self._exe = executable
+    def __init__(self, cmd: list[str] | str) -> None:
+        self._cmd: list[str] = [cmd] if isinstance(cmd, str) else list(cmd)
         self._log_file: Path | None = None
 
     @property
     def runtime_name(self) -> str:
-        return self._exe
+        return " ".join(self._cmd)
 
     def set_log_file(self, path: Path) -> None:
         self._log_file = path
@@ -36,10 +37,10 @@ class SubprocessContainerRuntime(ContainerRuntime):
 
         if current is ContainerStatus.STOPPED:
             print(f"  ↻ Starting stopped {component.label} container…")
-            self._run([self._exe, "start", component.name])
+            self._run([*self._cmd, "start", component.name])
         else:
             print(f"  ⊕ Creating {component.label} container…")
-            cmd: list[str] = [self._exe, "run", "-d", "--name", component.name]
+            cmd: list[str] = [*self._cmd, "run", "-d", "--name", component.name]
             for port_map in component.ports:
                 cmd.extend(["-p", port_map])
             cmd.append(component.image)
@@ -51,7 +52,7 @@ class SubprocessContainerRuntime(ContainerRuntime):
 
     def stop(self, component: InfraComponent) -> None:
         if self.status(component) is ContainerStatus.RUNNING:
-            cmd = [self._exe, "stop"]
+            cmd = [*self._cmd, "stop"]
             if component.stop_timeout:
                 cmd.extend(["--time", str(component.stop_timeout)])
             cmd.append(component.name)
@@ -75,7 +76,7 @@ class SubprocessContainerRuntime(ContainerRuntime):
             return None
         result = subprocess.run(
             [
-                self._exe, "inspect",
+                *self._cmd, "inspect",
                 "--format", "{{.State.StartedAt}}",
                 component.name,
             ],
@@ -92,7 +93,7 @@ class SubprocessContainerRuntime(ContainerRuntime):
             return None
 
     def logs(self, component: InfraComponent, *, follow: bool = False) -> None:
-        cmd = [self._exe, "logs"]
+        cmd = [*self._cmd, "logs"]
         if follow:
             cmd.append("-f")
         cmd.append(component.name)
@@ -104,7 +105,7 @@ class SubprocessContainerRuntime(ContainerRuntime):
             self.stop(component)
         if self._is_listed(component.name, running_only=False):
             subprocess.run(
-                [self._exe, "rm", "-v", component.name],
+                [*self._cmd, "rm", "-v", component.name],
                 capture_output=True, check=False,
             )
             print(f"  ⊖ {component.label} removed.")
@@ -126,14 +127,14 @@ class SubprocessContainerRuntime(ContainerRuntime):
             raise RuntimeError(
                 f"{component.label} exited shortly after starting "
                 f"(exit={exit_code}). "
-                f"Check: {self._exe} logs {component.name}"
+                f"Check: {self.runtime_name} logs {component.name}"
             )
         print(f"  ✔ {component.label} started.")
 
     def _get_exit_code(self, component: InfraComponent) -> int | None:
         result = subprocess.run(
             [
-                self._exe, "inspect",
+                *self._cmd, "inspect",
                 "--format", "{{.State.ExitCode}}",
                 component.name,
             ],
@@ -144,7 +145,7 @@ class SubprocessContainerRuntime(ContainerRuntime):
         return None
 
     def _is_listed(self, name: str, *, running_only: bool) -> bool:
-        cmd = [self._exe, "ps"]
+        cmd = [*self._cmd, "ps"]
         if not running_only:
             cmd.append("-a")
         cmd.extend(["--format", "{{.Names}}"])
@@ -192,7 +193,24 @@ def _format_duration(delta) -> str:
 
 
 def detect_runtime() -> SubprocessContainerRuntime:
-    """Return the first working container runtime (podman preferred)."""
+    """Return the first working container runtime (podman preferred).
+
+    Honours the ``UNIFAI_CONTAINER_RUNTIME`` environment variable.  When set,
+    its value is used as the container command (e.g. ``sudo docker``) and
+    auto-detection is skipped entirely.
+    """
+    env_override = os.environ.get("UNIFAI_CONTAINER_RUNTIME")
+    if env_override:
+        cmd = env_override.split()
+        result = subprocess.run([*cmd, "info"], capture_output=True)
+        if result.returncode == 0:
+            return SubprocessContainerRuntime(cmd)
+        raise RuntimeError(
+            f"UNIFAI_CONTAINER_RUNTIME is set to '{env_override}' "
+            f"but '{env_override} info' failed. "
+            f"Verify the command works in your terminal."
+        )
+
     from devtool.adapters.podman import PodmanRuntime
     from devtool.adapters.docker import DockerRuntime
 
@@ -204,7 +222,6 @@ def detect_runtime() -> SubprocessContainerRuntime:
         if result.returncode == 0:
             return PodmanRuntime()
 
-        # Try starting the podman machine
         machines = subprocess.run(
             ["podman", "machine", "list", "--format", "{{.Name}}"],
             capture_output=True, text=True,
@@ -230,5 +247,8 @@ def detect_runtime() -> SubprocessContainerRuntime:
             return DockerRuntime()
 
     raise RuntimeError(
-        "No working container runtime found. Install Podman or Docker."
+        "No working container runtime found. Install Podman or Docker.\n"
+        "If your runtime requires elevated privileges or a custom path, set\n"
+        "  export UNIFAI_CONTAINER_RUNTIME='<command>'  "
+        "(e.g. 'sudo docker')"
     )

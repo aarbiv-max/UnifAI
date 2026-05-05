@@ -17,7 +17,6 @@ except ImportError:
 
 from .models import (
     InfraComponent,
-    PatchSpec,
     Service,
     ServiceGroup,
     ServiceType,
@@ -167,14 +166,6 @@ class Registry:
                 strategy=VenvStrategy(venv_raw.get("strategy", "none")),
                 commands=venv_raw.get("commands", []),
             )
-            patches = [
-                PatchSpec(
-                    file=Path(p["file"]),
-                    find=p["find"],
-                    replace=p["replace"],
-                )
-                for p in data.get("patches", [])
-            ]
             result[name] = Service(
                 name=name,
                 directory=Path(data["directory"]),
@@ -186,7 +177,6 @@ class Registry:
                 is_primary=data.get("is_primary", True),
                 env_file=data.get("env_file"),
                 env_entries=data.get("env_entries", {}),
-                patches=patches,
                 venv=venv,
                 launch=data["launch"],
             )

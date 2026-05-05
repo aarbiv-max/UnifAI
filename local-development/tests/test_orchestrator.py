@@ -512,14 +512,12 @@ class TestInit:
         orch.infra_start = MagicMock()
         orch.venv_setup = MagicMock()
         orch.env_generate = MagicMock()
-        orch.patch_apply = MagicMock()
 
         orch.init(non_interactive=True)
 
         orch.infra_start.assert_called_once()
         orch.venv_setup.assert_called_once()
         orch.env_generate.assert_called_once()
-        orch.patch_apply.assert_called_once()
 
     def test_init_non_interactive_warns_placeholders(self, capsys) -> None:
         svc = _make_service(
@@ -531,7 +529,6 @@ class TestInit:
         orch.infra_start = MagicMock()
         orch.venv_setup = MagicMock()
         orch.env_generate = MagicMock()
-        orch.patch_apply = MagicMock()
 
         with patch(
             "devtool.services.env_generator.check_unresolved",

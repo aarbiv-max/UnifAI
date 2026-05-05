@@ -81,7 +81,6 @@ local-development/
 │   └── services/            # Application services
 │       ├── orchestrator.py  # Composes ports for start/stop flows
 │       ├── env_generator.py
-│       ├── patcher.py
 │       ├── python_detector.py
 │       ├── health_checker.py
 │       └── recovery.py
@@ -90,7 +89,6 @@ local-development/
     ├── test_orchestrator.py
     ├── test_registry.py
     ├── test_env_generator.py
-    ├── test_patcher.py
     ├── test_health_checker.py
     ├── test_container_runtime.py
     ├── test_graceful_stop.py
@@ -141,6 +139,12 @@ pipx install -e local-development/
 
 This installs the `unifai-dev` command globally in an isolated environment. You only need to do this once.
 
+To **reinstall** (e.g. after a broken state, or to pick up new dependencies added to `pyproject.toml`):
+
+```bash
+pipx install -e local-development/ --force
+```
+
 > [!NOTE]
 > The path is relative — you must run this from the repo root (the directory containing `local-development/`).
 > Alternatively, use an absolute path from anywhere:
@@ -155,6 +159,9 @@ This installs the `unifai-dev` command globally in an isolated environment. You 
 > ```bash
 > pipx install -e local-development/ --python python3.12
 > ```
+
+> [!TIP]
+> Because the install is **editable** (`-e`), code changes in `local-development/devtool/` take effect immediately — no reinstall needed. You only need `--force` when the package metadata itself changes (new dependencies, entry points, etc.).
 
 ### SSO Client Credentials *(Required)*
 
@@ -208,6 +215,14 @@ unifai-dev start
 ### Infrastructure via containers
 
 The tool auto-creates containers for infrastructure services using **Podman** or **Docker**. Make sure at least one is installed and running.
+
+If your container runtime requires elevated privileges (e.g. `sudo docker`), set the `UNIFAI_CONTAINER_RUNTIME` environment variable to override auto-detection:
+
+```bash
+export UNIFAI_CONTAINER_RUNTIME='sudo docker'
+```
+
+When set, the tool uses this command instead of auto-detecting Podman/Docker. Add it to your shell profile (`.bashrc`, `.zshrc`, etc.) to persist across sessions.
 
 
 | Container | Ports       | Notes                          |
@@ -295,19 +310,8 @@ cd ui && pnpm install && cd ..
 
 The `unifai-dev` CLI automates local development. Install it once with `pipx install -e local-development/` (see [Install the CLI](#install-the-cli)), then run from the **repo root**.
 
-> ### **WARNING — Do NOT push local dev changes**
->
-> The tool patches a few source files for local development. **You MUST revert these changes before pushing to avoid breaking production deployments.** Run from the repo root before any `git add` or `git push`:
->
-> ```bash
-> unifai-dev patch revert
-> ```
->
-> Or manually: `git checkout rag/bootstrap/flask_app.py backend/run/dev.py shared-resources/identity/bootstrap/flask_app.py`
->
-> The `.env` files (`rag/.env`, `shared-resources/identity/.env`, `ui/.env.local`) are gitignored and safe — they will **not** appear in `git status`.
->
-> **Quick check:** run `git diff --name-only` before pushing. If you see any of the files above, revert them first.
+> [!NOTE]
+> The `.env` files (`rag/.env`, `shared-resources/identity/.env`, `ui/.env.local`) are gitignored and safe — they will **not** appear in `git status`. No source files are modified by the tool.
 
 ### 4.1 CLI reference
 
@@ -379,18 +383,11 @@ unifai-dev <command> [options]
 | `env generate --force` | Regenerate .env files even if they exist       |
 | `env show <service>`   | Print current env config for a service         |
 
-**Source-file patches:**
-
-| Command          | Description                                          |
-| ---------------- | ---------------------------------------------------- |
-| `patch apply`    | Apply local-dev patches to source files              |
-| `patch revert`   | Revert previously applied patches                    |
-
 **Setup and maintenance:**
 
 | Command                  | Description                                              |
 | ------------------------ | -------------------------------------------------------- |
-| `init [--non-interactive]`| First-time setup (infra, venvs, env, patches)           |
+| `init [--non-interactive]`| First-time setup (infra, venvs, env)                    |
 | `clean [--dry-run]`      | Remove log files and stopped containers (venvs excluded by default) |
 | `clean --logs`           | Only clean log files                                     |
 | `clean --venvs`          | Only clean virtual environments (opt-in)                 |
@@ -440,9 +437,9 @@ Log files are truncated on each `start` invocation — they capture the current 
 > [!TIP]
 > If a container fails to start with a "port already in use" error, check `/tmp/unifai-dev/logs/infra.log` for details.
 
-### 4.4 Environment and patches
+### 4.4 Environment
 
-The `start` command automatically generates `.env` files and applies source patches. You can also run these independently:
+The `start` command automatically generates `.env` files. You can also run these independently:
 
 ```bash
 unifai-dev env generate           # create .env files (skip existing)
@@ -455,7 +452,7 @@ unifai-dev env show identity        # inspect a service's env config
 
 | File                                | Contents                                                                             |
 | ----------------------------------- | ------------------------------------------------------------------------------------ |
-| `backend/.env`                      | `secret_key` (auto-generated)                                                        |
+| `backend/.env`                      | `hostname_local=127.0.0.1`, `secret_key` (auto-generated)                            |
 | `rag/.env`                          | `hostname_local=127.0.0.1`, `port=13457`, `secret_key` (auto-generated)              |
 | `multi-agent/.env`                  | `secret_key` (auto-generated)                                                        |
 | `shared-resources/identity/.env`    | `keycloak_base_url`, `keycloak_realm`, `client_id`, `client_secret` (placeholders), `hostname_local`, `port`, `frontend_url`, `backend_env`, `secret_key` (auto-generated) |
@@ -463,16 +460,6 @@ unifai-dev env show identity        # inspect a service's env config
 
 > [!NOTE]
 > The `secret_key` value is auto-generated on first run and shared across all Flask services. The generated key is stored in `local-development/.dev-secret-key` (gitignored). See [Flask Secret Key](#flask-secret-key-auto-generated) for details.
-
-
-**Source-file patches (revert with `git checkout`):**
-
-
-| File                                  | Change                   |
-| ------------------------------------- | ------------------------ |
-| `rag/bootstrap/flask_app.py`          | Bind host → `0.0.0.0`    |
-| `backend/run/dev.py`                  | Bind host → `0.0.0.0`    |
-| `shared-resources/identity/bootstrap/flask_app.py` | Bind host → `0.0.0.0`    |
 
 
 ### 4.5 Python version enforcement
@@ -506,9 +493,8 @@ The tool will:
 
 1. Start only the required infrastructure containers
 2. Generate `.env` files and auto-resolve `secret_key`
-3. Apply source patches
-4. Verify the service's venv exists and its Python version matches
-5. Launch the service in your foreground terminal with debug/auto-reload
+3. Verify the service's venv exists and its Python version matches
+4. Launch the service in your foreground terminal with debug/auto-reload
 
 Press `Ctrl+C` to stop.
 
@@ -549,13 +535,12 @@ The tool will:
 
 1. Start required infrastructure containers via Podman/Docker
 2. Generate `.env` files and auto-resolve `secret_key`
-3. Apply source patches
-4. Verify all venvs exist and Python versions match
-5. Kill any processes occupying required ports
-6. Create a tmux session (`unifai-dev`) with auto-windowed panes:
+3. Verify all venvs exist and Python versions match
+4. Kill any processes occupying required ports
+5. Create a tmux session (`unifai-dev`) with auto-windowed panes:
    - **Window "services"** — one pane per primary service (tiled layout)
    - **Window "workers"** — one pane per worker (if any workers are selected)
-7. All output is captured to log files via `tee`
+6. All output is captured to log files via `tee`
 
 **Useful tmux commands once attached:**
 
@@ -641,9 +626,7 @@ It performs these steps in order:
 2. **Start infrastructure** — all containers (MongoDB, Redis, etc.)
 3. **Create virtual environments** — for all Python services and the UI
 4. **Generate `.env` files** — with defaults and placeholders
-5. **Resolve auto-generated values** — prompts for `secret_key` (auto-generate or enter your own)
-6. **Resolve placeholders** — prompts for `client_id` and `client_secret` interactively
-7. **Apply source patches** — bind Flask services to `0.0.0.0`
+5. **Resolve auto-generated values and placeholders** — prompts for `secret_key`, `client_id`, and `client_secret`
 
 After `init` completes, you can run `unifai-dev start` directly — no additional setup flags needed.
 
@@ -711,20 +694,7 @@ unifai-dev clean --containers       # only clean stopped containers
 
 ---
 
-### 4.14 Managing source-file patches
-
-The `start` command automatically applies patches, but you can manage them independently:
-
-```bash
-unifai-dev patch apply              # apply local-dev patches
-unifai-dev patch revert             # revert to original source files
-```
-
-This is especially useful before committing or pushing — run `patch revert` to ensure no local-dev changes leak into your commits.
-
----
-
-### 4.15 Verifying the setup
+### 4.14 Verifying the setup
 
 Once all services are running, open a browser and navigate to:
 
@@ -934,6 +904,22 @@ pipx install -e local-development/ --force
 ---
 
 ### Containers & Infrastructure
+
+#### No working container runtime found
+
+The tool auto-detects Podman and Docker by checking that the binary exists on `PATH` and that `<runtime> info` succeeds. Common reasons for failure:
+
+- **Docker requires `sudo`** — the user isn't in the `docker` group, so `docker info` fails with a permission error. Either add yourself to the group (`sudo usermod -aG docker $USER`, then log out and back in) or set the override:
+
+  ```bash
+  export UNIFAI_CONTAINER_RUNTIME='sudo docker'
+  ```
+
+- **Binary not on `PATH`** — the runtime is installed in a non-standard location. Point the tool at it:
+
+  ```bash
+  export UNIFAI_CONTAINER_RUNTIME='/usr/local/bin/docker'
+  ```
 
 #### Podman machine not running
 

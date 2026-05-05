@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 
@@ -39,7 +40,7 @@ class TestVerifyRunning:
         from devtool.adapters.container_base import SubprocessContainerRuntime
 
         runtime = SubprocessContainerRuntime.__new__(SubprocessContainerRuntime)
-        runtime._exe = "podman"
+        runtime._cmd = ["podman"]
         runtime.status = MagicMock(return_value=ContainerStatus.RUNNING)
 
         runtime._verify_running(mongo)
@@ -53,7 +54,7 @@ class TestVerifyRunning:
         from devtool.adapters.container_base import SubprocessContainerRuntime
 
         runtime = SubprocessContainerRuntime.__new__(SubprocessContainerRuntime)
-        runtime._exe = "podman"
+        runtime._cmd = ["podman"]
         runtime.status = MagicMock(return_value=ContainerStatus.STOPPED)
         runtime._get_exit_code = MagicMock(return_value=139)
 
@@ -67,7 +68,7 @@ class TestVerifyRunning:
         from devtool.adapters.container_base import SubprocessContainerRuntime
 
         runtime = SubprocessContainerRuntime.__new__(SubprocessContainerRuntime)
-        runtime._exe = "podman"
+        runtime._cmd = ["podman"]
         runtime.status = MagicMock(return_value=ContainerStatus.STOPPED)
         runtime._get_exit_code = MagicMock(return_value=139)
 
@@ -81,7 +82,7 @@ class TestVerifyRunning:
         from devtool.adapters.container_base import SubprocessContainerRuntime
 
         runtime = SubprocessContainerRuntime.__new__(SubprocessContainerRuntime)
-        runtime._exe = "podman"
+        runtime._cmd = ["podman"]
         runtime.status = MagicMock(return_value=ContainerStatus.STOPPED)
         runtime._get_exit_code = MagicMock(return_value=1)
 
@@ -97,7 +98,7 @@ class TestStopWithTimeout:
         from devtool.adapters.container_base import SubprocessContainerRuntime
 
         runtime = SubprocessContainerRuntime.__new__(SubprocessContainerRuntime)
-        runtime._exe = "podman"
+        runtime._cmd = ["podman"]
         runtime._log_file = None
         runtime.status = MagicMock(return_value=ContainerStatus.RUNNING)
 
@@ -114,13 +115,56 @@ class TestStopWithTimeout:
         from devtool.adapters.container_base import SubprocessContainerRuntime
 
         runtime = SubprocessContainerRuntime.__new__(SubprocessContainerRuntime)
-        runtime._exe = "podman"
+        runtime._cmd = ["podman"]
         runtime._log_file = None
         runtime.status = MagicMock(return_value=ContainerStatus.RUNNING)
 
         runtime.stop(redis)
 
         mock_run.assert_called_once_with(["podman", "stop", "redis"])
+
+
+class TestDetectRuntimeEnvOverride:
+    @patch.dict("os.environ", {"UNIFAI_CONTAINER_RUNTIME": "sudo docker"})
+    @patch("devtool.adapters.container_base.subprocess.run")
+    def test_uses_env_var_when_set(self, mock_run: MagicMock) -> None:
+        from devtool.adapters.container_base import detect_runtime
+
+        mock_run.return_value = MagicMock(returncode=0)
+
+        runtime = detect_runtime()
+
+        mock_run.assert_called_once_with(
+            ["sudo", "docker", "info"], capture_output=True,
+        )
+        assert runtime._cmd == ["sudo", "docker"]
+        assert runtime.runtime_name == "sudo docker"
+
+    @patch.dict("os.environ", {"UNIFAI_CONTAINER_RUNTIME": "sudo docker"})
+    @patch("devtool.adapters.container_base.subprocess.run")
+    def test_raises_when_env_var_command_fails(
+        self, mock_run: MagicMock,
+    ) -> None:
+        from devtool.adapters.container_base import detect_runtime
+
+        mock_run.return_value = MagicMock(returncode=1)
+
+        with pytest.raises(RuntimeError, match="UNIFAI_CONTAINER_RUNTIME"):
+            detect_runtime()
+
+    @patch.dict("os.environ", {}, clear=False)
+    @patch("devtool.adapters.container_base.shutil.which", return_value=None)
+    def test_error_message_mentions_env_var(
+        self, mock_which: MagicMock,
+    ) -> None:
+        from devtool.adapters.container_base import detect_runtime
+
+        # Remove the env var if present
+        import os
+        os.environ.pop("UNIFAI_CONTAINER_RUNTIME", None)
+
+        with pytest.raises(RuntimeError, match="UNIFAI_CONTAINER_RUNTIME"):
+            detect_runtime()
 
 
 class TestInfraComponentStopTimeout:

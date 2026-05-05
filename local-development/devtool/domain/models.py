@@ -37,13 +37,6 @@ class InfraComponent:
 
 
 @dataclass(frozen=True)
-class PatchSpec:
-    file: Path
-    find: str
-    replace: str
-
-
-@dataclass(frozen=True)
 class VenvConfig:
     strategy: VenvStrategy
     commands: list[str] = field(default_factory=list)
@@ -63,7 +56,6 @@ class Service:
     is_primary: bool = True
     env_file: str | None = None
     env_entries: dict[str, str] = field(default_factory=dict)
-    patches: list[PatchSpec] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

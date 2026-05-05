@@ -13,7 +13,7 @@ from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
 from devtool.ports.session_manager import SessionManager
 from devtool.ports.venv_manager import VenvManager
-from devtool.services import env_generator, patcher, python_detector
+from devtool.services import env_generator, python_detector
 
 SESSION_NAME = "unifai-dev"
 
@@ -101,19 +101,12 @@ class Orchestrator:
         self._auto_resolve_generated_keys()
         print()
 
-        # 4. Source patches
-        print("🔧 Applying source patches…")
-        modified = patcher.apply_all(self._registry, self._root)
-        if modified:
-            print(f"\n  Patched: {', '.join(modified)}")
-        print()
-
-        # 5. Verify venvs
+        # 4. Verify venvs
         for svc in services:
             if svc.is_primary and svc.type is ServiceType.PYTHON:
                 self._venv.verify(svc, python_minor, self._root)
 
-        # 6. Kill ports
+        # 5. Kill ports
         for svc in services:
             if svc.port:
                 self._kill_port(svc.port)
@@ -373,23 +366,6 @@ class Orchestrator:
         svc = self._registry.get_service(service_name)
         env_generator.show(svc, self._root)
 
-    # -- patch subcommand ----------------------------------------------------
-
-    def patch_apply(self) -> None:
-        print("🔧 Applying source patches…")
-        modified = patcher.apply_all(self._registry, self._root)
-        if modified:
-            print(f"\nPatched: {', '.join(modified)}")
-            print("\n💡 Tip: run 'unifai-dev patch revert' to undo these patches.")
-
-    def patch_revert(self) -> None:
-        print("↩ Reverting source patches…")
-        modified = patcher.revert_all(self._registry, self._root)
-        if modified:
-            print(f"\nReverted: {', '.join(modified)}")
-        else:
-            print("\nNothing to revert — all files are already clean.")
-
     # -- logs ----------------------------------------------------------------
 
     def logs(self, service_name: str, *, follow: bool = False) -> None:
@@ -485,7 +461,7 @@ class Orchestrator:
         print("🚀 UnifAI first-time setup\n")
 
         # 1. Prerequisites
-        print("1/6  Checking prerequisites…")
+        print("1/5  Checking prerequisites…")
         try:
             python, python_minor = self._detect_python()
             print(f"  ✔ Python: {python} ({python_minor})")
@@ -502,12 +478,12 @@ class Orchestrator:
         print()
 
         # 2. Infrastructure
-        print("2/6  Starting infrastructure…")
+        print("2/5  Starting infrastructure…")
         self.infra_start()
         print()
 
         # 3. Venvs
-        print("3/6  Setting up virtual environments…")
+        print("3/5  Setting up virtual environments…")
         existing_venvs = [
             svc for svc in self._registry.primary_services()
             if self._venv.exists(svc, self._root)
@@ -525,7 +501,7 @@ class Orchestrator:
         print()
 
         # 4. Env generation
-        print("4/6  Generating .env files…")
+        print("4/5  Generating .env files…")
         existing_envs = [
             svc for svc in self._registry.all_services()
             if svc.env_file
@@ -546,14 +522,9 @@ class Orchestrator:
         print()
 
         # 5. Auto-generate and placeholder prompts
-        print("5/6  Resolving auto-generated and placeholder values…")
+        print("5/5  Resolving auto-generated and placeholder values…")
         self._resolve_auto_generate_keys(non_interactive=non_interactive)
         self._resolve_placeholders(non_interactive=non_interactive)
-        print()
-
-        # 6. Patches
-        print("6/6  Applying source patches…")
-        self.patch_apply()
         print()
 
         print("╔══════════════════════════════════════════════════════════════╗")

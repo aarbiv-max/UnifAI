@@ -41,13 +41,6 @@ env_app = typer.Typer(
 )
 app.add_typer(env_app)
 
-patch_app = typer.Typer(
-    name="patch",
-    help="Manage source-file patches",
-    no_args_is_help=True,
-)
-app.add_typer(patch_app)
-
 
 # -- Helpers (unchanged) -----------------------------------------------------
 
@@ -341,17 +334,3 @@ def env_show(
     orch.env_show(service)
 
 
-# -- patch subcommands -------------------------------------------------------
-
-@patch_app.command("apply")
-def patch_apply():
-    """Apply patches to source files."""
-    orch = _create_orchestrator()
-    orch.patch_apply()
-
-
-@patch_app.command("revert")
-def patch_revert():
-    """Revert previously applied patches."""
-    orch = _create_orchestrator()
-    orch.patch_revert()
