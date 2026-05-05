@@ -207,6 +207,7 @@ class Orchestrator:
     def infra_start(
         self, targets: list[str] | None = None, *, for_service: str | None = None,
     ) -> None:
+        self._registry.log_dir.mkdir(parents=True, exist_ok=True)
         self._runtime.set_log_file(self._registry.log_dir / "infra.log")
         print(f"Using container runtime: {self._runtime.runtime_name}\n")
 
