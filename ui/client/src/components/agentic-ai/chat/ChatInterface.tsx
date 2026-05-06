@@ -43,6 +43,7 @@ import {
 interface BackendMessage {
   content: string;
   role: "user" | "assistant";
+  file_attachments?: Array<{ file_name: string; mime_type?: string; file_uri?: string }>;
 }
 
 interface ChatInterfaceProps {
@@ -195,9 +196,11 @@ export default function ChatInterface({
         id: `${Date.now()}-${index}`,
         content: msg.content,
         sender: msg.role === "user" ? "user" : "ai",
-        // For AI messages, we might want to add finalAnswer if it's the last assistant message
         ...(msg.role === "assistant" && {
           finalAnswer: msg.content,
+        }),
+        ...(msg.role === "user" && msg.file_attachments && msg.file_attachments.length > 0 && {
+          fileNames: msg.file_attachments.map(f => f.file_name),
         }),
       }));
     },
@@ -674,14 +677,11 @@ export default function ChatInterface({
       return;
     }
 
-    // Add user message (include file names if attached)
-    const fileNote = attachedFiles.length > 0
-      ? `\n\n📎 ${attachedFiles.map(f => f.name).join(', ')}`
-      : '';
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: messageContent + fileNote,
+      content: messageContent,
       sender: "user",
+      fileNames: attachedFiles.length > 0 ? attachedFiles.map(f => f.name) : undefined,
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -1008,7 +1008,22 @@ export default function ChatInterface({
 
     if (message.sender === "user") {
       return (
-        <div className="text-sm whitespace-pre-line">{message.content}</div>
+        <div className="text-sm">
+          <div className="whitespace-pre-line">{message.content}</div>
+          {message.fileNames && message.fileNames.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {message.fileNames.map((name, idx) => (
+                <div
+                  key={`${name}-${idx}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/10 rounded text-xs text-white/80"
+                >
+                  <FileText className="h-3 w-3" />
+                  <span>{name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       );
     }
 
@@ -1239,7 +1254,7 @@ export default function ChatInterface({
 
           {/* Input area */}
           <div className="flex space-x-2 items-end">
-            {/* Attachment button */}
+            {/* Hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -1248,19 +1263,8 @@ export default function ChatInterface({
               onChange={handleFileSelect}
               className="hidden"
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || attachedFiles.length >= MAX_FILES}
-              className="text-gray-400 hover:text-gray-200 hover:bg-gray-800 mb-0"
-              title="Attach file (PDF, CSV, TXT, HTML, Markdown)"
-              type="button"
-            >
-              <Paperclip className="h-4 w-4" />
-            </Button>
 
-            {/* Textarea container with expand/collapse icon */}
+            {/* Textarea container with paperclip inside */}
             <div className="relative flex-1">
               <Textarea
                 ref={textareaRef}
@@ -1268,7 +1272,7 @@ export default function ChatInterface({
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={getInputPlaceholder()}
-                className={`bg-background-dark resize-none transition-[height] duration-200 ease-out w-full ${
+                className={`bg-background-dark resize-none transition-[height] duration-200 ease-out w-full pl-10 ${
                   (!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint) 
                     ? 'opacity-50 cursor-not-allowed' 
                     : ''
@@ -1277,6 +1281,16 @@ export default function ChatInterface({
                 rows={1}
                 disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
               />
+              {/* Paperclip button inside textarea, bottom-left */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || attachedFiles.length >= MAX_FILES}
+                className="absolute bottom-2.5 left-2.5 p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Attach file (PDF, CSV, TXT, HTML, Markdown)"
+                type="button"
+              >
+                <Paperclip className="h-4 w-4" />
+              </button>
               {/* Expand/Collapse icon - shows when textarea is at max height or expanded */}
               <AnimatePresence>
                 {(isAtMaxHeight || isExpanded) && (

@@ -4,7 +4,8 @@ export interface Message {
   sender: 'user' | 'ai';
   finalAnswer?: string;
   streamLogs?: StreamLogEntry[];
-  workPlans?: WorkPlanSnapshot[]; // Add support for workplans
+  workPlans?: WorkPlanSnapshot[];
+  fileNames?: string[];
 }
 
 export interface StreamLogEntry {
