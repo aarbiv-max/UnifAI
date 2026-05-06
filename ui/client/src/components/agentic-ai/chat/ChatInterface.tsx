@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, Trash2, Loader2, Sparkles, Info, Copy, RotateCcw,
   ThumbsUp, ThumbsDown, Check, Columns3, MessageSquare, Network,
-  Maximize2, Minimize2, Download, FileText, FileJson,
+  Maximize2, Minimize2, Download, FileText, FileJson, Paperclip, X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -92,6 +92,8 @@ export default function ChatInterface({
   const { toast } = useToast();
   const [userPromptsMap, setUserPromptsMap] = useState<Record<string, string>>({});
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ────────────────────────────────────────────────────────────────────────────────
   // Auto-expanding textarea configuration
@@ -622,9 +624,45 @@ export default function ChatInterface({
   // User interaction → Can expand/collapse individual node logs
   // Completion → Final answer appears and streaming stops
   // Cleanup → All intervals are properly cleared
+  // ── File attachment handlers ──────────────────────────────────────────
+  const ALLOWED_FILE_TYPES = [
+    "application/pdf", "text/csv", "text/plain", "text/html", "text/markdown",
+  ];
+  const MAX_FILES = 3;
+  const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    if (!selectedFiles.length) return;
+
+    const totalFiles = attachedFiles.length + selectedFiles.length;
+    if (totalFiles > MAX_FILES) {
+      toast({ title: "Too many files", description: `Maximum ${MAX_FILES} files allowed.`, variant: "destructive" });
+      return;
+    }
+
+    for (const file of selectedFiles) {
+      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+        toast({ title: "Unsupported file type", description: `"${file.name}" is not a supported file type. Allowed: PDF, CSV, TXT, HTML, Markdown.`, variant: "destructive" });
+        return;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        toast({ title: "File too large", description: `"${file.name}" exceeds the 20MB limit.`, variant: "destructive" });
+        return;
+      }
+    }
+
+    setAttachedFiles((prev) => [...prev, ...selectedFiles]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [attachedFiles, toast]);
+
+  const removeFile = useCallback((index: number) => {
+    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   const handleSendMessage = async (messageToSend?: string) => {
     const messageContent = messageToSend || inputMessage;
-    if (messageContent.trim() === "") return;
+    if (messageContent.trim() === "" && attachedFiles.length === 0) return;
 
     // Check if flow is loaded (runId should not be empty or null)
     if (!runId || runId.trim() === "") {
@@ -636,10 +674,13 @@ export default function ChatInterface({
       return;
     }
 
-    // Add user message
+    // Add user message (include file names if attached)
+    const fileNote = attachedFiles.length > 0
+      ? `\n\n📎 ${attachedFiles.map(f => f.name).join(', ')}`
+      : '';
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: messageContent,
+      content: messageContent + fileNote,
       sender: "user",
     };
 
@@ -683,7 +724,9 @@ export default function ChatInterface({
         inputs: { user_prompt: messageContent },
         scope: "public",
         loggedInUser: "default",
+        files: attachedFiles.length > 0 ? attachedFiles : undefined,
       };
+      setAttachedFiles([]);
 
       const response = await triggerExecution(sessionPayload);
 
@@ -1172,8 +1215,51 @@ export default function ChatInterface({
             <WorkflowStatusBanner {...WorkflowBannerMessages.validating} />
           )}
           
+          {/* File attachment chips */}
+          {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {attachedFiles.map((file, idx) => (
+                <div
+                  key={`${file.name}-${idx}`}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-background-surface border border-gray-700 rounded-md text-xs text-gray-300"
+                >
+                  <FileText className="h-3 w-3 text-gray-400" />
+                  <span className="max-w-[140px] truncate">{file.name}</span>
+                  <button
+                    onClick={() => removeFile(idx)}
+                    className="ml-0.5 p-0.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+                    type="button"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Input area */}
           <div className="flex space-x-2 items-end">
+            {/* Attachment button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.csv,.txt,.html,.md,application/pdf,text/csv,text/plain,text/html,text/markdown"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint || attachedFiles.length >= MAX_FILES}
+              className="text-gray-400 hover:text-gray-200 hover:bg-gray-800 mb-0"
+              title="Attach file (PDF, CSV, TXT, HTML, Markdown)"
+              type="button"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
+
             {/* Textarea container with expand/collapse icon */}
             <div className="relative flex-1">
               <Textarea
@@ -1222,7 +1308,7 @@ export default function ChatInterface({
             >
               <Button
                 onClick={() => handleSendMessage()}
-                disabled={inputMessage.trim() === "" || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
+                disabled={(inputMessage.trim() === "" && attachedFiles.length === 0) || isTyping || !blueprintExists || isSharingDisabled || !blueprintValid || isValidatingBlueprint}
                 className="bg-primary hover:bg-[#7525c9] mb-0"
               >
                 <Send className="h-4 w-4" />

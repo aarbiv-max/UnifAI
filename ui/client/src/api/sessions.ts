@@ -19,6 +19,7 @@ export interface SubmitSessionParams {
   inputs: Record<string, any>;
   scope?: 'public' | 'private';
   loggedInUser?: string;
+  files?: File[];
 }
 
 /**
@@ -41,7 +42,19 @@ export interface SubmitSessionResponse {
  * @throws Error if submission fails (400, 500)
  */
 export async function submitSession(params: SubmitSessionParams): Promise<SubmitSessionResponse> {
-  const response = await axios.post('/sessions/user.session.submit', params);
+  const { files, ...jsonPayload } = params;
+
+  if (files && files.length > 0) {
+    const formData = new FormData();
+    formData.append('payload', JSON.stringify(jsonPayload));
+    files.forEach((file) => formData.append('files', file));
+    const response = await axios.post('/sessions/user.session.submit', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  const response = await axios.post('/sessions/user.session.submit', jsonPayload);
   return response.data;
 }
 

@@ -48,6 +48,7 @@ export type SessionPayload = {
   inputs: { user_prompt: string };
   scope?: 'public' | 'private';
   loggedInUser?: string;
+  files?: File[];
 };
 
 type ExecutionTabProps = {
@@ -720,6 +721,7 @@ export default function ExecutionTab({
         inputs: sessionPayload.inputs,
         scope: sessionPayload.scope || globalScope,
         loggedInUser: sessionPayload.loggedInUser || user?.username || "default",
+        files: sessionPayload.files,
       });
 
       // Wait for streaming to complete (resolved by onStreamEnd callback)

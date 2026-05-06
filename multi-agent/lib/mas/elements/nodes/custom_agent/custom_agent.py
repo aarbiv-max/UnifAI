@@ -12,7 +12,7 @@ from mas.elements.nodes.common.capabilities.llm_capable import LlmCapableMixin
 from mas.elements.nodes.common.capabilities.retriever_capable import RetrieverCapableMixin
 from mas.elements.nodes.common.capabilities.agent_capable import AgentCapableMixin
 from mas.elements.nodes.common.capabilities.workload_capable import WorkloadCapableMixin
-from mas.elements.nodes.common.workload import Task, AgentResult, WorkspaceContext
+from mas.elements.nodes.common.workload import Task, AgentResult
 from mas.elements.providers.mcp_server_client.mcp_provider import McpProvider
 from mas.elements.nodes.common.agent import AgentConfig
 from mas.elements.nodes.common.agent.execution import ExecutionMode
@@ -121,26 +121,42 @@ class CustomAgentNode(
         if self.retriever is not None:
             builtin_tools.append(RetrieverTool(self.retriever))
 
-        if self._file_retrieve_tool_factory and self._has_active_file_attachments():
+        if self._file_retrieve_tool_factory:
+            attachments_raw = []
             try:
-                builtin_tools.append(self._file_retrieve_tool_factory())
+                state = self.get_state()
+                attachments_raw = state.get(Channel.FILE_ATTACHMENTS, [])
             except Exception as e:
-                logger.warning("Failed to create file retrieve tool: %s", e)
+                logger.warning("Error checking file attachments: %s", e)
+            if self._has_active_file_attachments(attachments_raw):
+                try:
+                    att_dicts = [
+                        a.model_dump() if hasattr(a, "model_dump") else a
+                        for a in attachments_raw
+                    ]
+                    builtin_tools.append(self._file_retrieve_tool_factory(attachments=att_dicts))
+                    logger.info("Injected read_attached_file tool with %d attachments", len(att_dicts))
+                except Exception as e:
+                    logger.warning("Failed to create file retrieve tool: %s", e)
 
         return builtin_tools
 
-    def _has_active_file_attachments(self) -> bool:
-        """Check if any non-expired file attachments exist in state."""
-        state = self.get_state()
-        attachments = state.get(Channel.FILE_ATTACHMENTS, [])
+    def _has_active_file_attachments(self, attachments: list) -> bool:
+        """Check if any non-expired file attachments exist."""
         if not attachments:
             return False
         now = datetime.now(timezone.utc)
         ttl = timedelta(hours=48)
-        return any(
-            (now - datetime.fromisoformat(a.uploaded_at)) < ttl
-            for a in attachments
-        )
+        for a in attachments:
+            uploaded_at = a.uploaded_at if hasattr(a, "uploaded_at") else a.get("uploaded_at", "")
+            if not uploaded_at:
+                return True
+            try:
+                if (now - datetime.fromisoformat(uploaded_at)) < ttl:
+                    return True
+            except (ValueError, TypeError):
+                return True
+        return False
 
     # ========== TASK PROCESSING ==========
 
@@ -200,9 +216,9 @@ class CustomAgentNode(
         """
         Build conversation context:
         1. Get workspace conversation history
-        2. Add system message if configured
+        2. Inject workspace facts (file attachments, etc.)
         3. Add agent results context
-        4. Add current task with retriever context if available
+        4. Add current task as final user message
         """
         context_messages = []
 
@@ -221,15 +237,30 @@ class CustomAgentNode(
         ):
             context_messages.pop()
 
-        # 3. Add agent results context
+        # 3. Inject workspace facts so agent sees file attachments, etc.
+        facts_context = self._build_facts_context(task.thread_id)
+        if facts_context:
+            context_messages.append(facts_context)
+
+        # 4. Add agent results context
         agent_results_context = self._build_agent_results_context(task.thread_id)
         if agent_results_context:
             context_messages.append(agent_results_context)
 
-        # 4. User prompt is always last
+        # 5. User prompt is always last
         context_messages.append(ChatMessage(role=Role.USER, content=task.content))
 
         return context_messages
+
+    def _build_facts_context(self, thread_id: str) -> Optional[ChatMessage]:
+        """Inject workspace facts into conversation so agent sees file attachments."""
+        if not thread_id:
+            return None
+        facts = self.workspaces.get_facts(thread_id)
+        if not facts:
+            return None
+        facts_text = "WORKSPACE CONTEXT:\n" + "\n".join(f"- {fact}" for fact in facts)
+        return ChatMessage(role=Role.USER, content=facts_text)
 
     def _build_agent_results_context(self, thread_id: str) -> Optional[ChatMessage]:
         """Build agent results context from workspace."""
