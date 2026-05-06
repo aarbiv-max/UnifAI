@@ -1,6 +1,9 @@
-from typing import Optional, Any, List, ClassVar, Set, Dict
+import logging
+from datetime import datetime, timezone, timedelta
+from typing import Callable, Optional, Any, List, ClassVar, Set, Dict
 from copy import deepcopy
 from mas.graph.state.state_view import StateView
+from mas.graph.state.graph_state import Channel
 from mas.elements.llms.common.chat.message import ChatMessage, Role
 from mas.elements.tools.common.base_tool import BaseTool
 from mas.elements.nodes.common.base_node import BaseNode
@@ -17,6 +20,8 @@ from mas.elements.nodes.common.agent.constants import StrategyType
 from mas.elements.tools.common.execution.models import ExecutorConfig
 from mas.elements.tools.builtin.time import GetCurrentTimeTool
 from mas.elements.tools.builtin.retriever import RetrieverTool
+
+logger = logging.getLogger(__name__)
 
 
 class CustomAgentNode(
@@ -39,7 +44,7 @@ class CustomAgentNode(
     - Automatic builtin tools (time, etc.)
     """
 
-    READS: ClassVar[set[str]] = set()
+    READS: ClassVar[set[str]] = {Channel.FILE_ATTACHMENTS}
     WRITES: ClassVar[set[str]] = set()
 
     def __init__(
@@ -53,6 +58,7 @@ class CustomAgentNode(
             max_rounds: Optional[int] = 15,
             strategy_type: str = StrategyType.REACT.value,
             include_builtin_tools: bool = True,
+            file_retrieve_tool_factory: Optional[Callable] = None,
             **kwargs: Any
     ):
         super().__init__(
@@ -65,10 +71,10 @@ class CustomAgentNode(
         self.max_rounds = max_rounds
         self.strategy_type = strategy_type
 
-        # SOLID: Separate domain tools from builtin tools
-        self._domain_tools = tools or []  # Tools from configuration
+        self._domain_tools = tools or []
         self._include_builtin_tools = include_builtin_tools
-        self.tools = []  # Will be populated in run()
+        self._file_retrieve_tool_factory = file_retrieve_tool_factory
+        self.tools = []
 
     def run(self, state: StateView) -> StateView:
         """Main entry point - process all incoming TaskPackets."""
@@ -107,28 +113,34 @@ class CustomAgentNode(
         return all_tools
 
     def _create_builtin_tools(self) -> List[BaseTool]:
-        """
-        Create built-in tools with dependency injection.
-        
-        Pattern follows OrchestratorPhaseProvider design:
-        - Tools initialized with clean lambda dependencies
-        - No hard dependencies on node internals
-        - Easy to test and mock
-        
-        Returns:
-            List of initialized builtin tools
-        """
+        """Create built-in tools with dependency injection."""
         builtin_tools = []
 
-        # Time tool (no dependencies needed)
         builtin_tools.append(GetCurrentTimeTool())
 
-        # Retriever as tool (if available)
-        # Allows agent to decide when to retrieve context
         if self.retriever is not None:
             builtin_tools.append(RetrieverTool(self.retriever))
 
+        if self._file_retrieve_tool_factory and self._has_active_file_attachments():
+            try:
+                builtin_tools.append(self._file_retrieve_tool_factory())
+            except Exception as e:
+                logger.warning("Failed to create file retrieve tool: %s", e)
+
         return builtin_tools
+
+    def _has_active_file_attachments(self) -> bool:
+        """Check if any non-expired file attachments exist in state."""
+        state = self.get_state()
+        attachments = state.get(Channel.FILE_ATTACHMENTS, [])
+        if not attachments:
+            return False
+        now = datetime.now(timezone.utc)
+        ttl = timedelta(hours=48)
+        return any(
+            (now - datetime.fromisoformat(a.uploaded_at)) < ttl
+            for a in attachments
+        )
 
     # ========== TASK PROCESSING ==========
 

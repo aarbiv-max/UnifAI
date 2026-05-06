@@ -4,6 +4,7 @@ Session input projector — stages a user turn into the SessionRecord.
 Responsibility (SRP):
   • Map raw external inputs onto GraphState channels
   • Mirror user_prompt into the messages conversation history
+  • Upload attached files via the file upload port
   • Derive a human-readable title when missing
   • Transition status to QUEUED
   • Persist the staged record
@@ -12,11 +13,14 @@ This runs synchronously at the service boundary — BEFORE any
 execution engine (foreground or background) touches the record.
 After staging, the UI can immediately read messages from the DB.
 """
-from typing import Any, Dict
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
+from mas.elements.llms.common.chat.file_attachment import FileAttachment
 from mas.elements.llms.common.chat.message import ChatMessage, Role
 from mas.session.domain.session_record import SessionRecord
 from mas.session.domain.status import SessionStatus
+from mas.session.execution.ports import FileUploadRequest, IFileUploadService
 from mas.session.management.utils import derive_title
 from mas.session.repository.repository import SessionRepository
 
@@ -28,10 +32,25 @@ class SessionInputProjector:
     Stateless — all state lives in the SessionRecord and the repository.
     """
 
-    def __init__(self, repository: SessionRepository) -> None:
+    def __init__(
+        self,
+        repository: SessionRepository,
+        file_upload_service: Optional[IFileUploadService] = None,
+    ) -> None:
         self._repo = repository
+        self._file_upload = file_upload_service
 
-    def apply(self, record: SessionRecord, inputs: Dict[str, Any]) -> None:
+    @property
+    def supports_file_upload(self) -> bool:
+        """Whether a file upload service is configured."""
+        return self._file_upload is not None
+
+    def apply(
+        self,
+        record: SessionRecord,
+        inputs: Dict[str, Any],
+        files: Optional[List[FileUploadRequest]] = None,
+    ) -> None:
         """
         Project raw inputs onto the record's graph state, making the
         user turn immediately durable.
@@ -44,10 +63,30 @@ class SessionInputProjector:
 
         record.graph_state.update(inputs)
 
+        attachments: List[FileAttachment] = []
+        if files and self._file_upload:
+            results = self._file_upload.upload_batch(files)
+            now = datetime.now(timezone.utc).isoformat()
+            attachments = [
+                FileAttachment(
+                    file_name=r.file_name,
+                    mime_type=r.mime_type,
+                    file_uri=r.file_uri,
+                    size_bytes=r.size_bytes,
+                    uploaded_at=now,
+                )
+                for r in results
+            ]
+            record.graph_state.file_attachments = attachments
+
         prompt = (inputs.get("user_prompt") or "").strip()
         if prompt:
             record.graph_state.messages.append(
-                ChatMessage(role=Role.USER, content=prompt)
+                ChatMessage(
+                    role=Role.USER,
+                    content=prompt,
+                    file_attachments=attachments or None,
+                )
             )
 
         record.status = SessionStatus.QUEUED

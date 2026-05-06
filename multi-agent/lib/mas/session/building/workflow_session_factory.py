@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import Callable, Optional, TYPE_CHECKING
 
 from mas.catalog.element_registry import ElementRegistry
 from mas.session.building.element_builder import SessionElementBuilder
@@ -34,10 +34,12 @@ class WorkflowSessionFactory:
             element_registry: ElementRegistry,
             engine_name: str,
             auth_service: Optional[AuthService] = None,
+            file_retrieve_tool_factory: Optional[Callable] = None,
     ):
         self._elements = element_registry
         self._engine_name = engine_name
         self._auth_service = auth_service
+        self._file_retrieve_tool_factory = file_retrieve_tool_factory
         self._session_builder = SessionElementBuilder(element_registry)
 
     @property
@@ -59,6 +61,7 @@ class WorkflowSessionFactory:
         deps = ElementDeps(
             execution_ctx=holder,
             auth_service=self._auth_service,
+            file_retrieve_tool_factory=self._file_retrieve_tool_factory,
         )
         logical_plan = PlanBuilder(self._elements).build(blueprint_spec)
         registry = self._session_builder.build(blueprint_spec, deps=deps)

@@ -1,10 +1,11 @@
-from flask import Blueprint, jsonify, current_app, Response
+from flask import Blueprint, jsonify, current_app, Response, request
 from global_utils.helpers.apiargs import from_body, from_query
 from webargs import fields
 import json
 from pydantic.json import pydantic_encoder
 from mas.core.channels import with_heartbeats
 from mas.session.domain.exceptions import BlueprintNotFoundError
+from mas.session.execution.ports import FileUploadRequest, FileUploadError
 
 sessions_bp = Blueprint("sessions", __name__)
 
@@ -85,30 +86,86 @@ def execute_user_session(session_id, inputs, stream_mode, stream, scope, logged_
     #     return jsonify({"error": str(e)}), 500
 
 
+ALLOWED_MIME_TYPES = {
+    "application/pdf", "text/csv", "text/plain", "text/html", "text/markdown",
+}
+MAX_FILES = 3
+MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
+MIN_FILE_SIZE_BYTES = 1
+
+
 @sessions_bp.route("/user.session.submit", methods=["POST"])
-@from_body({
-    "session_id": fields.Str(data_key="sessionId", required=True),
-    "inputs": fields.Dict(data_key="inputs", required=True),
-    "scope": fields.Str(data_key="scope", load_default="public"),
-    "logged_in_user": fields.Str(data_key="loggedInUser", required=False, load_default=lambda: "")
-})
-def submit_user_session(session_id, inputs, scope, logged_in_user):
+def submit_user_session():
     """
     Fire-and-forget execute for Temporal-backed sessions.
-    Starts the Temporal workflow in the background and returns HTTP 202
-    immediately with the workflow_id – no blocking until completion.
-
-    Poll /session.status.get?sessionId=<id> for status updates.
+    Supports both application/json and multipart/form-data (for file attachments).
+    Returns HTTP 202 with the workflow_id.
     """
+    raw_files = None
+
+    if request.content_type and request.content_type.startswith("multipart/form-data"):
+        raw_payload = request.form.get("payload")
+        if not raw_payload:
+            return jsonify({"error": "Missing 'payload' form field"}), 400
+        try:
+            payload = json.loads(raw_payload)
+        except json.JSONDecodeError:
+            return jsonify({"error": "Invalid JSON in 'payload' field"}), 400
+
+        session_id = payload.get("sessionId")
+        inputs = payload.get("inputs", {})
+        scope = payload.get("scope", "public")
+
+        raw_files = request.files.getlist("files")
+        if len(raw_files) > MAX_FILES:
+            return jsonify({"error": f"Maximum {MAX_FILES} files allowed"}), 400
+        for f in raw_files:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(0)
+            if size < MIN_FILE_SIZE_BYTES:
+                return jsonify({"error": f"File '{f.filename}' is empty"}), 400
+            if size > MAX_FILE_SIZE_BYTES:
+                return jsonify({"error": f"File '{f.filename}' exceeds 20MB limit"}), 400
+            if f.content_type not in ALLOWED_MIME_TYPES:
+                return jsonify({"error": f"Unsupported file type: {f.content_type}"}), 400
+    else:
+        payload = request.get_json(silent=True) or {}
+        session_id = payload.get("sessionId")
+        inputs = payload.get("inputs", {})
+        scope = payload.get("scope", "public")
+
+    if not session_id or not isinstance(session_id, str):
+        return jsonify({"error": "sessionId must be a non-empty string"}), 400
+    if not isinstance(inputs, dict):
+        return jsonify({"error": "inputs must be a JSON object"}), 400
+
+    inputs.pop("file_attachments", None)
+
+    upload_requests = None
+    if raw_files:
+        upload_requests = [
+            FileUploadRequest(
+                file_name=f.filename,
+                file_bytes=f.read(),
+                mime_type=f.content_type,
+            )
+            for f in raw_files
+        ]
+
     try:
         svc = current_app.container.session_service
         workflow_id = svc.submit(
             session_id=session_id,
             inputs=inputs,
             scope=scope,
+            files=upload_requests,
         )
         return jsonify({"sessionId": session_id, "workflowId": workflow_id}), 202
-    except TypeError as e:
+    except FileUploadError as e:
+        status = 503 if e.retriable else 502
+        return jsonify({"error": str(e), "retriable": e.retriable}), status
+    except (TypeError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500

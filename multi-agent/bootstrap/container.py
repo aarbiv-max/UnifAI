@@ -208,11 +208,23 @@ class AppContainer(metaclass=SingletonMeta):
             auth_service=self.auth_service,
         ))
 
+        # ── File retrieve tool factory (if Gemini config present) ─────
+        file_retrieve_tool_factory = None
+        if cfg.gemini_file_api_key:
+            from adapters.outbound.gemini.file_retrieve_tool import GeminiFileRetrieveTool
+            _fr_api_key = cfg.gemini_file_api_key
+            _fr_model_name = cfg.gemini_file_model_name
+            file_retrieve_tool_factory = lambda: GeminiFileRetrieveTool(
+                api_key=_fr_api_key,
+                model_name=_fr_model_name,
+            )
+
         # ── Session factory ───────────────────────────────────────────
         self.session_factory = WorkflowSessionFactory(
             element_registry=self.element_registry,
             engine_name=cfg.engine_name,
             auth_service=self.auth_service,
+            file_retrieve_tool_factory=file_retrieve_tool_factory,
         )
         self.session_repo = MongoSessionRepository(
             mongodb_port=cfg.mongodb_port,
@@ -227,7 +239,17 @@ class AppContainer(metaclass=SingletonMeta):
         )
 
         self.session_lifecycle = SessionLifecycle(repository=self.session_repo)
-        self.input_projector = SessionInputProjector(repository=self.session_repo)
+
+        # ── File upload adapter (if Gemini config present) ────────────
+        file_upload_service = None
+        if cfg.gemini_file_api_key:
+            from adapters.outbound.gemini.file_upload_adapter import GeminiFileUploadAdapter
+            file_upload_service = GeminiFileUploadAdapter(api_key=cfg.gemini_file_api_key)
+
+        self.input_projector = SessionInputProjector(
+            repository=self.session_repo,
+            file_upload_service=file_upload_service,
+        )
 
         self.channel_factory = self._create_channel_factory(cfg)
 

@@ -13,13 +13,17 @@ class CustomAgentNodeFactory(BaseFactory[CustomAgentNodeConfig, CustomAgentNode]
     def accepts(self, cfg: CustomAgentNodeConfig, element_type: str) -> bool:
         return element_type == Identifier.TYPE
 
-    def create(self, cfg, **deps):
+    def create(self, cfg, **kwargs):
         try:
+            element_deps = kwargs.get("deps")
             return CustomAgentNode(
-                llm=deps.pop("llm"),
-                retriever=deps.pop("retriever"),
-                tools=deps.pop("tools"),
-                mcp_providers=deps.pop("providers"),
+                llm=kwargs.pop("llm"),
+                retriever=kwargs.pop("retriever"),
+                tools=kwargs.pop("tools"),
+                mcp_providers=kwargs.pop("providers"),
+                file_retrieve_tool_factory=(
+                    element_deps.file_retrieve_tool_factory if element_deps else None
+                ),
                 system_message=cfg.system_message,
                 strategy_type=cfg.strategy_type,
                 max_rounds=cfg.max_rounds,
