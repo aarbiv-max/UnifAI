@@ -34,6 +34,7 @@ class Registry:
         with open(yaml_path) as fh:
             raw = yaml.safe_load(fh)
 
+        self._local_auth: bool = bool(raw.get("local_auth", True))
         self._python_min, self._python_max = self._parse_python_bounds(raw)
         self._infra = self._parse_infra(raw.get("infrastructure", {}))
         self._services = self._parse_services(raw.get("services", {}))
@@ -122,6 +123,10 @@ class Registry:
 
     def python_bounds(self) -> tuple[tuple[int, int], tuple[int, int]]:
         return self._python_min, self._python_max
+
+    @property
+    def local_auth(self) -> bool:
+        return self._local_auth
 
     @property
     def log_dir(self) -> Path:

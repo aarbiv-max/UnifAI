@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { generateColorPalette } from '@/lib/colorUtils';
-import { FaBuilding } from 'react-icons/fa';
+import { api } from '@/http/authClient';
+import { FaBuilding, FaUserCog } from 'react-icons/fa';
 import { HiSparkles } from 'react-icons/hi';
 
 export default function Login() {
@@ -15,6 +16,13 @@ export default function Login() {
   const handleSSOLogin = () => {
     login();
   };
+  const [localAuth, setLocalAuth] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    api.get('/auth/config')
+      .then(res => setLocalAuth(res.data.local_auth))
+      .catch(() => setLocalAuth(false));
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
@@ -51,16 +59,38 @@ export default function Login() {
         </div>
 
         <div className="w-full">
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full h-12 border-0 bg-[#21262d] text-white shadow-none hover:bg-[#30363d]"
-            onClick={handleSSOLogin}
-            disabled={authLoading}
-          >
-            <FaBuilding className="mr-2 h-4 w-4 shrink-0 opacity-80" />
-            Login using SSO
-          </Button>
+          {localAuth === null ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full h-12 border-0 bg-[#21262d] text-white shadow-none"
+              disabled
+            >
+              Loading...
+            </Button>
+          ) : localAuth ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full h-12 border-0 bg-[#21262d] text-white shadow-none hover:bg-[#30363d]"
+              onClick={() => login()}
+              disabled={authLoading}
+            >
+              <FaUserCog className="mr-2 h-4 w-4 shrink-0 opacity-80" />
+              Login as Dev User
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full h-12 border-0 bg-[#21262d] text-white shadow-none hover:bg-[#30363d]"
+              onClick={() => login()}
+              disabled={authLoading}
+            >
+              <FaBuilding className="mr-2 h-4 w-4 shrink-0 opacity-80" />
+              Login using SSO
+            </Button>
+          )}
         </div>
       </motion.div>
     </div>

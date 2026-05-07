@@ -545,12 +545,14 @@ class TestInit:
 # _replace_placeholder
 # ---------------------------------------------------------------------------
 
+from devtool.services.env_generator import replace_env_value
+
 class TestReplacePlaceholder:
     def test_replaces_placeholder_value(self, tmp_path) -> None:
         env_file = tmp_path / ".env"
         env_file.write_text("key1=value1\nclient_id=<REPLACE>\nkey2=value2\n")
 
-        Orchestrator._replace_placeholder(env_file, "client_id", "my-secret")
+        replace_env_value(env_file, "client_id", "my-secret")
 
         content = env_file.read_text()
         assert "client_id=my-secret" in content
@@ -562,7 +564,7 @@ class TestReplacePlaceholder:
         env_file = tmp_path / ".env"
         env_file.write_text("a=1\nb=2\nc=3\n")
 
-        Orchestrator._replace_placeholder(env_file, "b", "new")
+        replace_env_value(env_file, "b", "new")
 
         lines = env_file.read_text().splitlines()
         assert lines == ["a=1", "b=new", "c=3"]

@@ -55,6 +55,12 @@ class AuthManager:
         self._setup_session_configuration(app)
 
     def _setup_keycloak(self):
+        if config.local_auth_enabled:
+            from utils.dev_oauth_client import DevOAuthClient
+            self.keycloak_client = DevOAuthClient()
+            logger.info("Local auth mode -- using DevOAuthClient (Keycloak bypassed)")
+            return
+
         keycloak_base_url = config.keycloak_base_url
         client_id = config.client_id
         client_secret = config.client_secret
@@ -331,7 +337,12 @@ class AuthManager:
                 return jsonify({'message': 'Token refreshed successfully'})
             else:
                 return jsonify({'error': 'Failed to refresh token'}), 401
-    
+
+        @self.app.route('/api/auth/config')
+        def auth_config():
+            """Return auth configuration for the login page."""
+            return jsonify({'local_auth': config.local_auth_enabled})
+
     def is_authenticated(self):
         """Check if user is authenticated and session is valid"""
         session_data = self._get_server_session()

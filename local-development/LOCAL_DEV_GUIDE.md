@@ -103,7 +103,7 @@ All service definitions, infrastructure containers, port assignments, and servic
 
 ### Required
 
-- **Red Hat SSO connection** — you must be connected to the Red Hat SSO (VPN / internal network) for authentication to work
+
 - **Python 3.11 – 3.13** (3.11 or 3.12 recommended; 3.14+ is **not** supported because PyO3's maximum supported version is 3.13)
 - **pipx** — used to install the `unifai-dev` CLI in an isolated environment. If you don't have it:
 
@@ -163,31 +163,20 @@ pipx install -e local-development/ --force
 > [!TIP]
 > Because the install is **editable** (`-e`), code changes in `local-development/devtool/` take effect immediately — no reinstall needed. You only need `--force` when the package metadata itself changes (new dependencies, entry points, etc.).
 
-### SSO Client Credentials *(Required)*
+### Local Auth Mode
 
-The Identity service requires a `client_id` and `client_secret` for Keycloak authentication.
+By default, `services.yaml` has `local_auth: true`. This means:
 
-1. **Request credentials** from the team — we will provide the values. (See Slack channel #forum-unifai)
-2. **Run `unifai-dev init`** — during first-time setup, the CLI generates `.env` files and **prompts you interactively** for `client_id` and `client_secret`. Just paste the values when asked.
+- **No SSO credentials needed** — the env generator skips Keycloak placeholder keys (`keycloak_base_url`, `client_id`, `client_secret`, `keycloak_realm`) for the identity service and writes `local_auth_enabled=true` instead.
+- **No Red Hat SSO / VPN required** — the identity service runs with a `DevOAuthClient` that returns hardcoded dev-user responses.
+- **Login page shows "Login as Dev User"** — click the button and you are instantly logged in as `dev-user` with a full session.
 
-That's it — your credentials are written to `shared-resources/identity/.env` (gitignored) and preserved across restarts.
+To use real Keycloak SSO instead:
 
-> [!TIP]
-> **Manual alternative** — if you skipped `init` or ran with `--non-interactive`, fill in the placeholders yourself:
->
-> ```bash
-> unifai-dev env generate          # create .env files (if not already generated)
-> ```
->
-> Then edit `shared-resources/identity/.env` and replace the placeholders:
->
-> ```
-> client_id=<your-client-id>
-> client_secret=<your-client-secret>
-> ```
-
-> [!NOTE]
-> The env generator **never overwrites** existing `.env` files — your credentials are safe across restarts. To regenerate from scratch (e.g. after a config change), use `unifai-dev env generate --force` and then re-enter the SSO credentials.
+1. Set `local_auth: false` in `services.yaml`.
+2. Run `unifai-dev env generate --force` to regenerate `.env` files with Keycloak placeholders.
+3. Fill in `client_id` and `client_secret` in `shared-resources/identity/.env`.
+4. The login page will show "Login using SSO" (the dev button is hidden).
 
 ### Flask Secret Key *(Auto-Generated)*
 

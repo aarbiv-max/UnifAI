@@ -71,6 +71,104 @@ def yaml_path(tmp_path: Path) -> Path:
     return p
 
 
+class TestLocalAuth:
+    def test_local_auth_default_true(self, yaml_path: Path) -> None:
+        reg = Registry(yaml_path)
+        assert reg.local_auth is True
+
+    def test_local_auth_explicit_false(self, tmp_path: Path) -> None:
+        content = textwrap.dedent("""\
+            local_auth: false
+
+            python:
+              min: "3.11"
+              max: "3.13"
+
+            infrastructure: {}
+
+            services:
+              backend:
+                directory: "backend"
+                port: 8005
+                type: python
+                infrastructure: []
+                venv:
+                  strategy: "none"
+                launch: "echo ok"
+
+            groups:
+              all: [backend]
+        """)
+        p = tmp_path / "services_la_false.yaml"
+        p.write_text(content)
+        reg = Registry(p)
+        assert reg.local_auth is False
+
+    def test_local_auth_explicit_true(self, tmp_path: Path) -> None:
+        content = textwrap.dedent("""\
+            local_auth: true
+
+            python:
+              min: "3.11"
+              max: "3.13"
+
+            infrastructure: {}
+
+            services:
+              backend:
+                directory: "backend"
+                port: 8005
+                type: python
+                infrastructure: []
+                venv:
+                  strategy: "none"
+                launch: "echo ok"
+
+            groups:
+              all: [backend]
+        """)
+        p = tmp_path / "services_la_true.yaml"
+        p.write_text(content)
+        reg = Registry(p)
+        assert reg.local_auth is True
+
+    def test_local_auth_does_not_modify_env_entries(self, tmp_path: Path) -> None:
+        content = textwrap.dedent("""\
+            local_auth: true
+
+            python:
+              min: "3.11"
+              max: "3.13"
+
+            infrastructure: {}
+
+            services:
+              identity:
+                directory: "shared-resources/identity"
+                port: 13456
+                type: python
+                infrastructure: []
+                env_file: ".env"
+                env_entries:
+                  keycloak_base_url: "https://keycloak.test"
+                  client_id: "<REPLACE>"
+                  client_secret: "<REPLACE>"
+                venv:
+                  strategy: "none"
+                launch: "echo ok"
+
+            groups:
+              all: [identity]
+        """)
+        p = tmp_path / "services_la_entries.yaml"
+        p.write_text(content)
+        reg = Registry(p)
+        svc = reg.get_service("identity")
+        assert "keycloak_base_url" in svc.env_entries
+        assert "client_id" in svc.env_entries
+        assert "client_secret" in svc.env_entries
+
+
 class TestRegistryLoading:
     def test_loads_services(self, yaml_path: Path) -> None:
         reg = Registry(yaml_path)

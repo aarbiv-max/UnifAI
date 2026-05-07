@@ -14,6 +14,7 @@ _PLACEHOLDER_RE = re.compile(r"<REPLACE", re.IGNORECASE)
 _AUTOGEN_RE = re.compile(r"<AUTO_GENERATE", re.IGNORECASE)
 
 _SECRET_KEY_FILE = "local-development/.dev-secret-key"
+_KEYCLOAK_KEYS = {"keycloak_base_url", "client_id", "client_secret", "keycloak_realm"}
 
 
 def is_auto_generate(value: str) -> bool:
@@ -38,8 +39,14 @@ def get_or_create_shared_secret(root: Path) -> str:
     return key
 
 
-def generate(service: Service, root: Path, *, force: bool = False) -> bool:
+def generate(
+    service: Service, root: Path, *, force: bool = False, local_auth: bool = False,
+) -> bool:
     """Write the .env file for *service*.
+
+    When *local_auth* is true and the service is ``identity``, Keycloak
+    placeholder keys are omitted and ``local_auth_enabled=true`` is written
+    instead.
 
     Returns True if the file was written, False if skipped.
     """
@@ -50,9 +57,17 @@ def generate(service: Service, root: Path, *, force: bool = False) -> bool:
     if env_path.exists() and not force:
         return False
 
+    is_identity_local = local_auth and service.name == "identity"
+
     lines = [_ENV_HEADER]
     for key, value in service.env_entries.items():
+        if is_identity_local and key in _KEYCLOAK_KEYS:
+            continue
         lines.append(f"{key}={value}\n")
+
+    if is_identity_local:
+        lines.append("local_auth_enabled=true\n")
+
     env_path.write_text("".join(lines))
     return True
 
@@ -183,7 +198,7 @@ def generate_all(
         if not svc.env_entries or not svc.env_file:
             continue
         rel = str(svc.directory / svc.env_file)
-        if generate(svc, root, force=force):
+        if generate(svc, root, force=force, local_auth=registry.local_auth):
             print(f"  ✔ Generated {rel}")
             generated.append(rel)
         else:

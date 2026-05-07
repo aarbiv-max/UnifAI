@@ -75,6 +75,75 @@ class TestGenerate:
         assert generate(svc, tmp_path) is False
 
 
+class TestGenerateLocalAuth:
+    def test_identity_local_auth_skips_keycloak_keys(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        svc = _make_service(
+            name="identity",
+            env_entries={
+                "keycloak_base_url": "https://keycloak.test",
+                "client_id": "<REPLACE>",
+                "client_secret": "<REPLACE>",
+                "keycloak_realm": "master",
+                "hostname_local": "127.0.0.1",
+                "port": "13456",
+            },
+        )
+
+        result = generate(svc, tmp_path, local_auth=True)
+
+        assert result is True
+        content = (svc_dir / ".env").read_text()
+        assert "keycloak_base_url" not in content
+        assert "client_id" not in content
+        assert "client_secret" not in content
+        assert "keycloak_realm" not in content
+        assert "hostname_local=127.0.0.1\n" in content
+        assert "port=13456\n" in content
+        assert "local_auth_enabled=true\n" in content
+
+    def test_identity_no_local_auth_writes_all_keys(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        svc = _make_service(
+            name="identity",
+            env_entries={
+                "keycloak_base_url": "https://keycloak.test",
+                "client_id": "<REPLACE>",
+                "hostname_local": "127.0.0.1",
+            },
+        )
+
+        result = generate(svc, tmp_path, local_auth=False)
+
+        assert result is True
+        content = (svc_dir / ".env").read_text()
+        assert "keycloak_base_url=https://keycloak.test\n" in content
+        assert "client_id=<REPLACE>\n" in content
+        assert "hostname_local=127.0.0.1\n" in content
+        assert "local_auth_enabled" not in content
+
+    def test_non_identity_unaffected_by_local_auth(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        svc = _make_service(
+            name="backend",
+            env_entries={
+                "client_id": "some-value",
+                "hostname_local": "127.0.0.1",
+            },
+        )
+
+        result = generate(svc, tmp_path, local_auth=True)
+
+        assert result is True
+        content = (svc_dir / ".env").read_text()
+        assert "client_id=some-value\n" in content
+        assert "hostname_local=127.0.0.1\n" in content
+        assert "local_auth_enabled" not in content
+
+
 class TestCheckPlaceholders:
     def test_no_placeholders_in_template(self, tmp_path: Path) -> None:
         svc_dir = tmp_path / "svc"
