@@ -158,8 +158,8 @@ class DelegateTaskTool(BaseTool):
                 objective=args.content,
                 initiator=owner_uid
             )
-            # Propagate file attachment facts from parent to child thread
-            self._propagate_file_facts(current_thread.thread_id, child_thread.thread_id)
+            # Propagate file attachments variable from parent to child thread
+            self._propagate_file_attachments(current_thread.thread_id, child_thread.thread_id)
         
         # Create task with child thread context
         task = Task.create(
@@ -258,14 +258,13 @@ class DelegateTaskTool(BaseTool):
     
     # ========== HELPER METHODS ==========
     
-    def _propagate_file_facts(self, parent_thread_id: str, child_thread_id: str) -> None:
-        """Copy file attachment facts from parent workspace to child workspace."""
+    def _propagate_file_attachments(self, parent_thread_id: str, child_thread_id: str) -> None:
+        """Copy file_attachments variable from parent workspace to child workspace."""
         try:
             workspace_service = self._get_workspace_service()
-            parent_facts = workspace_service.get_facts(parent_thread_id)
-            for fact in parent_facts:
-                if fact.startswith("Attached file:"):
-                    workspace_service.add_fact(child_thread_id, fact)
+            attachments = workspace_service.get_variable(parent_thread_id, "file_attachments", [])
+            if attachments:
+                workspace_service.set_variable(child_thread_id, "file_attachments", attachments)
         except Exception:
             pass
 

@@ -127,14 +127,9 @@ class UserQuestionNode(WorkloadCapableMixin, IEMCapableMixin, BaseNode):
         self.workspaces.set_variable(thread.thread_id, "workflow_type", "user_query_processing")
         self.workspaces.set_variable(thread.thread_id, "initiator", self.uid)
 
-        # Propagate file attachment references into workspace
+        # Store file attachments as structured workspace variable
         attachments = state.get(Channel.FILE_ATTACHMENTS, [])
         if attachments:
-            for att in attachments:
-                self.workspaces.add_fact(
-                    thread.thread_id,
-                    f"Attached file: {att.file_name} ({att.mime_type}) -> {att.file_uri}",
-                )
             self.workspaces.set_variable(
                 thread.thread_id, "file_attachments", [a.model_dump() for a in attachments]
             )

@@ -345,6 +345,12 @@ class OrchestratorContext(BaseModel):
     # Current state (from existing PhaseState)
     phase_state: Any = Field(None, description="PhaseState from existing system")
     
+    # Attached files from user (structured data from workspace variable)
+    file_attachments: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Attached files from user for delegation to agents"
+    )
+    
     def format_context(self, work_plan_snapshot: str) -> str:
         """
         Format complete context including work plan in single message.
@@ -366,6 +372,19 @@ class OrchestratorContext(BaseModel):
             "🎯 WHY THIS CYCLE:",
             self.trigger.to_summary(),
             "",
+        ]
+
+        if self.file_attachments:
+            sections.append(
+                "📎 FILE ATTACHMENTS (MUST instruct agents to read these via read_attached_file tool):"
+            )
+            for att in self.file_attachments:
+                sections.append(
+                    f"  - {att['file_name']} ({att['mime_type']}) -> {att['file_uri']}"
+                )
+            sections.append("")
+
+        sections.extend([
             "🏥 WORK PLAN HEALTH:",
             self.health.to_summary(),
             "",
@@ -378,7 +397,7 @@ class OrchestratorContext(BaseModel):
             work_plan_snapshot,
             "",
             "="*80
-        ]
+        ])
         
         return "\n".join(sections)
 

@@ -253,14 +253,29 @@ class CustomAgentNode(
         return context_messages
 
     def _build_facts_context(self, thread_id: str) -> Optional[ChatMessage]:
-        """Inject workspace facts into conversation so agent sees file attachments."""
+        """Inject workspace facts and file attachments into conversation."""
         if not thread_id:
             return None
-        facts = self.workspaces.get_facts(thread_id)
-        if not facts:
+
+        file_attachments = self.workspaces.get_variable(thread_id, "file_attachments", []) or []
+        facts = self.workspaces.get_facts(thread_id) or []
+
+        parts: List[str] = []
+        if file_attachments:
+            file_lines = [
+                f"- {att['file_name']} ({att['mime_type']}) -> {att['file_uri']}"
+                for att in file_attachments
+            ]
+            parts.append(
+                "ATTACHED FILES (use the read_attached_file tool to access these before proceeding):\n"
+                + "\n".join(file_lines)
+            )
+        if facts:
+            parts.append("WORKSPACE CONTEXT:\n" + "\n".join(f"- {f}" for f in facts))
+
+        if not parts:
             return None
-        facts_text = "WORKSPACE CONTEXT:\n" + "\n".join(f"- {fact}" for fact in facts)
-        return ChatMessage(role=Role.USER, content=facts_text)
+        return ChatMessage(role=Role.USER, content="\n\n".join(parts))
 
     def _build_agent_results_context(self, thread_id: str) -> Optional[ChatMessage]:
         """Build agent results context from workspace."""

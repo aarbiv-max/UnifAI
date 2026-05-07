@@ -93,12 +93,18 @@ class OrchestratorContextBuilder:
         # Get current history
         history = self._history
         
+        # Read file attachments from workspace variable
+        file_attachments = workspace_service.get_variable(
+            self._thread_id, "file_attachments", []
+        ) or []
+        
         # Compose final context
         return OrchestratorContext(
             trigger=trigger,
             health=health,
             history=history,
-            phase_state=phase_state
+            phase_state=phase_state,
+            file_attachments=file_attachments,
         )
     
     def record_phase_transition(
