@@ -30,4 +30,4 @@ class ChatMessage(BaseModel):
     additional_kwargs: Optional[Dict[str, Any]] = None
     file_attachments: Optional[List[FileAttachment]] = None
 
-    model_config = ConfigDict(frozen=True, extra="ignore")
+    model_config = ConfigDict(frozen=True)

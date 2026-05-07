@@ -10,6 +10,8 @@ from typing import Optional, List, Dict, Any, Set
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 
+from mas.elements.llms.common.chat.file_attachment import get_attachment_field
+
 
 class CycleTriggerReason(Enum):
     """Why an orchestration cycle was triggered."""
@@ -380,7 +382,7 @@ class OrchestratorContext(BaseModel):
             )
             for att in self.file_attachments:
                 sections.append(
-                    f"  - {att['file_name']} ({att['mime_type']}) -> {att['file_uri']}"
+                    f"  - {get_attachment_field(att, 'file_name')} ({get_attachment_field(att, 'mime_type')}) -> {get_attachment_field(att, 'file_uri')}"
                 )
             sections.append("")
 

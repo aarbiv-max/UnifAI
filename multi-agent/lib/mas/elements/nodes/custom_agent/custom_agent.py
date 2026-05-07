@@ -4,6 +4,7 @@ from typing import Callable, Optional, Any, List, ClassVar, Set, Dict
 from copy import deepcopy
 from mas.graph.state.state_view import StateView
 from mas.graph.state.graph_state import Channel
+from mas.elements.llms.common.chat.file_attachment import FILE_ATTACHMENT_TTL_HOURS, get_attachment_field
 from mas.elements.llms.common.chat.message import ChatMessage, Role
 from mas.elements.tools.common.base_tool import BaseTool
 from mas.elements.nodes.common.base_node import BaseNode
@@ -146,9 +147,9 @@ class CustomAgentNode(
         if not attachments:
             return False
         now = datetime.now(timezone.utc)
-        ttl = timedelta(hours=48)
+        ttl = timedelta(hours=FILE_ATTACHMENT_TTL_HOURS)
         for a in attachments:
-            uploaded_at = a.uploaded_at if hasattr(a, "uploaded_at") else a.get("uploaded_at", "")
+            uploaded_at = get_attachment_field(a, "uploaded_at", "")
             if not uploaded_at:
                 return True
             try:
@@ -263,7 +264,7 @@ class CustomAgentNode(
         parts: List[str] = []
         if file_attachments:
             file_lines = [
-                f"- {att['file_name']} ({att['mime_type']}) -> {att['file_uri']}"
+                f"- {get_attachment_field(att, 'file_name')} ({get_attachment_field(att, 'mime_type')}) -> {get_attachment_field(att, 'file_uri')}"
                 for att in file_attachments
             ]
             parts.append(

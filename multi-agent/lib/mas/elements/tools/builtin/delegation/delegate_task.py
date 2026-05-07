@@ -2,6 +2,7 @@
 Tool for delegating tasks to other nodes.
 """
 
+import logging
 from typing import Dict, Any, Callable, Optional
 from pydantic import BaseModel, Field
 from mas.elements.tools.common.base_tool import BaseTool
@@ -13,6 +14,8 @@ from mas.elements.nodes.common.workload import (
     WorkItemResult
 )
 from mas.elements.nodes.common.agent.constants import ToolNames
+
+logger = logging.getLogger(__name__)
 
 
 class DelegateTaskArgs(BaseModel):
@@ -265,8 +268,11 @@ class DelegateTaskTool(BaseTool):
             attachments = workspace_service.get_variable(parent_thread_id, "file_attachments", [])
             if attachments:
                 workspace_service.set_variable(child_thread_id, "file_attachments", attachments)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                "Failed to propagate file_attachments from thread %s to %s: %s",
+                parent_thread_id, child_thread_id, e,
+            )
 
     def _would_create_cycle(self, dst_uid: str, current_thread) -> bool:
         """

@@ -27,7 +27,8 @@ def _to_chat(msg: Any):
     if isinstance(msg, ChatMessage):
         return msg
     if isinstance(msg, dict) and "role" in msg and "content" in msg:
-        return ChatMessage(**msg)
+        valid_fields = ChatMessage.model_fields
+        return ChatMessage(**{k: v for k, v in msg.items() if k in valid_fields})
     if isinstance(msg, str):
         return ChatMessage(role=Role.ASSISTANT, content=msg)
     return None

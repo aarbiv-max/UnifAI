@@ -628,6 +628,8 @@ export default function ChatInterface({
   // Completion → Final answer appears and streaming stops
   // Cleanup → All intervals are properly cleared
   // ── File attachment handlers ──────────────────────────────────────────
+  // These must match the server-side FileUploadLimits configured in AppConfig.
+  // See: multi-agent/config/app_config.py (file_upload_* fields)
   const ALLOWED_FILE_TYPES = [
     "application/pdf", "text/csv", "text/plain", "text/html", "text/markdown",
   ];

@@ -92,6 +92,11 @@ def submit_user_session():
     Fire-and-forget execute for Temporal-backed sessions.
     Supports both application/json and multipart/form-data (for file attachments).
     Returns HTTP 202 with the workflow_id.
+
+    Note: this endpoint manually parses request data instead of using @from_body
+    because webargs does not support multipart/form-data with embedded JSON payloads.
+    File validation (size, count, MIME) is enforced here as a boundary guard to reject
+    oversized uploads before reading file bytes into memory.
     """
     limits = current_app.container.file_upload_limits
     raw_files = None
@@ -136,6 +141,8 @@ def submit_user_session():
 
     inputs.pop("file_attachments", None)
 
+    # Reads all file bytes into memory (up to max_files * max_file_size_bytes = 60MB).
+    # If limits increase significantly, consider streaming to the upload adapter.
     upload_requests = None
     if raw_files:
         upload_requests = [

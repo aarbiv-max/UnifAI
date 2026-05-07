@@ -3,7 +3,7 @@ from datetime import datetime
 from mas.session.management.user_session_manager import UserSessionManager
 from mas.session.execution.foreground_runner import ForegroundSessionRunner
 from mas.session.execution.input_projector import SessionInputProjector
-from mas.session.execution.ports import BackgroundSessionSubmitter, SubmitSessionRequest
+from mas.session.execution.ports import BackgroundSessionSubmitter, SubmitSessionRequest, FileUploadRequest
 from mas.session.domain.workflow_session import WorkflowSession
 from mas.session.domain.session_record import SessionRecord
 from mas.session.domain.dto import SessionListItem
@@ -75,7 +75,7 @@ class SessionService:
         session_id: str,
         inputs: Dict[str, Any],
         scope: str = "public",
-        files: Optional[List] = None,
+        files: Optional[List[FileUploadRequest]] = None,
     ) -> str:
         """
         Non-blocking submit: stage inputs, then start a background workflow
@@ -102,7 +102,7 @@ class SessionService:
         self,
         session_id: str,
         inputs: Dict[str, Any],
-        files: Optional[List] = None,
+        files: Optional[List[FileUploadRequest]] = None,
     ) -> None:
         """Project raw inputs onto the record and persist (QUEUED)."""
         record = self._manager.get_record(session_id)

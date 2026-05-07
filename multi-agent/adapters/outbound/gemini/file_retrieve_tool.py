@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 
+from mas.elements.llms.common.chat.file_attachment import FILE_ATTACHMENT_TTL_HOURS, get_attachment_field
 from mas.elements.tools.common.base_tool import BaseTool
 
 
@@ -33,21 +34,15 @@ class GeminiFileRetrieveTool(BaseTool):
     args_schema = GeminiFileRetrieveArgs
 
     def __init__(self, api_key: str, model_name: str, file_attachments: List[dict] = None):
+        super().__init__()
         self._client = genai.Client(api_key=api_key)
         self._model_name = model_name
         self._file_attachments = file_attachments or []
 
-    @staticmethod
-    def _get_field(obj, key: str, default: str = "") -> str:
-        """Read a field from a dict or object attribute uniformly."""
-        if isinstance(obj, dict):
-            return obj.get(key, default)
-        return getattr(obj, key, default)
-
     def _resolve_attachment(self, file_uri: str) -> dict | None:
         """Find attachment by URI, return it or None."""
         for att in self._file_attachments:
-            if self._get_field(att, "file_uri") == file_uri:
+            if get_attachment_field(att, "file_uri") == file_uri:
                 return att
         return None
 
@@ -57,7 +52,7 @@ class GeminiFileRetrieveTool(BaseTool):
         attachment = self._resolve_attachment(args.file_uri)
         if not attachment:
             valid_uris = [
-                self._get_field(a, "file_uri") for a in self._file_attachments
+                get_attachment_field(a, "file_uri") for a in self._file_attachments
             ]
             return {
                 "success": False,
@@ -67,7 +62,7 @@ class GeminiFileRetrieveTool(BaseTool):
                 ),
             }
 
-        mime_type = self._get_field(attachment, "mime_type", "application/octet-stream")
+        mime_type = get_attachment_field(attachment, "mime_type", "application/octet-stream")
 
         try:
             response = self._client.models.generate_content(
@@ -85,7 +80,7 @@ class GeminiFileRetrieveTool(BaseTool):
                     "success": False,
                     "error": (
                         "File has expired and is no longer available. "
-                        "Gemini files expire after 48 hours. "
+                        f"Gemini files expire after {FILE_ATTACHMENT_TTL_HOURS} hours. "
                         "Ask the user to re-attach the file."
                     ),
                 }
