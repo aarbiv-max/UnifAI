@@ -239,6 +239,15 @@ class AppContainer(metaclass=SingletonMeta):
 
         self.session_lifecycle = SessionLifecycle(repository=self.session_repo)
 
+        # ── File upload limits (from config → frozen value object) ─────
+        from mas.session.execution.ports import FileUploadLimits
+        self.file_upload_limits = FileUploadLimits(
+            max_files=cfg.file_upload_max_files,
+            max_file_size_bytes=cfg.file_upload_max_size_bytes,
+            min_file_size_bytes=cfg.file_upload_min_size_bytes,
+            allowed_mime_types=tuple(cfg.file_upload_allowed_mime_types),
+        )
+
         # ── File upload adapter (if Gemini config present) ────────────
         file_upload_service = None
         if cfg.gemini_api_key:

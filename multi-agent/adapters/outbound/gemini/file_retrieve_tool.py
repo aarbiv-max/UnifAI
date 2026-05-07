@@ -37,11 +37,17 @@ class GeminiFileRetrieveTool(BaseTool):
         self._model_name = model_name
         self._file_attachments = file_attachments or []
 
+    @staticmethod
+    def _get_field(obj, key: str, default: str = "") -> str:
+        """Read a field from a dict or object attribute uniformly."""
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
     def _resolve_attachment(self, file_uri: str) -> dict | None:
         """Find attachment by URI, return it or None."""
         for att in self._file_attachments:
-            uri = att.get("file_uri", "") if isinstance(att, dict) else getattr(att, "file_uri", "")
-            if uri == file_uri:
+            if self._get_field(att, "file_uri") == file_uri:
                 return att
         return None
 
@@ -51,8 +57,7 @@ class GeminiFileRetrieveTool(BaseTool):
         attachment = self._resolve_attachment(args.file_uri)
         if not attachment:
             valid_uris = [
-                (a.get("file_uri") if isinstance(a, dict) else getattr(a, "file_uri", ""))
-                for a in self._file_attachments
+                self._get_field(a, "file_uri") for a in self._file_attachments
             ]
             return {
                 "success": False,
@@ -62,11 +67,7 @@ class GeminiFileRetrieveTool(BaseTool):
                 ),
             }
 
-        mime_type = (
-            attachment.get("mime_type", "application/octet-stream")
-            if isinstance(attachment, dict)
-            else getattr(attachment, "mime_type", "application/octet-stream")
-        )
+        mime_type = self._get_field(attachment, "mime_type", "application/octet-stream")
 
         try:
             response = self._client.models.generate_content(

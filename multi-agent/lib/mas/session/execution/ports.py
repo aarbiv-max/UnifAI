@@ -77,6 +77,17 @@ class FileUploadResult:
     size_bytes: int
 
 
+@dataclass(frozen=True)
+class FileUploadLimits:
+    """Authoritative upload constraints — shared between adapter validation and UI hints."""
+    max_files: int = 3
+    max_file_size_bytes: int = 20 * 1024 * 1024
+    min_file_size_bytes: int = 1
+    allowed_mime_types: tuple = (
+        "application/pdf", "text/csv", "text/plain", "text/html", "text/markdown",
+    )
+
+
 class IFileUploadService(ABC):
     """Outbound port for file upload operations."""
 

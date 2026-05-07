@@ -86,14 +86,6 @@ def execute_user_session(session_id, inputs, stream_mode, stream, scope, logged_
     #     return jsonify({"error": str(e)}), 500
 
 
-ALLOWED_MIME_TYPES = {
-    "application/pdf", "text/csv", "text/plain", "text/html", "text/markdown",
-}
-MAX_FILES = 3
-MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
-MIN_FILE_SIZE_BYTES = 1
-
-
 @sessions_bp.route("/user.session.submit", methods=["POST"])
 def submit_user_session():
     """
@@ -101,6 +93,7 @@ def submit_user_session():
     Supports both application/json and multipart/form-data (for file attachments).
     Returns HTTP 202 with the workflow_id.
     """
+    limits = current_app.container.file_upload_limits
     raw_files = None
 
     if request.content_type and request.content_type.startswith("multipart/form-data"):
@@ -117,17 +110,18 @@ def submit_user_session():
         scope = payload.get("scope", "public")
 
         raw_files = request.files.getlist("files")
-        if len(raw_files) > MAX_FILES:
-            return jsonify({"error": f"Maximum {MAX_FILES} files allowed"}), 400
+        if len(raw_files) > limits.max_files:
+            return jsonify({"error": f"Maximum {limits.max_files} files allowed"}), 400
         for f in raw_files:
             f.seek(0, 2)
             size = f.tell()
             f.seek(0)
-            if size < MIN_FILE_SIZE_BYTES:
+            if size < limits.min_file_size_bytes:
                 return jsonify({"error": f"File '{f.filename}' is empty"}), 400
-            if size > MAX_FILE_SIZE_BYTES:
-                return jsonify({"error": f"File '{f.filename}' exceeds 20MB limit"}), 400
-            if f.content_type not in ALLOWED_MIME_TYPES:
+            if size > limits.max_file_size_bytes:
+                max_mb = limits.max_file_size_bytes // (1024 * 1024)
+                return jsonify({"error": f"File '{f.filename}' exceeds {max_mb}MB limit"}), 400
+            if f.content_type not in limits.allowed_mime_types:
                 return jsonify({"error": f"Unsupported file type: {f.content_type}"}), 400
     else:
         payload = request.get_json(silent=True) or {}
