@@ -32,7 +32,7 @@ class GraphState(BaseModel):
 
     file_attachments: Annotated[List[FileAttachment], lambda old, new: new] = Field(
         default_factory=list,
-        json_schema_extra={'streamable': False}
+        json_schema_extra={'external': True, 'streamable': False}
     )
 
     nodes_output: Annotated[Dict[str, str], merge_string_dicts] = Field(
