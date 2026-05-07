@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from devtool.domain.models import Service, ServiceType
 from devtool.ports.session_manager import SessionManager
+
+
+def _resolve_bash() -> str:
+    """Find bash on PATH instead of assuming /bin/bash."""
+    path = shutil.which("bash")
+    if not path:
+        raise RuntimeError(
+            "bash not found on PATH. Install bash or set SHELL to a compatible shell."
+        )
+    return path
 
 
 class ForegroundSessionManager(SessionManager):
@@ -36,7 +47,8 @@ class ForegroundSessionManager(SessionManager):
 
         cmd = commands[svc.name]
         shell_cmd = f"{cmd} 2>&1 | tee {log_path}"
-        os.execvp("/bin/bash", ["/bin/bash", "-c", shell_cmd])
+        bash = _resolve_bash()
+        os.execvp(bash, [bash, "-c", shell_cmd])
 
     def attach(self, session_name: str) -> None:
         pass

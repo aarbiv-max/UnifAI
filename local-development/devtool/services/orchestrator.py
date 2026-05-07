@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -16,6 +18,16 @@ from devtool.ports.venv_manager import VenvManager
 from devtool.services import env_generator, python_detector
 
 SESSION_NAME = "unifai-dev"
+
+
+def _resolve_bash() -> str:
+    """Find bash on PATH instead of assuming /bin/bash."""
+    path = shutil.which("bash")
+    if not path:
+        raise RuntimeError(
+            "bash not found on PATH. Install bash or set SHELL to a compatible shell."
+        )
+    return path
 
 
 class Orchestrator:
@@ -171,7 +183,8 @@ class Orchestrator:
         context = self._build_context_command(svc, python_minor)
         shell_cmd = f"{context} && exec bash"
         print(f"\n🐚 Entering {svc.name} environment…\n")
-        os.execvp("/bin/bash", ["/bin/bash", "-c", shell_cmd])
+        bash = _resolve_bash()
+        os.execvp(bash, [bash, "-c", shell_cmd])
 
     def exec_in_context(self, service_name: str, command: list[str]) -> None:
         """Run *command* inside the service's context, then exit."""
@@ -180,7 +193,8 @@ class Orchestrator:
         context = self._build_context_command(svc, python_minor)
         user_cmd = " ".join(command)
         shell_cmd = f"{context} && {user_cmd}"
-        os.execvp("/bin/bash", ["/bin/bash", "-c", shell_cmd])
+        bash = _resolve_bash()
+        os.execvp(bash, [bash, "-c", shell_cmd])
 
     # -- stop / destroy ------------------------------------------------------
 
@@ -817,18 +831,16 @@ class Orchestrator:
         if pids:
             print(f"  ⚠ Killing process on port {port} (PIDs: {pids})")
             for pid in pids.splitlines():
-                subprocess.run(
-                    ["kill", "-9", pid.strip()],
-                    capture_output=True,
-                )
+                try:
+                    os.kill(int(pid.strip()), signal.SIGKILL)
+                except (ProcessLookupError, ValueError, PermissionError):
+                    pass
 
     @staticmethod
     def _is_port_in_use(port: int) -> bool:
-        result = subprocess.run(
-            ["lsof", "-ti", f":{port}"],
-            capture_output=True, text=True,
-        )
-        return bool(result.stdout.strip())
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            return s.connect_ex(("127.0.0.1", port)) == 0
 
     def _print_summary(
         self, services: list[Service], infra: list,

@@ -296,8 +296,9 @@ class TestBuildContextCommand:
 # ---------------------------------------------------------------------------
 
 class TestShell:
+    @patch("devtool.services.orchestrator._resolve_bash", return_value="/usr/bin/bash")
     @patch("os.execvp")
-    def test_shell_calls_execvp_with_bash(self, mock_execvp) -> None:
+    def test_shell_calls_execvp_with_bash(self, mock_execvp, mock_bash) -> None:
         svc = _make_service("backend", env_file=".env")
         orch = _make_orchestrator([svc])
         orch._detect_python = MagicMock(return_value=("/usr/bin/python3.12", "3.12"))
@@ -306,7 +307,7 @@ class TestShell:
 
         mock_execvp.assert_called_once()
         args = mock_execvp.call_args
-        assert args[0][0] == "/bin/bash"
+        assert args[0][0] == "/usr/bin/bash"
         shell_cmd = args[0][1][2]
         assert "exec bash" in shell_cmd
         assert "source venv/bin/activate" in shell_cmd
