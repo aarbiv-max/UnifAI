@@ -105,7 +105,7 @@ class Orchestrator:
 
         # 3. Env generation + auto-generate resolution
         print("🔧 Generating .env files…")
-        _generated, _skipped, env_warnings = env_generator.generate_all(
+        _generated, _skipped, _updated, env_warnings = env_generator.generate_all(
             self._registry, self._root,
         )
         for w in env_warnings:
@@ -364,11 +364,13 @@ class Orchestrator:
 
     def env_generate(self, *, force: bool = False) -> None:
         print("🔧 Generating .env files…")
-        generated, skipped, warnings = env_generator.generate_all(
+        generated, skipped, updated, warnings = env_generator.generate_all(
             self._registry, self._root, force=force,
         )
         if generated:
             print(f"\nGenerated: {', '.join(generated)}")
+        if updated:
+            print(f"\nUpdated (added missing keys): {', '.join(updated)}")
         if skipped:
             print(
                 f"\nPreserved existing (use --force to regenerate): "
@@ -433,6 +435,11 @@ class Orchestrator:
                 rel = env_path.relative_to(self._root)
                 if env_path.exists():
                     print(f"  ✔ {svc.name}: {rel}")
+                    missing = env_generator.check_missing_keys(
+                        svc, self._root, local_auth=self._registry.local_auth,
+                    )
+                    for key in sorted(missing):
+                        print(f"  ⚠ {svc.name}: {rel}  {key} is missing (run 'unifai-dev start' or 'unifai-dev env generate')")
                     placeholders, auto_gen = env_generator.check_unresolved(svc, self._root)
                     for key in placeholders:
                         print(f"  ⚠ {svc.name}: {rel}  {key} is still a placeholder!")
@@ -531,7 +538,8 @@ class Orchestrator:
                 self.env_generate(force=True)
                 self._auto_resolve_generated_keys()
             else:
-                print("  ⏭ Keeping existing .env files.")
+                print("  ⏭ Keeping existing .env files (checking for missing keys).")
+                self.env_generate()
         else:
             self.env_generate()
         print()

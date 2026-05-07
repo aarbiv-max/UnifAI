@@ -132,6 +132,64 @@ class TestLocalAuth:
         reg = Registry(p)
         assert reg.local_auth is True
 
+    def test_env_var_overrides_yaml_true(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        content = textwrap.dedent("""\
+            local_auth: true
+
+            python:
+              min: "3.11"
+              max: "3.13"
+
+            infrastructure: {}
+
+            services:
+              backend:
+                directory: "backend"
+                port: 8005
+                type: python
+                infrastructure: []
+                venv:
+                  strategy: "none"
+                launch: "echo ok"
+
+            groups:
+              all: [backend]
+        """)
+        p = tmp_path / "services_env_override.yaml"
+        p.write_text(content)
+        monkeypatch.setenv("UNIFAI_LOCAL_AUTH", "false")
+        reg = Registry(p)
+        assert reg.local_auth is False
+
+    def test_env_var_overrides_yaml_false(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        content = textwrap.dedent("""\
+            local_auth: false
+
+            python:
+              min: "3.11"
+              max: "3.13"
+
+            infrastructure: {}
+
+            services:
+              backend:
+                directory: "backend"
+                port: 8005
+                type: python
+                infrastructure: []
+                venv:
+                  strategy: "none"
+                launch: "echo ok"
+
+            groups:
+              all: [backend]
+        """)
+        p = tmp_path / "services_env_override2.yaml"
+        p.write_text(content)
+        monkeypatch.setenv("UNIFAI_LOCAL_AUTH", "true")
+        reg = Registry(p)
+        assert reg.local_auth is True
+
     def test_local_auth_does_not_modify_env_entries(self, tmp_path: Path) -> None:
         content = textwrap.dedent("""\
             local_auth: true

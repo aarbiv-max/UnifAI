@@ -34,7 +34,11 @@ class Registry:
         with open(yaml_path) as fh:
             raw = yaml.safe_load(fh)
 
-        self._local_auth: bool = bool(raw.get("local_auth", True))
+        env_val = os.environ.get("UNIFAI_LOCAL_AUTH", "").strip().lower()
+        if env_val:
+            self._local_auth = env_val in ("true", "1", "yes")
+        else:
+            self._local_auth = bool(raw.get("local_auth", True))
         self._python_min, self._python_max = self._parse_python_bounds(raw)
         self._infra = self._parse_infra(raw.get("infrastructure", {}))
         self._services = self._parse_services(raw.get("services", {}))

@@ -7,7 +7,15 @@ from pathlib import Path
 import pytest
 
 from devtool.domain.models import Service, ServiceType, VenvConfig, VenvStrategy
-from devtool.services.env_generator import generate, check_placeholders, check_unresolved, _ENV_HEADER
+from devtool.services.env_generator import (
+    GenerateResult,
+    align_local_auth,
+    check_missing_keys,
+    check_placeholders,
+    check_unresolved,
+    generate,
+    _ENV_HEADER,
+)
 
 
 def _make_service(
@@ -34,7 +42,7 @@ class TestGenerate:
 
         result = generate(svc, tmp_path)
 
-        assert result is True
+        assert result is GenerateResult.CREATED
         env_path = svc_dir / ".env"
         assert env_path.exists()
         content = env_path.read_text()
@@ -46,13 +54,13 @@ class TestGenerate:
         svc_dir = tmp_path / "svc"
         svc_dir.mkdir()
         env_path = svc_dir / ".env"
-        env_path.write_text("existing content")
+        env_path.write_text("KEY=value\n")
         svc = _make_service(env_entries={"KEY": "value"})
 
         result = generate(svc, tmp_path)
 
-        assert result is False
-        assert env_path.read_text() == "existing content"
+        assert result is GenerateResult.SKIPPED
+        assert env_path.read_text() == "KEY=value\n"
 
     def test_overwrites_with_force(self, tmp_path: Path) -> None:
         svc_dir = tmp_path / "svc"
@@ -63,16 +71,16 @@ class TestGenerate:
 
         result = generate(svc, tmp_path, force=True)
 
-        assert result is True
+        assert result is GenerateResult.CREATED
         assert "KEY=new" in env_path.read_text()
 
-    def test_no_env_file_returns_false(self, tmp_path: Path) -> None:
+    def test_no_env_file_returns_skipped(self, tmp_path: Path) -> None:
         svc = _make_service(env_file=None)
-        assert generate(svc, tmp_path) is False
+        assert generate(svc, tmp_path) is GenerateResult.SKIPPED
 
-    def test_no_env_entries_returns_false(self, tmp_path: Path) -> None:
+    def test_no_env_entries_returns_skipped(self, tmp_path: Path) -> None:
         svc = _make_service(env_entries={})
-        assert generate(svc, tmp_path) is False
+        assert generate(svc, tmp_path) is GenerateResult.SKIPPED
 
 
 class TestGenerateLocalAuth:
@@ -93,7 +101,7 @@ class TestGenerateLocalAuth:
 
         result = generate(svc, tmp_path, local_auth=True)
 
-        assert result is True
+        assert result is GenerateResult.CREATED
         content = (svc_dir / ".env").read_text()
         assert "keycloak_base_url" not in content
         assert "client_id" not in content
@@ -117,7 +125,7 @@ class TestGenerateLocalAuth:
 
         result = generate(svc, tmp_path, local_auth=False)
 
-        assert result is True
+        assert result is GenerateResult.CREATED
         content = (svc_dir / ".env").read_text()
         assert "keycloak_base_url=https://keycloak.test\n" in content
         assert "client_id=<REPLACE>\n" in content
@@ -137,7 +145,7 @@ class TestGenerateLocalAuth:
 
         result = generate(svc, tmp_path, local_auth=True)
 
-        assert result is True
+        assert result is GenerateResult.CREATED
         content = (svc_dir / ".env").read_text()
         assert "client_id=some-value\n" in content
         assert "hostname_local=127.0.0.1\n" in content
@@ -215,3 +223,187 @@ class TestCheckPlaceholders:
         svc = _make_service(env_entries={"KEY": "<REPLACE_KEY>"})
 
         assert check_placeholders(svc, tmp_path) == set()
+
+
+class TestCheckMissingKeys:
+    def test_detects_absent_keys(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        (svc_dir / ".env").write_text("KEY=value\n")
+        svc = _make_service(env_entries={"KEY": "value", "OTHER": "123"})
+
+        assert check_missing_keys(svc, tmp_path) == {"OTHER"}
+
+    def test_none_missing(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        (svc_dir / ".env").write_text("KEY=value\nOTHER=123\n")
+        svc = _make_service(env_entries={"KEY": "value", "OTHER": "123"})
+
+        assert check_missing_keys(svc, tmp_path) == set()
+
+    def test_file_does_not_exist(self, tmp_path: Path) -> None:
+        svc = _make_service(env_entries={"KEY": "value"})
+        assert check_missing_keys(svc, tmp_path) == set()
+
+    def test_no_env_file_configured(self, tmp_path: Path) -> None:
+        svc = _make_service(env_file=None, env_entries={"KEY": "value"})
+        assert check_missing_keys(svc, tmp_path) == set()
+
+    def test_respects_local_auth_for_identity(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        (svc_dir / ".env").write_text(
+            "hostname_local=127.0.0.1\nlocal_auth_enabled=true\n"
+        )
+        svc = _make_service(
+            name="identity",
+            env_entries={
+                "keycloak_base_url": "https://keycloak.test",
+                "client_id": "<REPLACE>",
+                "hostname_local": "127.0.0.1",
+            },
+        )
+        missing = check_missing_keys(svc, tmp_path, local_auth=True)
+        assert "keycloak_base_url" not in missing
+        assert "client_id" not in missing
+        assert missing == set()
+
+    def test_skips_comments_and_blank_lines(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        (svc_dir / ".env").write_text(
+            "# comment\n\nKEY=value\n"
+        )
+        svc = _make_service(env_entries={"KEY": "value", "OTHER": "123"})
+        assert check_missing_keys(svc, tmp_path) == {"OTHER"}
+
+
+class TestGenerateUpdate:
+    def test_returns_updated_and_appends_missing(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        env_path = svc_dir / ".env"
+        env_path.write_text("KEY=custom_value\n")
+        svc = _make_service(env_entries={"KEY": "default", "NEW_KEY": "new_val"})
+
+        result = generate(svc, tmp_path)
+
+        assert result is GenerateResult.UPDATED
+        content = env_path.read_text()
+        assert "KEY=custom_value\n" in content
+        assert "NEW_KEY=new_val\n" in content
+
+    def test_preserves_existing_content(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        env_path = svc_dir / ".env"
+        original = "# my custom header\nKEY=my_value\n"
+        env_path.write_text(original)
+        svc = _make_service(env_entries={"KEY": "default", "EXTRA": "extra_val"})
+
+        generate(svc, tmp_path)
+
+        content = env_path.read_text()
+        assert content.startswith(original)
+        assert "EXTRA=extra_val\n" in content
+
+    def test_updated_respects_local_auth(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        env_path = svc_dir / ".env"
+        env_path.write_text("hostname_local=127.0.0.1\nlocal_auth_enabled=true\n")
+        svc = _make_service(
+            name="identity",
+            env_entries={
+                "keycloak_base_url": "https://keycloak.test",
+                "client_id": "<REPLACE>",
+                "hostname_local": "127.0.0.1",
+                "port": "13456",
+            },
+        )
+
+        result = generate(svc, tmp_path, local_auth=True)
+
+        assert result is GenerateResult.UPDATED
+        content = env_path.read_text()
+        assert "keycloak_base_url" not in content
+        assert "client_id" not in content
+        assert "port=13456\n" in content
+
+    def test_skipped_when_all_keys_present(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        env_path = svc_dir / ".env"
+        env_path.write_text("KEY=value\nOTHER=123\n")
+        svc = _make_service(env_entries={"KEY": "value", "OTHER": "123"})
+
+        result = generate(svc, tmp_path)
+
+        assert result is GenerateResult.SKIPPED
+        assert env_path.read_text() == "KEY=value\nOTHER=123\n"
+
+
+class TestAlignLocalAuth:
+    def test_adds_local_auth_enabled_when_missing(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        env_path = svc_dir / ".env"
+        env_path.write_text("hostname_local=127.0.0.1\n")
+        svc = _make_service(name="identity", env_entries={"hostname_local": "127.0.0.1"})
+
+        assert align_local_auth(svc, tmp_path, local_auth=True) is True
+        content = env_path.read_text()
+        assert "local_auth_enabled=true\n" in content
+        assert "hostname_local=127.0.0.1\n" in content
+
+    def test_noop_when_already_present(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        env_path = svc_dir / ".env"
+        original = "hostname_local=127.0.0.1\nlocal_auth_enabled=true\n"
+        env_path.write_text(original)
+        svc = _make_service(name="identity", env_entries={"hostname_local": "127.0.0.1"})
+
+        assert align_local_auth(svc, tmp_path, local_auth=True) is False
+        assert env_path.read_text() == original
+
+    def test_removes_local_auth_enabled_when_false(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        env_path = svc_dir / ".env"
+        env_path.write_text(
+            "hostname_local=127.0.0.1\nlocal_auth_enabled=true\nport=13456\n"
+        )
+        svc = _make_service(name="identity", env_entries={"hostname_local": "127.0.0.1"})
+
+        assert align_local_auth(svc, tmp_path, local_auth=False) is True
+        content = env_path.read_text()
+        assert "local_auth_enabled" not in content
+        assert "hostname_local=127.0.0.1\n" in content
+        assert "port=13456\n" in content
+
+    def test_noop_when_already_absent(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        env_path = svc_dir / ".env"
+        original = "hostname_local=127.0.0.1\n"
+        env_path.write_text(original)
+        svc = _make_service(name="identity", env_entries={"hostname_local": "127.0.0.1"})
+
+        assert align_local_auth(svc, tmp_path, local_auth=False) is False
+        assert env_path.read_text() == original
+
+    def test_ignores_non_identity_service(self, tmp_path: Path) -> None:
+        svc_dir = tmp_path / "svc"
+        svc_dir.mkdir()
+        env_path = svc_dir / ".env"
+        env_path.write_text("KEY=value\n")
+        svc = _make_service(name="backend", env_entries={"KEY": "value"})
+
+        assert align_local_auth(svc, tmp_path, local_auth=True) is False
+        assert env_path.read_text() == "KEY=value\n"
+
+    def test_ignores_missing_file(self, tmp_path: Path) -> None:
+        svc = _make_service(name="identity", env_entries={"KEY": "value"})
+        assert align_local_auth(svc, tmp_path, local_auth=True) is False

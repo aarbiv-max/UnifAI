@@ -22,7 +22,7 @@ A step-by-step guide for running UnifAI locally — launch the **full stack** in
 > Steps 0–2 are one-time setup. On subsequent runs, just use step 3.
 >
 > If you prefer manual control over each step, skip `init` and follow these instead:
-> - `unifai-dev env generate` — generate `.env` files
+> - `unifai-dev env generate` — generate `.env` files (also adds any missing keys to existing files)
 > - Edit `shared-resources/identity/.env` — fill in `client_id` and `client_secret`
 > - `unifai-dev venv setup` — create virtual environments
 > - `unifai-dev start` — start services
@@ -173,10 +173,15 @@ By default, `services.yaml` has `local_auth: true`. This means:
 
 To use real Keycloak SSO instead:
 
-1. Set `local_auth: false` in `services.yaml`.
-2. Run `unifai-dev env generate --force` to regenerate `.env` files with Keycloak placeholders.
+1. Switch to SSO mode — either set `local_auth: false` in `services.yaml`, or override per-session with an environment variable:
+   ```bash
+   export UNIFAI_LOCAL_AUTH=false
+   ```
+2. Run `unifai-dev start` (or `unifai-dev env generate`). The tool automatically removes `local_auth_enabled` from the identity `.env` file and adds any missing Keycloak placeholder keys.
 3. Fill in `client_id` and `client_secret` in `shared-resources/identity/.env`.
 4. The login page will show "Login using SSO" (the dev button is hidden).
+
+To switch back to local auth, set `UNIFAI_LOCAL_AUTH=true` (or revert `services.yaml`) and run `unifai-dev start` — the `local_auth_enabled=true` line is added back automatically.
 
 ### Flask Secret Key *(Auto-Generated)*
 
@@ -368,8 +373,8 @@ unifai-dev <command> [options]
 
 | Command                | Description                                    |
 | ---------------------- | ---------------------------------------------- |
-| `env generate`         | Create .env files (skip existing)              |
-| `env generate --force` | Regenerate .env files even if they exist       |
+| `env generate`         | Create .env files; append missing keys to existing files |
+| `env generate --force` | Regenerate .env files from scratch even if they exist    |
 | `env show <service>`   | Print current env config for a service         |
 
 **Setup and maintenance:**
@@ -428,11 +433,11 @@ Log files are truncated on each `start` invocation — they capture the current 
 
 ### 4.4 Environment
 
-The `start` command automatically generates `.env` files. You can also run these independently:
+The `start` command automatically generates `.env` files. If an `.env` file already exists, any keys defined in `services.yaml` but missing from the file are appended automatically (existing values are preserved). You can also run these independently:
 
 ```bash
-unifai-dev env generate           # create .env files (skip existing)
-unifai-dev env generate --force    # overwrite existing .env files
+unifai-dev env generate           # create .env files; add missing keys to existing
+unifai-dev env generate --force    # regenerate .env files from scratch
 unifai-dev env show identity        # inspect a service's env config
 ```
 
