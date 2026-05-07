@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class FileAttachment(BaseModel):
-    """Immutable reference to a file uploaded via Gemini File API."""
+    """Immutable reference to a file uploaded via an external file service."""
 
     file_name: str
     mime_type: str
