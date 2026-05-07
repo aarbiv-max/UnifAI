@@ -12,5 +12,6 @@ source "$(dirname "$0")/postsync-lib.sh"
 create_or_update_configmap multiagent-be-security \
   --from-literal=admin_allowed_users="$admin_allowed_users" \
   --from-literal=CREDENTIAL_ENCRYPTION_KEY="$CREDENTIAL_ENCRYPTION_KEY" \
-  --from-literal=MCP_AUTH_STATE_SECRET="$MCP_AUTH_STATE_SECRET"
-
+  --from-literal=MCP_AUTH_STATE_SECRET="$MCP_AUTH_STATE_SECRET" \
+  --from-literal=gemini_api_key="$gemini_api_key" \
+  --from-literal=gemini_model_name="$gemini_model_name"
