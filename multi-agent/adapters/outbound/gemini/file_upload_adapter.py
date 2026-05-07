@@ -45,8 +45,8 @@ class GeminiFileUploadAdapter(IFileUploadService):
         try:
             with ThreadPoolExecutor(max_workers=self._max_workers) as pool:
                 futures = {
-                    pool.submit(self._upload_single_with_retry, f): i
-                    for i, f in enumerate(files)
+                    pool.submit(self._upload_single_with_retry, request): i
+                    for i, request in enumerate(files)
                 }
                 results_by_index = {}
                 for future in as_completed(futures):
@@ -75,30 +75,30 @@ class GeminiFileUploadAdapter(IFileUploadService):
                 retriable=isinstance(e, RETRIABLE_EXCEPTIONS),
             ) from e
 
-    def _upload_single_with_retry(self, f: FileUploadRequest):
+    def _upload_single_with_retry(self, request: FileUploadRequest):
         last_exception = None
         for attempt in range(MAX_RETRIES + 1):
             try:
-                return self._upload_single(f)
+                return self._upload_single(request)
             except RETRIABLE_EXCEPTIONS as e:
                 last_exception = e
                 if attempt < MAX_RETRIES:
                     delay = BACKOFF_BASE_SECONDS * (BACKOFF_MULTIPLIER ** attempt)
                     logger.warning(
                         "Upload attempt %d/%d for '%s' failed (%s), retrying in %.1fs",
-                        attempt + 1, MAX_RETRIES + 1, f.file_name,
+                        attempt + 1, MAX_RETRIES + 1, request.file_name,
                         type(e).__name__, delay,
                     )
                     time.sleep(delay)
         raise last_exception
 
-    def _upload_single(self, f: FileUploadRequest):
-        file_obj = io.BytesIO(f.file_bytes)
-        file_obj.name = f.file_name
+    def _upload_single(self, request: FileUploadRequest):
+        file_obj = io.BytesIO(request.file_bytes)
+        file_obj.name = request.file_name
         return self._client.files.upload(
             file=file_obj,
             config=genai_types.UploadFileConfig(
-                mime_type=f.mime_type,
-                display_name=f.file_name,
+                mime_type=request.mime_type,
+                display_name=request.file_name,
             ),
         )

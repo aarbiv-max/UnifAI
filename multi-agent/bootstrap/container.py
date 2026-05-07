@@ -210,13 +210,11 @@ class AppContainer(metaclass=SingletonMeta):
 
         # ── File retrieve tool factory (if Gemini config present) ─────
         file_retrieve_tool_factory = None
-        if cfg.gemini_file_api_key:
+        if cfg.gemini_api_key:
             from outbound.gemini.file_retrieve_tool import GeminiFileRetrieveTool
-            _fr_api_key = cfg.gemini_file_api_key
-            _fr_model_name = cfg.gemini_file_model_name
             file_retrieve_tool_factory = lambda attachments=None: GeminiFileRetrieveTool(
-                api_key=_fr_api_key,
-                model_name=_fr_model_name,
+                api_key=cfg.gemini_api_key,
+                model_name=cfg.gemini_model_name,
                 file_attachments=attachments or [],
             )
 
@@ -243,9 +241,9 @@ class AppContainer(metaclass=SingletonMeta):
 
         # ── File upload adapter (if Gemini config present) ────────────
         file_upload_service = None
-        if cfg.gemini_file_api_key:
+        if cfg.gemini_api_key:
             from outbound.gemini.file_upload_adapter import GeminiFileUploadAdapter
-            file_upload_service = GeminiFileUploadAdapter(api_key=cfg.gemini_file_api_key)
+            file_upload_service = GeminiFileUploadAdapter(api_key=cfg.gemini_api_key)
 
         self.input_projector = SessionInputProjector(
             repository=self.session_repo,

@@ -38,12 +38,12 @@ class SessionInputProjector:
         file_upload_service: Optional[IFileUploadService] = None,
     ) -> None:
         self._repo = repository
-        self._file_upload = file_upload_service
+        self._file_upload_service = file_upload_service
 
     @property
     def supports_file_upload(self) -> bool:
         """Whether a file upload service is configured."""
-        return self._file_upload is not None
+        return self._file_upload_service is not None
 
     def apply(
         self,
@@ -64,8 +64,8 @@ class SessionInputProjector:
         record.graph_state.update(inputs)
 
         attachments: List[FileAttachment] = []
-        if files and self._file_upload:
-            results = self._file_upload.upload_batch(files)
+        if files and self._file_upload_service:
+            results = self._file_upload_service.upload_batch(files)
             now = datetime.now(timezone.utc).isoformat()
             attachments = [
                 FileAttachment(

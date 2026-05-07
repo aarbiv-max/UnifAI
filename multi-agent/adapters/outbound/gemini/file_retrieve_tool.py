@@ -48,8 +48,8 @@ class GeminiFileRetrieveTool(BaseTool):
     def run(self, **kwargs: Any) -> Any:
         args = GeminiFileRetrieveArgs(**kwargs)
 
-        att = self._resolve_attachment(args.file_uri)
-        if not att:
+        attachment = self._resolve_attachment(args.file_uri)
+        if not attachment:
             valid_uris = [
                 (a.get("file_uri") if isinstance(a, dict) else getattr(a, "file_uri", ""))
                 for a in self._file_attachments
@@ -63,9 +63,9 @@ class GeminiFileRetrieveTool(BaseTool):
             }
 
         mime_type = (
-            att.get("mime_type", "application/octet-stream")
-            if isinstance(att, dict)
-            else getattr(att, "mime_type", "application/octet-stream")
+            attachment.get("mime_type", "application/octet-stream")
+            if isinstance(attachment, dict)
+            else getattr(attachment, "mime_type", "application/octet-stream")
         )
 
         try:

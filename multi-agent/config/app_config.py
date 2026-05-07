@@ -25,7 +25,7 @@ class AppConfig(SharedConfig):
     mcp_auth_state_secret: str = ""
     identity_host: str = "http://localhost:13456"
     credential_encryption_key: str = ""
-    # Gemini File API
-    gemini_file_api_key: str = ""
-    gemini_file_model_name: str = "gemini-2.5-flash"
+    # Gemini API
+    gemini_api_key: str = ""
+    gemini_model_name: str = "gemini-2.5-flash"
 
