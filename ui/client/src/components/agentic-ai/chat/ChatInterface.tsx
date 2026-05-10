@@ -428,22 +428,34 @@ export default function ChatInterface({
                 const existingPlan = updatedWorkPlans[existingPlanIndex];
                 updatedWorkPlans[existingPlanIndex] = {
                   ...workplanSnapshot,
-                  isExpanded: existingPlan.isExpanded // Preserve expansion state
+                  isExpanded: existingPlan.isExpanded
                 };
               } else {
-                // Add new workplan with default expansion state
+                // Evict stale plan from the same orchestrator before adding the new one
+                const staleIndex = updatedWorkPlans.findIndex(
+                  (wp) => wp.owner_uid === workplanSnapshot.owner_uid
+                );
+                const preserveExpanded = staleIndex !== -1
+                  ? updatedWorkPlans[staleIndex].isExpanded
+                  : false;
+                if (staleIndex !== -1) {
+                  updatedWorkPlans.splice(staleIndex, 1);
+                }
                 updatedWorkPlans.push({
                   ...workplanSnapshot,
-                  isExpanded: false // Default to collapsed
+                  isExpanded: preserveExpanded
                 });
               }
             });
           }
         });
 
-        // Also preserve existing workplans that weren't updated
+        // Preserve existing workplans whose orchestrator hasn't emitted a newer plan
         currentWorkPlans.forEach((existingPlan) => {
-          if (!updatedWorkPlans.find(wp => wp.plan_id === existingPlan.plan_id)) {
+          const alreadyCovered = updatedWorkPlans.find(
+            wp => wp.plan_id === existingPlan.plan_id || wp.owner_uid === existingPlan.owner_uid
+          );
+          if (!alreadyCovered) {
             updatedWorkPlans.push(existingPlan);
           }
         });

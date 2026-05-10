@@ -646,16 +646,14 @@ export default function ExecutionTab({
             workplan: workplan
           };
 
-          // Find existing workplan or add new one
+          // Find existing workplan by plan_id (same plan) or owner_uid (re-planned)
           const existingPlanIndex = existing.workplans.findIndex(
-            (wp: any) => wp.plan_id === plan_id
+            (wp: any) => wp.plan_id === plan_id || wp.owner_uid === workplanSnapshot.owner_uid
           );
 
           if (existingPlanIndex !== -1) {
-            // Update existing workplan
             existing.workplans[existingPlanIndex] = workplanSnapshot;
           } else {
-            // Add new workplan
             existing.workplans.push(workplanSnapshot);
           }
         }
