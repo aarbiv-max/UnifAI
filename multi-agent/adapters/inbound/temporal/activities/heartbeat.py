@@ -47,6 +47,11 @@ async def run_in_thread_with_heartbeat(
                 )
             except asyncio.TimeoutError:
                 activity.heartbeat("running")
+            except asyncio.CancelledError:
+                if activity.is_cancelled():
+                    raise
+                # Spurious cancellation (not from Temporal) — keep looping
+                continue
         return future.result()
     except asyncio.CancelledError:
         if not future.done():
