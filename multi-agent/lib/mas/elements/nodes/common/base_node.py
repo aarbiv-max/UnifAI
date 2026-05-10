@@ -6,17 +6,17 @@ from typing import Optional, Any, Mapping, ClassVar
 from mas.elements.llms.common.chat.message import ChatMessage, Role
 from mas.core.contracts import SupportsStateContext
 from mas.elements.nodes.common.capabilities.streaming_capable import StreamingCapableMixin
-from mas.elements.nodes.common.capabilities.cancellation_capable import CancellationCapableMixin
 
 
-class BaseNode(CancellationCapableMixin, StreamingCapableMixin, SupportsStateContext, ABC):
+class BaseNode(StreamingCapableMixin, SupportsStateContext, ABC):
     """
     Base node for all graph elements.
     
-    Cancellation is provided via CancellationCapableMixin.
     Streaming is provided via StreamingCapableMixin.
     
-    MRO: CancellationCapableMixin → StreamingCapableMixin → SupportsStateContext → ABC → object
+    Cancellation is handled at the adapter layer (Temporal heartbeat +
+    Redis channel silent drop) — domain nodes do not need cancellation awareness.
+    
     Subclasses should list their mixins BEFORE BaseNode:
         class MyNode(SomeMixin, OtherMixin, BaseNode): ...
     """
@@ -46,9 +46,6 @@ class BaseNode(CancellationCapableMixin, StreamingCapableMixin, SupportsStateCon
         wrapped_state = StateView(state, reads=all_reads, writes=all_writes)
 
         self._state = wrapped_state
-
-        if self.is_cancelled():
-            return wrapped_state.backing_state
 
         self.run(wrapped_state)
         result = wrapped_state.backing_state

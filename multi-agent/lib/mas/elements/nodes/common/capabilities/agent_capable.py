@@ -316,7 +316,6 @@ class AgentCapableMixin(Generic[T]):
             execution_handler=execution_handler,
             stream=self._stream if self.is_streaming() else None,
             on_action=on_action,
-            is_cancelled=self.is_cancelled,
         )
         
         # Set initial messages
@@ -364,11 +363,6 @@ class AgentCapableMixin(Generic[T]):
         
         try:
             for step in iterator:
-                if self.is_cancelled():
-                    result["error"] = "Cancelled"
-                    result["success"] = False
-                    break
-
                 if config.return_intermediate:
                     result["steps"].append(step)
                 
@@ -467,9 +461,6 @@ class AgentCapableMixin(Generic[T]):
         
         try:
             for step in iterator:
-                if self.is_cancelled():
-                    break
-
                 yield {
                     "type": f"agent_{step.type.value}",
                     "data": self._serialize_step(step),

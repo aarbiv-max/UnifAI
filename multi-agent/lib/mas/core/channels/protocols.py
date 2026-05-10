@@ -22,7 +22,14 @@ class SessionChannel(ABC):
     def session_id(self) -> str: ...
 
     @abstractmethod
-    def emit(self, data: Any) -> None: ...
+    def emit(self, data: Any) -> None:
+        """
+        Emit an event to the channel.
+
+        No-op if the channel has been closed or cancelled.
+        Implementations must not raise in that case.
+        """
+        ...
 
     @abstractmethod
     def is_active(self) -> bool: ...

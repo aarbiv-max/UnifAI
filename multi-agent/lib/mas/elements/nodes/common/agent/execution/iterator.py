@@ -10,9 +10,7 @@ The iterator delegates execution policy to ExecutionHandler implementations,
 keeping the iterator focused on its core responsibility: step-by-step control.
 """
 
-import time
 from typing import Iterator, Optional, List, Callable, Dict, Any
-from enum import Enum
 
 from ..primitives import (
     AgentAction,
@@ -71,7 +69,6 @@ class AgentIterator:
             execution_handler: ExecutionHandler,
             stream: Optional[Callable[[Dict[str, Any]], None]] = None,
             on_action: Optional[Callable[[AgentAction], bool]] = None,
-            is_cancelled: Optional[Callable[[], bool]] = None,
     ):
         """
         Initialize clean agent iterator.
@@ -81,13 +78,11 @@ class AgentIterator:
             execution_handler: Handler for execution policy (auto/guided/etc)
             stream: Optional streaming callback for events
             on_action: Optional callback to approve/reject actions
-            is_cancelled: Optional callable returning True when execution should stop
         """
         self.strategy = strategy
         self.execution_handler = execution_handler
         self.stream = stream or (lambda x: None)
         self.on_action = on_action
-        self._is_cancelled = is_cancelled or (lambda: False)
 
         # Execution state (iterator's core responsibility)
         self.messages: List[ChatMessage] = []
@@ -135,10 +130,6 @@ class AgentIterator:
         if not self.execution_handler.is_ready_for_next_iteration():
             # For guided mode, this means we're waiting for action confirmations
             # We should not proceed to get new steps from strategy
-            raise StopIteration
-
-        if self._is_cancelled():
-            self._finished = True
             raise StopIteration
 
         # Check if strategy wants to continue
@@ -192,7 +183,7 @@ class AgentIterator:
                     self._step_queue.append(step)
 
             # Handle collected actions via execution handler
-            if actions_to_handle and not self._is_cancelled():
+            if actions_to_handle:
                 print(f"🔧 [TOOLS] Executing {len(actions_to_handle)} actions")
 
                 # Delegate to execution handler (Strategy pattern)

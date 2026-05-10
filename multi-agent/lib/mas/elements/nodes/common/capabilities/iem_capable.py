@@ -154,11 +154,8 @@ class IEMCapableMixin(Generic[TSupportsState]):
         Process all incoming packets.
         
         Handles acknowledgment and delegates to packet type handlers.
-        Stops processing remaining packets if cancellation is detected.
         """
         for packet in self.inbox_packets():
-            if self.is_cancelled():
-                break
             try:
                 self.handle_packet(packet)
             finally:
