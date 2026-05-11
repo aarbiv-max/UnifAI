@@ -18,11 +18,16 @@ from typing import Optional
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
 
 from config.app_config import AppConfig
+from mas.elements.tools.sandbox_exec.service import SandboxLifecycleService
 from mas.engine.distributed.node_executor import NodeExecutor
 from mas.session.execution.lifecycle_handler import BackgroundLifecycleHandler
 from mas.session.execution.lifecycle import SessionLifecycle
 from temporal.client import get_temporal_client
-from inbound.temporal.activities import GraphNodeActivities, SessionLifecycleActivities
+from inbound.temporal.activities import (
+    GraphNodeActivities,
+    SandboxLifecycleActivities,
+    SessionLifecycleActivities,
+)
 from inbound.temporal.workflows import GraphTraversalWorkflow, SessionWorkflow
 
 
@@ -55,6 +60,20 @@ async def run_worker(
         handler=lifecycle_handler,
     )
 
+    sandbox_service = getattr(container, "sandbox_service", None)
+    if sandbox_service is not None:
+        sandbox_activities = SandboxLifecycleActivities(
+            sandbox_service=sandbox_service,
+            session_manager=container.session_manager,
+            session_repo=container.session_repo,
+        )
+        sandbox_activity_list = [
+            sandbox_activities.provision,
+            sandbox_activities.teardown,
+        ]
+    else:
+        sandbox_activity_list = []
+
     client = await get_temporal_client()
 
     worker = Worker(
@@ -67,6 +86,7 @@ async def run_worker(
             lifecycle_activities.begin_session,
             lifecycle_activities.complete_session,
             lifecycle_activities.fail_session,
+            *sandbox_activity_list,
         ],
         activity_executor=ThreadPoolExecutor(max_workers=threads),
         max_concurrent_activities=threads,

@@ -10,6 +10,8 @@ Used by:
   - SessionLifecycle: mutate status/state and persist
   - BackgroundLifecycleHandler: avoid expensive full-session hydration
 """
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from mas.core.execution_context import ExecutionContext
@@ -28,6 +30,7 @@ class SessionRecord(BaseModel):
     metadata: SessionMeta = Field(default_factory=SessionMeta)
     graph_state: GraphState = Field(default_factory=GraphState)
     status: SessionStatus = SessionStatus.PENDING
+    sandbox_pvc_name: Optional[str] = None
 
     def update_context(self, **updates) -> None:
         """Apply updates to the frozen ExecutionContext."""

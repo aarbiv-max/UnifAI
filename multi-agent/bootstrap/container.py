@@ -58,6 +58,9 @@ from outbound.mongo.auth_token_repository import MongoCredentialStore
 from outbound.redis.auth_pending_store import RedisFlowStateStore
 from outbound.auth.http_oauth_client import HttpxAuthClient
 
+from mas.elements.tools.sandbox_exec.service import SandboxLifecycleService
+from outbound.openshift.sandbox_manager import OpenShiftSandboxManager
+
 from global_utils.utils.singleton import SingletonMeta
 from global_utils.utils.util import get_redis_url
 
@@ -208,11 +211,18 @@ class AppContainer(metaclass=SingletonMeta):
             auth_service=self.auth_service,
         ))
 
+        # ── Sandbox ────────────────────────────────────────────────────
+        self.sandbox_manager = OpenShiftSandboxManager()
+        self.sandbox_service = SandboxLifecycleService(
+            sandbox_manager=self.sandbox_manager,
+        )
+
         # ── Session factory ───────────────────────────────────────────
         self.session_factory = WorkflowSessionFactory(
             element_registry=self.element_registry,
             engine_name=cfg.engine_name,
             auth_service=self.auth_service,
+            sandbox_manager=self.sandbox_manager,
         )
         self.session_repo = MongoSessionRepository(
             mongodb_port=cfg.mongodb_port,

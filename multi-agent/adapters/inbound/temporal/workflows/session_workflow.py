@@ -16,10 +16,12 @@ pydantic_data_converter handles GraphState serialization/deserialization
 automatically — no manual .serialize()/.deserialize() calls needed.
 """
 from datetime import timedelta
+from typing import Optional
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 
+from mas.elements.tools.sandbox_exec.models import SandboxState
 from mas.graph.state.graph_state import GraphState
 from mas.session.execution.background_runner import BackgroundSessionRunner
 from temporal.models import (
@@ -28,6 +30,8 @@ from temporal.models import (
     BeginSessionParams,
     CompleteSessionParams,
     FailSessionParams,
+    ProvisionSandboxParams,
+    TeardownSandboxParams,
 )
 from inbound.temporal.workflows.graph_traversal_workflow import GraphTraversalWorkflow
 
@@ -35,6 +39,11 @@ _LIFECYCLE_TIMEOUT = timedelta(seconds=30)
 _LIFECYCLE_RETRY = RetryPolicy(maximum_attempts=3)
 
 _GRAPH_WORKFLOW_TIMEOUT = timedelta(hours=1)
+
+_SANDBOX_PROVISION_TIMEOUT = timedelta(minutes=5)
+_SANDBOX_HEARTBEAT_TIMEOUT = timedelta(minutes=2)
+_SANDBOX_TEARDOWN_TIMEOUT = timedelta(minutes=2)
+_SANDBOX_RETRY = RetryPolicy(maximum_attempts=3)
 
 
 @workflow.defn
@@ -50,8 +59,13 @@ class SessionWorkflow:
     @workflow.run
     async def run(self, params: SessionWorkflowParams) -> GraphState:
         self._params = params
-        runner = BackgroundSessionRunner()
-        return await runner.run(self)
+        self._sandbox_state: Optional[SandboxState] = None
+        try:
+            await self._provision_sandboxes()
+            runner = BackgroundSessionRunner()
+            return await runner.run(self)
+        finally:
+            await self._teardown_sandboxes()
 
     # ── BackgroundSessionOps implementation ──────────────────────────
 
@@ -107,3 +121,47 @@ class SessionWorkflow:
             start_to_close_timeout=_LIFECYCLE_TIMEOUT,
             retry_policy=_LIFECYCLE_RETRY,
         )
+
+    # ── Sandbox lifecycle (adapter concern, not part of Protocol) ──
+
+    async def _provision_sandboxes(self) -> None:
+        """Provision sandbox pods before graph execution (no-op if unused)."""
+        if not self._params.sandbox_configs:
+            return
+        agent_ids = list(
+            self._params.graph_execution_params.graph_definition.nodes.keys()
+        )
+        self._sandbox_state = await workflow.execute_activity(
+            "provision_sandboxes",
+            ProvisionSandboxParams(
+                run_id=self._params.run_id,
+                agent_ids=agent_ids,
+                sandbox_configs=self._params.sandbox_configs,
+            ),
+            start_to_close_timeout=_SANDBOX_PROVISION_TIMEOUT,
+            heartbeat_timeout=_SANDBOX_HEARTBEAT_TIMEOUT,
+            retry_policy=_SANDBOX_RETRY,
+            result_type=SandboxState,
+        )
+
+    async def _teardown_sandboxes(self) -> None:
+        """Tear down sandbox pods (always runs via finally, must not raise)."""
+        if not self._params.sandbox_configs:
+            return
+        try:
+            agent_ids = list(
+                self._params.graph_execution_params.graph_definition.nodes.keys()
+            )
+            await workflow.execute_activity(
+                "teardown_sandboxes",
+                TeardownSandboxParams(
+                    run_id=self._params.run_id,
+                    sandbox_state=self._sandbox_state,
+                    sandbox_configs=self._params.sandbox_configs,
+                    agent_ids=agent_ids,
+                ),
+                start_to_close_timeout=_SANDBOX_TEARDOWN_TIMEOUT,
+                retry_policy=_SANDBOX_RETRY,
+            )
+        except Exception:
+            workflow.logger.exception("Sandbox teardown activity failed (swallowed)")

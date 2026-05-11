@@ -13,7 +13,9 @@ inbound adapter layer (hexagonal boundary compliance).
 """
 import asyncio
 import uuid
+from typing import Any, Dict, List, Optional
 
+from mas.core.enums import ResourceCategory
 from mas.session.execution.ports import BackgroundSessionSubmitter, SubmitSessionRequest
 from mas.session.domain.workflow_session import WorkflowSession
 from config.app_config import AppConfig
@@ -59,6 +61,8 @@ class TemporalSessionSubmitter(BackgroundSessionSubmitter):
 
         workflow_id = f"session-{session.get_run_id()}-{uuid.uuid4().hex[:8]}"
 
+        sandbox_configs = self._extract_sandbox_configs(session)
+
         graph_params = GraphExecutionParams(
             state=session.graph_state,
             graph_definition=executor.graph_definition,
@@ -69,6 +73,7 @@ class TemporalSessionSubmitter(BackgroundSessionSubmitter):
             run_id=session.get_run_id(),
             execution_context=request.execution_context,
             graph_execution_params=graph_params,
+            sandbox_configs=sandbox_configs,
         )
         await client.start_workflow(
             _WORKFLOW_NAME,
@@ -77,3 +82,21 @@ class TemporalSessionSubmitter(BackgroundSessionSubmitter):
             task_queue=cfg.temporal_task_queue,
         )
         return workflow_id
+
+    @staticmethod
+    def _extract_sandbox_configs(
+        session: WorkflowSession,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Extract sandbox_exec tool configs from the session registry.
+
+        Returns None if no sandbox_exec tools exist in the blueprint,
+        ensuring zero overhead for non-sandbox workflows.
+        """
+        configs: List[Dict[str, Any]] = []
+        tool_instances = session.session_registry.all_of(ResourceCategory.TOOL)
+        for rid, instance in tool_instances.items():
+            if getattr(instance, "name", "").startswith("sandbox_exec"):
+                cfg = session.session_registry.get_config(ResourceCategory.TOOL, rid)
+                if cfg is not None:
+                    configs.append(cfg.model_dump())
+        return configs or None

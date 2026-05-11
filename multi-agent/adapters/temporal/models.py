@@ -10,10 +10,11 @@ natively handles model_dump/model_validate for all Pydantic fields.
 Shared by both inbound (worker/activities/workflows) and outbound
 (executor/submitter) Temporal adapters.
 """
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from mas.engine.domain.models import GraphDefinition
+from mas.elements.tools.sandbox_exec.models import SandboxState
 from mas.graph.models.step_context import StepContext
 from mas.graph.state.graph_state import GraphState
 from mas.core.execution_context import ExecutionContext
@@ -43,6 +44,7 @@ class SessionWorkflowParams(BaseModel):
     run_id: str
     execution_context: ExecutionContext = Field(default_factory=ExecutionContext)
     graph_execution_params: GraphExecutionParams = Field(default_factory=GraphExecutionParams)
+    sandbox_configs: Optional[List[Dict[str, Any]]] = None
 
 
 # ── Activity params ──────────────────────────────────────────────────
@@ -84,3 +86,20 @@ class FailSessionParams(BaseModel):
     """Input to the fail_session activity."""
     run_id: str
     error_message: str = ""
+
+
+# ── Sandbox activity params ──────────────────────────────────────────
+
+class ProvisionSandboxParams(BaseModel):
+    """Input to the provision_sandboxes activity."""
+    run_id: str
+    agent_ids: List[str] = Field(default_factory=list)
+    sandbox_configs: Optional[List[Dict[str, Any]]] = None
+
+
+class TeardownSandboxParams(BaseModel):
+    """Input to the teardown_sandboxes activity."""
+    run_id: str
+    sandbox_state: Optional[SandboxState] = None
+    sandbox_configs: Optional[List[Dict[str, Any]]] = None
+    agent_ids: List[str] = Field(default_factory=list)
