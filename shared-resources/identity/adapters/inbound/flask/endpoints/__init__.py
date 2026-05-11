@@ -8,6 +8,7 @@ def register_all_endpoints(app):
         {"bp": protected_bp, "parent": 'protected', "route": ''},
         {"bp": health_bp, "parent": 'health', "route": ''},
         {"bp": credentials_bp, "parent": 'credentials', "route": ''},
+        
     ]
     
     # register all other blueprints in the app
