@@ -128,9 +128,7 @@ class SessionWorkflow:
         """Provision sandbox pods before graph execution (no-op if unused)."""
         if not self._params.sandbox_configs:
             return
-        agent_ids = list(
-            self._params.graph_execution_params.graph_definition.nodes.keys()
-        )
+        agent_ids = self._nodes_with_sandbox_tool()
         self._sandbox_state = await workflow.execute_activity(
             "provision_sandboxes",
             ProvisionSandboxParams(
@@ -149,9 +147,7 @@ class SessionWorkflow:
         if not self._params.sandbox_configs:
             return
         try:
-            agent_ids = list(
-                self._params.graph_execution_params.graph_definition.nodes.keys()
-            )
+            agent_ids = self._nodes_with_sandbox_tool()
             await workflow.execute_activity(
                 "teardown_sandboxes",
                 TeardownSandboxParams(
@@ -165,3 +161,13 @@ class SessionWorkflow:
             )
         except Exception:
             workflow.logger.exception("Sandbox teardown activity failed (swallowed)")
+
+    def _nodes_with_sandbox_tool(self) -> list:
+        """Return only node UIDs whose mini-blueprint includes a sandbox_exec tool."""
+        nodes = self._params.graph_execution_params.graph_definition.nodes
+        result = []
+        for uid, node_def in nodes.items():
+            tools = node_def.node_blueprint.get("tools", [])
+            if any(t.get("type") == "sandbox_exec" for t in tools):
+                result.append(uid)
+        return result

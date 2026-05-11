@@ -16,7 +16,7 @@ from mas.elements.tools.sandbox_exec.ports import SandboxManagerPort
 
 logger = logging.getLogger(__name__)
 
-SANDBOX_IMAGE = "images.paas.redhat.com/unifai/sandbox"
+SANDBOX_IMAGE = "python:3.11-slim"
 PVC_SIZE = "2Gi"
 POD_RESOURCES = {
     "requests": {"cpu": "500m", "memory": "512Mi"},
@@ -45,19 +45,23 @@ class OpenShiftSandboxManager(SandboxManagerPort):
         namespace: str,
         cluster_api: str,
         token: str,
+        storage_class: str = "",
         skip_tls_verify: bool = False,
     ) -> None:
+        pvc_spec: dict = {
+            "accessModes": ["ReadWriteMany"],
+            "resources": {"requests": {"storage": PVC_SIZE}},
+        }
+        if storage_class:
+            pvc_spec["storageClassName"] = storage_class
         pvc_manifest = json.dumps({
             "apiVersion": "v1",
             "kind": "PersistentVolumeClaim",
             "metadata": {"name": pvc_name, "namespace": namespace},
-            "spec": {
-                "accessModes": ["ReadWriteMany"],
-                "resources": {"requests": {"storage": PVC_SIZE}},
-            },
+            "spec": pvc_spec,
         })
         with self._oc_ctx(cluster_api, token, skip_tls_verify):
-            oc.invoke("apply", ["-f", "-", "-n", namespace], cmd_input=pvc_manifest)
+            oc.invoke("apply", ["-f", "-", "-n", namespace], stdin_str=pvc_manifest)
         logger.info("PVC %s ensured in namespace %s", pvc_name, namespace)
 
     def provision_pod(
@@ -94,8 +98,20 @@ class OpenShiftSandboxManager(SandboxManagerPort):
             },
         })
 
+        if self.is_pod_alive(pod_name, namespace, cluster_api, token, skip_tls_verify):
+            logger.info("Pod %s already running, skipping create", pod_name)
+            return
+
         with self._oc_ctx(cluster_api, token, skip_tls_verify):
-            oc.invoke("apply", ["-f", "-", "-n", namespace], cmd_input=pod_manifest)
+            result = oc.invoke(
+                "create", ["-f", "-", "-n", namespace],
+                stdin_str=pod_manifest, auto_raise=False,
+            )
+            if result.status() != 0:
+                stderr = (result.err() or "").strip()
+                if "AlreadyExists" not in stderr:
+                    raise RuntimeError(f"Failed to create pod {pod_name}: {stderr}")
+                logger.info("Pod %s already exists, waiting for readiness", pod_name)
 
         self._wait_for_pod_ready(pod_name, namespace, cluster_api, token, skip_tls_verify)
         self._setup_git_worktree(
@@ -122,13 +138,18 @@ class OpenShiftSandboxManager(SandboxManagerPort):
             exec_args.extend(["bash", "-c", cmd])
 
         with self._oc_ctx(cluster_api, token, skip_tls_verify):
-            result = oc.invoke("exec", exec_args[1:])
+            result = oc.invoke("exec", exec_args[1:], auto_raise=False)
 
         stdout = (result.out() or "").strip()
         stderr = (result.err() or "").strip()
-        if stdout and stderr:
-            return f"{stdout}\nstderr: {stderr}"
-        return stdout or stderr or f"(no output, exit code: {result.status()})"
+        output_parts = []
+        if stdout:
+            output_parts.append(stdout)
+        if stderr:
+            output_parts.append(f"stderr: {stderr}")
+        if result.status() != 0:
+            output_parts.append(f"(exit code: {result.status()})")
+        return "\n".join(output_parts) or "(no output)"
 
     def teardown_pod(
         self,
@@ -153,9 +174,10 @@ class OpenShiftSandboxManager(SandboxManagerPort):
         with self._oc_ctx(cluster_api, token, skip_tls_verify):
             result = oc.invoke(
                 "get", ["pod", pod_name, "-n", namespace,
-                        "-o", "jsonpath={.status.phase}"]
+                        "-o", "jsonpath={.status.phase}"],
+                auto_raise=False,
             )
-        return (result.out() or "").strip() == "Running"
+        return result.status() == 0 and (result.out() or "").strip() == "Running"
 
     def _wait_for_pod_ready(
         self,
@@ -184,7 +206,12 @@ class OpenShiftSandboxManager(SandboxManagerPort):
         git_token: str,
         skip_tls_verify: bool,
     ) -> None:
-        """Clone bare repo (if missing) and create a git worktree."""
+        """Ensure git is available, clone bare repo (if missing) and create a git worktree."""
+        self.execute(
+            pod_name, namespace, cluster_api, token,
+            "which git || (apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1)",
+            skip_tls_verify=skip_tls_verify,
+        )
         if git_token:
             clone_url = git_repo_url.replace("https://", f"https://{git_token}@")
         else:

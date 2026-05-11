@@ -7,6 +7,7 @@ from mas.core.execution_context import ExecutionContextHolder
 from mas.elements.tools.common.base_tool import BaseTool
 from .config import SandboxExecToolConfig
 from .ports import SandboxManagerPort
+from .service import k8s_safe_name
 
 
 class SandboxCommandInput(BaseModel):
@@ -52,8 +53,9 @@ class SandboxExecTool(BaseTool):
         run_id: str = ctx.tags["run_id"]
         node_uid: str = ctx.tags["node_uid"]
 
-        pod_name = f"sandbox-{run_id[:8]}-{node_uid}"
-        workdir = parsed.workdir or f"/workspace/worktree-{node_uid}"
+        safe_uid = k8s_safe_name(node_uid)
+        pod_name = f"sandbox-{run_id[:8]}-{safe_uid}"
+        workdir = parsed.workdir or f"/workspace/worktree-{safe_uid}"
 
         try:
             return self._sandbox_manager.execute(

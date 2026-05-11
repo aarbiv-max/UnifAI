@@ -4,6 +4,7 @@ Coordinates PVC provisioning, per-agent pod creation, teardown,
 and health checks.  Depends only on ``SandboxManagerPort``.
 """
 import logging
+import re
 from typing import Dict, List, Optional
 
 from .config import SandboxExecToolConfig
@@ -11,6 +12,13 @@ from .models import SandboxPodInfo, SandboxState
 from .ports import SandboxManagerPort
 
 logger = logging.getLogger(__name__)
+
+
+def k8s_safe_name(raw: str) -> str:
+    """Sanitize a string for use in Kubernetes resource names (RFC 1123)."""
+    s = raw.lower().replace("_", "-")
+    s = re.sub(r"[^a-z0-9\-.]", "-", s)
+    return s.strip("-.")
 
 
 class SandboxLifecycleService:
@@ -45,6 +53,7 @@ class SandboxLifecycleService:
             namespace=config.namespace,
             cluster_api=config.cluster_api,
             token=config.cluster_token,
+            storage_class=config.storage_class,
             skip_tls_verify=config.skip_tls_verify,
         )
 
@@ -52,9 +61,10 @@ class SandboxLifecycleService:
 
         pods: Dict[str, SandboxPodInfo] = {}
         for agent_id in agent_ids:
-            pod_name = f"sandbox-{run_id[:8]}-{agent_id}"
-            worktree_path = f"/workspace/worktree-{agent_id}"
-            branch_name = f"sandbox/{agent_id}"
+            safe_id = k8s_safe_name(agent_id)
+            pod_name = f"sandbox-{run_id[:8]}-{safe_id}"
+            worktree_path = f"/workspace/worktree-{safe_id}"
+            branch_name = f"sandbox/{safe_id}"
 
             self._manager.provision_pod(
                 pod_name=pod_name,
@@ -113,7 +123,7 @@ class SandboxLifecycleService:
     ) -> None:
         """Fallback teardown using deterministic naming (crash recovery)."""
         for agent_id in agent_ids:
-            pod_name = f"sandbox-{run_id[:8]}-{agent_id}"
+            pod_name = f"sandbox-{run_id[:8]}-{k8s_safe_name(agent_id)}"
             try:
                 self._manager.teardown_pod(
                     pod_name=pod_name,
@@ -154,7 +164,7 @@ class SandboxLifecycleService:
     ) -> None:
         """Delete any pods from a prior crashed run that share our deterministic names."""
         for agent_id in agent_ids:
-            pod_name = f"sandbox-{run_id[:8]}-{agent_id}"
+            pod_name = f"sandbox-{run_id[:8]}-{k8s_safe_name(agent_id)}"
             try:
                 self._manager.teardown_pod(
                     pod_name=pod_name,

@@ -18,7 +18,6 @@ from typing import Optional
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
 
 from config.app_config import AppConfig
-from mas.elements.tools.sandbox_exec.service import SandboxLifecycleService
 from mas.engine.distributed.node_executor import NodeExecutor
 from mas.session.execution.lifecycle_handler import BackgroundLifecycleHandler
 from mas.session.execution.lifecycle import SessionLifecycle

@@ -18,6 +18,7 @@ class SandboxManagerPort(ABC):
         namespace: str,
         cluster_api: str,
         token: str,
+        storage_class: str = "",
         skip_tls_verify: bool = False,
     ) -> None:
         """Create a 2Gi RWX PVC if it doesn't already exist (idempotent)."""

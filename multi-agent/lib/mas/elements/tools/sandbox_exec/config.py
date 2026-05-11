@@ -53,6 +53,11 @@ class SandboxExecToolConfig(BaseToolConfig):
         ).to_hints(),
     )
 
+    storage_class: str = Field(
+        default="",
+        description="Kubernetes StorageClass for the sandbox PVC (must support ReadWriteMany, e.g. CephFS). Leave empty for cluster default.",
+    )
+
     skip_tls_verify: bool = Field(
         default=False,
         description="Skip TLS certificate verification for the OpenShift cluster",

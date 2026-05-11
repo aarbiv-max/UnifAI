@@ -35,8 +35,12 @@ class SandboxLifecycleActivities:
         """Provision PVC and sandbox pods for every agent."""
         config = self._parse_config(params.sandbox_configs)
 
-        record = self._session_manager.get_record(params.run_id)
-        existing_pvc = record.sandbox_pvc_name
+        existing_pvc: Optional[str] = None
+        try:
+            record = self._session_manager.get_record(params.run_id)
+            existing_pvc = record.sandbox_pvc_name
+        except KeyError:
+            logger.info("Session record not yet persisted for %s; creating new PVC", params.run_id)
 
         activity.heartbeat("provisioning PVC and pods")
 
@@ -47,8 +51,12 @@ class SandboxLifecycleActivities:
             existing_pvc_name=existing_pvc,
         )
 
-        record.sandbox_pvc_name = sandbox_state.pvc_name
-        self._session_repo.save(record)
+        try:
+            record = self._session_manager.get_record(params.run_id)
+            record.sandbox_pvc_name = sandbox_state.pvc_name
+            self._session_repo.save(record)
+        except KeyError:
+            logger.warning("Could not persist PVC name — session record not found for %s", params.run_id)
 
         activity.heartbeat("provisioning complete")
         return sandbox_state
