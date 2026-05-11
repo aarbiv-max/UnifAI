@@ -52,3 +52,10 @@ class SessionManager(ABC):
         *pane_ref* is ``"<window>.<pane>"`` (e.g. ``"0.2"``).
         Returns an empty dict when the session is not running.
         """
+
+    @abstractmethod
+    def restart_service(self, session_name: str, service_name: str) -> bool:
+        """Send restart signal to the process running *service_name*.
+
+        Returns True if a matching process was found and signalled.
+        """

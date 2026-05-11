@@ -90,6 +90,7 @@ def _make_orchestrator(
         container_runtime=MagicMock(),
         session_manager=MagicMock(),
         venv_manager=MagicMock(),
+        process_manager=MagicMock(),
     )
 
 
@@ -296,7 +297,7 @@ class TestBuildContextCommand:
 # ---------------------------------------------------------------------------
 
 class TestShell:
-    @patch("devtool.services.orchestrator._resolve_bash", return_value="/usr/bin/bash")
+    @patch("devtool.services.shell_utils.resolve_bash", return_value="/usr/bin/bash")
     @patch("os.execvp")
     def test_shell_calls_execvp_with_bash(self, mock_execvp, mock_bash) -> None:
         svc = _make_service("backend", env_file=".env")

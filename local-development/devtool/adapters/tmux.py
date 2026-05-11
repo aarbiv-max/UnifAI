@@ -125,6 +125,33 @@ class TmuxSessionManager(SessionManager):
             panes[pane_ref] = capture.stdout
         return panes
 
+    def restart_service(self, session_name: str, service_name: str) -> bool:
+        if not self.is_running(session_name):
+            return False
+
+        result = subprocess.run(
+            [
+                "tmux", "list-panes", "-s", "-t", session_name,
+                "-F", "#{pane_id} #{pane_current_command}",
+            ],
+            capture_output=True, text=True,
+        )
+
+        for pane_line in result.stdout.strip().splitlines():
+            pane_id = pane_line.split()[0]
+            capture = subprocess.run(
+                ["tmux", "capture-pane", "-t", pane_id, "-p"],
+                capture_output=True, text=True,
+            )
+            if service_name in capture.stdout:
+                subprocess.run(["tmux", "send-keys", "-t", pane_id, "C-c", ""])
+                subprocess.run(
+                    ["tmux", "send-keys", "-t", pane_id, "Up", "C-m"],
+                )
+                return True
+
+        return False
+
     def _populate_window(
         self,
         session_name: str,

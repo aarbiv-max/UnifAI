@@ -15,9 +15,6 @@ from devtool.ports.venv_manager import VenvManager
 class LocalVenvManager(VenvManager):
     """Creates and verifies venvs on the local filesystem."""
 
-    def __init__(self, process_runner: "ProcessManager | None" = None) -> None:
-        self._runner = process_runner
-
     def create(
         self, service: Service, python: str, root: Path,
         *, log_dir: Path | None = None, force: bool = False,

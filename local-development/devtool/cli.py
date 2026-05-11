@@ -83,6 +83,7 @@ def _create_orchestrator(*, fg: bool = False):
     """Wire up adapters and return an Orchestrator."""
     from devtool.domain.registry import Registry
     from devtool.adapters.container_base import detect_runtime
+    from devtool.adapters.process import LocalProcessManager
     from devtool.adapters.tmux import TmuxSessionManager
     from devtool.adapters.foreground import ForegroundSessionManager
     from devtool.adapters.venv import LocalVenvManager
@@ -93,6 +94,7 @@ def _create_orchestrator(*, fg: bool = False):
     runtime = detect_runtime()
     session = ForegroundSessionManager() if fg else TmuxSessionManager()
     venv_mgr = LocalVenvManager()
+    process_mgr = LocalProcessManager()
 
     return Orchestrator(
         registry=registry,
@@ -100,6 +102,7 @@ def _create_orchestrator(*, fg: bool = False):
         container_runtime=runtime,
         session_manager=session,
         venv_manager=venv_mgr,
+        process_manager=process_mgr,
     )
 
 

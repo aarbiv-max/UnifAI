@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import os
-import re
 import shutil
-import signal
-import socket
 import subprocess
 import time
 from pathlib import Path
@@ -14,75 +11,12 @@ from pathlib import Path
 from devtool.domain.models import Service, ServiceType, WindowLayout
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
+from devtool.ports.process_manager import ProcessManager
 from devtool.ports.session_manager import SessionManager
 from devtool.ports.venv_manager import VenvManager
 from devtool.services import env_generator, python_detector
-
-SESSION_NAME = "unifai-dev"
-
-
-def _resolve_bash() -> str:
-    """Find bash on PATH instead of assuming /bin/bash."""
-    path = shutil.which("bash")
-    if not path:
-        raise RuntimeError(
-            "bash not found on PATH. Install bash or set SHELL to a compatible shell."
-        )
-    return path
-
-
-def _read_proc_name(pid: int) -> str:
-    """Best-effort read of ``/proc/<pid>/comm``."""
-    try:
-        return Path(f"/proc/{pid}/comm").read_text().strip()
-    except OSError:
-        return "unknown"
-
-
-def _find_pids_from_proc(port: int) -> list[tuple[int, str]]:
-    """Parse /proc/net/tcp to find PIDs bound to *port* (Linux-only fallback)."""
-    hex_port = f"{port:04X}"
-    inodes: set[str] = set()
-
-    for proto in ("/proc/net/tcp", "/proc/net/tcp6"):
-        try:
-            with open(proto) as f:
-                for line in f:
-                    fields = line.split()
-                    if len(fields) < 10:
-                        continue
-                    local_addr = fields[1]
-                    local_port = local_addr.split(":")[1]
-                    if local_port == hex_port:
-                        inodes.add(fields[9])
-        except FileNotFoundError:
-            continue
-
-    if not inodes:
-        return []
-
-    import os as _os
-    results: list[tuple[int, str]] = []
-    for pid_dir in Path("/proc").iterdir():
-        if not pid_dir.name.isdigit():
-            continue
-        fd_dir = pid_dir / "fd"
-        try:
-            for fd in fd_dir.iterdir():
-                try:
-                    link = _os.readlink(str(fd))
-                except OSError:
-                    continue
-                if link.startswith("socket:["):
-                    inode = link[8:-1]
-                    if inode in inodes:
-                        pid = int(pid_dir.name)
-                        results.append((pid, _read_proc_name(pid)))
-                        break
-        except PermissionError:
-            continue
-
-    return results
+from devtool.services.constants import SESSION_NAME
+from devtool.services.shell_utils import resolve_bash
 
 
 class Orchestrator:
@@ -94,12 +28,14 @@ class Orchestrator:
         container_runtime: ContainerRuntime,
         session_manager: SessionManager,
         venv_manager: VenvManager,
+        process_manager: ProcessManager,
     ) -> None:
         self._registry = registry
         self._root = root
         self._runtime = container_runtime
         self._session = session_manager
         self._venv = venv_manager
+        self._process = process_manager
 
     # -- start ---------------------------------------------------------------
 
@@ -195,10 +131,10 @@ class Orchestrator:
             except EOFError:
                 pass
 
-        # 7. Build shell commands
+        # 6. Build shell commands
         commands = self._build_commands(services, python_minor)
 
-        # 8. Build window layout
+        # 7. Build window layout
         if window_specs:
             layout = self._build_custom_layout(
                 window_specs, targets or [], services,
@@ -206,7 +142,7 @@ class Orchestrator:
         else:
             layout = self._build_default_layout(services)
 
-        # 9. Launch
+        # 8. Launch
         print(f"Using Python: {python}")
         self._session.launch(
             SESSION_NAME, layout, commands, self._registry.log_dir,
@@ -255,7 +191,7 @@ class Orchestrator:
         context = self._build_context_command(svc, python_minor)
         shell_cmd = f"{context} && exec bash"
         print(f"\n🐚 Entering {svc.name} environment…\n")
-        bash = _resolve_bash()
+        bash = resolve_bash()
         os.execvp(bash, [bash, "-c", shell_cmd])
 
     def exec_in_context(self, service_name: str, command: list[str]) -> None:
@@ -265,7 +201,7 @@ class Orchestrator:
         context = self._build_context_command(svc, python_minor)
         user_cmd = " ".join(command)
         shell_cmd = f"{context} && {user_cmd}"
-        bash = _resolve_bash()
+        bash = resolve_bash()
         os.execvp(bash, [bash, "-c", shell_cmd])
 
     # -- stop / destroy ------------------------------------------------------
@@ -528,7 +464,7 @@ class Orchestrator:
         print("\nPort availability:")
         for svc in self._registry.all_services():
             if svc.port:
-                in_use = self._is_port_in_use(svc.port)
+                in_use = self._process.is_port_in_use(svc.port)
                 icon = "⚠ in use" if in_use else "✔ free"
                 print(f"  {icon}: port {svc.port} ({svc.name})")
 
@@ -908,16 +844,18 @@ class Orchestrator:
         Returns the names of services whose ports are still occupied (empty
         list when everything is clear).
         """
-        occupied: list[tuple[Service, list[tuple[int, str]]]] = []
+        from devtool.domain.models import PortOccupant
+
+        occupied: list[tuple[Service, list[PortOccupant]]] = []
 
         for svc in services:
             if not svc.port:
                 continue
-            pids = self._find_pids_on_port(svc.port)
-            if pids:
-                occupied.append((svc, pids))
+            occupants = self._process.find_port_occupants(svc.port)
+            if occupants:
+                occupied.append((svc, occupants))
                 procs = ", ".join(
-                    f"{name} (PID {pid})" for pid, name in pids
+                    f"{o.name} (PID {o.pid})" for o in occupants
                 )
                 print(f"  ⚠ port {svc.port} ({svc.name}) — in use by: {procs}")
             else:
@@ -936,74 +874,13 @@ class Orchestrator:
         if answer not in ("y", "yes"):
             return [svc.name for svc, _ in occupied]
 
-        all_pids = [pid for _, pids in occupied for pid, _ in pids]
-        for pid in all_pids:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except (ProcessLookupError, PermissionError):
-                pass
-        time.sleep(0.5)
-        for pid in all_pids:
-            try:
-                os.kill(pid, 0)  # check if still alive
-                os.kill(pid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                pass
+        all_pids = [o.pid for _, occupants in occupied for o in occupants]
+        self._process.kill_processes(all_pids)
 
-        for svc, pids in occupied:
-            pid_str = ", ".join(str(p) for p, _ in pids)
+        for svc, occupants in occupied:
+            pid_str = ", ".join(str(o.pid) for o in occupants)
             print(f"  ✔ Killed processes on port {svc.port} (PIDs: {pid_str})")
         return []
-
-    @staticmethod
-    def _find_pids_on_port(port: int) -> list[tuple[int, str]]:
-        """Find PIDs listening on a port. Returns ``[(pid, name), ...]``.
-
-        Tries lsof, then ss, then /proc/net.
-        """
-        # Try lsof (macOS + most full Linux installs)
-        if shutil.which("lsof"):
-            result = subprocess.run(
-                ["lsof", "-ti", f":{port}"],
-                capture_output=True, text=True,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                pids: list[tuple[int, str]] = []
-                for line in result.stdout.strip().splitlines():
-                    try:
-                        pid = int(line.strip())
-                        pids.append((pid, _read_proc_name(pid)))
-                    except ValueError:
-                        pass
-                return pids
-
-        # Try ss (modern Linux, part of iproute2)
-        if shutil.which("ss"):
-            result = subprocess.run(
-                ["ss", "-tlnp", f"sport = :{port}"],
-                capture_output=True, text=True,
-            )
-            if result.returncode == 0:
-                pids = []
-                for m in re.finditer(
-                    r'\("([^"]*)",pid=(\d+)', result.stdout,
-                ):
-                    pids.append((int(m.group(2)), m.group(1)))
-                return pids
-
-        # Fallback: scan /proc/net/tcp (Linux only, no external tools needed)
-        try:
-            return _find_pids_from_proc(port)
-        except (OSError, PermissionError):
-            pass
-
-        return []
-
-    @staticmethod
-    def _is_port_in_use(port: int) -> bool:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(1)
-            return s.connect_ex(("127.0.0.1", port)) == 0
 
     def _print_summary(
         self, services: list[Service], infra: list,

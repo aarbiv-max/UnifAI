@@ -77,13 +77,16 @@ local-development/
 │   │   ├── container_base.py   # Runtime auto-detection (Podman/Docker)
 │   │   ├── podman.py / docker.py
 │   │   ├── tmux.py / foreground.py
+│   │   ├── process.py          # Port detection + process killing
 │   │   └── venv.py
 │   └── services/            # Application services
 │       ├── orchestrator.py  # Composes ports for start/stop flows
 │       ├── env_generator.py
 │       ├── python_detector.py
 │       ├── health_checker.py
-│       └── recovery.py
+│       ├── recovery.py
+│       ├── constants.py     # Session name, shared constants
+│       └── shell_utils.py   # Bash resolution
 │
 └── tests/
     ├── test_orchestrator.py

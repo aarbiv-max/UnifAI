@@ -108,7 +108,7 @@ def check_infra(
 # Full dashboard
 # ---------------------------------------------------------------------------
 
-SESSION_NAME = "unifai-dev"
+from devtool.services.constants import SESSION_NAME
 
 
 def build_dashboard(

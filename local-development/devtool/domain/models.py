@@ -92,6 +92,12 @@ class InfraHealth:
 
 
 @dataclass(frozen=True)
+class PortOccupant:
+    pid: int
+    name: str
+
+
+@dataclass(frozen=True)
 class StatusIssue:
     description: str
     fix: str
