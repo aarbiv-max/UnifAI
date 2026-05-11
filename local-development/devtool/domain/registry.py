@@ -97,6 +97,16 @@ class Registry:
     def group_names(self) -> list[str]:
         return list(self._groups.keys())
 
+    def infra_names(self) -> list[str]:
+        return list(self._infra.keys())
+
+    def groups_for_service(self, name: str) -> list[str]:
+        """Return the names of all groups that contain *name*."""
+        return [
+            g.name for g in self._groups.values()
+            if name in g.services
+        ]
+
     def resolve_services(self, targets: list[str]) -> list[Service]:
         """Expand a mix of service names and group names into a
         deduplicated list of Service objects, preserving first-seen order."""

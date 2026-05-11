@@ -166,6 +166,15 @@ pipx install -e local-development/ --force
 > [!TIP]
 > Because the install is **editable** (`-e`), code changes in `local-development/devtool/` take effect immediately — no reinstall needed. You only need `--force` when the package metadata itself changes (new dependencies, entry points, etc.).
 
+> [!TIP]
+> Enable **tab autocompletion** for service names, group names, and infrastructure components:
+>
+> ```bash
+> unifai-dev --install-completion    # bash/zsh/fish
+> ```
+>
+> After restarting your shell, press `<TAB>` after any argument to see available options.
+
 ### Local Auth Mode
 
 By default, `services.yaml` has `local_auth: true`. This means:
@@ -342,6 +351,13 @@ unifai-dev <command> [options]
 | `shell <service>`             | Open an interactive shell with the service's venv and env loaded   |
 | `exec <service> <command...>` | Run a command inside the service's context, then exit              |
 | `attach <service>`            | Jump to the tmux pane running a specific service                   |
+
+**Discovery:**
+
+| Command                        | Description                                                |
+| ------------------------------ | ---------------------------------------------------------- |
+| `list`                         | Show all services, groups, and infrastructure at a glance  |
+| `info <service>`               | Deep-dive into a single service (ports, groups, infra, venv, env) |
 
 **Monitoring:**
 
@@ -625,6 +641,7 @@ It performs these steps in order:
 3. **Create virtual environments** — for all Python services and the UI
 4. **Generate `.env` files** — with defaults and placeholders
 5. **Resolve auto-generated values and placeholders** — prompts for `secret_key`, `client_id`, and `client_secret`
+6. **Shell completion** — offers to install tab autocompletion for your shell (bash/zsh/fish)
 
 After `init` completes, you can run `unifai-dev start` directly — no additional setup flags needed.
 

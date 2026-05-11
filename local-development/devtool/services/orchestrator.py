@@ -50,11 +50,13 @@ class Orchestrator:
         if not targets and not window_specs:
             targets = ["all"]
 
-        if window_specs:
-            all_names: list[str] = list(targets or [])
+        if window_specs and targets:
+            all_names: list[str] = list(targets)
             for _, names in window_specs:
                 all_names.extend(names)
             services = self._registry.resolve_services(all_names)
+        elif window_specs:
+            services = self._registry.resolve_services(["all"])
         else:
             services = self._registry.resolve_services(targets or ["all"])
 
@@ -491,7 +493,7 @@ class Orchestrator:
         print("🚀 UnifAI first-time setup\n")
 
         # 1. Prerequisites
-        print("1/5  Checking prerequisites…")
+        print("1/6  Checking prerequisites…")
         try:
             python, python_minor = self._detect_python()
             print(f"  ✔ Python: {python} ({python_minor})")
@@ -508,12 +510,12 @@ class Orchestrator:
         print()
 
         # 2. Infrastructure
-        print("2/5  Starting infrastructure…")
+        print("2/6  Starting infrastructure…")
         self.infra_start()
         print()
 
         # 3. Venvs
-        print("3/5  Setting up virtual environments…")
+        print("3/6  Setting up virtual environments…")
         existing_venvs = [
             svc for svc in self._registry.primary_services()
             if self._venv.exists(svc, self._root)
@@ -531,7 +533,7 @@ class Orchestrator:
         print()
 
         # 4. Env generation
-        print("4/5  Generating .env files…")
+        print("4/6  Generating .env files…")
         existing_envs = [
             svc for svc in self._registry.all_services()
             if svc.env_file
@@ -553,9 +555,14 @@ class Orchestrator:
         print()
 
         # 5. Auto-generate and placeholder prompts
-        print("5/5  Resolving auto-generated and placeholder values…")
+        print("5/6  Resolving auto-generated and placeholder values…")
         self._resolve_auto_generate_keys(non_interactive=non_interactive)
         self._resolve_placeholders(non_interactive=non_interactive)
+        print()
+
+        # 6. Shell completion
+        print("6/6  Shell completion…")
+        self._install_shell_completion(non_interactive=non_interactive)
         print()
 
         print("╔══════════════════════════════════════════════════════════════╗")
@@ -564,6 +571,7 @@ class Orchestrator:
         print("║  Next steps:                                                ║")
         print("║    unifai-dev start         Start all services              ║")
         print("║    unifai-dev doctor        Verify everything is healthy    ║")
+        print("║    unifai-dev list          Show services, groups, infra    ║")
         print("╚══════════════════════════════════════════════════════════════╝")
 
     def _auto_resolve_generated_keys(self) -> None:
@@ -650,6 +658,45 @@ class Orchestrator:
                         print(f"    ⏭ {key} skipped")
         if not any_placeholders:
             print("  ✔ No placeholders to fill.")
+
+    @staticmethod
+    def _install_shell_completion(*, non_interactive: bool = False) -> None:
+        """Offer to install Typer shell completion for unifai-dev."""
+        try:
+            import shellingham
+            shell_name, _ = shellingham.detect_shell()
+        except Exception:
+            shell_name = os.environ.get("SHELL", "")
+            shell_name = Path(shell_name).name if shell_name else ""
+
+        if not shell_name:
+            print("  ⏭ Could not detect shell — run 'unifai-dev --install-completion' manually.")
+            return
+
+        if non_interactive:
+            print(f"  ℹ Run 'unifai-dev --install-completion {shell_name}' to enable tab completion.")
+            return
+
+        try:
+            answer = input(
+                f"  Install tab autocompletion for {shell_name}? [Y/n]: "
+            ).strip().lower()
+        except EOFError:
+            answer = "n"
+
+        if answer in ("n", "no"):
+            print(f"  ⏭ Skipped. Run 'unifai-dev --install-completion' later.")
+            return
+
+        result = subprocess.run(
+            ["unifai-dev", "--install-completion", shell_name],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            print(f"  ✔ Completion installed for {shell_name}. Restart your shell to activate.")
+        else:
+            print(f"  ⚠ Could not install completion automatically.")
+            print(f"    Run 'unifai-dev --install-completion {shell_name}' manually.")
 
     # -- clean ---------------------------------------------------------------
 
@@ -768,8 +815,7 @@ class Orchestrator:
             parts.append("source venv/bin/activate")
 
         if svc.env_file:
-            env_path = svc_dir / svc.env_file
-            parts.append(f"set -a && source {env_path} 2>/dev/null; set +a")
+            parts.append(f"set -a && source {svc.env_file} 2>/dev/null; set +a")
 
         return " && ".join(parts)
 
@@ -783,6 +829,7 @@ class Orchestrator:
             launch = svc.launch
             if svc.type is ServiceType.PYTHON:
                 launch = launch.replace("python ", f"python{python_minor} ")
+                launch = f"PYTHONUNBUFFERED=1 {launch}"
             commands[svc.name] = f"{context} && {launch}"
         return commands
 
@@ -808,7 +855,7 @@ class Orchestrator:
 
         *bare_targets* are positional args not inside any --window; they go
         into a default "services" window.  Services in *all_services* that
-        don't appear in any window or bare target go into an "other" window.
+        don't appear in any window or bare target go into a "services" window.
         """
         by_name = {s.name: s for s in all_services}
         assigned: set[str] = set()
@@ -834,7 +881,7 @@ class Orchestrator:
 
         remaining = [s for s in all_services if s.name not in assigned]
         if remaining:
-            layout.append(WindowLayout(name="other", services=remaining))
+            layout.append(WindowLayout(name="services", services=remaining))
 
         return layout
 

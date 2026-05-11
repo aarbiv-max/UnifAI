@@ -13,7 +13,18 @@ import typer
 
 app = typer.Typer(
     name="unifai-dev",
-    help="UnifAI local development tool",
+    help=(
+        "UnifAI local development tool.\n\n"
+        "Quick start:\n"
+        "  unifai-dev init              First-time setup (infra + venvs + .env)\n"
+        "  unifai-dev start             Start all services in tmux\n"
+        "  unifai-dev status            Health dashboard\n"
+        "  unifai-dev doctor            Full diagnostic\n\n"
+        "Discovery:\n"
+        "  unifai-dev list              Show all services, groups, and infra\n"
+        "  unifai-dev info <service>    Deep-dive into a single service\n\n"
+        "Tip: run 'unifai-dev --install-completion' for tab autocompletion."
+    ),
     no_args_is_help=True,
     pretty_exceptions_enable=False,
 )
@@ -42,7 +53,41 @@ env_app = typer.Typer(
 app.add_typer(env_app)
 
 
-# -- Helpers (unchanged) -----------------------------------------------------
+# -- Tab-completion callbacks ------------------------------------------------
+
+
+def _complete_targets(incomplete: str) -> list[str]:
+    """Complete service and group names."""
+    try:
+        from devtool.domain.registry import Registry
+        r = Registry()
+        return [n for n in r.service_names() + r.group_names()
+                if n.startswith(incomplete)]
+    except Exception:
+        return []
+
+
+def _complete_services(incomplete: str) -> list[str]:
+    """Complete service names only."""
+    try:
+        from devtool.domain.registry import Registry
+        r = Registry()
+        return [n for n in r.service_names() if n.startswith(incomplete)]
+    except Exception:
+        return []
+
+
+def _complete_infra(incomplete: str) -> list[str]:
+    """Complete infrastructure component names."""
+    try:
+        from devtool.domain.registry import Registry
+        r = Registry()
+        return [n for n in r.infra_names() if n.startswith(incomplete)]
+    except Exception:
+        return []
+
+
+# -- Helpers -----------------------------------------------------------------
 
 def _parse_window_specs(
     raw: list[str] | None,
@@ -79,6 +124,16 @@ def _resolve_root() -> Path:
     return root
 
 
+def _load_registry():
+    """Load the Registry without wiring adapters.
+
+    Used by read-only commands (list, info) that only need the YAML data
+    and should work even when Docker/tmux are unavailable.
+    """
+    from devtool.domain.registry import Registry
+    return Registry()
+
+
 def _create_orchestrator(*, fg: bool = False):
     """Wire up adapters and return an Orchestrator."""
     from devtool.domain.registry import Registry
@@ -108,20 +163,33 @@ def _create_orchestrator(*, fg: bool = False):
 
 # -- Top-level commands ------------------------------------------------------
 
-@app.command()
+@app.command(
+    epilog=(
+        "Examples:\n"
+        "  unifai-dev start                          Start everything\n"
+        "  unifai-dev start backend ui               Only backend + UI\n"
+        "  unifai-dev start agents                   Start a group\n"
+        "  unifai-dev start multi-agent --fg         Single service, foreground\n"
+        "  unifai-dev start --setup-venv             Create venvs first\n"
+        "  unifai-dev start --window ai=multi-agent,temporal-worker"
+    ),
+)
 def start(
     targets: Optional[list[str]] = typer.Argument(
-        None, help="Service and/or group names (default: all)",
+        None,
+        help="Service and/or group names (default: all)",
+        autocompletion=_complete_targets,
     ),
     fg: bool = typer.Option(False, "--fg", help="Foreground single service"),
     setup_venv: bool = typer.Option(False, "--setup-venv", help="Create venvs first"),
     window: Optional[list[str]] = typer.Option(
         None, "--window",
-        help="Group services into a tmux window (repeatable). "
-             "Format: [name=]svc1,svc2,...",
+        help="Pull services into a separate tmux window (repeatable). "
+             "Format: [name=]svc1,svc2,...  "
+             "Without positional targets, starts all services.",
     ),
 ):
-    """Start services."""
+    """Start services (or groups) in a tmux session."""
     orch = _create_orchestrator(fg=fg)
     window_specs = _parse_window_specs(window)
     orch.start(
@@ -132,9 +200,20 @@ def start(
     )
 
 
-@app.command()
-def shell(service: str = typer.Argument(..., help="Service name")):
-    """Open a shell in a service's context."""
+@app.command(
+    epilog=(
+        "Examples:\n"
+        "  unifai-dev shell backend          Enter backend environment\n"
+        "  unifai-dev shell multi-agent      Enter multi-agent environment"
+    ),
+)
+def shell(
+    service: str = typer.Argument(
+        ..., help="Service name",
+        autocompletion=_complete_services,
+    ),
+):
+    """Open an interactive shell with a service's venv and env loaded."""
     orch = _create_orchestrator()
     orch.shell(service)
 
@@ -142,12 +221,21 @@ def shell(service: str = typer.Argument(..., help="Service name")):
 @app.command(
     "exec",
     context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
+    epilog=(
+        "Examples:\n"
+        "  unifai-dev exec backend python -m pytest tests/\n"
+        "  unifai-dev exec rag pip list\n"
+        "  unifai-dev exec multi-agent mas --help"
+    ),
 )
 def exec_cmd(
     ctx: typer.Context,
-    service: str = typer.Argument(..., help="Service name"),
+    service: str = typer.Argument(
+        ..., help="Service name",
+        autocompletion=_complete_services,
+    ),
 ):
-    """Run a command in a service's context."""
+    """Run a command inside a service's context, then exit."""
     if not ctx.args:
         print("Usage: unifai-dev exec <service> <command...>")
         raise SystemExit(1)
@@ -156,7 +244,12 @@ def exec_cmd(
 
 
 @app.command()
-def attach(service: str = typer.Argument(..., help="Service name")):
+def attach(
+    service: str = typer.Argument(
+        ..., help="Service name",
+        autocompletion=_complete_services,
+    ),
+):
     """Jump to a service's tmux pane."""
     orch = _create_orchestrator()
     orch.attach(service)
@@ -164,43 +257,61 @@ def attach(service: str = typer.Argument(..., help="Service name")):
 
 @app.command()
 def stop():
-    """Stop the tmux session."""
+    """Stop the tmux session (services keep infra running)."""
     orch = _create_orchestrator()
     orch.stop()
 
 
-@app.command()
+@app.command(
+    epilog=(
+        "Examples:\n"
+        "  unifai-dev restart backend          Restart a single service\n"
+        "  unifai-dev restart agents            Restart a group\n"
+        "  unifai-dev restart --failed          Auto-restart all unhealthy services"
+    ),
+)
 def restart(
     services: Optional[list[str]] = typer.Argument(
-        None, help="Service and/or group names",
+        None,
+        help="Service and/or group names",
+        autocompletion=_complete_targets,
     ),
     failed: bool = typer.Option(False, "--failed", help="Auto-restart all broken services"),
 ):
-    """Dependency-aware restart."""
+    """Dependency-aware restart of services or groups."""
     orch = _create_orchestrator()
     orch.restart(targets=services or None, failed=failed)
 
 
 @app.command()
 def status():
-    """Health dashboard."""
+    """Show health dashboard for infrastructure and services."""
     orch = _create_orchestrator()
     orch.status()
 
 
-@app.command()
+@app.command(
+    epilog=(
+        "Examples:\n"
+        "  unifai-dev logs backend              Full log output\n"
+        "  unifai-dev logs backend -f           Tail in real time"
+    ),
+)
 def logs(
-    service: str = typer.Argument(..., help="Service name"),
+    service: str = typer.Argument(
+        ..., help="Service name",
+        autocompletion=_complete_services,
+    ),
     follow: bool = typer.Option(False, "--follow", "-f", help="Tail the log"),
 ):
-    """View service logs."""
+    """View a service's log file."""
     orch = _create_orchestrator()
     orch.logs(service, follow=follow)
 
 
 @app.command()
 def doctor():
-    """Full diagnostic."""
+    """Run full diagnostic (Python, venvs, infra, ports, env files)."""
     orch = _create_orchestrator()
     orch.doctor()
 
@@ -212,19 +323,28 @@ def init(
         help="Skip interactive prompts (warn about placeholders instead)",
     ),
 ):
-    """First-time setup."""
+    """First-time setup: prerequisites, infra, venvs, env files."""
     orch = _create_orchestrator()
     orch.init(non_interactive=non_interactive)
 
 
-@app.command()
+@app.command(
+    epilog=(
+        "Examples:\n"
+        "  unifai-dev clean                     Remove logs + stopped containers\n"
+        "  unifai-dev clean --dry-run            Preview what would be removed\n"
+        "  unifai-dev clean --logs               Only clean log files\n"
+        "  unifai-dev clean --venvs              Only clean virtual environments\n"
+        "  unifai-dev clean --containers         Only clean stopped containers"
+    ),
+)
 def clean(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be removed"),
     logs: bool = typer.Option(False, "--logs", help="Only clean log files"),
     venvs: bool = typer.Option(False, "--venvs", help="Only clean virtual environments"),
     containers: bool = typer.Option(False, "--containers", help="Only clean stopped containers"),
 ):
-    """Remove stale resources."""
+    """Remove stale resources (logs, stopped containers, venvs)."""
     orch = _create_orchestrator()
     has_filter = logs or venvs or containers
     orch.clean(
@@ -237,16 +357,95 @@ def clean(
 
 @app.command()
 def destroy():
-    """Kill everything."""
+    """Kill everything: stop services and tear down infrastructure."""
     orch = _create_orchestrator()
     orch.destroy()
 
 
+# -- list / info (read-only, no Orchestrator) --------------------------------
+
+@app.command("list")
+def list_cmd():
+    """Show all services, groups, and infrastructure."""
+    registry = _load_registry()
+
+    print("\nServices:")
+    for svc in registry.all_services():
+        port_str = f":{svc.port}" if svc.port else ""
+        role = " (worker)" if not svc.is_primary else ""
+        print(f"  {svc.name:<18} {svc.type.value:<8} {port_str:<8} {svc.directory}/{role}")
+
+    print("\nGroups:")
+    for name in registry.group_names():
+        group = registry.get_group(name)
+        members = ", ".join(group.services)
+        print(f"  {name:<16} -> {members}")
+
+    print("\nInfrastructure:")
+    for comp in registry.all_infra():
+        ports = ", ".join(f":{p.split(':')[0]}" for p in comp.ports)
+        print(f"  {comp.name:<12} {comp.label:<12} {ports}")
+    print()
+
+
+@app.command()
+def info(
+    service: str = typer.Argument(
+        ..., help="Service name",
+        autocompletion=_complete_services,
+    ),
+):
+    """Show detailed information about a single service."""
+    registry = _load_registry()
+    svc = registry.get_service(service)
+    groups = registry.groups_for_service(service)
+
+    print(f"\n  Service:        {svc.name}")
+    print(f"  Type:           {svc.type.value}")
+    print(f"  Directory:      {svc.directory}/")
+    if svc.port:
+        host = svc.host or "127.0.0.1"
+        print(f"  Port:           {svc.port} (host: {host})")
+    if svc.health_endpoint:
+        print(f"  Health:         {svc.health_endpoint}")
+    print(f"  Launch:         {svc.launch}")
+    if svc.infrastructure:
+        print(f"  Infrastructure: {', '.join(svc.infrastructure)}")
+    if groups:
+        print(f"  Groups:         {', '.join(groups)}")
+    strategy = svc.venv.strategy.value
+    if svc.venv.commands:
+        strategy += f" ({len(svc.venv.commands)} commands)"
+    print(f"  Venv:           {strategy}")
+    if svc.env_file:
+        count = len(svc.env_entries)
+        print(f"  Env file:       {svc.env_file} ({count} entries)")
+
+    workers = [
+        s.name for s in registry.all_services()
+        if s.directory == svc.directory and not s.is_primary and s.name != svc.name
+    ]
+    if workers:
+        print(f"  Workers:        {', '.join(workers)}")
+    print()
+
+
 # -- infra subcommands -------------------------------------------------------
 
-@infra_app.command("start")
+@infra_app.command(
+    "start",
+    epilog=(
+        "Examples:\n"
+        "  unifai-dev infra start                    Start all containers\n"
+        "  unifai-dev infra start mongo redis         Cherry-pick containers\n"
+        "  unifai-dev infra start --for backend       Only what backend needs"
+    ),
+)
 def infra_start(
-    containers: Optional[list[str]] = typer.Argument(None, help="Container names"),
+    containers: Optional[list[str]] = typer.Argument(
+        None, help="Container names",
+        autocompletion=_complete_infra,
+    ),
     for_service: Optional[str] = typer.Option(
         None, "--for", help="Only what a service needs",
     ),
@@ -265,14 +464,17 @@ def infra_stop():
 
 @infra_app.command("status")
 def infra_status():
-    """Container status."""
+    """Show status of all infrastructure containers."""
     orch = _create_orchestrator()
     orch.infra_status()
 
 
 @infra_app.command("logs")
 def infra_logs(
-    component: str = typer.Argument(..., help="Infrastructure component name"),
+    component: str = typer.Argument(
+        ..., help="Infrastructure component name",
+        autocompletion=_complete_infra,
+    ),
     follow: bool = typer.Option(False, "--follow", "-f", help="Tail the log"),
 ):
     """View container logs."""
@@ -282,7 +484,10 @@ def infra_logs(
 
 @infra_app.command("reset")
 def infra_reset(
-    components: Optional[list[str]] = typer.Argument(None, help="Component names"),
+    components: Optional[list[str]] = typer.Argument(
+        None, help="Component names",
+        autocompletion=_complete_infra,
+    ),
 ):
     """Reset containers (stop, remove, recreate)."""
     orch = _create_orchestrator()
@@ -293,7 +498,10 @@ def infra_reset(
 
 @venv_app.command("setup")
 def venv_setup(
-    service: Optional[str] = typer.Argument(None, help="Service name"),
+    service: Optional[str] = typer.Argument(
+        None, help="Service name",
+        autocompletion=_complete_services,
+    ),
     force: bool = typer.Option(False, "--force", help="Delete and recreate existing venvs"),
 ):
     """Create virtual environment(s)."""
@@ -303,16 +511,19 @@ def venv_setup(
 
 @venv_app.command("sync")
 def venv_sync(
-    service: Optional[str] = typer.Argument(None, help="Service name"),
+    service: Optional[str] = typer.Argument(
+        None, help="Service name",
+        autocompletion=_complete_services,
+    ),
 ):
-    """Update dependencies in existing venv(s)."""
+    """Update dependencies in existing venv(s) without recreating."""
     orch = _create_orchestrator()
     orch.venv_sync(service_name=service)
 
 
 @venv_app.command("check")
 def venv_check():
-    """Verify Python versions match."""
+    """Verify Python versions match across all venvs."""
     orch = _create_orchestrator()
     orch.venv_check()
 
@@ -323,17 +534,18 @@ def venv_check():
 def env_generate(
     force: bool = typer.Option(False, "--force", help="Overwrite existing .env files"),
 ):
-    """Create/regenerate .env files."""
+    """Create or regenerate .env files from services.yaml templates."""
     orch = _create_orchestrator()
     orch.env_generate(force=force)
 
 
 @env_app.command("show")
 def env_show(
-    service: str = typer.Argument(..., help="Service name"),
+    service: str = typer.Argument(
+        ..., help="Service name",
+        autocompletion=_complete_services,
+    ),
 ):
-    """Print env config for a service."""
+    """Print the current env config for a service."""
     orch = _create_orchestrator()
     orch.env_show(service)
-
-
