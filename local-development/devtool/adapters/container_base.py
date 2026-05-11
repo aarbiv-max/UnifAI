@@ -211,10 +211,9 @@ def detect_runtime() -> SubprocessContainerRuntime:
             f"Verify the command works in your terminal."
         )
 
-    from devtool.adapters.podman import PodmanRuntime
-    from devtool.adapters.docker import DockerRuntime
-
     if shutil.which("podman"):
+        from devtool.adapters.podman import PodmanRuntime
+
         result = subprocess.run(
             ["podman", "info"],
             capture_output=True,
@@ -239,6 +238,8 @@ def detect_runtime() -> SubprocessContainerRuntime:
                 return PodmanRuntime()
 
     if shutil.which("docker"):
+        from devtool.adapters.docker import DockerRuntime
+
         result = subprocess.run(
             ["docker", "info"],
             capture_output=True,

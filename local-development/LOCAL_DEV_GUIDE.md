@@ -488,7 +488,8 @@ The tool will:
 1. Start only the required infrastructure containers
 2. Generate `.env` files and auto-resolve `secret_key`
 3. Verify the service's venv exists and its Python version matches
-4. Launch the service in your foreground terminal with debug/auto-reload
+4. Check for port conflicts and prompt to kill occupants if needed
+5. Launch the service in your foreground terminal with debug/auto-reload
 
 Press `Ctrl+C` to stop.
 
@@ -530,7 +531,7 @@ The tool will:
 1. Start required infrastructure containers via Podman/Docker
 2. Generate `.env` files and auto-resolve `secret_key`
 3. Verify all venvs exist and Python versions match
-4. Kill any processes occupying required ports
+4. Check for port conflicts — if any required ports are occupied, show the process name and PID and prompt to kill them (`[y/N]`)
 5. Create a tmux session (`unifai-dev`) with auto-windowed panes:
    - **Window "services"** — one pane per primary service (tiled layout)
    - **Window "workers"** — one pane per worker (if any workers are selected)
@@ -958,13 +959,26 @@ unifai-dev infra start temporal
 
 #### Port already in use
 
-If a service fails to start with `Address already in use`, kill the process occupying the port:
+During `unifai-dev start`, the tool checks every required service port and shows which process is using it (name + PID). You are prompted to kill the occupants:
 
-```bash
-lsof -ti :PORT_NUMBER | xargs kill -9
+```
+  ⚠ port 8005 (backend) — in use by: python3.12 (PID 54321)
+  ✔ port 13457 (rag) — free
+
+  Kill processes on occupied ports? [y/N]:
 ```
 
-The tool does this automatically during start, but a race condition can occasionally leave a stale process behind.
+If you answer **y**, the tool sends `SIGTERM` first (graceful shutdown), then `SIGKILL` after 0.5 s if the process is still alive. If you answer **n**, the tool continues but the affected services will likely fail with "address already in use".
+
+If you need to kill a port manually (e.g. outside of the tool), use `ss` (available on all Linux systems) or `lsof`:
+
+```bash
+# Find what's on a port (works without lsof)
+ss -tlnp 'sport = :8005'
+
+# Or with lsof (macOS / full Linux installs)
+lsof -ti :8005 | xargs kill
+```
 
 If a **container** fails to bind a port (e.g. `pasta failed ... Address already in use`), check `/tmp/unifai-dev/logs/infra.log`. A common cause is a previously created container or a system-installed service (e.g. `mongod`) still holding the port:
 

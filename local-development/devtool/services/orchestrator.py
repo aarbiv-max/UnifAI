@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import signal
 import socket
@@ -28,6 +29,60 @@ def _resolve_bash() -> str:
             "bash not found on PATH. Install bash or set SHELL to a compatible shell."
         )
     return path
+
+
+def _read_proc_name(pid: int) -> str:
+    """Best-effort read of ``/proc/<pid>/comm``."""
+    try:
+        return Path(f"/proc/{pid}/comm").read_text().strip()
+    except OSError:
+        return "unknown"
+
+
+def _find_pids_from_proc(port: int) -> list[tuple[int, str]]:
+    """Parse /proc/net/tcp to find PIDs bound to *port* (Linux-only fallback)."""
+    hex_port = f"{port:04X}"
+    inodes: set[str] = set()
+
+    for proto in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            with open(proto) as f:
+                for line in f:
+                    fields = line.split()
+                    if len(fields) < 10:
+                        continue
+                    local_addr = fields[1]
+                    local_port = local_addr.split(":")[1]
+                    if local_port == hex_port:
+                        inodes.add(fields[9])
+        except FileNotFoundError:
+            continue
+
+    if not inodes:
+        return []
+
+    import os as _os
+    results: list[tuple[int, str]] = []
+    for pid_dir in Path("/proc").iterdir():
+        if not pid_dir.name.isdigit():
+            continue
+        fd_dir = pid_dir / "fd"
+        try:
+            for fd in fd_dir.iterdir():
+                try:
+                    link = _os.readlink(str(fd))
+                except OSError:
+                    continue
+                if link.startswith("socket:["):
+                    inode = link[8:-1]
+                    if inode in inodes:
+                        pid = int(pid_dir.name)
+                        results.append((pid, _read_proc_name(pid)))
+                        break
+        except PermissionError:
+            continue
+
+    return results
 
 
 class Orchestrator:
@@ -118,10 +173,27 @@ class Orchestrator:
             if svc.is_primary and svc.type is ServiceType.PYTHON:
                 self._venv.verify(svc, python_minor, self._root)
 
-        # 5. Kill ports
-        for svc in services:
-            if svc.port:
-                self._kill_port(svc.port)
+        # 5. Check/free ports
+        conflicting = self._check_ports(services)
+
+        if conflicting:
+            print(
+                "\n  ┌─────────────────────────────────────────────────────┐"
+                "\n  │  WARNING: ports still in use!                      │"
+                "\n  │  The following services will likely fail to start:  │"
+            )
+            for name in conflicting:
+                print(f"  │    - {name:<47}│")
+            print(
+                "  │                                                     │"
+                "\n  │  To fix: stop the conflicting processes manually   │"
+                "\n  │  and run 'unifai-dev restart --failed'.            │"
+                "\n  └─────────────────────────────────────────────────────┘"
+            )
+            try:
+                input("\n  Press Enter to continue…")
+            except EOFError:
+                pass
 
         # 7. Build shell commands
         commands = self._build_commands(services, python_minor)
@@ -830,19 +902,102 @@ class Orchestrator:
 
         return layout
 
-    def _kill_port(self, port: int) -> None:
-        result = subprocess.run(
-            ["lsof", "-ti", f":{port}"],
-            capture_output=True, text=True,
-        )
-        pids = result.stdout.strip()
-        if pids:
-            print(f"  ⚠ Killing process on port {port} (PIDs: {pids})")
-            for pid in pids.splitlines():
-                try:
-                    os.kill(int(pid.strip()), signal.SIGKILL)
-                except (ProcessLookupError, ValueError, PermissionError):
-                    pass
+    def _check_ports(self, services: list[Service]) -> list[str]:
+        """Check service ports for conflicts and offer to kill occupants.
+
+        Returns the names of services whose ports are still occupied (empty
+        list when everything is clear).
+        """
+        occupied: list[tuple[Service, list[tuple[int, str]]]] = []
+
+        for svc in services:
+            if not svc.port:
+                continue
+            pids = self._find_pids_on_port(svc.port)
+            if pids:
+                occupied.append((svc, pids))
+                procs = ", ".join(
+                    f"{name} (PID {pid})" for pid, name in pids
+                )
+                print(f"  ⚠ port {svc.port} ({svc.name}) — in use by: {procs}")
+            else:
+                print(f"  ✔ port {svc.port} ({svc.name}) — free")
+
+        if not occupied:
+            return []
+
+        try:
+            answer = input(
+                "\n  Kill processes on occupied ports? [y/N]: "
+            ).strip().lower()
+        except EOFError:
+            answer = ""
+
+        if answer not in ("y", "yes"):
+            return [svc.name for svc, _ in occupied]
+
+        all_pids = [pid for _, pids in occupied for pid, _ in pids]
+        for pid in all_pids:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                pass
+        time.sleep(0.5)
+        for pid in all_pids:
+            try:
+                os.kill(pid, 0)  # check if still alive
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+
+        for svc, pids in occupied:
+            pid_str = ", ".join(str(p) for p, _ in pids)
+            print(f"  ✔ Killed processes on port {svc.port} (PIDs: {pid_str})")
+        return []
+
+    @staticmethod
+    def _find_pids_on_port(port: int) -> list[tuple[int, str]]:
+        """Find PIDs listening on a port. Returns ``[(pid, name), ...]``.
+
+        Tries lsof, then ss, then /proc/net.
+        """
+        # Try lsof (macOS + most full Linux installs)
+        if shutil.which("lsof"):
+            result = subprocess.run(
+                ["lsof", "-ti", f":{port}"],
+                capture_output=True, text=True,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                pids: list[tuple[int, str]] = []
+                for line in result.stdout.strip().splitlines():
+                    try:
+                        pid = int(line.strip())
+                        pids.append((pid, _read_proc_name(pid)))
+                    except ValueError:
+                        pass
+                return pids
+
+        # Try ss (modern Linux, part of iproute2)
+        if shutil.which("ss"):
+            result = subprocess.run(
+                ["ss", "-tlnp", f"sport = :{port}"],
+                capture_output=True, text=True,
+            )
+            if result.returncode == 0:
+                pids = []
+                for m in re.finditer(
+                    r'\("([^"]*)",pid=(\d+)', result.stdout,
+                ):
+                    pids.append((int(m.group(2)), m.group(1)))
+                return pids
+
+        # Fallback: scan /proc/net/tcp (Linux only, no external tools needed)
+        try:
+            return _find_pids_from_proc(port)
+        except (OSError, PermissionError):
+            pass
+
+        return []
 
     @staticmethod
     def _is_port_in_use(port: int) -> bool:

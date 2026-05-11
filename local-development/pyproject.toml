@@ -12,5 +12,10 @@ dependencies = [
     "typer",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
 [project.scripts]
 unifai-dev = "devtool.cli:app"
