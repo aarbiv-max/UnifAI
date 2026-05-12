@@ -16,7 +16,7 @@ from mas.elements.tools.sandbox_exec.ports import SandboxManagerPort
 
 logger = logging.getLogger(__name__)
 
-SANDBOX_IMAGE = "python:3.11-slim"
+SANDBOX_IMAGE = "image-registry.openshift-image-registry.svc:5000/default/sandbox-base:latest"
 PVC_SIZE = "2Gi"
 POD_RESOURCES = {
     "requests": {"cpu": "500m", "memory": "512Mi"},
@@ -206,12 +206,7 @@ class OpenShiftSandboxManager(SandboxManagerPort):
         git_token: str,
         skip_tls_verify: bool,
     ) -> None:
-        """Ensure git is available, clone bare repo (if missing) and create a git worktree."""
-        self.execute(
-            pod_name, namespace, cluster_api, token,
-            "which git || (apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1)",
-            skip_tls_verify=skip_tls_verify,
-        )
+        """Clone bare repo (if missing) and create a git worktree."""
         if git_token:
             clone_url = git_repo_url.replace("https://", f"https://{git_token}@")
         else:
