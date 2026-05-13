@@ -317,7 +317,7 @@ class TemplateService:
 
         # Validate
         if not skip_validation:
-            self._validate_blueprint(result.blueprint)
+            self._validate_blueprint(result.blueprint, user_id=user_id)
 
         # Save blueprint (and optionally resources)
         blueprint_id, resource_ids = self._save_blueprint(
@@ -336,10 +336,11 @@ class TemplateService:
             resource_ids=resource_ids,
         )
 
-    def _validate_blueprint(self, blueprint: BlueprintDraft) -> None:
+    def _validate_blueprint(self, blueprint: BlueprintDraft, user_id: str = "") -> None:
         """Validate blueprint, raise InstantiationError if invalid."""
         result = self._blueprint_service.validate_draft(
-            blueprint.model_dump(mode="json")
+            blueprint.model_dump(mode="json"),
+            user_id=user_id,
         )
         if not result.is_valid:
             failed = [r for r in result.element_results.values() if not r.is_valid]

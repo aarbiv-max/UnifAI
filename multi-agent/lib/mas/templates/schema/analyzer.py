@@ -106,10 +106,18 @@ class PlaceholderAnalyzer:
         if not resource_models:
             return None
         
-        fields = {
-            rid: (model, Field(..., description=f"Input for {rid}"))
-            for rid, model in resource_models.items()
-        }
+        fields = {}
+        for rid, model in resource_models.items():
+            if self._model_has_required_fields(model):
+                fields[rid] = (model, Field(..., description=f"Input for {rid}"))
+            else:
+                # All fields are optional (e.g. auth-only resources whose
+                # credential is stored server-side via OAuth).  Use
+                # default_factory so the sub-model is NOT in JSON-schema
+                # "required" — validation succeeds when the key is absent —
+                # while keeping the clean "$ref" shape that the frontend needs
+                # to discover and render the sign-in widget.
+                fields[rid] = (model, Field(default_factory=model, description=f"Input for {rid}"))
         
         return create_model(
             self._model_name(category.value.title()),
@@ -184,17 +192,28 @@ class PlaceholderAnalyzer:
         schema_cls: Type[BaseModel],
         placeholder: PlaceholderPointer,
     ) -> Optional[FieldDefinition]:
-        """Extract a single field definition."""
+        """Extract a single field definition.
+
+        Auth-hinted fields are included in the schema so the frontend can
+        render the sign-in widget, but they are always treated as optional
+        (default=None) so that an absent payload field never triggers a
+        "field required" Pydantic error.  Credentials are stored server-side
+        via the OAuth flow and are never part of the user's input payload.
+        """
         # Get field name (last segment of path)
         field_name = placeholder.field_path.split(".")[-1]
-        
+
         if field_name not in schema_cls.model_fields:
             print(f"[PlaceholderAnalyzer] Field '{field_name}' not found in {schema_cls.__name__}")
             return None
-        
+
         original = schema_cls.model_fields[field_name]
-        field_info = self._create_field_info(original, placeholder)
-        
+
+        extra = original.json_schema_extra or {}
+        is_auth = isinstance(extra, dict) and "auth" in extra.get("hints", {})
+
+        field_info = self._create_field_info(original, placeholder, is_auth=is_auth)
+
         return FieldDefinition(
             name=field_name,
             annotation=original.annotation,
@@ -205,21 +224,37 @@ class PlaceholderAnalyzer:
         self,
         original: FieldInfo,
         placeholder: PlaceholderPointer,
-        use_placeholder_required: bool = False,
+        use_placeholder_required: bool = True,
+        is_auth: bool = False,
     ) -> FieldInfo:
         """
         Create FieldInfo with placeholder overrides for title/description.
-        
+
         Args:
-            use_placeholder_required: If True, use placeholder.required.
-                If False (default), use original schema's required status.
+            use_placeholder_required: If True (default), use placeholder.required
+                so template authors control which fields are mandatory in the form.
+                If False, fall back to the original schema's required status.
+            is_auth: If True the field is an OAuth widget.  Auth fields are
+                always optional (default=None) because credentials are stored
+                server-side and the client never sends their value in the input
+                payload.  The field is still included in the schema so that the
+                frontend renders the sign-in widget.
         """
+        # Auth fields are always optional — the credential is handled server-side.
+        if is_auth:
+            return Field(
+                default=None,
+                title=placeholder.label or original.title,
+                description=placeholder.hint or original.description,
+                json_schema_extra=original.json_schema_extra,
+            )
+
         # Determine required status
         is_required = (
             placeholder.required if use_placeholder_required
             else original.default is PydanticUndefined
         )
-        
+
         # Determine default value
         if is_required:
             default = ...
@@ -227,7 +262,7 @@ class PlaceholderAnalyzer:
             default = None
         else:
             default = original.default
-        
+
         return Field(
             default=default,
             title=placeholder.label or original.title,
@@ -261,6 +296,13 @@ class PlaceholderAnalyzer:
             return self._registry.get_schema(category, element_type)
         except KeyError:
             return None
+
+    def _model_has_required_fields(self, model: Type[BaseModel]) -> bool:
+        """Return True if the model has at least one required (no-default) field."""
+        return any(
+            field_info.is_required()
+            for field_info in model.model_fields.values()
+        )
 
     def _model_name(self, base: str) -> str:
         """Generate sanitized model name."""

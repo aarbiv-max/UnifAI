@@ -87,14 +87,19 @@ export interface SchemaHintUrl {
   hint_type: 'url';
 }
 
-export type SchemaHint = SchemaHintSecret | SchemaHintSelection | SchemaHintMultiline | SchemaHintUrl;
+export interface SchemaHintAuth {
+  action_uid: string;
+  dependencies: Record<string, string>;
+}
+
+export type SchemaHint = SchemaHintSecret | SchemaHintSelection | SchemaHintMultiline | SchemaHintUrl | SchemaHintAuth;
 
 export interface SchemaFieldProperty {
   type: string;
   title?: string;
   description?: string;
   default?: any;
-  hints?: Record<string, SchemaHint>;
+  hints?: Record<string, any>;
   minLength?: number;
   maxLength?: number;
   pattern?: string;
@@ -194,7 +199,7 @@ export interface NormalizedField {
   key: string;  // Unique key: category.rid.field_path
   label: string;
   description?: string;
-  type: 'string' | 'secret' | 'number' | 'boolean' | 'array' | 'enum';
+  type: 'string' | 'secret' | 'number' | 'boolean' | 'array' | 'enum' | 'auth';
   required: boolean;
   default?: any;
   
@@ -209,6 +214,12 @@ export interface NormalizedField {
   // UI hints
   isSecret?: boolean;
   isMultiline?: boolean;
+
+  // Auth hint — present when type === 'auth'
+  authHint?: {
+    action_uid: string;
+    dependencies: Record<string, string>;
+  };
 }
 
 export interface TemplateFormData {

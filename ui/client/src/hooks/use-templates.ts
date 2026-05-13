@@ -9,7 +9,8 @@ import {
   TemplateCategory,
   TemplateFormData,
   SchemaFieldProperty,
-  ValidationError
+  ValidationError,
+  SchemaHintAuth,
 } from '../types/templates';
 import { 
   listTemplates,
@@ -87,7 +88,16 @@ function normalizeSchemaToFields(
 
         // Determine field type based on schema type and hints
         let fieldType: NormalizedField['type'] = 'string';
-        if (hints.secret) {
+        let authHint: NormalizedField['authHint'] | undefined;
+
+        if (hints.auth) {
+          const rawAuth = hints.auth as SchemaHintAuth;
+          fieldType = 'auth';
+          authHint = {
+            action_uid: rawAuth.action_uid,
+            dependencies: rawAuth.dependencies || {},
+          };
+        } else if (hints.secret) {
           fieldType = 'secret';
         } else if (field.type === 'boolean') {
           fieldType = 'boolean';
@@ -116,7 +126,8 @@ function normalizeSchemaToFields(
           maximum: field.maximum,
           enumOptions: field.enum,
           isSecret: hints.secret?.hint_type === 'secret',
-          isMultiline: hints.multiline?.hint_type === 'multiline'
+          isMultiline: hints.multiline?.hint_type === 'multiline',
+          authHint,
         });
       }
     }
@@ -126,8 +137,44 @@ function normalizeSchemaToFields(
 }
 
 /**
- * Build the input payload structure required by the backend API
+ * Overlay draft config values as defaults onto normalized fields.
+ *
+ * The template draft contains pre-configured values (e.g. a hard-coded MCP URL)
+ * that should seed the form so auth widgets and validators can work without
+ * requiring the user to re-enter the pre-set value.
+ *
+ * Draft structure: { providers: [{rid, config: {...}}], llms: [...], ... }
+ */
+function applyDraftDefaults(
+  fields: NormalizedField[],
+  draft: Record<string, any>,
+): NormalizedField[] {
+  return fields.map((field) => {
+    // Auth fields carry no user-editable value
+    if (field.type === 'auth') return field;
+
+    const categoryResources = draft[field.category];
+    if (!Array.isArray(categoryResources)) return field;
+
+    const resource = categoryResources.find(
+      (r: any) => r.rid === field.resourceRid
+    );
+    const draftValue = resource?.config?.[field.fieldPath];
+
+    if (draftValue === null || draftValue === undefined || draftValue === '') {
+      return field;
+    }
+
+    return { ...field, default: draftValue };
+  });
+}
+
+/**
+ * Build the input payload structure required by the backend API.
  * Structure: { category: { resourceRid: { fieldPath: value } } }
+ *
+ * Auth fields are excluded — their credential is held in the auth store, not
+ * the blueprint config, so there is nothing to send to the materializer.
  */
 function buildInputPayloadFromFields(
   formData: TemplateFormData,
@@ -136,6 +183,10 @@ function buildInputPayloadFromFields(
   const input: Record<string, Record<string, Record<string, any>>> = {};
 
   for (const field of normalizedFields) {
+    // Auth fields are interactive UI widgets; the credential is stored
+    // server-side by the OAuth flow. Never include them in the payload.
+    if (field.type === 'auth') continue;
+
     const value = formData[field.key];
     
     // Skip only undefined/null values; empty string may be intentional
@@ -259,8 +310,10 @@ export const useTemplates = (): UseTemplatesReturn => {
       setTemplateDetail(detail);
       setTemplateSchema(schema);
 
-      // Normalize schema fields for UI rendering
-      const fields = normalizeSchemaToFields(schema);
+      // Normalize schema fields for UI rendering, then overlay draft values
+      // so pre-configured fields (e.g. mcp_url) are pre-populated in the form.
+      const rawFields = normalizeSchemaToFields(schema);
+      const fields = applyDraftDefaults(rawFields, detail.draft);
       setNormalizedFields(fields);
 
       // Update selected template with detail info
@@ -358,9 +411,35 @@ export const useTemplates = (): UseTemplatesReturn => {
       setError(errorMessage);
       setInstantiationStatus('failed');
       
-      // Capture element validation results directly (already in ElementValidationResult format)
+      // Capture element validation results, normalising any non-standard shapes
+      // (e.g. MergeFieldError, MaterializationFieldError) into ElementValidationResult.
       if (errorData?.errors && Array.isArray(errorData.errors)) {
-        setElementValidationResults(errorData.errors as ElementValidationResult[]);
+        const normalised: ElementValidationResult[] = (errorData.errors as any[]).map(
+          (e): ElementValidationResult => {
+            if (
+              typeof e === 'object' &&
+              e !== null &&
+              Array.isArray(e.messages) &&
+              typeof e.is_valid === 'boolean'
+            ) {
+              return e as ElementValidationResult;
+            }
+            // Fallback: wrap unknown error shapes into a synthetic result.
+            const msg =
+              typeof e === 'string'
+                ? e
+                : e?.message ?? e?.error ?? JSON.stringify(e);
+            return {
+              is_valid: false,
+              element_rid: e?.rid ?? 'unknown',
+              element_type: e?.element_type ?? e?.category ?? 'unknown',
+              name: e?.name ?? null,
+              messages: [{ severity: 'error', code: 'VALIDATION_ERROR', message: msg, field: e?.field ?? null }],
+              dependency_results: {},
+            };
+          }
+        );
+        setElementValidationResults(normalised);
       }
       
       toast({

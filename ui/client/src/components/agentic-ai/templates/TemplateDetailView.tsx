@@ -13,12 +13,14 @@ import {
   User,
   AlertCircle
 } from 'lucide-react';
-import { TemplateListItem, NormalizedField, TemplateFormData } from '@/types/templates';
+import { TemplateListItem, TemplateDetail, NormalizedField, TemplateFormData } from '@/types/templates';
 import { getFieldDisplayType, getCategoryIcon, getFieldTypeIcon } from '@/utils/templateHelpers';
 import { FieldInput } from './FieldInputs';
+import { TemplateAuthFieldRenderer } from './TemplateAuthFieldRenderer';
 
 interface TemplateDetailViewProps {
   template: TemplateListItem;
+  templateDetail?: TemplateDetail | null;
   fields: NormalizedField[];
   onBack: () => void;
   onGenerate: (data: TemplateFormData) => void;
@@ -51,6 +53,7 @@ interface FieldCardProps {
   onChange: (value: any) => void;
   error?: string;
   onClickToEdit?: () => void;
+  allFormData?: TemplateFormData;
 }
 
 const FieldCard: React.FC<FieldCardProps> = ({ 
@@ -59,8 +62,19 @@ const FieldCard: React.FC<FieldCardProps> = ({
   value, 
   onChange,
   error,
-  onClickToEdit
+  onClickToEdit,
+  allFormData,
 }) => {
+  // Auth fields are always shown in interactive mode — they render an OAuth
+  // sign-in widget and have no user-editable text value to "flip" to.
+  if (field.type === 'auth') {
+    return (
+      <TemplateAuthFieldRenderer
+        field={field}
+        allFormData={allFormData || {}}
+      />
+    );
+  }
 
   return (
     <div className="relative h-auto min-h-[72px]" style={{ perspective: '1000px' }}>
@@ -150,16 +164,20 @@ const FieldsSection: React.FC<FieldsSectionProps> = ({
 }) => {
   if (fields.length === 0) return null;
 
+  // Auth fields are always interactive; only non-auth fields count toward the
+  // toggle badge so the "N fields" label reflects editable inputs.
+  const editableCount = fields.filter((f) => f.type !== 'auth').length;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-lg font-medium">
           {title}
           <span className="text-sm font-normal text-gray-500 ml-2">
-            ({fields.length} fields)
+            ({editableCount > 0 ? editableCount : fields.length} fields)
           </span>
         </h3>
-        {showToggle && (
+        {showToggle && editableCount > 0 && (
           <Button
             variant="ghost"
             size="sm"
@@ -195,6 +213,7 @@ const FieldsSection: React.FC<FieldsSectionProps> = ({
               onChange={(value) => onFieldChange(field.key, value)}
               error={errors[field.key]}
               onClickToEdit={!isEditing ? onToggleEdit : undefined}
+              allFormData={formData}
             />
           </motion.div>
         ))}
@@ -205,6 +224,7 @@ const FieldsSection: React.FC<FieldsSectionProps> = ({
 
 export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDetailViewProps>(({
   template,
+  templateDetail,
   fields,
   onBack,
   onGenerate,
@@ -215,17 +235,46 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
   const [formData, setFormData] = useState<TemplateFormData>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Reset form to default values
+  // Reset form to default values.
+  // Seeds formData with ALL draft config values (including hidden fields like
+  // server_identifier) so that auth renderers and validators can resolve
+  // dependencies that aren't surfaced as visible form inputs.
   const resetForm = useCallback(() => {
-    const initial = fields.reduce<TemplateFormData>((acc, field) => {
-      acc[field.key] = getFieldDefaultValue(field);
-      return acc;
-    }, {});
+    const initial: TemplateFormData = {};
+
+    // 1. Seed from draft — every config field of every resource, including
+    //    hidden ones (e.g. server_identifier pre-set to the OAuth issuer URL).
+    if (templateDetail?.draft) {
+      for (const [category, resources] of Object.entries(templateDetail.draft)) {
+        if (!Array.isArray(resources)) continue;
+        for (const resource of resources as Array<{ rid: string; config?: Record<string, any> }>) {
+          const rid = resource.rid;
+          const config = resource.config || {};
+          for (const [fieldPath, value] of Object.entries(config)) {
+            if (value !== null && value !== undefined) {
+              initial[`${category}.${rid}.${fieldPath}`] = value;
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Overlay visible field defaults (may refine draft values with label/type
+    //    aware defaults for fields that have no draft value).
+    for (const field of fields) {
+      const defaultVal = getFieldDefaultValue(field);
+      if (defaultVal !== undefined) {
+        initial[field.key] = defaultVal;
+      } else if (!(field.key in initial)) {
+        initial[field.key] = undefined;
+      }
+    }
+
     setFormData(initial);
     setErrors({});
     setIsEditingRequired(false);
     setIsEditingOptional(false);
-  }, [fields]);
+  }, [fields, templateDetail]);
 
   // Expose resetForm to parent via ref
   useImperativeHandle(ref, () => ({
@@ -252,6 +301,10 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
     const newErrors: Record<string, string> = {};
     
     fields.forEach(field => {
+      // Auth fields are validated by the OAuth widget itself and never carry
+      // a form value, so they must be skipped in the required-field check.
+      if (field.type === 'auth') return;
+
       if (field.required) {
         const value = formData[field.key];
         

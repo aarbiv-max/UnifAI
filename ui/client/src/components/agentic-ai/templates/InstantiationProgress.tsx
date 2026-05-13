@@ -116,10 +116,10 @@ export const InstantiationProgress: React.FC<InstantiationProgressProps> = ({
     setSelectedValidationResult(result);
   };
 
-  const failedResults = validationResults.filter(r => !r.is_valid);
+  const failedResults = validationResults.filter(r => r.is_valid === false);
   const hasValidationErrors = failedResults.length > 0;
   const totalErrorCount = failedResults.reduce(
-    (sum, r) => sum + r.messages.filter(m => m.severity === 'error').length,
+    (sum, r) => sum + (r.messages ?? []).filter(m => m.severity === 'error').length,
     0
   );
 
@@ -287,7 +287,7 @@ export const InstantiationProgress: React.FC<InstantiationProgressProps> = ({
                                 {result.name || result.element_rid}
                               </p>
                               <p className="text-xs text-gray-500">
-                              {result.element_type} • {result.messages.filter(m => m.severity === 'error').length} error{result.messages.filter(m => m.severity === 'error').length !== 1 ? 's' : ''}
+                              {result.element_type} • {(result.messages ?? []).filter(m => m.severity === 'error').length} error{(result.messages ?? []).filter(m => m.severity === 'error').length !== 1 ? 's' : ''}
                               </p>
                             </div>
                           </div>

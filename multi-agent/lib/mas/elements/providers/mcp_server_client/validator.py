@@ -7,12 +7,12 @@ Uses the same transport path as the wizard and runtime (McpProviderFactory),
 and resolves auth credentials via ``core/auth`` before probing.
 """
 
+import asyncio
 import time
 import logging
 from concurrent.futures import CancelledError
 from typing import List
 
-import anyio
 from global_utils.utils.async_bridge import get_async_bridge
 from mas.elements.common.validator import (
     BaseElementValidator,
@@ -72,8 +72,13 @@ class McpProviderValidator(BaseElementValidator):
     ) -> None:
         """
         Async MCP connection check using McpProviderFactory.
-        
-        Uses anyio.fail_after INSIDE the async function for timeout control.
+
+        Uses asyncio.wait_for for timeout control instead of anyio.fail_after.
+        This avoids cancel-scope ordering conflicts that arise when
+        streamablehttp_client's internal task-group scopes are cleaned up
+        while an outer anyio cancel scope is still on the task's scope stack.
+        Running the connection inside a fresh asyncio Task (via wait_for) gives
+        it an isolated scope stack, so any cleanup errors stay contained.
         """
         start = time.time()
 
@@ -83,8 +88,10 @@ class McpProviderValidator(BaseElementValidator):
             auth_cred = context.auth_service.bind(context.user_id, lookup_id)
 
         try:
-            with anyio.fail_after(context.timeout_seconds):
-                await self._factory.create_async(config, auth_credential=auth_cred)
+            await asyncio.wait_for(
+                self._factory.create_async(config, auth_credential=auth_cred),
+                timeout=context.timeout_seconds,
+            )
 
             elapsed = (time.time() - start) * 1000
             messages.append(self._info(
@@ -93,14 +100,12 @@ class McpProviderValidator(BaseElementValidator):
                 field="mcp_url",
             ))
 
-        except TimeoutError:
+        except asyncio.TimeoutError:
             messages.append(self._error(
                 ValidationCode.NETWORK_TIMEOUT.value,
                 f"Connection timed out after {context.timeout_seconds}s",
                 field="mcp_url",
             ))
-        except RuntimeError:
-            raise
         except Exception as e:
             error_msg = str(e)
             if "401" in error_msg or "Unauthorized" in error_msg:

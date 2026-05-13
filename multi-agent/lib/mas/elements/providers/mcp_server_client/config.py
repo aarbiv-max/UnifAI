@@ -64,7 +64,6 @@ class McpProviderConfig(ProviderBaseConfig):
     )
     sign_in: Optional[str] = Field(
         default=None,
-        exclude=True,
         description="Sign in to authenticate with this MCP server",
         json_schema_extra=combine_hints(
             ConditionalHint(visible_when={"auth_method": "sign_in"}),
@@ -88,12 +87,30 @@ class McpProviderConfig(ProviderBaseConfig):
         default_factory=dict,
         description="Additional HTTP headers to include in MCP server requests"
     )
+    atlassian_user_email: Optional[str] = Field(
+        default=None,
+        description=(
+            "Atlassian account email; sent as the X-Atlassian-Email header "
+            "(required by some Atlassian/Jira MCP deployments when using PAT auth)."
+        ),
+    )
     def on_pre_save(self, user_id: str, **services) -> None:
         """Persist bearer_token to the credential store and clear it from config.
 
         Called by ``ResourcesService`` on save so that API-key credentials
         follow the same store-based path as OAuth credentials at runtime.
+
+        For sign_in (OAuth) providers the server_identifier is not set by the
+        user — it is derived from the MCP URL so that ``ProviderBuilder`` can
+        locate the stored OAuth credential at workflow runtime.
         """
+        # For OAuth sign-in providers, ensure server_identifier is stamped so
+        # that ProviderBuilder can look up the credential at runtime.
+        if self.auth_method == McpAuthMethod.SIGN_IN and not self.server_identifier:
+            object.__setattr__(self, "server_identifier", str(self.mcp_url))
+            if not self.scheme_type:
+                object.__setattr__(self, "scheme_type", "oauth2")
+
         auth_service = services.get("auth_service")
         if not self.bearer_token or self.auth_method != McpAuthMethod.ACCESS_TOKEN or not auth_service:
             return

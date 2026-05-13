@@ -7,5 +7,6 @@ def ensure_tool_call_id(data: dict) -> ToolCall:
     return ToolCall(
         name=data["name"],
         args=data["args"],
-        tool_call_id=data.get("id") or f"tool-{uuid4()}"
+        tool_call_id=data.get("id") or f"tool-{uuid4()}",
+        additional_kwargs=data.get("additional_kwargs") or None,
     )

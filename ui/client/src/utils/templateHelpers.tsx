@@ -8,7 +8,8 @@ import {
   Key,
   List,
   CheckCircle,
-  Settings
+  Settings,
+  LogIn,
 } from 'lucide-react';
 import { NormalizedField } from '@/types/templates';
 
@@ -16,6 +17,7 @@ import { NormalizedField } from '@/types/templates';
  * Get display-friendly type name for a template field
  */
 export const getFieldDisplayType = (field: NormalizedField): string => {
+  if (field.type === 'auth') return 'sign in';
   if (field.isSecret) return 'secret';
   if (field.type === 'array') return 'list';
   return field.type;
@@ -51,6 +53,8 @@ export const getFieldTypeIcon = (type: string, isSecret?: boolean): React.ReactN
     return <Key className="h-4 w-4 text-yellow-500" />;
   }
   switch (type) {
+    case 'auth':
+      return <LogIn className="h-4 w-4 text-blue-400" />;
     case 'secret':
       return <Key className="h-4 w-4 text-yellow-500" />;
     case 'array':

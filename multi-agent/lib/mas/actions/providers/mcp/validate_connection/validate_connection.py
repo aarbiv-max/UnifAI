@@ -70,15 +70,11 @@ class ValidateConnectionAction(BaseAction):
         self._auth = auth_service
 
     def execute_sync(self, input_data, context=None):
-        try:
-            return super().execute_sync(input_data, context)
-        except RuntimeError as e:
-            if "cancel scope" in str(e).lower():
-                return self._handle_auth_required_sync(input_data)
-            return ValidateConnectionOutput(
-                success=False, message=f"Connection failed: {e}",
-                is_reachable=False,
-            )
+        # The async execute() now handles auth-required detection internally.
+        # No cancel-scope hacks needed here — the transport fix in base_transport.py
+        # removed the anyio CancelScope(shield=True) that was producing spurious
+        # RuntimeErrors which this handler was (mis-)interpreting as auth signals.
+        return super().execute_sync(input_data, context)
 
     async def execute(
         self,
@@ -130,11 +126,117 @@ class ValidateConnectionAction(BaseAction):
             )
 
         except Exception as e:
+            # If auth_method is sign_in and the error indicates the server is
+            # reachable but requires authentication (401 / Unauthorized), run
+            # async auth discovery so the UI gets a proper auth_required status
+            # with the discovered server_identifier instead of a raw error string.
+            if auth_method != "access_token" and self._is_auth_required_error(e):
+                return await self._handle_auth_required_async(input_data)
+
             return ValidateConnectionOutput(
                 success=False, message=f"Connection failed: {e}",
                 is_reachable=False,
                 response_time_ms=(time.time() - start) * 1000,
             )
+
+    # ── Auth-required helpers ─────────────────────────────────────────────────
+
+    @staticmethod
+    def _is_auth_required_error(exc: Exception) -> bool:
+        """Return True if the exception signals that the server requires authentication."""
+        msg = str(exc).lower()
+        return (
+            "401" in msg
+            or "unauthorized" in msg
+            or "403" in msg
+            or "forbidden" in msg
+            or "authentication" in msg
+        )
+
+    async def _handle_auth_required_async(
+        self, input_data: ValidateConnectionInput,
+    ) -> ValidateConnectionOutput:
+        """Async auth discovery for auth-required connections.
+
+        Mirrors _handle_auth_required_sync but uses await instead of bridges,
+        safe to call from the async execute() path.
+        """
+        auth_method = input_data.auth_method
+        server_id = input_data.server_identifier
+        user_id = input_data.user_id
+        scheme_type = input_data.scheme_type
+        scopes: List[str] = []
+
+        if auth_method == "access_token":
+            return ValidateConnectionOutput(
+                success=True,
+                message="Authentication required — provide an access token",
+                status="auth_required", is_reachable=True, auth_required=True,
+                server_identifier=server_id,
+            )
+
+        if not server_id and self._auth:
+            try:
+                detection = await self._auth.discover(str(input_data.mcp_url))
+                if detection:
+                    server_id = detection.server_identifier
+                    scheme_type = detection.protocol_type
+                    scopes = detection.scopes_supported
+            except Exception as exc:
+                logger.debug("Auth discovery failed: %s", exc)
+
+        if server_id and user_id and self._auth:
+            try:
+                token = await self._auth.get_valid_token(user_id, server_id, scheme_type=scheme_type)
+            except Exception as exc:
+                logger.warning("Token lookup/refresh failed: %s", exc)
+                token = None
+            logger.info(
+                "Auth retry: user=%s server=%s token_found=%s",
+                user_id, server_id, bool(token),
+            )
+            if token:
+                auth_cred = self._auth.bind(user_id, server_id, scheme_type=scheme_type)
+                config = McpProviderConfig(
+                    mcp_url=input_data.mcp_url,
+                    transport_type=input_data.transport_type,
+                    additional_headers=input_data.additional_headers,
+                )
+                try:
+                    start = time.time()
+                    await self._factory.create_async(config, auth_credential=auth_cred)
+                    elapsed = (time.time() - start) * 1000
+                    return ValidateConnectionOutput(
+                        success=True, message=f"Connected ({elapsed:.0f}ms)",
+                        is_reachable=True, authenticated=True,
+                        status="authenticated",
+                        server_identifier=server_id,
+                        scheme_type=scheme_type,
+                        response_time_ms=elapsed,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Authenticated retry failed for server=%s: %s",
+                        server_id, exc,
+                    )
+                    return ValidateConnectionOutput(
+                        success=False,
+                        message="Authenticated, but the server still rejected the request. "
+                                "Check that all required headers are configured in 'Additional Headers'.",
+                        status="authenticated_but_rejected",
+                        is_reachable=True,
+                        authenticated=True,
+                        auth_required=False,
+                        server_identifier=server_id,
+                        scheme_type=scheme_type,
+                    )
+
+        return ValidateConnectionOutput(
+            success=True,
+            message="Authentication required — use the sign in field or provide an access token to authenticate",
+            status="auth_required", is_reachable=True, auth_required=True,
+            server_identifier=server_id, scheme_type=scheme_type, scopes=scopes,
+        )
 
     def _establish_credential(self, input_data: ValidateConnectionInput) -> None:
         """Persist a validated bearer token to the credential store.

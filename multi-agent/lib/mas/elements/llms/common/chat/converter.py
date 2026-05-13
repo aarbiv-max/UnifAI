@@ -21,12 +21,17 @@ class LangChainConverter:
 
             elif m.role == Role.ASSISTANT:
                 if m.tool_calls:
-                    tool_calls = [{
-                        "name": tc.name,
-                        "args": tc.args,
-                        "id": tc.tool_call_id,
-                        "type": "tool_call"
-                    } for tc in m.tool_calls]
+                    tool_calls = []
+                    for tc in m.tool_calls:
+                        tc_dict = {
+                            "name": tc.name,
+                            "args": tc.args,
+                            "id": tc.tool_call_id,
+                            "type": "tool_call",
+                        }
+                        if tc.additional_kwargs:
+                            tc_dict["additional_kwargs"] = tc.additional_kwargs
+                        tool_calls.append(tc_dict)
                     out.append(AIMessage(
                         content=m.content if m.content else "[TOOL CALL]",
                         tool_calls=tool_calls,

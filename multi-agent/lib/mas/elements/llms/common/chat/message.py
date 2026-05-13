@@ -15,6 +15,7 @@ class ToolCall(BaseModel):
     name: str
     args: Dict
     tool_call_id: str
+    additional_kwargs: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(frozen=True)
 
