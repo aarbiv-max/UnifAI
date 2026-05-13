@@ -82,7 +82,7 @@ on:
 
 jobs:
   build_images:
-    runs-on: linux
+    runs-on: ubuntu-latest
     strategy:
       # Use a matrix to define your different image locations
       matrix:
@@ -131,14 +131,6 @@ jobs:
       #   run: |
       #     git clone git@gitlab.cee.redhat.com:ai_tools/genie-cred-data.git ui/genie-cred-data
       
-      - name: Log in to image paas registry
-        run: |
-          mkdir -p $HOME/.config/containers
-          echo "${{ secrets.IMAGE_REGISTRY_PASSWORD }}" | podman login ${{ vars.IMAGE_REGISTRY_URL }} \
-          --username "${{ vars.IMAGE_REGISTRY_USERNAME }}" \
-          --password-stdin
-          echo "REGISTRY_AUTH_FILE=$HOME/.config/containers/auth.json" >> $GITHUB_ENV
-
         # Use Buildah to build the image
       - name: Build ${{ matrix.image_name }} Image
         id: build-image
@@ -149,6 +141,14 @@ jobs:
           containerfiles: |
             ${{ matrix.dockerfile }}
           context: . ####${{ matrix.context }}
+
+      - name: Log in to image paas registry
+        run: |
+            mkdir -p $HOME/.config/containers
+            echo "${{ secrets.IMAGE_REGISTRY_PASSWORD }}" | podman login ${{ vars.IMAGE_REGISTRY_URL }} \
+            --username "${{ vars.IMAGE_REGISTRY_USERNAME }}" \
+            --password-stdin
+            echo "REGISTRY_AUTH_FILE=$HOME/.config/containers/auth.json" >> $GITHUB_ENV
 
       # Add this step to push the image
       - name: Push ${{ matrix.image_name }} Image to Registry
