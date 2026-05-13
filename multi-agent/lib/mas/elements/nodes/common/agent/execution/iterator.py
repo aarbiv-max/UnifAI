@@ -213,7 +213,6 @@ class AgentIterator:
             return self.__next__()
 
         except Exception as e:
-            # Create error step
             error_step = AgentStep(
                 StepType.ERROR,
                 e,

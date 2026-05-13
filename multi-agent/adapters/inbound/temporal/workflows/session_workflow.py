@@ -5,7 +5,7 @@ Implements BackgroundSessionOps with Temporal-specific mechanics
 (activities, child workflows) and delegates the canonical lifecycle
 ordering to BackgroundSessionRunner.
 
-The ordering rule (begin → execute → complete/fail) lives in
+The ordering rule (begin → execute → complete/fail/cancel) lives in
 session/execution/background_runner.py — NOT here.  This file
 only supplies the HOW for each step.
 
@@ -20,9 +20,10 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
-from temporalio.exceptions import CancelledError as TemporalCancelledError
+from temporalio.exceptions import is_cancelled_exception
 
 from mas.graph.state.graph_state import GraphState
+from mas.session.domain.exceptions import SessionCancelledException
 from mas.session.execution.background_runner import BackgroundSessionRunner
 from temporal.models import (
     SessionWorkflowParams,
@@ -40,24 +41,6 @@ _LIFECYCLE_RETRY = RetryPolicy(maximum_attempts=3)
 _GRAPH_WORKFLOW_TIMEOUT = timedelta(hours=1)
 
 
-def _is_temporal_cancellation(exc: BaseException) -> bool:
-    """Walk the exception chain to detect Temporal-initiated cancellation.
-
-    When a parent workflow is cancelled, Temporal cancels its child
-    workflows and surfaces the result as a chain such as
-    ``ChildWorkflowError → CancelledError``.  This helper walks
-    ``__cause__`` / ``__context__`` to detect that pattern so the
-    adapter can translate it into ``asyncio.CancelledError`` before
-    it reaches the domain layer.
-    """
-    current: BaseException | None = exc
-    while current is not None:
-        if isinstance(current, (asyncio.CancelledError, TemporalCancelledError)):
-            return True
-        current = current.__cause__ or current.__context__
-    return False
-
-
 @workflow.defn
 class SessionWorkflow:
     """
@@ -65,7 +48,7 @@ class SessionWorkflow:
 
     Implements BackgroundSessionOps (structural typing via Protocol).
     Each method maps to a Temporal activity or child workflow.
-    The runner drives the canonical ordering.
+    The runner drives the canonical ordering including cancel.
     """
 
     @workflow.run
@@ -74,13 +57,12 @@ class SessionWorkflow:
         runner = BackgroundSessionRunner()
         try:
             return await runner.run(self)
+        except SessionCancelledException:
+            raise asyncio.CancelledError()
         except asyncio.CancelledError:
-            await workflow.execute_activity(
-                "cancel_session",
-                CancelSessionParams(run_id=self._params.run_id),
-                start_to_close_timeout=_LIFECYCLE_TIMEOUT,
-                retry_policy=_LIFECYCLE_RETRY,
-            )
+            # Edge case: raw CancelledError arrived during begin()/complete()
+            # before execute_graph() could translate it.
+            await self.cancel()
             raise
 
     # ── BackgroundSessionOps implementation ──────────────────────────
@@ -102,11 +84,8 @@ class SessionWorkflow:
         """Run graph traversal as a child workflow.
 
         Translates Temporal-wrapped cancellation (ChildWorkflowError →
-        CancelledError) into ``asyncio.CancelledError`` at the adapter
-        boundary.  Because ``CancelledError`` is a ``BaseException``,
-        it bypasses the runner's ``except Exception`` → ``fail()``
-        handler and propagates directly to ``run()``'s cancellation
-        handler.
+        CancelledError) into SessionCancelledException at the adapter
+        boundary so the runner can call ops.cancel().
         """
         graph_params = GraphExecutionParams(
             state=seeded_state,
@@ -123,8 +102,8 @@ class SessionWorkflow:
                 result_type=GraphState,
             )
         except Exception as e:
-            if _is_temporal_cancellation(e):
-                raise asyncio.CancelledError() from e
+            if is_cancelled_exception(e):
+                raise SessionCancelledException() from e
             raise
 
     async def complete(self, final_state: GraphState) -> None:
@@ -147,6 +126,15 @@ class SessionWorkflow:
                 run_id=self._params.run_id,
                 error_message=str(error),
             ),
+            start_to_close_timeout=_LIFECYCLE_TIMEOUT,
+            retry_policy=_LIFECYCLE_RETRY,
+        )
+
+    async def cancel(self) -> None:
+        """Mark CANCELLED, close channels, persist."""
+        await workflow.execute_activity(
+            "cancel_session",
+            CancelSessionParams(run_id=self._params.run_id),
             start_to_close_timeout=_LIFECYCLE_TIMEOUT,
             retry_policy=_LIFECYCLE_RETRY,
         )

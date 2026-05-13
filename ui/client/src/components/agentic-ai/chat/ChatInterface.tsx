@@ -47,7 +47,7 @@ const isTerminalStatus = (status?: string): boolean =>
 interface BackendMessage {
   content: string;
   role: "user" | "assistant";
-  is_cancelled?: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 interface ChatInterfaceProps {
@@ -246,7 +246,7 @@ export default function ChatInterface({
         ...(msg.role === "assistant" && {
           finalAnswer: msg.content,
         }),
-        ...(msg.is_cancelled && { isCancelled: true }),
+        ...(msg.metadata?.is_cancelled && { isCancelled: true }),
       }));
     },
     [],

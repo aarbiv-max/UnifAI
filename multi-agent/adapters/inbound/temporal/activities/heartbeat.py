@@ -1,87 +1,66 @@
 """
-Reusable heartbeat utilities for Temporal activities.
+Heartbeat decorator for Temporal activities.
 
-Provides both a helper function and a decorator to run synchronous work
-in a thread pool while sending Temporal heartbeats.  The heartbeat call
-serves dual duty: it keeps the activity alive AND detects workflow
-cancellation (``activity.heartbeat()`` raises ``CancelledError`` when
-the workflow has been cancelled).
+Decorates a sync activity so that a background thread sends periodic
+heartbeats to Temporal while the activity body runs.  This keeps the
+activity alive and enables the SDK's built-in cancellation injection.
 
-Use ``run_in_thread_with_heartbeat`` when the activity needs
-setup/cleanup around the threaded work (e.g. channel creation).
-Use ``with_activity_heartbeat`` as a decorator for simple activities
-whose entire body can run in a thread.
+The SDK itself handles cancellation delivery: when a cancel is received
+via heartbeat response, it injects temporalio.exceptions.CancelledError
+into the sync activity thread automatically.  This decorator only needs
+to keep heartbeating — the kill is the SDK's job.
+
+Uses contextvars.copy_context() to propagate the Temporal activity
+context to the heartbeat thread (activity.heartbeat() requires it).
+
+Usage::
+
+    @activity.defn(name="my_activity")
+    @heartbeat(interval=5)
+    def my_activity(self, params: Params) -> Result:
+        return do_work(params)
 """
-import asyncio
+import contextvars
+import threading
 import functools
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, TypeVar
 
 from temporalio import activity
 
 T = TypeVar("T")
 
-HEARTBEAT_INTERVAL_S = 5
-GRACE_PERIOD_S = 10
 
-
-async def run_in_thread_with_heartbeat(
-    fn: Callable[..., T],
-    *,
-    thread_pool: Optional[ThreadPoolExecutor] = None,
-    interval_s: float = HEARTBEAT_INTERVAL_S,
-    grace_s: float = GRACE_PERIOD_S,
-) -> T:
+def heartbeat(interval: float = 5):
     """
-    Run *fn* in a thread pool, heartbeating until it completes.
+    Decorator that sends periodic heartbeats while a sync activity runs.
 
-    On ``CancelledError`` (workflow cancelled), the thread is given a
-    grace period to finish before the error is re-raised.
-    """
-    future = asyncio.get_running_loop().run_in_executor(thread_pool, fn)
-    try:
-        while not future.done():
-            try:
-                return await asyncio.wait_for(
-                    asyncio.shield(future), timeout=interval_s
-                )
-            except asyncio.TimeoutError:
-                activity.heartbeat("running")
-            except asyncio.CancelledError:
-                if activity.is_cancelled():
-                    raise
-                # Spurious cancellation (not from Temporal) — keep looping
-                continue
-        return future.result()
-    except asyncio.CancelledError:
-        if not future.done():
-            try:
-                await asyncio.wait_for(
-                    asyncio.shield(future), timeout=grace_s
-                )
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                pass
-        raise
+    Cancellation is handled by the Temporal SDK's built-in thread
+    exception raiser — this decorator only keeps the activity alive
+    so the server can deliver cancel signals.
 
-
-def with_activity_heartbeat(
-    interval_s: float = HEARTBEAT_INTERVAL_S,
-    grace_s: float = GRACE_PERIOD_S,
-):
-    """
-    Decorator that runs a sync activity function in a thread with heartbeats.
-
-    Suitable for activities whose entire body is synchronous and needs
-    no async setup/cleanup.  For activities that require channel creation
-    or cleanup on cancel, use ``run_in_thread_with_heartbeat`` directly.
+    Args:
+        interval: Seconds between heartbeat pings. Should be less than
+                  half the heartbeat_timeout set on the activity call.
     """
     def decorator(fn: Callable[..., T]) -> Callable[..., Any]:
         @functools.wraps(fn)
-        async def wrapper(*args: Any, **kwargs: Any) -> T:
-            return await run_in_thread_with_heartbeat(
-                functools.partial(fn, *args, **kwargs),
-                interval_s=interval_s,
-                grace_s=grace_s,
-            )
+        def wrapper(*args: Any, **kwargs: Any) -> T:
+            stop = threading.Event()
+            ctx = contextvars.copy_context()
+
+            def _beat():
+                while not stop.wait(interval):
+                    try:
+                        ctx.run(activity.heartbeat, "running")
+                    except Exception:
+                        return
+
+            t = threading.Thread(target=_beat, daemon=True)
+            t.start()
+            try:
+                return fn(*args, **kwargs)
+            finally:
+                stop.set()
+
         return wrapper
     return decorator

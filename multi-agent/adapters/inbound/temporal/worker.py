@@ -45,7 +45,6 @@ async def run_worker(
     graph_activities = GraphNodeActivities(
         node_executor=node_executor,
         channel_factory=container.channel_factory,
-        thread_pool=thread_pool,
     )
 
     lifecycle = SessionLifecycle(repository=container.session_repo)

@@ -120,7 +120,7 @@ class SessionService:
         record = self._manager.get_record(session_id)
         if record.status not in (SessionStatus.QUEUED, SessionStatus.RUNNING):
             return False
-        handle = record.run_context.engine_handle
+        handle = record.engine_handle
         if handle is None:
             return False
         try:

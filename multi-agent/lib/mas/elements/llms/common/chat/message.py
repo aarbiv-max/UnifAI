@@ -26,6 +26,6 @@ class ChatMessage(BaseModel):
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
     additional_kwargs: Optional[Dict[str, Any]] = None
-    is_cancelled: bool = False
+    metadata: Dict[str, Any] = {}
 
     model_config = ConfigDict(frozen=True)

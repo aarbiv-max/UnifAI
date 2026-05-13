@@ -1,3 +1,14 @@
+class SessionCancelledException(Exception):
+    """Engine-agnostic cancellation signal.
+
+    Each engine adapter translates its native cancel mechanism
+    (Temporal CancelledError, Celery SoftTimeLimitExceeded, etc.)
+    into this exception inside its ops methods.
+    The BackgroundSessionRunner catches it and calls ops.cancel().
+    """
+    pass
+
+
 class SessionAlreadyCancelledError(Exception):
     """Raised when a session is already in CANCELLED state at begin() time."""
 

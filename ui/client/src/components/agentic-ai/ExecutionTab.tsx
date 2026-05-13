@@ -704,10 +704,6 @@ export default function ExecutionTab({
   const handleCancelSession = useCallback(async () => {
     if (!selectedSession?.id) return;
 
-    // Set cancelled flag BEFORE the backend call so that if the backend sends
-    // a stream_end event (triggering onStreamEnd → setIsLiveRequest(false))
-    // before the await resolves, GraphDisplay already sees isCancelled=true
-    // and marks in-progress nodes as CANCELLED instead of DONE.
     setIsCancelled(true);
 
     try {

@@ -95,5 +95,6 @@ class SessionLifecycle:
         record.metadata.status_message = CANCELLED_STATUS_MESSAGE
         msgs = record.graph_state.messages
         if msgs:
-            msgs[-1] = msgs[-1].model_copy(update={"is_cancelled": True})
+            updated_meta = {**msgs[-1].metadata, "is_cancelled": True}
+            msgs[-1] = msgs[-1].model_copy(update={"metadata": updated_meta})
         self._repo.save(record)

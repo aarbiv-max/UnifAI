@@ -33,14 +33,22 @@ The agent thread is not forcefully killed — Python threads cannot be interrupt
 ```
 User clicks Cancel
   → POST /session.cancel
-    → Temporal wf_handle.cancel()
-      → Workflow catches CancelledError, calls cancel_session activity
+    → BackgroundSessionEngine.cancel(handle)
+      → Temporal wf_handle.cancel()
 
-Meanwhile, in the running activity:
+In the workflow (SessionWorkflow):
+  → execute_graph() detects Temporal cancellation
+    → Raises SessionCancelledException (adapter translates native signal)
+    → BackgroundSessionRunner catches it → calls ops.cancel()
+      → cancel_session activity → BackgroundLifecycleHandler.cancel()
+        → SessionLifecycle.cancel(record) — marks CANCELLED, stamps metadata
+        → channel.close(cancelled=True) — sends CLOSE signal to Redis stream
+
+Meanwhile, in the running activity (execute_graph_node):
   → activity.heartbeat() raises CancelledError (next heartbeat cycle, ≤5s)
-    → CancelledError handler calls channel.close(cancelled=True)
-      → Sets _closed = True (in-memory, instant)
-      → Redis: sends CLOSE control signal, removes from active set, deletes stream
+    → CancelledError propagates to workflow → SessionCancelledException
+      → runner calls ops.cancel() → lifecycle handler closes channel
+        → Sets _closed = True (in-memory, instant)
     → Grace period: waits up to 10s for thread to finish
     → Re-raises CancelledError → activity reports as cancelled to Temporal
 
@@ -73,8 +81,8 @@ Agent thread (still running in background):
 
 | File | Change |
 |------|--------|
-| `adapters/inbound/temporal/activities/heartbeat.py` | **New file.** Reusable `run_in_thread_with_heartbeat()` function and `with_activity_heartbeat` decorator. Encapsulates the pattern: run sync work in a thread, heartbeat while waiting, graceful shutdown on cancel |
-| `adapters/inbound/temporal/activities/graph_node_activities.py` | Simplified to use `run_in_thread_with_heartbeat()`. Removed `threading.Event`, `cancel_event`, inline heartbeat loop, and grace period methods. Activity now only manages channel lifecycle |
+| `adapters/inbound/temporal/activities/heartbeat.py` | **New file.** `@heartbeat` decorator. Decorates sync activity functions to run in a thread with periodic heartbeats and graceful shutdown on cancel |
+| `adapters/inbound/temporal/activities/graph_node_activities.py` | Simplified — `execute_node` is decorated with `@heartbeat`. Removed `threading.Event`, `cancel_event`, inline heartbeat loop, grace period methods, and explicit thread pool management |
 | `adapters/outbound/channels/redis/channel.py` | Removed Redis cancel key mechanism from `__init__`, `emit()`, and `close()`. The in-memory `_closed` flag is sufficient — no need for a Redis `EXISTS` round-trip on every emit |
 | `adapters/outbound/channels/redis/constants.py` | Removed `CANCELLED_PREFIX` and `CANCEL_FLAG_TTL` constants |
 
