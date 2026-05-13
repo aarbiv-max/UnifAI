@@ -4,7 +4,7 @@ A step-by-step guide for running UnifAI locally — launch the **full stack** in
 
 ## Quick Start
 
-0. **[Prerequisites](#2-prerequisites)** — make sure you have Python 3.11–3.13, pipx, Node.js 22+, pnpm, tmux, and Podman/Docker installed
+0. **[Prerequisites](#2-prerequisites)** — make sure you have Python 3.11–3.13, pipx, Node.js 22+, pnpm, tmux, and Podman/Docker installed (macOS Podman users: run `podman machine init` first)
 1. **[Install the CLI](#install-the-cli)** (from the **repo root**):
    ```bash
    pipx install -e local-development/
@@ -189,8 +189,8 @@ To use real Keycloak SSO instead:
    ```bash
    export UNIFAI_LOCAL_AUTH=false
    ```
-2. Run `unifai-dev start` (or `unifai-dev env generate`). The tool automatically removes `local_auth_enabled` from the identity `.env` file and adds any missing Keycloak placeholder keys.
-3. Fill in `client_id` and `client_secret` in `shared-resources/identity/.env`.
+2. **First time:** Run `unifai-dev init` — it regenerates `.env` files (adding the Keycloak placeholder keys) and prompts you to fill in `client_id` and `client_secret` interactively.
+3. **Subsequent times:** `unifai-dev start` is enough — it re-runs env generation and your existing credentials are preserved.
 4. The login page will show "Login using SSO" (the dev button is hidden).
 
 To switch back to local auth, set `UNIFAI_LOCAL_AUTH=true` (or revert `services.yaml`) and run `unifai-dev start` — the `local_auth_enabled=true` line is added back automatically.
@@ -221,6 +221,15 @@ unifai-dev start
 ### Infrastructure via containers
 
 The tool auto-creates containers for infrastructure services using **Podman** or **Docker**. Make sure at least one is installed and running.
+
+> [!NOTE]
+> **macOS users (Podman):** After installing Podman, you must initialize the Podman machine before running `unifai-dev init`:
+>
+> ```bash
+> podman machine init
+> ```
+>
+> This is a one-time step. The devtool will auto-start the machine when needed, but it cannot create one for you.
 
 If your container runtime requires elevated privileges (e.g. `sudo docker`), set the `UNIFAI_CONTAINER_RUNTIME` environment variable to override auto-detection:
 
@@ -684,14 +693,18 @@ unifai-dev attach backend
 By default, `start` puts primary services in a "services" window and workers in a "workers" window. Use `--window` to override this layout:
 
 ```bash
-# Put rag and celery-worker together in a named window
-unifai-dev start --window rag=rag,celery-worker --window agents=multi-agent,temporal-worker backend identity ui
+# Put rag and celery-worker together in a named window; all remaining services
+# go into the default "services" window automatically
+unifai-dev start --window rag=rag,celery-worker --window agents=multi-agent,temporal-worker
+
+# Only start specific services alongside the windows
+unifai-dev start --window rag=rag,celery-worker backend identity
 
 # Unnamed windows get auto-generated names
 unifai-dev start --window backend,identity --window rag,celery-worker
 ```
 
-Each `--window` creates a separate tmux window with the listed services as panes. Services named as bare positional arguments go into a default "services" window. Any remaining services go into an "other" window.
+Each `--window` creates a separate tmux window with the listed services as panes. Without positional arguments, all services are started and those not assigned to a `--window` go into a default "services" window. With positional arguments, only the specified services are started — unassigned ones go into a "services" window.
 
 ---
 
@@ -1006,6 +1019,12 @@ If a **container** fails to bind a port (e.g. `pasta failed ... Address already 
 unifai-dev infra stop             # stop all infra containers
 sudo systemctl stop mongod                             # if system MongoDB is running
 ```
+
+#### Port 5000 occupied by AirPlay on macOS
+
+macOS uses port 5000 for the AirPlay Receiver service. The devtool's port-kill feature cannot terminate this system process. If the UI service fails to start on port 5000, disable AirPlay Receiver manually:
+
+**System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off**
 
 #### Firewall blocking container ports
 
