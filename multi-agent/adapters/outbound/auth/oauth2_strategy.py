@@ -322,7 +322,45 @@ class OAuth2Strategy(AuthStrategy):
             )
             if as_meta:
                 config = {**config, **as_meta}
+                # Re-lookup server_configs by the discovered issuer — the stored
+                # document may be keyed by the OAuth issuer, not the MCP URL.
+                discovered_issuer = as_meta.get("issuer")
+                if discovered_issuer and self._configs:
+                    by_issuer = self._configs.find_by_server(user_id, discovered_issuer)
+                    if by_issuer and by_issuer.client_id:
+                        logger.debug(
+                            "Found server config via discovered issuer %s for %s",
+                            discovered_issuer, server_identifier,
+                        )
+                        return {**config, **by_issuer.model_dump()}
                 reg_endpoint = config.get("registration_endpoint")
+
+            # If AS metadata was not found directly, fall back to RFC 9728
+            # Protected Resource Metadata discovery.  MCP servers (e.g. Google
+            # Workspace MCP) often expose PRM at /.well-known/oauth-protected-resource
+            # which points to the real OAuth issuer (e.g. https://accounts.google.com).
+            if not as_meta:
+                prm = await OAuth2DetectionStrategy._fetch_protected_resource_metadata(
+                    server_identifier, {}, self._http_client,
+                )
+                if prm:
+                    auth_servers = prm.get("authorization_servers", [])
+                    if auth_servers:
+                        real_issuer = auth_servers[0].rstrip("/")
+                        as_meta = await OAuth2DetectionStrategy._fetch_as_metadata(
+                            real_issuer, self._http_client,
+                        )
+                        if as_meta:
+                            config = {**config, **as_meta, "issuer": real_issuer}
+                            if self._configs:
+                                by_issuer = self._configs.find_by_server(user_id, real_issuer)
+                                if by_issuer and by_issuer.client_id:
+                                    logger.debug(
+                                        "Found server config via PRM-discovered issuer %s for %s",
+                                        real_issuer, server_identifier,
+                                    )
+                                    return {**config, **by_issuer.model_dump()}
+                            reg_endpoint = as_meta.get("registration_endpoint")
 
         if not reg_endpoint:
             return config
