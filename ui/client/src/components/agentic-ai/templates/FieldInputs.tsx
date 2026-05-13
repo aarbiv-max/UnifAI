@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -18,10 +18,130 @@ import {
   Key, 
   Eye, 
   EyeOff,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  Loader2,
+  CheckCircle,
+  Lock,
+  XCircle,
 } from 'lucide-react';
-import { NormalizedField } from '@/types/templates';
+import { NormalizedField, TemplateFormData } from '@/types/templates';
 import { getFieldDisplayType } from '@/utils/templateHelpers';
+import { AuthFieldRenderer } from '@/components/agentic-ai/workspace/AuthFieldRenderer';
+import axios from '../../../http/axiosAgentConfig';
+import { useAuth } from '@/contexts/AuthContext';
+
+type ValidateStatus = 'idle' | 'checking' | 'connected' | 'auth_required' | 'unreachable' | 'error';
+
+const ValidateFieldRenderer: React.FC<{
+  field: NormalizedField;
+  value: any;
+  fullFormData: TemplateFormData;
+}> = ({ field, value, fullFormData }) => {
+  const { user } = useAuth();
+  const userId = user?.username || '';
+  const [status, setStatus] = useState<ValidateStatus>('idle');
+  const [message, setMessage] = useState('');
+
+  const handleValidate = useCallback(async () => {
+    if (!field.validateHint || !value) return;
+    setStatus('checking');
+
+    const { action_uid, dependencies } = field.validateHint;
+    const prefix = `${field.category}.${field.resourceRid}.`;
+    const inputData: Record<string, any> = { user_id: userId };
+
+    // Map config fields → action input fields using the dependency map
+    Object.entries(dependencies).forEach(([configField, actionField]) => {
+      const val = fullFormData[`${prefix}${configField}`];
+      if (val !== undefined && val !== null) {
+        inputData[actionField as string] = val;
+      }
+    });
+
+    // Always ensure the field's own value is present as mcp_url
+    if (!inputData['mcp_url']) {
+      inputData['mcp_url'] = value;
+    }
+
+    try {
+      const response = await axios.post('/actions/action.execute', {
+        uid: action_uid,
+        inputData,
+        userId,
+      });
+      const data = response.data;
+
+      if (data.is_reachable && !data.auth_required) {
+        setStatus('connected');
+        setMessage(data.message || 'Connection successful');
+      } else if (data.auth_required) {
+        setStatus('auth_required');
+        setMessage(data.message || 'Authentication required — use the Sign In field below');
+      } else if (data.is_reachable === false) {
+        setStatus('unreachable');
+        setMessage(data.message || 'Server not reachable');
+      } else {
+        setStatus('error');
+        setMessage(data.message || 'Validation failed');
+      }
+    } catch {
+      setStatus('error');
+      setMessage('Failed to reach validation service');
+    }
+  }, [field, value, fullFormData, userId]);
+
+  const statusColor =
+    status === 'connected' ? 'text-green-400' :
+    status === 'auth_required' ? 'text-yellow-400' :
+    status === 'checking' ? 'text-blue-400' :
+    'text-red-400';
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-background-dark border border-gray-700 rounded-md overflow-hidden">
+          <Globe className="h-4 w-4 text-gray-500 shrink-0" />
+          <span className="text-sm text-gray-400 font-mono truncate">{value || 'URL not configured'}</span>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleValidate}
+          disabled={status === 'checking' || !value}
+          className="border-gray-700 shrink-0"
+        >
+          {status === 'checking' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Validate'}
+        </Button>
+      </div>
+      {status !== 'idle' && (
+        <div className={`flex items-center gap-2 text-xs ${statusColor}`}>
+          {status === 'checking' && <Loader2 className="h-3 w-3 animate-spin" />}
+          {status === 'connected' && <CheckCircle className="h-3 w-3" />}
+          {status === 'auth_required' && <Lock className="h-3 w-3" />}
+          {(status === 'unreachable' || status === 'error') && <XCircle className="h-3 w-3" />}
+          <span>{status === 'checking' ? 'Validating connection...' : message}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+function buildResourceConfigSliceForAuth(
+  field: NormalizedField,
+  fullFormData: TemplateFormData,
+): Record<string, unknown> {
+  const prefix = `${field.category}.${field.resourceRid}.`;
+  const slice: Record<string, unknown> = {};
+  const depKeys = field.authHint?.dependencies
+    ? Object.keys(field.authHint.dependencies)
+    : [];
+  for (const configKey of depKeys) {
+    slice[configKey] = fullFormData[`${prefix}${configKey}`];
+  }
+  return slice;
+}
 
 interface FieldInputProps {
   field: NormalizedField;
@@ -29,6 +149,9 @@ interface FieldInputProps {
   onChange: (value: any) => void;
   error?: string;
   compact?: boolean;
+  /** Full template form; required for auth / MCP sign-in fields */
+  fullFormData?: TemplateFormData;
+  onAuthValidationChange?: (fieldKey: string, valid: boolean) => void;
 }
 
 export const StringArrayInput: React.FC<{
@@ -132,9 +255,48 @@ export const SecretInput: React.FC<{
   );
 };
 
-export const FieldInput: React.FC<FieldInputProps> = ({ field, value, onChange, error, compact = false }) => {
+export const FieldInput: React.FC<FieldInputProps> = ({
+  field,
+  value,
+  onChange,
+  error,
+  compact = false,
+  fullFormData,
+  onAuthValidationChange,
+}) => {
   const renderInput = () => {
     switch (field.type) {
+      case 'validate':
+        return (
+          <ValidateFieldRenderer
+            field={field}
+            value={value}
+            fullFormData={fullFormData || {}}
+          />
+        );
+
+      case 'auth':
+        if (!field.authHint || !fullFormData || !onAuthValidationChange) {
+          return (
+            <p className="text-xs text-amber-500">
+              Sign-in could not be loaded. Refresh the template detail and try again.
+            </p>
+          );
+        }
+        return (
+          <AuthFieldRenderer
+            fieldName={field.key}
+            fieldSchema={{
+              hints: { auth: field.authHint },
+              description: field.description || field.label,
+            }}
+            formData={buildResourceConfigSliceForAuth(field, fullFormData)}
+            elementActions={[]}
+            onValidationChange={onAuthValidationChange}
+            onInputChange={() => {}}
+          />
+        );
+
       case 'secret':
         return (
           <SecretInput
@@ -226,7 +388,7 @@ export const FieldInput: React.FC<FieldInputProps> = ({ field, value, onChange, 
 
   return (
     <div className="space-y-2">
-      {field.type !== 'boolean' && !compact && (
+      {field.type !== 'boolean' && field.type !== 'auth' && field.type !== 'validate' && !compact && (
         <div className="flex items-center justify-between">
           <Label htmlFor={field.key} className="text-sm font-medium">
             {field.label}
@@ -238,7 +400,7 @@ export const FieldInput: React.FC<FieldInputProps> = ({ field, value, onChange, 
         </div>
       )}
       {renderInput()}
-      {field.description && field.type !== 'boolean' && !compact && (
+      {field.description && field.type !== 'boolean' && field.type !== 'auth' && field.type !== 'validate' && !compact && (
         <p className="text-xs text-gray-500">{field.description}</p>
       )}
       {error && (

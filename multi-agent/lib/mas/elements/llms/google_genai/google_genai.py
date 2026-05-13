@@ -1,10 +1,12 @@
 from typing import Any, Dict, List, Optional, Iterator, Union
 import copy
+from uuid import uuid4
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai.chat_models import _chat_with_retry
 from ..common.base_llm import BaseLLM
 from mas.core.contracts import SupportsStreaming
 from ..common.chat.converter import LangChainConverter
-from ..common.chat.message import ChatMessage
+from ..common.chat.message import ChatMessage, Role, ToolCall
 from ...tools.common.base_tool import BaseTool
 from .tools_converter import GoogleGenAIToolsConverter
 
@@ -111,29 +113,123 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
             **call_params: Any,
     ) -> Iterator[Union[str, ChatMessage]]:
         """
-        Provider-level streaming:
+        Provider-level streaming with ``thought_signature`` round-trip support.
 
-        • Yields `str` tokens for regular answers.
-        • Aggregates *all* `tool_call_chunks` via the LangChain "+" operator
-          and, at the very end, yields **one** `ChatMessage` representing
-          the full assistant reply with `tool_calls=[…]`.
+        Gemini 2.5+ models embed an opaque ``thought_signature`` bytes field in
+        every function-call Part when the thinking feature is active.  The
+        Gemini API requires those bytes to be echoed verbatim in the following
+        request; without them it returns:
+
+            400 Function call is missing a thought_signature in functionCall parts
+
+        ``langchain-google-genai`` silently drops the field during conversation-
+        history conversion, so any multi-turn tool-use session fails on the
+        second LLM call.
+
+        This implementation bypasses LangChain's lossy conversion layer and
+        calls ``GenerativeServiceClient.stream_generate_content`` directly so
+        that:
+          • On the way *out* — ``thought_signature`` bytes are captured for every
+            function-call Part and stored in the returned
+            ``ChatMessage.additional_kwargs["thought_signatures"]``.
+          • On the way *in* — any stored bytes are injected back into the matching
+            ``Content`` Parts of the ``GenerateContentRequest`` before the call.
+
+        Yields ``str`` tokens for text responses, then (if tools were called) one
+        ``ChatMessage`` with ``tool_calls`` set.
         """
+        # Unwrap RunnableBinding → ChatGoogleGenerativeAI + bound tool list
+        lc_model: ChatGoogleGenerativeAI
+        if hasattr(self.client, "bound"):
+            lc_model = self.client.bound
+            bound_tools = self.client.kwargs.get("tools")
+        else:
+            lc_model = self.client  # type: ignore[assignment]
+            bound_tools = None
+
+        # Build GenerateContentRequest via LangChain's own _prepare_request
         lc_history = LangChainConverter.to_lc(messages)
-        aggregated: Any | None = None
+        request = lc_model._prepare_request(lc_history, tools=bound_tools)
 
-        for chunk in self.client.stream(lc_history, **call_params):
-            if getattr(chunk, "tool_call_chunks", None):
-                aggregated = chunk if aggregated is None else aggregated + chunk
+        # Inject stored thought_signatures from prior turns back into the request
+        self._inject_thought_signatures(request, messages)
+
+        # Stream directly from the underlying Gemini gRPC client
+        raw_stream = _chat_with_retry(
+            request=request,
+            generation_method=lc_model.client.stream_generate_content,
+            max_retries=getattr(lc_model, "max_retries", 6),
+            metadata=getattr(lc_model, "default_metadata", ()),
+        )
+
+        accumulated_text = ""
+        fc_parts: List[Dict[str, Any]] = []
+
+        for chunk in raw_stream:
+            for candidate in chunk.candidates:
+                for part in candidate.content.parts:
+                    if part.thought:
+                        continue
+                    if part.text:
+                        accumulated_text += part.text
+                        yield part.text
+                    if part.function_call.name:
+                        sig = bytes(part.thought_signature) if part.thought_signature else None
+                        fc_parts.append({
+                            "name": part.function_call.name,
+                            "args": dict(part.function_call.args),
+                            "sig": sig,
+                        })
+
+        if fc_parts:
+            tool_calls = [
+                ToolCall(
+                    tool_call_id=str(uuid4()),
+                    name=fc["name"],
+                    args=fc["args"],
+                )
+                for fc in fc_parts
+            ]
+            signatures = [fc["sig"] for fc in fc_parts]
+            yield ChatMessage(
+                role=Role.ASSISTANT,
+                content=accumulated_text,
+                tool_calls=tool_calls,
+                additional_kwargs={"thought_signatures": signatures},
+            )
+
+    @staticmethod
+    def _inject_thought_signatures(request: Any, messages: List[ChatMessage]) -> None:
+        """
+        Scan the message history for assistant messages that carry stored
+        ``thought_signatures`` and write them back into the matching
+        FunctionCall Parts of the ``GenerateContentRequest``.
+        """
+        sig_queues: List[List[Optional[bytes]]] = []
+        for msg in messages:
+            if (
+                msg.role == Role.ASSISTANT
+                and msg.tool_calls
+                and msg.additional_kwargs
+                and msg.additional_kwargs.get("thought_signatures")
+            ):
+                sig_queues.append(list(msg.additional_kwargs["thought_signatures"]))
+
+        if not sig_queues:
+            return
+
+        queue_idx = 0
+        for content in request.contents:
+            if queue_idx >= len(sig_queues):
+                break
+            fc_parts = [p for p in content.parts if p.function_call.name]
+            if not fc_parts:
                 continue
-
-            token = _extract_text_content(chunk.content)
-            if token:
-                yield token
-
-        if aggregated:
-            if hasattr(aggregated, 'content') and isinstance(aggregated.content, list):
-                aggregated.content = _extract_text_content(aggregated.content)
-            yield LangChainConverter.from_lc_message(aggregated)
+            sigs = sig_queues[queue_idx]
+            for part, sig in zip(fc_parts, sigs):
+                if sig:
+                    part.thought_signature = sig
+            queue_idx += 1
 
     def bind_tools(self, tools: List[BaseTool]) -> "GoogleGenAILLM":
         """

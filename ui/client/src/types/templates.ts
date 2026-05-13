@@ -87,7 +87,23 @@ export interface SchemaHintUrl {
   hint_type: 'url';
 }
 
-export type SchemaHint = SchemaHintSecret | SchemaHintSelection | SchemaHintMultiline | SchemaHintUrl;
+export interface SchemaHintAuth {
+  action_uid: string;
+  dependencies?: Record<string, string>;
+}
+
+export interface SchemaHintConditional {
+  visible_when: Record<string, unknown>;
+}
+
+export interface SchemaHintAction {
+  action_uid: string;
+  hint_type: 'validate' | 'populate';
+  field_mapping?: string;
+  dependencies?: Record<string, string>;
+}
+
+export type SchemaHint = SchemaHintSecret | SchemaHintSelection | SchemaHintMultiline | SchemaHintUrl | SchemaHintAuth | SchemaHintConditional | SchemaHintAction;
 
 export interface SchemaFieldProperty {
   type: string;
@@ -103,6 +119,8 @@ export interface SchemaFieldProperty {
   enum?: string[];
   items?: { type: string };
   $ref?: string;
+  /** Pydantic v2 Optional[Model] generates anyOf: [{$ref}, {type: null}] */
+  anyOf?: Array<{ $ref?: string; type?: string }>;
 }
 
 export interface SchemaDefinition {
@@ -194,7 +212,7 @@ export interface NormalizedField {
   key: string;  // Unique key: category.rid.field_path
   label: string;
   description?: string;
-  type: 'string' | 'secret' | 'number' | 'boolean' | 'array' | 'enum';
+  type: 'string' | 'secret' | 'number' | 'boolean' | 'array' | 'enum' | 'auth' | 'validate';
   required: boolean;
   default?: any;
   
@@ -209,6 +227,13 @@ export interface NormalizedField {
   // UI hints
   isSecret?: boolean;
   isMultiline?: boolean;
+  /** OAuth / MCP sign-in (inventory-style AuthFieldRenderer) */
+  isAuth?: boolean;
+  authHint?: { action_uid: string; dependencies: Record<string, string> };
+  /** Action-driven connection validate (runs mcp.validate_connection or similar) */
+  validateHint?: { action_uid: string; dependencies: Record<string, string>; field_mapping?: string };
+  /** Same shape as inventory ElementForm conditional hints */
+  conditional?: { visible_when: Record<string, unknown> };
 }
 
 export interface TemplateFormData {

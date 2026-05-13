@@ -8,8 +8,9 @@ from typing import List, Dict, Any, Optional, Tuple
 from uuid import uuid4
 from datetime import datetime, timezone
 
-from mas.blueprints.models.blueprint import BlueprintDraft
+from mas.blueprints.models.blueprint import BlueprintDraft, BlueprintResource
 from mas.catalog.element_registry import ElementRegistry
+from mas.core.enums import ResourceCategory, SystemNodeType
 from mas.templates.repository.repository import TemplateRepository
 from mas.templates.models.template import (
     Template,
@@ -82,20 +83,29 @@ class TemplateService:
     ) -> str:
         """
         Create a new template from raw dicts.
-        
+
         Args:
             draft: The template blueprint dict (BlueprintDraft format)
             placeholders: Placeholder metadata dict (PlaceholderMeta format)
             metadata: Optional template metadata dict
-            
+
         Returns:
             Generated template ID
+
+        Raises:
+            ValueError: If the draft contains external ``$ref`` pointers for
+                non-system resources instead of inline configs. Templates must
+                embed all resource configs inline so that ``materialize()`` can
+                save independent copies for each instantiating user.
         """
+        blueprint_draft = BlueprintDraft(**draft)
+        self._validate_template_draft(blueprint_draft)
+
         template_id = str(uuid4())
 
         template = Template(
             template_id=template_id,
-            draft=BlueprintDraft(**draft),
+            draft=blueprint_draft,
             placeholders=PlaceholderMeta(**placeholders),
             metadata=TemplateMetadata(**(metadata or {})),
             created_at=datetime.now(timezone.utc),
@@ -103,6 +113,45 @@ class TemplateService:
         )
 
         return self._repo.save(template)
+
+    @staticmethod
+    def _validate_template_draft(draft: BlueprintDraft) -> None:
+        """
+        Ensure the template draft has no external ``$ref`` pointers for
+        non-system resources.
+
+        A template's draft must carry *inline* configs for all non-system
+        resources.  External refs (``$ref:uuid``) with no accompanying config
+        indicate the template was authored from an already-materialised
+        blueprint; materialising such a template would produce blueprints
+        whose node entries point to resources owned by the template creator
+        rather than the instantiating user, causing silent runtime failures.
+
+        Raises:
+            ValueError: listing every offending resource ref.
+        """
+        offenders: List[str] = []
+        for category in ResourceCategory:
+            for bp_resource in getattr(draft, category.value, []):
+                if (
+                    bp_resource.rid.is_external_ref()
+                    and bp_resource.config is None
+                    and bp_resource.type not in SystemNodeType.values()
+                ):
+                    offenders.append(
+                        f"{category.value}/{bp_resource.rid.root}"
+                    )
+
+        if offenders:
+            raise ValueError(
+                "Template draft contains external $ref pointers with no inline "
+                "config for the following resources: "
+                + ", ".join(offenders)
+                + ". Templates must embed all non-system resource configs inline. "
+                "If you are converting an existing blueprint into a template, "
+                "resolve its $ref entries first (use blueprint.repair if the "
+                "resources are missing, then export the resolved configs)."
+            )
 
     def get_template(self, template_id: str) -> Template:
         """
@@ -317,7 +366,7 @@ class TemplateService:
 
         # Validate
         if not skip_validation:
-            self._validate_blueprint(result.blueprint)
+            self._validate_blueprint(result.blueprint, user_id=user_id)
 
         # Save blueprint (and optionally resources)
         blueprint_id, resource_ids = self._save_blueprint(
@@ -336,10 +385,11 @@ class TemplateService:
             resource_ids=resource_ids,
         )
 
-    def _validate_blueprint(self, blueprint: BlueprintDraft) -> None:
+    def _validate_blueprint(self, blueprint: BlueprintDraft, user_id: str = "") -> None:
         """Validate blueprint, raise InstantiationError if invalid."""
         result = self._blueprint_service.validate_draft(
-            blueprint.model_dump(mode="json")
+            blueprint.model_dump(mode="json"),
+            user_id=user_id,
         )
         if not result.is_valid:
             failed = [r for r in result.element_results.values() if not r.is_valid]

@@ -10,7 +10,7 @@ SOLID Principles:
 - DIP: Depends on ElementRegistry abstraction
 """
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, Type, Iterator
+from typing import List, Dict, Any, Optional, Type, Iterator, Union
 
 from pydantic import BaseModel, Field, create_model
 from pydantic.fields import FieldInfo
@@ -107,7 +107,7 @@ class PlaceholderAnalyzer:
             return None
         
         fields = {
-            rid: (model, Field(..., description=f"Input for {rid}"))
+            rid: (Optional[model], Field(None, description=f"Input for {rid}"))
             for rid, model in resource_models.items()
         }
         
@@ -193,7 +193,7 @@ class PlaceholderAnalyzer:
             return None
         
         original = schema_cls.model_fields[field_name]
-        field_info = self._create_field_info(original, placeholder)
+        field_info = self._create_field_info(original, placeholder, use_placeholder_required=True)
         
         return FieldDefinition(
             name=field_name,

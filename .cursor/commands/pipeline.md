@@ -12,6 +12,11 @@ The user's input determines which mode to run. Parse the input as follows:
 ```
 To detect whether the argument is a file or a task description: check if the argument is a valid file path that exists on disk. If it is a file, read it and use it as the Phase 1 design output, then start at Phase 2. If it is not a file, treat it as a task description and start at Phase 1.
 
+**Mode 2 — design-only**: Run only Phase 1 (Design) on a task description, Jira ticket, or prompt. Stop after the design is produced. Do NOT continue to Phase 2 even if the design looks complete.
+```
+/pipeline design-only <task or Jira ticket or prompt>
+```
+
 **Mode 3 — implement**: You already have an approved design. Skip Phases 1-2. Start at Phase 3 (Implementation), using the provided file as the approved design. Continue through Phases 4-5.
 ```
 /pipeline implement <path-to-approved-design>
@@ -40,11 +45,11 @@ To detect whether the argument is a file or a task description: check if the arg
 
 ### Mode Parsing Rules
 
-1. Check the first word after `/pipeline` against the mode keywords: `full`, `implement`, `review-only`, `code-review-only`, `qa-only`, `debug`.
+1. Check the first word after `/pipeline` against the mode keywords: `full`, `design-only`, `implement`, `review-only`, `code-review-only`, `qa-only`, `debug`.
 2. If none of the keywords match, treat the entire input as a task description and use **full** mode.
 3. For modes that accept a file path, read that file and use its contents as the input artifact for the starting phase.
 4. For **full** mode: check if the argument (after the optional `full` keyword) is a path to an existing file. If yes, read the file, use it as the design, and start at Phase 2. If not a file, treat it as a task description and start at Phase 1.
-5. For `review-only`, `code-review-only`, `qa-only`, and `debug` — these are single-phase runs. Execute ONLY that phase. Do NOT continue to subsequent phases.
+5. For `design-only`, `review-only`, `code-review-only`, `qa-only`, and `debug` — these are single-phase runs. Execute ONLY that phase. Do NOT continue to subsequent phases.
 6. For **debug** mode: check if the argument is a path to an existing file. If yes, read the file as the error log input. If not, treat the entire argument as an error description or symptom.
 7. Announce the detected mode at the start: "Pipeline mode: **<mode>** — starting at Phase <N>."
 
@@ -283,7 +288,7 @@ For **multi-phase modes** (full, design-review, implement):
 <important architectural or implementation decisions made during the pipeline>
 ```
 
-For **single-phase modes** (review-only, code-review-only, qa-only):
+For **single-phase modes** (design-only, review-only, code-review-only, qa-only):
 
 ```
 ## <PHASE NAME> COMPLETE

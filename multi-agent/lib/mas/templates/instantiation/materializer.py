@@ -10,6 +10,7 @@ SOLID:
 - Open/Closed: Works with any ResourceCategory
 - Dependency Inversion: Depends on ResourcesService abstraction
 """
+import logging
 from typing import Dict, List
 from uuid import uuid4
 
@@ -21,6 +22,8 @@ from mas.core.ref.models import Ref
 from mas.core.enums import ResourceCategory, SystemNodeType
 from mas.templates.errors import MaterializationError
 from mas.templates.instantiation.models import CollectedResource, MaterializationResult
+
+logger = logging.getLogger(__name__)
 
 
 class ResourceMaterializer:
@@ -74,6 +77,7 @@ class ResourceMaterializer:
     def _collect_inline_resources(self, draft: BlueprintDraft) -> List[CollectedResource]:
         """Collect inline resources that need to be saved."""
         collected = []
+
         for category in ResourceCategory:
             for bp_resource in getattr(draft, category.value, []):
                 if self._should_save(bp_resource):
@@ -83,6 +87,7 @@ class ResourceMaterializer:
                         category=category,
                         bp_resource=bp_resource,
                     ))
+
         return collected
 
     def _should_save(self, bp_resource: BlueprintResource) -> bool:

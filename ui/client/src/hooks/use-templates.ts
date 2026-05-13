@@ -70,9 +70,11 @@ function normalizeSchemaToFields(
 
     // Iterate over resources within the category
     for (const [resourceRid, resourceProp] of Object.entries(categoryDef.properties as Record<string, SchemaFieldProperty>)) {
-      // Resolve the resource definition
-      const resourceDef = resourceProp.$ref 
-        ? resolveRef(resourceProp.$ref, defs) 
+      // Resolve the resource definition.
+      const directRef = resourceProp.$ref
+        ?? resourceProp.anyOf?.find((x) => x.$ref)?.$ref;
+      const resourceDef = directRef
+        ? resolveRef(directRef, defs)
         : resourceProp;
 
       if (!resourceDef?.properties) continue;
@@ -84,10 +86,36 @@ function normalizeSchemaToFields(
         const field = fieldProp as SchemaFieldProperty;
         const isRequired = resourceRequired.includes(fieldPath);
         const hints = field.hints || {};
+        const authRaw = hints.auth as { action_uid?: string; dependencies?: Record<string, string> } | undefined;
+        const authHint =
+          authRaw?.action_uid
+            ? {
+                action_uid: authRaw.action_uid,
+                dependencies: authRaw.dependencies || {},
+              }
+            : undefined;
+        const actionRaw = hints.action as { action_uid?: string; hint_type?: string; field_mapping?: string; dependencies?: Record<string, string> } | undefined;
+        const validateHint =
+          actionRaw?.hint_type === 'validate' && actionRaw?.action_uid
+            ? {
+                action_uid: actionRaw.action_uid,
+                dependencies: actionRaw.dependencies || {},
+                field_mapping: actionRaw.field_mapping,
+              }
+            : undefined;
+        const conditionalRaw = hints.conditional as { visible_when?: Record<string, unknown> } | undefined;
+        const conditional = conditionalRaw?.visible_when
+          ? { visible_when: conditionalRaw.visible_when }
+          : undefined;
 
         // Determine field type based on schema type and hints
+        // auth > validate > secret > ...
         let fieldType: NormalizedField['type'] = 'string';
-        if (hints.secret) {
+        if (authHint) {
+          fieldType = 'auth';
+        } else if (validateHint) {
+          fieldType = 'validate';
+        } else if (hints.secret) {
           fieldType = 'secret';
         } else if (field.type === 'boolean') {
           fieldType = 'boolean';
@@ -116,7 +144,11 @@ function normalizeSchemaToFields(
           maximum: field.maximum,
           enumOptions: field.enum,
           isSecret: hints.secret?.hint_type === 'secret',
-          isMultiline: hints.multiline?.hint_type === 'multiline'
+          isMultiline: hints.multiline?.hint_type === 'multiline',
+          isAuth: !!authHint,
+          authHint,
+          validateHint,
+          conditional,
         });
       }
     }
@@ -136,6 +168,9 @@ function buildInputPayloadFromFields(
   const input: Record<string, Record<string, Record<string, any>>> = {};
 
   for (const field of normalizedFields) {
+    if (field.type === 'auth') {
+      continue;
+    }
     const value = formData[field.key];
     
     // Skip only undefined/null values; empty string may be intentional

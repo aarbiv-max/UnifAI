@@ -29,6 +29,7 @@ export default function AgenticTemplates() {
   const {
     templates,
     selectedTemplate,
+    templateDetail,
     normalizedFields,
     isLoading,
     error,
@@ -164,6 +165,7 @@ export default function AgenticTemplates() {
                     key="detail"
                     template={selectedTemplate}
                     fields={normalizedFields}
+                    draft={templateDetail?.draft ?? null}
                     onBack={handleBackToCatalog}
                     onGenerate={handleGenerateWorkflow}
                     isSubmitting={isGenerating}

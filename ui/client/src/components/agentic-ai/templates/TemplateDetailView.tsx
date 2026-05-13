@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useCallback, useEffect, useImperativeHandle, forwardRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,13 +13,54 @@ import {
   User,
   AlertCircle
 } from 'lucide-react';
-import { TemplateListItem, NormalizedField, TemplateFormData } from '@/types/templates';
+import { TemplateListItem, NormalizedField, TemplateFormData, TemplateDetail } from '@/types/templates';
 import { getFieldDisplayType, getCategoryIcon, getFieldTypeIcon } from '@/utils/templateHelpers';
 import { FieldInput } from './FieldInputs';
+
+function getValueFromDraft(
+  draft: Record<string, unknown> | undefined,
+  field: NormalizedField,
+): unknown {
+  if (!draft) return undefined;
+  const list = draft[field.category] as unknown[] | undefined;
+  if (!Array.isArray(list)) return undefined;
+  const res = list.find(
+    (r: unknown) =>
+      typeof r === 'object' &&
+      r !== null &&
+      (r as { rid?: string }).rid === field.resourceRid,
+  ) as { config?: Record<string, unknown> } | undefined;
+  if (!res?.config) return undefined;
+  return res.config[field.fieldPath];
+}
+
+function isTemplateFieldVisible(
+  field: NormalizedField,
+  formData: TemplateFormData,
+  draft?: Record<string, unknown> | null,
+): boolean {
+  const cond = field.conditional?.visible_when;
+  if (!cond) return true;
+  const prefix = `${field.category}.${field.resourceRid}.`;
+  return Object.entries(cond).every(([key, requiredValue]) => {
+    // 1. User has set this value in the form
+    const formValue = formData[`${prefix}${key}`];
+    if (formValue !== undefined) return formValue === requiredValue;
+    // 2. Read from the template draft config (covers pre-configured auth_method etc.)
+    const draftValue = getValueFromDraft(
+      draft ?? undefined,
+      { ...field, fieldPath: key } as NormalizedField,
+    );
+    if (draftValue !== undefined) return draftValue === requiredValue;
+    // 3. Unknown — show the field rather than silently hiding it
+    return true;
+  });
+}
 
 interface TemplateDetailViewProps {
   template: TemplateListItem;
   fields: NormalizedField[];
+  draft?: TemplateDetail['draft'] | null;
   onBack: () => void;
   onGenerate: (data: TemplateFormData) => void;
   isSubmitting?: boolean;
@@ -51,6 +92,8 @@ interface FieldCardProps {
   onChange: (value: any) => void;
   error?: string;
   onClickToEdit?: () => void;
+  fullFormData: TemplateFormData;
+  onAuthValidationChange?: (fieldKey: string, valid: boolean) => void;
 }
 
 const FieldCard: React.FC<FieldCardProps> = ({ 
@@ -59,13 +102,17 @@ const FieldCard: React.FC<FieldCardProps> = ({
   value, 
   onChange,
   error,
-  onClickToEdit
+  onClickToEdit,
+  fullFormData,
+  onAuthValidationChange,
 }) => {
+  // Auth and validate fields always stay expanded — they show live status, not text inputs
+  const effectiveEditing = isEditing || field.type === 'auth' || field.type === 'validate';
 
   return (
     <div className="relative h-auto min-h-[72px]" style={{ perspective: '1000px' }}>
       <AnimatePresence mode="wait">
-        {!isEditing ? (
+        {!effectiveEditing ? (
           <motion.div
             key="badge"
             initial={{ rotateX: -90, opacity: 0 }}
@@ -107,7 +154,7 @@ const FieldCard: React.FC<FieldCardProps> = ({
         ) : (
           <motion.div
             key="input"
-            initial={{ rotateX: 90, opacity: 0 }}
+            initial={{ rotateX: effectiveEditing && !isEditing ? 0 : 90, opacity: effectiveEditing && !isEditing ? 1 : 0 }}
             animate={{ rotateX: 0, opacity: 1 }}
             exit={{ rotateX: -90, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
@@ -119,6 +166,8 @@ const FieldCard: React.FC<FieldCardProps> = ({
               value={value}
               onChange={onChange}
               error={error}
+              fullFormData={fullFormData}
+              onAuthValidationChange={onAuthValidationChange}
             />
           </motion.div>
         )}
@@ -136,6 +185,7 @@ interface FieldsSectionProps {
   onFieldChange: (key: string, value: any) => void;
   errors: Record<string, string>;
   showToggle: boolean;
+  onAuthValidationChange?: (fieldKey: string, valid: boolean) => void;
 }
 
 const FieldsSection: React.FC<FieldsSectionProps> = ({
@@ -146,7 +196,8 @@ const FieldsSection: React.FC<FieldsSectionProps> = ({
   formData,
   onFieldChange,
   errors,
-  showToggle
+  showToggle,
+  onAuthValidationChange,
 }) => {
   if (fields.length === 0) return null;
 
@@ -195,6 +246,8 @@ const FieldsSection: React.FC<FieldsSectionProps> = ({
               onChange={(value) => onFieldChange(field.key, value)}
               error={errors[field.key]}
               onClickToEdit={!isEditing ? onToggleEdit : undefined}
+              fullFormData={formData}
+              onAuthValidationChange={onAuthValidationChange}
             />
           </motion.div>
         ))}
@@ -206,6 +259,7 @@ const FieldsSection: React.FC<FieldsSectionProps> = ({
 export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDetailViewProps>(({
   template,
   fields,
+  draft,
   onBack,
   onGenerate,
   isSubmitting = false
@@ -214,18 +268,34 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
   const [isEditingOptional, setIsEditingOptional] = useState(false);
   const [formData, setFormData] = useState<TemplateFormData>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [authFieldValid, setAuthFieldValid] = useState<Record<string, boolean>>({});
+
+  const handleAuthValidationChange = useCallback((fieldKey: string, valid: boolean) => {
+    setAuthFieldValid((prev) => ({ ...prev, [fieldKey]: valid }));
+  }, []);
+
+  const visibleFields = useMemo(
+    () => fields.filter((f) => isTemplateFieldVisible(f, formData, draft)),
+    [fields, formData, draft],
+  );
 
   // Reset form to default values
   const resetForm = useCallback(() => {
     const initial = fields.reduce<TemplateFormData>((acc, field) => {
-      acc[field.key] = getFieldDefaultValue(field);
+      const fromDraft = getValueFromDraft(draft ?? undefined, field);
+      if (fromDraft !== undefined && fromDraft !== null && fromDraft !== '') {
+        acc[field.key] = fromDraft;
+      } else {
+        acc[field.key] = getFieldDefaultValue(field);
+      }
       return acc;
     }, {});
     setFormData(initial);
     setErrors({});
+    setAuthFieldValid({});
     setIsEditingRequired(false);
     setIsEditingOptional(false);
-  }, [fields]);
+  }, [fields, draft]);
 
   // Expose resetForm to parent via ref
   useImperativeHandle(ref, () => ({
@@ -252,6 +322,16 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
     const newErrors: Record<string, string> = {};
     
     fields.forEach(field => {
+      if (!isTemplateFieldVisible(field, formData, draft)) {
+        return;
+      }
+      if (field.type === 'auth') {
+        if (authFieldValid[field.key] !== true) {
+          newErrors[field.key] = 'Sign in is required for this service.';
+        }
+        return;
+      }
+
       if (field.required) {
         const value = formData[field.key];
         
@@ -273,7 +353,7 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [fields, formData]);
+  }, [fields, formData, authFieldValid]);
 
   const handleGenerate = useCallback(() => {
     // Always validate first
@@ -289,8 +369,17 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
     onGenerate(formData);
   }, [validateForm, onGenerate, formData]);
 
-  const requiredFields = fields.filter(f => f.required);
-  const optionalFields = fields.filter(f => !f.required);
+  // Auth fields are always treated as required — they are validated regardless
+  // of the underlying schema's required flag (Optional[str] in Python), and
+  // users must complete them for the template to function.
+  const requiredFields = useMemo(
+    () => visibleFields.filter((f) => f.required || f.type === 'auth'),
+    [visibleFields],
+  );
+  const optionalFields = useMemo(
+    () => visibleFields.filter((f) => !f.required && f.type !== 'auth'),
+    [visibleFields],
+  );
 
   // Check if form has any filled data
   const hasFilledData = Object.values(formData).some(v => 
@@ -399,6 +488,7 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
             onFieldChange={handleFieldChange}
             errors={errors}
             showToggle={requiredFields.length > 0}
+            onAuthValidationChange={handleAuthValidationChange}
           />
 
           <FieldsSection
@@ -410,6 +500,7 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
             onFieldChange={handleFieldChange}
             errors={errors}
             showToggle={optionalFields.length > 0}
+            onAuthValidationChange={handleAuthValidationChange}
           />
 
           {template.tags && template.tags.length > 0 && (
