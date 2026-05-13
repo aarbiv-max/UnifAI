@@ -1,0 +1,16 @@
+File                                                    | Original | Compressed | Ratio
+------------------------------------------------------------------------------------------
+.cursor/commands/pipeline.md                            |     3696 |       1751 |  0.47
+.cursor/skills/pipeline-designer/SKILL.md               |     1770 |        846 |  0.48
+.cursor/skills/pipeline-design-reviewer/SKILL.md        |     1746 |        821 |  0.47
+.cursor/skills/pipeline-coder/SKILL.md                  |      760 |        364 |  0.48
+.cursor/skills/pipeline-code-reviewer/SKILL.md          |     2009 |       1019 |  0.51
+.cursor/skills/pipeline-qa/SKILL.md                     |      766 |        360 |  0.47
+.cursor/skills/pipeline-debugger/SKILL.md               |     1480 |        691 |  0.47
+------------------------------------------------------------------------------------------
+TOTAL                                                   |    12227 |       5852 |  0.48
+
+Tokens saved: 6375 (52.1% reduction)
+
+Compressed files written to: /root/github/UnifAI/scripts/compress_pipeline/output
+Target ratio: 0.5 | Actual ratio: 0.48
