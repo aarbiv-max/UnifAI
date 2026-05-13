@@ -64,7 +64,6 @@ class McpProviderConfig(ProviderBaseConfig):
     )
     sign_in: Optional[str] = Field(
         default=None,
-        exclude=True,
         description="Sign in to authenticate with this MCP server",
         json_schema_extra=combine_hints(
             ConditionalHint(visible_when={"auth_method": "sign_in"}),
@@ -83,6 +82,10 @@ class McpProviderConfig(ProviderBaseConfig):
             SecretHint(allow_reveal=True),
             ConditionalHint(visible_when={"auth_method": "access_token"}),
         ),
+    )
+    atlassian_user_email: Optional[str] = Field(
+        default=None,
+        description="Atlassian user email address (used to set X-Atlassian-Email header)"
     )
     additional_headers: Dict[str, Any] = Field(
         default_factory=dict,

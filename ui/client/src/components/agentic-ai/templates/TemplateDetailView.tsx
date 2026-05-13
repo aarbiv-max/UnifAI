@@ -288,6 +288,26 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
       } else {
         acc[field.key] = getFieldDefaultValue(field);
       }
+
+      // For auth fields, also pre-populate hidden dependencies (e.g. server_identifier)
+      // from the draft so AuthFieldRenderer can fire the auth check immediately.
+      if (field.type === 'auth' && field.authHint?.dependencies && draft) {
+        const prefix = `${field.category}.${field.resourceRid}.`;
+        for (const depKey of Object.keys(field.authHint.dependencies)) {
+          const depFormKey = `${prefix}${depKey}`;
+          if (acc[depFormKey] === undefined || acc[depFormKey] === null || acc[depFormKey] === '') {
+            const depValue = getValueFromDraft(draft as any, {
+              ...field,
+              fieldPath: depKey,
+              key: depFormKey,
+            });
+            if (depValue !== undefined && depValue !== null && depValue !== '') {
+              acc[depFormKey] = depValue;
+            }
+          }
+        }
+      }
+
       return acc;
     }, {});
     setFormData(initial);

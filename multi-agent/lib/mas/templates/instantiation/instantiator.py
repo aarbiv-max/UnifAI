@@ -116,7 +116,7 @@ class TemplateInstantiator:
             
             if field_name in user_input:
                 self._set_field(resource, placeholder.field_path, user_input[field_name])
-            elif placeholder.required:
+            elif placeholder.required and not self._is_auth_field(resource, field_name):
                 errors.append(MergeFieldError(
                     category=category,
                     rid=rid,
@@ -126,6 +126,24 @@ class TemplateInstantiator:
                 ))
         
         return errors
+
+    @staticmethod
+    def _is_auth_field(resource: BlueprintResource, field_name: str) -> bool:
+        """Return True if the field carries an AuthHint (OAuth sign-in trigger).
+
+        Auth fields are never submitted as values — authentication is handled
+        out-of-band via the OAuth flow.  Skipping the required check prevents
+        spurious "field not provided" errors for these fields.
+        """
+        if resource.config is None:
+            return False
+        config_cls = type(resource.config)
+        field_info = config_cls.model_fields.get(field_name)
+        if field_info is None:
+            return False
+        extra = field_info.json_schema_extra or {}
+        hints = extra.get("hints", {}) if isinstance(extra, dict) else {}
+        return "auth" in hints
 
     def _set_field(
         self,
