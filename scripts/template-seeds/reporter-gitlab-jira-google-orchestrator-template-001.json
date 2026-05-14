@@ -20,7 +20,7 @@
         "config": {
           "type": "mcp_server",
           "bearer_token": "",
-          "atlassian_user_email": "",
+          "additional_headers": {},
           "tool_names": [
             "jira_search",
             "jira_get_issue",
@@ -391,10 +391,10 @@
                 "hint": "Your Jira Personal Access Token (per your organization's MCP auth format)"
               },
               {
-                "field_path": "atlassian_user_email",
+                "field_path": "additional_headers",
                 "required": true,
-                "label": "Atlassian Account Email",
-                "hint": "Your Atlassian/Jira login email (sent as the X-Atlassian-Email header, e.g. you@redhat.com)."
+                "label": "Additional Headers",
+                "hint": "Extra HTTP headers sent to the Jira MCP server. For Atlassian servers that require email forwarding, add: {\"X-Atlassian-Email\": \"you@redhat.com\"}"
               }
             ]
           },
