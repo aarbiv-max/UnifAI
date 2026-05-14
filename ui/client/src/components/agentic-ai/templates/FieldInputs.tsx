@@ -289,21 +289,23 @@ export const FieldInput: React.FC<FieldInputProps> = ({
           />
         );
 
-      case 'object': {
-        const jsonString =
-          typeof value === 'string'
-            ? value
-            : JSON.stringify(value ?? {}, null, 2);
+      case 'object':
         return (
           <Textarea
-            value={jsonString}
-            onChange={(e) => onChange(e.target.value)}
+            value={typeof value === 'object' ? JSON.stringify(value ?? {}, null, 2) : (value || '{}')}
+            onChange={(e) => {
+              try {
+                onChange(JSON.parse(e.target.value));
+              } catch {
+                // Keep raw string while the user is mid-edit
+                onChange(e.target.value);
+              }
+            }}
             placeholder='{}'
             className="bg-background-dark border-gray-700 font-mono text-sm"
             rows={4}
           />
         );
-      }
 
       case 'secret':
         return (

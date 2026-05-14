@@ -84,14 +84,11 @@ class McpProviderConfig(ProviderBaseConfig):
             ConditionalHint(visible_when={"auth_method": "access_token"}),
         ),
     )
-    atlassian_user_email: Optional[str] = Field(
-        default=None,
-        description="Atlassian user email address (used to set X-Atlassian-Email header)"
-    )
     additional_headers: Dict[str, Any] = Field(
         default_factory=dict,
         description="Additional HTTP headers to include in MCP server requests"
     )
+
     def on_pre_save(self, user_id: str, **services) -> None:
         """Persist bearer_token to the credential store and clear it from config.
 
