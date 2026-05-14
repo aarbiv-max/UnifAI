@@ -155,19 +155,8 @@ class McpProvider:
         """
         # Ensure tools are initialized before returning
         if not self._initialized:
-            try:
-                with get_async_bridge() as bridge:
-                    bridge.run(self._initialize_tools())
-            except Exception as e:
-                # Treat MCP initialization failures (auth errors, network issues,
-                # anyio cancel-scope corruption from 401 responses, etc.) as
-                # "provider unavailable" rather than crashing the agent.
-                logger.error(
-                    "MCP tool initialization failed for %s: %s. "
-                    "Agent will continue without these tools.",
-                    self.mcp_url, e,
-                )
-                return []
+            with get_async_bridge() as bridge:
+                bridge.run(self._initialize_tools())
         return self._tools
 
     def get_tool_by_name(self, name: str) -> Optional[McpProxyTool]:

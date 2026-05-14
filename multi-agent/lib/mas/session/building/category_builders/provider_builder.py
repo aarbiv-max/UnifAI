@@ -20,12 +20,6 @@ class ProviderBuilder(CategoryBuilder):
         auth_method = getattr(cfg, "auth_method", None)
         mcp_url = getattr(cfg, "mcp_url", None)
 
-        # For sign_in (OAuth) providers, credentials are stored keyed by the MCP
-        # URL (the AuthenticateAction maps mcp_url → server_identifier during the
-        # OAuth flow). The persisted server_identifier may differ (e.g. it could be
-        # the OAuth issuer such as https://accounts.google.com from an older flow).
-        # Always prefer the MCP URL as the credential lookup key for sign_in auth
-        # so that the freshest token is found.
         if str(auth_method) == "sign_in" and mcp_url:
             server_id = str(mcp_url)
 

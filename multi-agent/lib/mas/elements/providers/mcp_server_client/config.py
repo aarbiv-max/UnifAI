@@ -88,7 +88,6 @@ class McpProviderConfig(ProviderBaseConfig):
         default_factory=dict,
         description="Additional HTTP headers to include in MCP server requests"
     )
-
     def on_pre_save(self, user_id: str, **services) -> None:
         """Persist bearer_token to the credential store and clear it from config.
 
