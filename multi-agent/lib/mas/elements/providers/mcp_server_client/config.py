@@ -64,6 +64,7 @@ class McpProviderConfig(ProviderBaseConfig):
     )
     sign_in: Optional[str] = Field(
         default=None,
+        exclude=True,
         description="Sign in to authenticate with this MCP server",
         json_schema_extra=combine_hints(
             ConditionalHint(visible_when={"auth_method": "sign_in"}),

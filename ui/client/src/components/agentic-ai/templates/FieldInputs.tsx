@@ -28,7 +28,7 @@ import {
 import { NormalizedField, TemplateFormData } from '@/types/templates';
 import { getFieldDisplayType } from '@/utils/templateHelpers';
 import { AuthFieldRenderer } from '@/components/agentic-ai/workspace/AuthFieldRenderer';
-import axios from '../../../http/axiosAgentConfig';
+import { executeAction } from '@/api/actions';
 import { useAuth } from '@/contexts/AuthContext';
 
 type ValidateStatus = 'idle' | 'checking' | 'connected' | 'auth_required' | 'unreachable' | 'error';
@@ -49,9 +49,11 @@ const ValidateFieldRenderer: React.FC<{
 
     const { action_uid, dependencies } = field.validateHint;
     const prefix = `${field.category}.${field.resourceRid}.`;
-    const inputData: Record<string, any> = { user_id: userId };
+    const inputData: Record<string, any> = {};
 
-    // Map config fields → action input fields using the dependency map
+    // Populate all mapped dependency fields from the current form state.
+    // The dependency map fully specifies config-field → action-input-field,
+    // so no additional fallbacks are needed.
     Object.entries(dependencies).forEach(([configField, actionField]) => {
       const val = fullFormData[`${prefix}${configField}`];
       if (val !== undefined && val !== null) {
@@ -59,18 +61,8 @@ const ValidateFieldRenderer: React.FC<{
       }
     });
 
-    // Always ensure the field's own value is present as mcp_url
-    if (!inputData['mcp_url']) {
-      inputData['mcp_url'] = value;
-    }
-
     try {
-      const response = await axios.post('/actions/action.execute', {
-        uid: action_uid,
-        inputData,
-        userId,
-      });
-      const data = response.data;
+      const data = await executeAction(action_uid, inputData, userId);
 
       if (data.is_reachable && !data.auth_required) {
         setStatus('connected');

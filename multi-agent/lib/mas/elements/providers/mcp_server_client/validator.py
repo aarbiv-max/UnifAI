@@ -103,6 +103,10 @@ class McpProviderValidator(BaseElementValidator):
                 f"Connection timed out after {context.timeout_seconds}s",
                 field="mcp_url",
             ))
+        except RuntimeError:
+            # Bridge/event-loop errors must propagate — swallowing them hides
+            # infrastructure failures as ordinary connectivity messages.
+            raise
         except Exception as e:
             error_msg = str(e)
             if "401" in error_msg or "Unauthorized" in error_msg:
