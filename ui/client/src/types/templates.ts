@@ -212,7 +212,7 @@ export interface NormalizedField {
   key: string;  // Unique key: category.rid.field_path
   label: string;
   description?: string;
-  type: 'string' | 'secret' | 'number' | 'boolean' | 'array' | 'enum' | 'auth' | 'validate';
+  type: 'string' | 'secret' | 'number' | 'boolean' | 'array' | 'enum' | 'object' | 'auth' | 'validate';
   required: boolean;
   default?: any;
   

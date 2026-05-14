@@ -21,8 +21,6 @@ class McpProviderFactory(BaseFactory[McpProviderConfig, McpProvider]):
 
     def _build_headers(self, cfg: McpProviderConfig) -> Optional[Dict[str, str]]:
         headers = dict(cfg.additional_headers) if cfg.additional_headers else {}
-        if cfg.atlassian_user_email:
-            headers["X-Atlassian-Email"] = cfg.atlassian_user_email
         if cfg.bearer_token:
             headers["Authorization"] = f"Bearer {cfg.bearer_token}"
         return headers or None

@@ -289,6 +289,22 @@ export const FieldInput: React.FC<FieldInputProps> = ({
           />
         );
 
+      case 'object': {
+        const jsonString =
+          typeof value === 'string'
+            ? value
+            : JSON.stringify(value ?? {}, null, 2);
+        return (
+          <Textarea
+            value={jsonString}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder='{}'
+            className="bg-background-dark border-gray-700 font-mono text-sm"
+            rows={4}
+          />
+        );
+      }
+
       case 'secret':
         return (
           <SecretInput

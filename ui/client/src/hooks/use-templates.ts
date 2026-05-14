@@ -125,6 +125,8 @@ function normalizeSchemaToFields(
           fieldType = 'array';
         } else if (field.enum && field.enum.length > 0) {
           fieldType = 'enum';
+        } else if (field.type === 'object') {
+          fieldType = 'object';
         }
 
         fields.push({
@@ -191,7 +193,20 @@ function buildInputPayloadFromFields(
       input[field.category][field.resourceRid] = {};
     }
 
-    input[field.category][field.resourceRid][field.fieldPath] = value;
+    // Object fields are edited as JSON strings in the textarea; parse back before sending.
+    if (field.type === 'object') {
+      if (typeof value === 'string') {
+        try {
+          input[field.category][field.resourceRid][field.fieldPath] = JSON.parse(value);
+        } catch {
+          input[field.category][field.resourceRid][field.fieldPath] = {};
+        }
+      } else {
+        input[field.category][field.resourceRid][field.fieldPath] = value ?? {};
+      }
+    } else {
+      input[field.category][field.resourceRid][field.fieldPath] = value;
+    }
   }
 
   return input;
