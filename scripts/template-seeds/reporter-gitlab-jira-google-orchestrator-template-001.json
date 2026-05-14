@@ -1,0 +1,449 @@
+{
+  "template_id": "reporter-gitlab-jira-google-orchestrator-template-001",
+  "draft": {
+    "providers": [
+      {
+        "rid": "provider_gitlab_mcp",
+        "name": "GitLab MCP",
+        "type": "mcp_server",
+        "config": {
+          "type": "mcp_server",
+          "bearer_token": "",
+          "tool_names": [],
+          "mcp_url": "https://gitlab-mcp-tag-ai--runtime-int.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/mcp"
+        }
+      },
+      {
+        "rid": "provider_jira_mcp",
+        "name": "Jira MCP",
+        "type": "mcp_server",
+        "config": {
+          "type": "mcp_server",
+          "bearer_token": "",
+          "atlassian_user_email": "",
+          "tool_names": [
+            "jira_search",
+            "jira_get_issue",
+            "jira_get_user_profile",
+            "jira_search_fields",
+            "jira_get_project_issues",
+            "jira_get_transitions",
+            "jira_get_all_projects",
+            "jira_get_board_issues",
+            "jira_get_worklog",
+            "jira_get_agile_boards"
+          ],
+          "mcp_url": "https://mcp-atlassian-tag-ai--runtime-int.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/mcp"
+        }
+      },
+      {
+        "rid": "provider_google_workspace_mcp",
+        "name": "Google Workspace MCP",
+        "type": "mcp_server",
+        "config": {
+          "type": "mcp_server",
+          "transport_type": "streamable http",
+          "auth_method": "sign_in",
+          "server_identifier": "https://accounts.google.com",
+          "scheme_type": "oauth2",
+          "bearer_token": null,
+          "additional_headers": {},
+          "mcp_url": "https://workspace-mcp-omri-tag-ai--runtime-int.apps.stc-ai-e1-pp.imap.p1.openshiftapps.com/mcp",
+          "tool_names": [
+            "search_drive_files",
+            "get_drive_file_content",
+            "get_drive_file_download_url",
+            "list_drive_items",
+            "create_drive_folder",
+            "create_drive_file",
+            "import_to_google_doc",
+            "get_drive_file_permissions",
+            "check_drive_file_public_access",
+            "update_drive_file",
+            "get_drive_shareable_link",
+            "manage_drive_access",
+            "convert_pdf_to_google_doc",
+            "bulk_convert_folder_pdfs",
+            "copy_drive_file",
+            "set_drive_file_permissions",
+            "search_gmail_messages",
+            "get_gmail_message_content",
+            "get_gmail_messages_content_batch",
+            "get_gmail_attachment_content",
+            "send_gmail_message",
+            "draft_gmail_message",
+            "get_gmail_thread_content",
+            "get_gmail_threads_content_batch",
+            "list_gmail_labels",
+            "manage_gmail_label",
+            "list_gmail_filters",
+            "manage_gmail_filter",
+            "modify_gmail_message_labels",
+            "batch_modify_gmail_message_labels",
+            "search_docs",
+            "get_doc_content",
+            "list_docs_in_folder",
+            "create_doc",
+            "modify_doc_text",
+            "find_and_replace_doc",
+            "insert_doc_elements",
+            "insert_doc_image",
+            "update_doc_headers_footers",
+            "batch_update_doc",
+            "inspect_doc_structure",
+            "export_doc_to_pdf",
+            "update_paragraph_style",
+            "get_doc_as_markdown",
+            "insert_doc_tab",
+            "delete_doc_tab",
+            "update_doc_tab",
+            "list_document_comments",
+            "manage_document_comment",
+            "create_presentation",
+            "get_presentation",
+            "batch_update_presentation",
+            "insert_drive_image_to_slide",
+            "insert_multiple_drive_images",
+            "get_page",
+            "get_page_thumbnail",
+            "analyze_slide_styling",
+            "analyze_presentation_theme",
+            "list_presentation_comments",
+            "manage_presentation_comment",
+            "search_custom",
+            "get_search_engine_info",
+            "list_spreadsheets",
+            "get_spreadsheet_info",
+            "read_sheet_values",
+            "modify_sheet_values",
+            "format_sheet_range",
+            "manage_conditional_formatting",
+            "create_spreadsheet",
+            "create_sheet",
+            "list_sheet_tables",
+            "append_table_rows",
+            "list_spreadsheet_comments",
+            "manage_spreadsheet_comment",
+            "generate_image_to_drive",
+            "edit_image_on_drive"
+          ]
+        }
+      }
+    ],
+    "llms": [
+      {
+        "rid": "llm_google_genai",
+        "name": "Google GenAI (Gemini Flash)",
+        "type": "google_genai",
+        "config": {
+          "type": "google_genai",
+          "api_key": "",
+          "model_name": "gemini-3-flash-preview",
+          "temperature": 0.7,
+          "max_tokens": 8192
+        }
+      }
+    ],
+    "retrievers": [],
+    "tools": [],
+    "nodes": [
+      {
+        "rid": "user_question",
+        "name": "User Question Node",
+        "type": "user_question_node",
+        "config": {
+          "type": "user_question_node",
+          "retries": 1
+        }
+      },
+      {
+        "rid": "final_answer",
+        "name": "Final Answer Node",
+        "type": "final_answer_node",
+        "config": {
+          "type": "final_answer_node",
+          "retries": 1
+        }
+      },
+      {
+        "rid": "orchestrator_node",
+        "name": "Orchestrator Agent",
+        "type": "orchestrator_node",
+        "config": {
+          "type": "orchestrator_node",
+          "llm": "llm_google_genai",
+          "max_rounds": 100,
+          "retries": 1,
+          "system_message": "",
+          "tools": []
+        }
+      },
+      {
+        "rid": "reporter_agent_node",
+        "name": "Reporter Agent",
+        "type": "custom_agent_node",
+        "config": {
+          "type": "custom_agent_node",
+          "llm": "llm_google_genai",
+          "max_rounds": 15,
+          "retries": 1,
+          "retriever": null,
+          "strategy_type": "react",
+          "system_message": "Role: You are a strict Data Injection Agent.\n\nObjective: Transform logs into an HTML report by injecting JSON data into the template provided below.\n\nCRITICAL RULES:\n1. JSON ONLY: You must ONLY modify the `const data = { ... }` object inside the <script> tag.\n2. NO ESCAPING: Do not add backslashes (\\) before characters. The template uses string concatenation, so special characters are safe.\n3. PRESERVE SCRIPT: Do not modify the `render()` function. It has been strictly formatted to prevent errors.\n4. OUTPUT: Return the COMPLETE HTML file with your data inserted.\n\nTemplate:\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <title>Enterprise Health Report</title>\n    <script src=\"https://cdn.tailwindcss.com\"></script>\n    <script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script>\n    <style>\n        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');\n        body { font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact; }\n        .card { background-color: #0f172a; border: 1px solid #1e293b; border-radius: 0.75rem; padding: 1.5rem; }\n        @media print {\n            .no-print { display: none !important; }\n            body { background: white !important; color: black !important; }\n            .card { break-inside: avoid; border: 1px solid #e2e8f0 !important; box-shadow: none !important; color: black !important; }\n            h1, p { color: black !important; -webkit-text-fill-color: black !important; }\n        }\n    </style>\n</head>\n<body class=\"bg-slate-950 text-slate-100 p-8\">\n    <div class=\"max-w-7xl mx-auto space-y-8\">\n        <header class=\"flex justify-between items-center border-b border-slate-800 pb-6\">\n            <div>\n                <h1 id=\"title\" class=\"text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500\">Generating Report...</h1>\n                <p id=\"subtitle\" class=\"text-slate-400 mt-1\">Please wait</p>\n            </div>\n            <button onclick=\"window.print()\" class=\"no-print bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-semibold transition\">Export PDF</button>\n        </header>\n\n        <div id=\"kpiGrid\" class=\"grid grid-cols-1 md:grid-cols-4 gap-4\"></div>\n        <div id=\"chartsGrid\" class=\"grid grid-cols-1 lg:grid-cols-2 gap-6\"></div>\n\n        <div class=\"card overflow-hidden p-0\">\n            <div class=\"overflow-x-auto\">\n                <table class=\"w-full text-left text-sm\">\n                    <thead class=\"bg-slate-800 text-slate-300 uppercase text-xs\">\n                        <tr id=\"tableHeader\"></tr>\n                    </thead>\n                    <tbody id=\"tableBody\" class=\"divide-y divide-slate-800\"></tbody>\n                </table>\n            </div>\n        </div>\n    </div>\n\n    <script>\n        // --- AGENT DATA START ---\n        const data = {\n            \"title\": \"Placeholder Title\",\n            \"subtitle\": \"Placeholder Subtitle\",\n            \"kpis\": [],\n            \"charts\": [],\n            \"tableData\": []\n        };\n        // --- AGENT DATA END ---\n\n        function render() {\n            // 1. Render Header\n            document.getElementById('title').innerText = data.title;\n            document.getElementById('subtitle').innerText = data.subtitle;\n\n            // 2. Render KPIs (String Concatenation Mode - Safe from Escaping)\n            var kpiHTML = \"\";\n            if (data.kpis && data.kpis.length > 0) {\n                data.kpis.forEach(function(k) {\n                    var color = k.color || 'text-white';\n                    kpiHTML += '<div class=\"card\">';\n                    kpiHTML += '<p class=\"text-slate-400 text-xs font-bold uppercase tracking-wider\">' + k.label + '</p>';\n                    kpiHTML += '<p class=\"text-2xl font-bold mt-1 ' + color + '\">' + k.value + '</p>';\n                    kpiHTML += '</div>';\n                });\n            }\n            document.getElementById('kpiGrid').innerHTML = kpiHTML;\n\n            // 3. Render Charts\n            var chartHTML = \"\";\n            if (data.charts && data.charts.length > 0) {\n                data.charts.forEach(function(c, i) {\n                    chartHTML += '<div class=\"card relative\" style=\"height: 300px;\">';\n                    chartHTML += '<h3 class=\"text-slate-400 text-xs font-bold uppercase mb-4 absolute top-6 left-6\">' + c.label + '</h3>';\n                    chartHTML += '<canvas id=\"chart-' + i + '\"></canvas>';\n                    chartHTML += '</div>';\n                });\n                document.getElementById('chartsGrid').innerHTML = chartHTML;\n\n                setTimeout(function() {\n                    data.charts.forEach(function(c, i) {\n                        var ctx = document.getElementById('chart-' + i);\n                        if (ctx) {\n                            new Chart(ctx, {\n                                type: c.type,\n                                data: {\n                                    labels: c.labels,\n                                    datasets: [{\n                                        label: c.label,\n                                        data: c.data,\n                                        backgroundColor: ['#22d3ee', '#f43f5e', '#fbbf24', '#a78bfa'],\n                                        borderWidth: 0\n                                    }]\n                                },\n                                options: {\n                                    responsive: true,\n                                    maintainAspectRatio: false,\n                                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } },\n                                    layout: { padding: { top: 20 } }\n                                }\n                            });\n                        }\n                    });\n                }, 100);\n            }\n\n            // 4. Render Table\n            if (data.tableData && data.tableData.length > 0) {\n                var headers = Object.keys(data.tableData[0]);\n                var headerHTML = \"\";\n                headers.forEach(function(h) {\n                    headerHTML += '<th class=\"px-6 py-4\">' + h + '</th>';\n                });\n                document.getElementById('tableHeader').innerHTML = headerHTML;\n                \n                var bodyHTML = \"\";\n                data.tableData.forEach(function(row) {\n                    bodyHTML += '<tr class=\"hover:bg-slate-800/50 transition\">';\n                    headers.forEach(function(h) {\n                        var val = String(row[h]);\n                        var style = \"text-slate-300\";\n                        if (val.match(/(Healthy|Running|Active|Ready|100%|Found)/i)) style = \"text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded font-semibold\";\n                        else if (val.match(/(Failed|Critical|Error|0%|Down|0\\/|None)/i)) style = \"text-rose-400 bg-rose-500/10 px-2 py-1 rounded font-semibold\";\n                        else if (val.match(/(Warning|Degraded)/i)) style = \"text-yellow-400 bg-yellow-500/10 px-2 py-1 rounded font-semibold\";\n                        \n                        bodyHTML += '<td class=\"px-6 py-4\"><span class=\"' + style + '\">' + val + '</span></td>';\n                    });\n                    bodyHTML += '</tr>';\n                });\n                document.getElementById('tableBody').innerHTML = bodyHTML;\n            }\n        }\n\n        try { render(); } catch (e) { console.error(\"Rendering failed:\", e); }\n    </script>\n</body>\n</html>",
+          "tools": [],
+          "providers": []
+        }
+      },
+      {
+        "rid": "gitlab_agent_node",
+        "name": "GitLab Agent",
+        "type": "custom_agent_node",
+        "config": {
+          "type": "custom_agent_node",
+          "llm": "llm_google_genai",
+          "max_rounds": 100,
+          "retries": 1,
+          "retriever": null,
+          "strategy_type": "react",
+          "system_message": "",
+          "tools": [],
+          "providers": [
+            "provider_gitlab_mcp"
+          ]
+        }
+      },
+      {
+        "rid": "jira_agent_node",
+        "name": "Jira Agent",
+        "type": "custom_agent_node",
+        "config": {
+          "type": "custom_agent_node",
+          "llm": "llm_google_genai",
+          "max_rounds": 100,
+          "retries": 1,
+          "retriever": null,
+          "strategy_type": "react",
+          "system_message": "You are a Jira specialist. Use Jira tools proactively to search issues, read details, boards, and worklogs relevant to the user's goal. Prefer verified tool results over assumptions. Be concise and cite keys (e.g. PROJ-123) when applicable.",
+          "tools": [],
+          "providers": [
+            "provider_jira_mcp"
+          ]
+        }
+      },
+      {
+        "rid": "google_agent_node",
+        "name": "Google Workspace Agent",
+        "type": "custom_agent_node",
+        "config": {
+          "type": "custom_agent_node",
+          "llm": "llm_google_genai",
+          "max_rounds": 100,
+          "retries": 1,
+          "retriever": null,
+          "strategy_type": "react",
+          "system_message": "You are a helpful, secure, and efficient AI assistant. Your primary purpose is to help the user manage their Google Workspace by interacting with Gmail, Google Calendar, Google Drive, and other Google tools through the Google Workspace MCP server.\n\n✅ Core Rules\nYou must use the available MCP tools to fulfill user requests that involve data access or actions. Do not provide information that requires tools without calling them.\nNever request passwords, tokens, or sensitive credentials. Authentication is already securely handled.\nIf a user request may cause data loss or exposure (e.g., deleting emails, sharing files, modifying events), ask for confirmation first.\n\n🔧 Tool Usage\nPrefer tool calls over explanations when the user intends to perform an action.\nIf a tool does not exist for the user's request, explain the limitation and offer safe alternatives.\nIMPORTANT: Use ONLY the exact tool names listed below. Do NOT prefix them with 'google_drive.', 'gmail.', or any other namespace.\n\nAVAILABLE TOOLS:\nDrive: search_drive_files, get_drive_file_content, get_drive_file_download_url, list_drive_items, create_drive_folder, create_drive_file, import_to_google_doc, get_drive_file_permissions, check_drive_file_public_access, update_drive_file, get_drive_shareable_link, manage_drive_access, convert_pdf_to_google_doc, bulk_convert_folder_pdfs, copy_drive_file, set_drive_file_permissions\nGmail: search_gmail_messages, get_gmail_message_content, get_gmail_messages_content_batch, get_gmail_attachment_content, send_gmail_message, draft_gmail_message, get_gmail_thread_content, get_gmail_threads_content_batch, list_gmail_labels, manage_gmail_label, list_gmail_filters, manage_gmail_filter, modify_gmail_message_labels, batch_modify_gmail_message_labels\nDocs: search_docs, get_doc_content, list_docs_in_folder, create_doc, modify_doc_text, find_and_replace_doc, insert_doc_elements, insert_doc_image, update_doc_headers_footers, batch_update_doc, inspect_doc_structure, export_doc_to_pdf, update_paragraph_style, get_doc_as_markdown, insert_doc_tab, delete_doc_tab, update_doc_tab, list_document_comments, manage_document_comment\nSlides: create_presentation, get_presentation, batch_update_presentation, insert_drive_image_to_slide, insert_multiple_drive_images, get_page, get_page_thumbnail, analyze_slide_styling, analyze_presentation_theme, list_presentation_comments, manage_presentation_comment\nSheets: list_spreadsheets, get_spreadsheet_info, read_sheet_values, modify_sheet_values, format_sheet_range, manage_conditional_formatting, create_spreadsheet, create_sheet, list_sheet_tables, append_table_rows, list_spreadsheet_comments, manage_spreadsheet_comment\nSearch: search_custom, get_search_engine_info\nImages: generate_image_to_drive, edit_image_on_drive\n\n🔐 Privacy & Data Protection\nOnly access the minimum data required to fulfill the request.\nDo not reveal personal or sensitive information to the user unless they explicitly ask for it.\n\n🧠 Response Style\nBe concise, action-oriented, and avoid unnecessary text.\nIf a task cannot be completed, provide a clear and safe reason.",
+          "tools": [],
+          "providers": [
+            "provider_google_workspace_mcp"
+          ]
+        }
+      }
+    ],
+    "conditions": [
+      {
+        "rid": "orchestrator_router",
+        "name": "Orchestrator Router",
+        "type": "router_direct",
+        "config": {
+          "type": "router_direct"
+        }
+      }
+    ],
+    "plan": [
+      {
+        "uid": "user_input",
+        "after": null,
+        "node": "user_question",
+        "exit_condition": null,
+        "branches": null,
+        "meta": {
+          "description": "",
+          "display_name": "User Question",
+          "tags": []
+        }
+      },
+      {
+        "uid": "finalize",
+        "after": null,
+        "node": "final_answer",
+        "exit_condition": null,
+        "branches": null,
+        "meta": {
+          "description": "",
+          "display_name": "Final Answer",
+          "tags": []
+        }
+      },
+      {
+        "uid": "orchestrator_step",
+        "after": [
+          "user_input",
+          "reporter_agent_step",
+          "gitlab_agent_step",
+          "jira_agent_step",
+          "google_agent_step"
+        ],
+        "node": "orchestrator_node",
+        "exit_condition": "orchestrator_router",
+        "branches": {
+          "reporter_agent_step": "reporter_agent_step",
+          "gitlab_agent_step": "gitlab_agent_step",
+          "jira_agent_step": "jira_agent_step",
+          "google_agent_step": "google_agent_step",
+          "finalize": "finalize"
+        },
+        "meta": {
+          "description": "",
+          "display_name": "Orchestrator",
+          "tags": []
+        }
+      },
+      {
+        "uid": "reporter_agent_step",
+        "after": null,
+        "node": "reporter_agent_node",
+        "exit_condition": null,
+        "branches": null,
+        "meta": {
+          "description": "",
+          "display_name": "Reporter Agent",
+          "tags": []
+        }
+      },
+      {
+        "uid": "gitlab_agent_step",
+        "after": null,
+        "node": "gitlab_agent_node",
+        "exit_condition": null,
+        "branches": null,
+        "meta": {
+          "description": "",
+          "display_name": "GitLab Agent",
+          "tags": []
+        }
+      },
+      {
+        "uid": "jira_agent_step",
+        "after": null,
+        "node": "jira_agent_node",
+        "exit_condition": null,
+        "branches": null,
+        "meta": {
+          "description": "",
+          "display_name": "Jira Agent",
+          "tags": []
+        }
+      },
+      {
+        "uid": "google_agent_step",
+        "after": null,
+        "node": "google_agent_node",
+        "exit_condition": null,
+        "branches": null,
+        "meta": {
+          "description": "",
+          "display_name": "Google Agent",
+          "tags": []
+        }
+      }
+    ],
+    "name": "Reporter, GitLab, Jira & Google Orchestrator",
+    "description": "User question → routed orchestrator delegating to Reporter (synthesis), GitLab, Jira, and Google Workspace agents, then final answer."
+  },
+  "placeholders": {
+    "categories": [
+      {
+        "category": "llms",
+        "resources": [
+          {
+            "rid": "llm_google_genai",
+            "placeholders": [
+              {
+                "field_path": "api_key",
+                "required": true,
+                "label": "Gemini (Google) API Key",
+                "hint": "Your Google GenAI API key for Gemini models"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "category": "providers",
+        "resources": [
+          {
+            "rid": "provider_jira_mcp",
+            "placeholders": [
+              {
+                "field_path": "bearer_token",
+                "required": true,
+                "label": "Jira API Token",
+                "hint": "Your Jira Personal Access Token (per your organization's MCP auth format)"
+              },
+              {
+                "field_path": "atlassian_user_email",
+                "required": true,
+                "label": "Atlassian Account Email",
+                "hint": "Your Atlassian/Jira login email (sent as the X-Atlassian-Email header, e.g. you@redhat.com)."
+              }
+            ]
+          },
+          {
+            "rid": "provider_google_workspace_mcp",
+            "placeholders": [
+              {
+                "field_path": "sign_in",
+                "required": false,
+                "label": "Google Workspace",
+                "hint": "Click below to sign in with Google. Required so runs can call the hosted Workspace MCP."
+              }
+            ]
+          },
+          {
+            "rid": "provider_gitlab_mcp",
+            "placeholders": [
+              {
+                "field_path": "bearer_token",
+                "required": true,
+                "label": "GitLab Token",
+                "hint": "Your GitLab personal access token for the GitLab MCP server"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "author": "template-seed",
+    "tags": [
+      "orchestrator",
+      "reporter",
+      "gitlab",
+      "jira",
+      "google",
+      "multi-agent",
+      "router"
+    ],
+    "version": "1.0.0",
+    "is_public": true,
+    "preview_image_url": null,
+    "category": "Multi-Agent",
+    "output_capabilities": [
+      "streaming",
+      "text"
+    ]
+  },
+  "created_at": "2026-05-12T00:00:00Z",
+  "updated_at": "2026-05-12T00:00:00Z"
+}
