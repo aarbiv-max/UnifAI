@@ -128,7 +128,7 @@ const FieldCard: React.FC<FieldCardProps> = ({
             {error ? (
               <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
             ) : (
-              getFieldTypeIcon(field.type, field.isSecret)
+              getFieldTypeIcon(field.type, field.isSecret, field.isAuth)
             )}
             <div className="flex-1">
               <div className="flex items-center gap-2">
@@ -350,6 +350,18 @@ export const TemplateDetailView = forwardRef<TemplateDetailViewRef, TemplateDeta
           newErrors[field.key] = 'Sign in is required for this service.';
         }
         return;
+      }
+
+      if (field.type === 'object') {
+        const raw = formData[field.key];
+        if (typeof raw === 'string' && raw !== '') {
+          try {
+            JSON.parse(raw);
+          } catch {
+            newErrors[field.key] = `Invalid JSON for ${field.label}`;
+            return;
+          }
+        }
       }
 
       if (field.required) {

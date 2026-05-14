@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -42,6 +42,18 @@ const ValidateFieldRenderer: React.FC<{
   const userId = user?.username || '';
   const [status, setStatus] = useState<ValidateStatus>('idle');
   const [message, setMessage] = useState('');
+
+  // Reset status whenever value or any mapped dependency value changes so a
+  // stale result is never shown after the user edits an input.
+  const depsDigest = field.validateHint
+    ? Object.keys(field.validateHint.dependencies)
+        .map((cf) => String(fullFormData[`${field.category}.${field.resourceRid}.${cf}`] ?? ''))
+        .join('\x00')
+    : '';
+  useEffect(() => {
+    setStatus('idle');
+    setMessage('');
+  }, [value, depsDigest]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleValidate = useCallback(async () => {
     if (!field.validateHint || !value) return;

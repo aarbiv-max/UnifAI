@@ -50,9 +50,12 @@ export const getCategoryIcon = (category: string, size: string = "h-6 w-6"): Rea
  * @param type - The field type
  * @param isSecret - Whether the field is a secret
  */
-export const getFieldTypeIcon = (type: string, isSecret?: boolean): React.ReactNode => {
+export const getFieldTypeIcon = (type: string, isSecret?: boolean, isAuth?: boolean): React.ReactNode => {
   if (isSecret) {
     return <Key className="h-4 w-4 text-yellow-500" />;
+  }
+  if (isAuth || type === 'auth') {
+    return <LogIn className="h-4 w-4 text-blue-400" />;
   }
   switch (type) {
     case 'auth':

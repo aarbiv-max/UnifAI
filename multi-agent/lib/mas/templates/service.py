@@ -171,6 +171,7 @@ class TemplateService:
         Returns True if modified.
         Raises TemplateNotFoundError if not found.
         """
+        self._validate_template_draft(template.draft)
         try:
             template.updated_at = datetime.now(timezone.utc)
             return self._repo.update(template)
