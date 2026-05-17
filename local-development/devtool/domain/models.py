@@ -26,6 +26,13 @@ class ContainerStatus(Enum):
     NOT_CREATED = "not_created"
 
 
+class ServiceStatus(Enum):
+    HEALTHY = "healthy"
+    UNHEALTHY = "unhealthy"
+    DOWN = "down"
+    NO_PORT = "no_port"
+
+
 @dataclass(frozen=True)
 class InfraComponent:
     name: str
@@ -73,7 +80,7 @@ class WindowLayout:
 @dataclass(frozen=True)
 class ServiceHealth:
     name: str
-    status: str
+    status: ServiceStatus
     port: int | None
     port_open: bool
     http_healthy: bool = False

@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-from devtool.domain.models import ContainerStatus, ServiceType
+from devtool.domain.models import ContainerStatus, ServiceStatus
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
+from devtool.ports.health_checker import HealthChecker
 from devtool.ports.session_manager import SessionManager
-from devtool.ports.venv_manager import VenvManager
-from devtool.services import health_checker
 from devtool.services.constants import SESSION_NAME
 
 
@@ -21,19 +18,18 @@ class Recovery:
         registry: Registry,
         runtime: ContainerRuntime,
         session: SessionManager,
-        venv_mgr: VenvManager,
+        health: HealthChecker,
     ) -> None:
         self._registry = registry
         self._runtime = runtime
         self._session = session
-        self._venv = venv_mgr
+        self._health = health
 
-    def restart_service(self, service_name: str, root: Path) -> None:
+    def restart_service(self, service_name: str) -> None:
         """Restart a single service after ensuring its infra is healthy."""
         svc = self._registry.get_service(service_name)
         print(f"\n🔄 Restarting {svc.name}…\n")
 
-        # Ensure infra dependencies are running
         infra = self._registry.infra_for_services([svc])
         restarted_infra: list[str] = []
         for comp in infra:
@@ -54,16 +50,16 @@ class Recovery:
         else:
             print(f"  ⚠ No active session — start services first.")
 
-    def restart_failed(self, root: Path) -> None:
+    def restart_failed(self) -> None:
         """Scan all services and restart any that are unhealthy."""
         print("\n🔍 Scanning for failed services…\n")
 
         failed: list[str] = []
         for svc in self._registry.all_services():
-            health = health_checker.check_service(self._registry, svc.name)
-            if svc.port and health.status not in ("healthy", "no port"):
+            health = self._health.check_service(self._registry, svc.name)
+            if svc.port and health.status not in (ServiceStatus.HEALTHY, ServiceStatus.NO_PORT):
                 failed.append(svc.name)
-                print(f"  ✖ {svc.name} — {health.status}")
+                print(f"  ✖ {svc.name} — {health.status.value}")
 
         if not failed:
             print("  ✔ All services are healthy.")
@@ -79,4 +75,4 @@ class Recovery:
         ]
 
         for name in primary_failed + worker_failed:
-            self.restart_service(name, root)
+            self.restart_service(name)

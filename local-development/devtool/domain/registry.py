@@ -1,19 +1,8 @@
-"""Registry — loads services.yaml and provides typed lookups."""
+"""Registry — pure domain: typed lookups over pre-parsed service data."""
 
 from __future__ import annotations
 
-import os
-import sys
 from pathlib import Path
-
-try:
-    import yaml
-except ImportError:
-    print(
-        "PyYAML is required. Install with: pip install pyyaml",
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
 
 from .models import (
     InfraComponent,
@@ -24,28 +13,32 @@ from .models import (
     VenvStrategy,
 )
 
-_DEFAULT_YAML = Path(__file__).resolve().parent.parent.parent / "services.yaml"
-
 
 class Registry:
-    """Single source of truth built from services.yaml."""
+    """Single source of truth for services, infra, and groups.
 
-    def __init__(self, yaml_path: Path = _DEFAULT_YAML) -> None:
-        with open(yaml_path) as fh:
-            raw = yaml.safe_load(fh)
+    Constructed from pre-parsed data — no file I/O, no environment
+    variables, no external library dependencies.
+    """
 
-        env_val = os.environ.get("UNIFAI_LOCAL_AUTH", "").strip().lower()
-        if env_val:
-            self._local_auth = env_val in ("true", "1", "yes")
-        else:
-            self._local_auth = bool(raw.get("local_auth", True))
-        self._python_min, self._python_max = self._parse_python_bounds(raw)
-        self._infra = self._parse_infra(raw.get("infrastructure", {}))
-        self._services = self._parse_services(raw.get("services", {}))
-        self._groups = self._parse_groups(raw.get("groups", {}))
-        self._log_dir = Path(
-            raw.get("logging", {}).get("directory", "/tmp/unifai-dev/logs")
-        )
+    def __init__(
+        self,
+        *,
+        services: dict[str, Service],
+        infra: dict[str, InfraComponent],
+        groups: dict[str, ServiceGroup],
+        local_auth: bool,
+        python_min: tuple[int, int],
+        python_max: tuple[int, int],
+        log_dir: Path,
+    ) -> None:
+        self._services = services
+        self._infra = infra
+        self._groups = groups
+        self._local_auth = local_auth
+        self._python_min = python_min
+        self._python_max = python_max
+        self._log_dir = log_dir
 
     # -- public API ----------------------------------------------------------
 
@@ -146,24 +139,10 @@ class Registry:
     def log_dir(self) -> Path:
         return self._log_dir
 
-    # -- parsing helpers -----------------------------------------------------
+    # -- parsing helpers (pure dict → model transforms) ----------------------
 
     @staticmethod
-    def _parse_python_bounds(
-        raw: dict,
-    ) -> tuple[tuple[int, int], tuple[int, int]]:
-        py = raw.get("python", {})
-        min_str = os.environ.get("PYTHON_MIN", "").strip() or py.get("min", "3.11")
-        max_str = os.environ.get("PYTHON_MAX", "").strip() or py.get("max", "3.13")
-        min_parts = min_str.split(".")
-        max_parts = max_str.split(".")
-        return (
-            (int(min_parts[0]), int(min_parts[1])),
-            (int(max_parts[0]), int(max_parts[1])),
-        )
-
-    @staticmethod
-    def _parse_infra(raw: dict) -> dict[str, InfraComponent]:
+    def parse_infra(raw: dict) -> dict[str, InfraComponent]:
         result: dict[str, InfraComponent] = {}
         for name, data in raw.items():
             result[name] = InfraComponent(
@@ -177,7 +156,7 @@ class Registry:
         return result
 
     @staticmethod
-    def _parse_services(raw: dict) -> dict[str, Service]:
+    def parse_services(raw: dict) -> dict[str, Service]:
         result: dict[str, Service] = {}
         for name, data in raw.items():
             venv_raw = data.get("venv", {})
@@ -202,8 +181,25 @@ class Registry:
         return result
 
     @staticmethod
-    def _parse_groups(raw: dict) -> dict[str, ServiceGroup]:
+    def parse_groups(raw: dict) -> dict[str, ServiceGroup]:
         return {
             name: ServiceGroup(name=name, services=svc_list)
             for name, svc_list in raw.items()
         }
+
+    @staticmethod
+    def parse_python_bounds(
+        raw: dict,
+        *,
+        min_override: str | None = None,
+        max_override: str | None = None,
+    ) -> tuple[tuple[int, int], tuple[int, int]]:
+        py = raw.get("python", {})
+        min_str = min_override or py.get("min", "3.11")
+        max_str = max_override or py.get("max", "3.13")
+        min_parts = min_str.split(".")
+        max_parts = max_str.split(".")
+        return (
+            (int(min_parts[0]), int(min_parts[1])),
+            (int(max_parts[0]), int(max_parts[1])),
+        )

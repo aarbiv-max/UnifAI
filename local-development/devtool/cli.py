@@ -59,8 +59,8 @@ app.add_typer(env_app)
 def _complete_targets(incomplete: str) -> list[str]:
     """Complete service and group names."""
     try:
-        from devtool.domain.registry import Registry
-        r = Registry()
+        from devtool.adapters.registry_loader import YamlRegistryLoader
+        r = YamlRegistryLoader.load()
         return [n for n in r.service_names() + r.group_names()
                 if n.startswith(incomplete)]
     except Exception:
@@ -70,8 +70,8 @@ def _complete_targets(incomplete: str) -> list[str]:
 def _complete_services(incomplete: str) -> list[str]:
     """Complete service names only."""
     try:
-        from devtool.domain.registry import Registry
-        r = Registry()
+        from devtool.adapters.registry_loader import YamlRegistryLoader
+        r = YamlRegistryLoader.load()
         return [n for n in r.service_names() if n.startswith(incomplete)]
     except Exception:
         return []
@@ -80,8 +80,8 @@ def _complete_services(incomplete: str) -> list[str]:
 def _complete_infra(incomplete: str) -> list[str]:
     """Complete infrastructure component names."""
     try:
-        from devtool.domain.registry import Registry
-        r = Registry()
+        from devtool.adapters.registry_loader import YamlRegistryLoader
+        r = YamlRegistryLoader.load()
         return [n for n in r.infra_names() if n.startswith(incomplete)]
     except Exception:
         return []
@@ -130,26 +130,52 @@ def _load_registry():
     Used by read-only commands (list, info) that only need the YAML data
     and should work even when Docker/tmux are unavailable.
     """
-    from devtool.domain.registry import Registry
-    return Registry()
+    from devtool.adapters.registry_loader import YamlRegistryLoader
+    return YamlRegistryLoader.load()
 
 
 def _create_orchestrator(*, fg: bool = False):
     """Wire up adapters and return an Orchestrator."""
-    from devtool.domain.registry import Registry
+    from devtool.adapters.registry_loader import YamlRegistryLoader
     from devtool.adapters.container_base import detect_runtime
     from devtool.adapters.process import LocalProcessManager
+    from devtool.adapters.python_detector import LocalPythonResolver
     from devtool.adapters.tmux import TmuxSessionManager
     from devtool.adapters.foreground import ForegroundSessionManager
     from devtool.adapters.venv import LocalVenvManager
+    from devtool.services.diagnostic_service import DiagnosticService
+    from devtool.services.env_service import EnvService
+    from devtool.services.health_checker import DefaultHealthChecker
+    from devtool.services.infra_service import InfraService
+    from devtool.services.init_service import InitService
     from devtool.services.orchestrator import Orchestrator
+    from devtool.services.startup_service import StartupService
+    from devtool.services.venv_service import VenvService
 
     root = _resolve_root()
-    registry = Registry()
+    registry = YamlRegistryLoader.load()
     runtime = detect_runtime()
     session = ForegroundSessionManager() if fg else TmuxSessionManager()
     venv_mgr = LocalVenvManager()
     process_mgr = LocalProcessManager()
+    python_resolver = LocalPythonResolver()
+    health = DefaultHealthChecker()
+
+    infra_svc = InfraService(registry, runtime)
+    venv_svc = VenvService(registry, root, venv_mgr, python_resolver)
+    env_svc = EnvService(registry, root)
+    startup_svc = StartupService(
+        registry, root, runtime, session, venv_mgr,
+        process_mgr, venv_svc, env_svc,
+    )
+    diag_svc = DiagnosticService(
+        registry, root, runtime, session, process_mgr,
+        health, infra_svc, venv_svc,
+    )
+    init_svc = InitService(
+        registry, root, runtime, venv_mgr,
+        infra_svc, venv_svc, env_svc,
+    )
 
     return Orchestrator(
         registry=registry,
@@ -157,7 +183,13 @@ def _create_orchestrator(*, fg: bool = False):
         container_runtime=runtime,
         session_manager=session,
         venv_manager=venv_mgr,
-        process_manager=process_mgr,
+        health_checker=health,
+        startup_service=startup_svc,
+        infra_service=infra_svc,
+        venv_service=venv_svc,
+        env_service=env_svc,
+        diagnostic_service=diag_svc,
+        init_service=init_svc,
     )
 
 

@@ -13,10 +13,12 @@ from devtool.domain.models import (
     InfraHealth,
     Service,
     ServiceHealth,
+    ServiceStatus,
     StatusIssue,
 )
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
+from devtool.ports.health_checker import HealthChecker
 from devtool.ports.session_manager import SessionManager
 
 
@@ -59,7 +61,7 @@ def check_service(registry: Registry, service_name: str) -> ServiceHealth:
     svc = registry.get_service(service_name)
     if not svc.port:
         return ServiceHealth(
-            name=svc.name, status="no port", port=None, port_open=False,
+            name=svc.name, status=ServiceStatus.NO_PORT, port=None, port_open=False,
         )
 
     host = _resolve_host(svc)
@@ -67,7 +69,7 @@ def check_service(registry: Registry, service_name: str) -> ServiceHealth:
 
     if not is_open:
         return ServiceHealth(
-            name=svc.name, status="DOWN", port=svc.port, port_open=False,
+            name=svc.name, status=ServiceStatus.DOWN, port=svc.port, port_open=False,
         )
 
     http_ok = False
@@ -77,7 +79,7 @@ def check_service(registry: Registry, service_name: str) -> ServiceHealth:
         if http_ms is not None:
             response_ms = http_ms
 
-    status = "healthy" if (http_ok or not svc.health_endpoint) else "unhealthy"
+    status = ServiceStatus.HEALTHY if (http_ok or not svc.health_endpoint) else ServiceStatus.UNHEALTHY
     return ServiceHealth(
         name=svc.name,
         status=status,
@@ -169,13 +171,13 @@ def render_dashboard(
     for sh in service_results:
         port_str = f":{sh.port}" if sh.port else ""
         pane_str = f"  {sh.tmux_pane}" if sh.tmux_pane else ""
-        if sh.status == "healthy":
+        if sh.status is ServiceStatus.HEALTHY:
             rt = f"  ({sh.response_time_ms}ms)" if sh.response_time_ms else ""
             print(f"  \u2714 {sh.name:<14}{port_str:<10}healthy{rt}{pane_str}")
-        elif sh.status == "no port":
+        elif sh.status is ServiceStatus.NO_PORT:
             status_label = "worker" if pane_str else "no port"
             print(f"  \u2500 {sh.name:<14}{'':<10}{status_label}{pane_str}")
-        elif sh.status == "unhealthy":
+        elif sh.status is ServiceStatus.UNHEALTHY:
             rt = f"  ({sh.response_time_ms}ms)" if sh.response_time_ms else ""
             print(f"  \u26a0 {sh.name:<14}{port_str:<10}unhealthy{rt}{pane_str}")
         else:
@@ -228,11 +230,11 @@ def _analyze_issues(
         infra_caused.update(issue.affected)
 
     for sh in service_results:
-        if sh.status in ("healthy", "no port"):
+        if sh.status in (ServiceStatus.HEALTHY, ServiceStatus.NO_PORT):
             continue
         if sh.name in infra_caused:
             continue
-        if sh.status == "unhealthy":
+        if sh.status is ServiceStatus.UNHEALTHY:
             issues.append(StatusIssue(
                 description=f"{sh.name} health endpoint failing on port {sh.port}",
                 fix=f"unifai-dev restart {sh.name}",
@@ -286,3 +288,37 @@ def match_panes_to_services(
                 used_panes.add(pane_ref)
                 break
     return mapping
+
+
+# ---------------------------------------------------------------------------
+# Port implementation
+# ---------------------------------------------------------------------------
+
+class DefaultHealthChecker(HealthChecker):
+    """Concrete implementation that delegates to the module-level functions."""
+
+    def check_service(self, registry: Registry, service_name: str) -> ServiceHealth:
+        return check_service(registry, service_name)
+
+    def build_dashboard(
+        self,
+        registry: Registry,
+        runtime: ContainerRuntime,
+        session: SessionManager,
+    ) -> tuple[list[InfraHealth], list[ServiceHealth], list[StatusIssue]]:
+        return build_dashboard(registry, runtime, session)
+
+    def render_dashboard(
+        self,
+        infra_results: list[InfraHealth],
+        service_results: list[ServiceHealth],
+        issues: list[StatusIssue],
+    ) -> None:
+        return render_dashboard(infra_results, service_results, issues)
+
+    def match_panes_to_services(
+        self,
+        services: list,
+        pane_contents: dict[str, str],
+    ) -> dict[str, str]:
+        return match_panes_to_services(services, pane_contents)
