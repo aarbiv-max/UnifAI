@@ -201,7 +201,7 @@ class TestClean:
 # _replace_placeholder (tests replace_env_value from env.resolver)
 # ---------------------------------------------------------------------------
 
-from devtool.services.env.resolver import replace_env_value
+from devtool.services.dotenv.resolver import replace_env_value
 
 class TestReplacePlaceholder:
     def test_replaces_placeholder_value(self, tmp_path) -> None:

@@ -1,4 +1,4 @@
-"""Tests for devtool.services.env (environment file management)."""
+"""Tests for devtool.services.dotenv (environment file management)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from devtool.domain.models import Service, ServiceType, VenvConfig, VenvStrategy
-from devtool.services.env import (
+from devtool.services.dotenv import (
     GenerateResult,
     align_local_auth,
     check_missing_keys,
@@ -16,7 +16,7 @@ from devtool.services.env import (
     generate,
     replace_env_value,
 )
-from devtool.services.env.common import ENV_HEADER
+from devtool.services.dotenv.common import ENV_HEADER
 
 
 def _make_service(

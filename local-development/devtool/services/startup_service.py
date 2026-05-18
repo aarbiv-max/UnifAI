@@ -20,7 +20,7 @@ from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
 from devtool.ports.process_manager import ProcessManager
 from devtool.ports.session_manager import SessionManager
-from devtool.services import env
+from devtool.services import dotenv as env
 from devtool.services.constants import SESSION_NAME
 from devtool.services.env_service import EnvService
 from devtool.utils import resolve_bash

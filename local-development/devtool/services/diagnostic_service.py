@@ -10,7 +10,7 @@ from devtool.ports.container_runtime import ContainerRuntime
 from devtool.ports.health_checker import HealthChecker
 from devtool.ports.process_manager import ProcessManager
 from devtool.ports.session_manager import SessionManager
-from devtool.services import env
+from devtool.services import dotenv as env
 from devtool.services.infra_service import InfraService
 from devtool.services.venv_service import VenvService
 

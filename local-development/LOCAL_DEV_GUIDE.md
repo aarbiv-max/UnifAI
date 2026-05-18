@@ -95,7 +95,7 @@ local-development/
 │       ├── recovery.py
 │       ├── constants.py        # Session name, shared constants
 │       ├── shell_utils.py      # Bash resolution
-│       └── env/                # .env file logic (decomposed)
+│       └── dotenv/             # .env file logic (decomposed)
 │           ├── __init__.py     # Facade re-exports
 │           ├── common.py       # Constants, enums, helpers
 │           ├── generator.py    # .env creation / update

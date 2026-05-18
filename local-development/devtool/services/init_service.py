@@ -9,7 +9,7 @@ from pathlib import Path
 
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
-from devtool.services import env
+from devtool.services import dotenv as env
 from devtool.services.env_service import EnvService
 from devtool.services.infra_service import InfraService
 from devtool.services.venv_service import VenvService

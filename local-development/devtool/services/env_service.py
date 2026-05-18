@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from devtool.domain.registry import Registry
-from devtool.services import env
+from devtool.services import dotenv as env
 
 
 class EnvService:
