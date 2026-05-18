@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import re
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from devtool.domain.models import Service
 
 
 class GenerateResult(Enum):
@@ -19,7 +23,7 @@ AUTOGEN_RE = re.compile(r"<AUTO_GENERATE", re.IGNORECASE)
 
 SECRET_KEY_FILE = "local-development/.dev-secret-key"
 LOCAL_AUTH_SERVICE = "identity"
-KEYCLOAK_KEYS = {"keycloak_base_url", "client_id", "client_secret", "keycloak_realm"}
+KEYCLOAK_KEYS = frozenset({"keycloak_base_url", "client_id", "client_secret", "keycloak_realm"})
 
 
 def is_auto_generate(value: str) -> bool:
@@ -27,7 +31,7 @@ def is_auto_generate(value: str) -> bool:
     return bool(AUTOGEN_RE.search(value))
 
 
-def expected_keys(service, *, local_auth: bool = False) -> set[str]:
+def expected_keys(service: Service, *, local_auth: bool = False) -> set[str]:
     """Return the set of env keys that should be present on disk."""
     is_identity_local = local_auth and service.name == LOCAL_AUTH_SERVICE
     keys = {

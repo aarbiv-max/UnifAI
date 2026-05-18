@@ -18,14 +18,13 @@ from devtool.domain.models import (
 )
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
-from devtool.ports.health_checker import HealthChecker
 from devtool.ports.health_probe import HealthProbe
 from devtool.ports.session_manager import SessionManager
 from devtool.services.constants import SESSION_NAME
 
 
-class DefaultHealthChecker(HealthChecker):
-    """Concrete implementation that uses a HealthProbe for network checks."""
+class HealthChecker:
+    """Checks service and infrastructure health via an injected HealthProbe."""
 
     def __init__(self, probe: HealthProbe) -> None:
         self._probe = probe

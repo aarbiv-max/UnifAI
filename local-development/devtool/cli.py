@@ -160,7 +160,7 @@ def _create_orchestrator(*, fg: bool = False) -> Orchestrator:
     from devtool.adapters.venv import LocalVenvManager
     from devtool.services.diagnostic_service import DiagnosticService
     from devtool.services.env_service import EnvService
-    from devtool.services.health_checker import DefaultHealthChecker
+    from devtool.services.health_checker import HealthChecker
     from devtool.services.infra_service import InfraService
     from devtool.services.init_service import InitService
     from devtool.services.orchestrator import Orchestrator
@@ -186,7 +186,7 @@ def _create_orchestrator(*, fg: bool = False) -> Orchestrator:
     process_mgr = LocalProcessManager()
     python_resolver = LocalPythonResolver()
     health_probe = NetworkHealthProbe()
-    health = DefaultHealthChecker(health_probe)
+    health = HealthChecker(health_probe)
 
     infra_svc = InfraService(registry, runtime)
     venv_svc = VenvService(registry, root, venv_mgr, python_resolver)
@@ -298,7 +298,7 @@ def exec_cmd(
         print("Usage: unifai-dev exec <service> <command...>")
         raise SystemExit(1)
     orch = _create_orchestrator()
-    orch.exec_in_context(service, ctx.args)
+    raise SystemExit(orch.exec_in_context(service, ctx.args))
 
 
 @app.command()

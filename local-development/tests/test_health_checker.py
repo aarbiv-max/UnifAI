@@ -23,7 +23,7 @@ from devtool.domain.models import (
     VenvStrategy,
 )
 from devtool.services.health_checker import (
-    DefaultHealthChecker,
+    HealthChecker,
     _analyze_issues,
     _match_panes_to_services,
     _parse_host_port,
@@ -120,7 +120,7 @@ def yaml_path(tmp_path: Path) -> Path:
 
 @pytest.fixture()
 def mock_probe() -> MagicMock:
-    """A mock HealthProbe for injecting into DefaultHealthChecker."""
+    """A mock HealthProbe for injecting into HealthChecker."""
     return MagicMock(spec=NetworkHealthProbe)
 
 
@@ -175,13 +175,13 @@ class TestNetworkHealthProbeCheckHttp:
 
 
 # ---------------------------------------------------------------------------
-# DefaultHealthChecker.check_service (via mock probe)
+# HealthChecker.check_service (via mock probe)
 # ---------------------------------------------------------------------------
 
 class TestCheckService:
     def test_no_port(self, yaml_path: Path, mock_probe: MagicMock) -> None:
         reg = YamlRegistryLoader.load(yaml_path)
-        checker = DefaultHealthChecker(mock_probe)
+        checker = HealthChecker(mock_probe)
         health = checker.check_service(reg, "worker")
         assert health.status is ServiceStatus.NO_PORT
         assert health.port is None
@@ -192,7 +192,7 @@ class TestCheckService:
         mock_probe.check_port.return_value = (True, 3.1)
         mock_probe.check_http.return_value = (True, 5.2)
         reg = YamlRegistryLoader.load(yaml_path)
-        checker = DefaultHealthChecker(mock_probe)
+        checker = HealthChecker(mock_probe)
         health = checker.check_service(reg, "backend")
         assert health.status is ServiceStatus.HEALTHY
         assert health.port == 8005
@@ -203,7 +203,7 @@ class TestCheckService:
     def test_port_down(self, yaml_path: Path, mock_probe: MagicMock) -> None:
         mock_probe.check_port.return_value = (False, None)
         reg = YamlRegistryLoader.load(yaml_path)
-        checker = DefaultHealthChecker(mock_probe)
+        checker = HealthChecker(mock_probe)
         health = checker.check_service(reg, "backend")
         assert health.status is ServiceStatus.DOWN
         assert health.port_open is False
@@ -212,7 +212,7 @@ class TestCheckService:
         mock_probe.check_port.return_value = (True, 3.0)
         mock_probe.check_http.return_value = (False, None)
         reg = YamlRegistryLoader.load(yaml_path)
-        checker = DefaultHealthChecker(mock_probe)
+        checker = HealthChecker(mock_probe)
         health = checker.check_service(reg, "backend")
         assert health.status is ServiceStatus.UNHEALTHY
         assert health.port_open is True
@@ -220,7 +220,7 @@ class TestCheckService:
 
 
 # ---------------------------------------------------------------------------
-# _check_infra (via DefaultHealthChecker.build_dashboard internals)
+# _check_infra (via HealthChecker.build_dashboard internals)
 # ---------------------------------------------------------------------------
 
 class TestCheckInfra:

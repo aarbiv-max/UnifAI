@@ -7,7 +7,7 @@ from pathlib import Path
 
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
-from devtool.ports.health_checker import HealthChecker
+from devtool.services.health_checker import HealthChecker
 from devtool.ports.process_manager import ProcessManager
 from devtool.ports.session_manager import SessionManager
 from devtool.services import dotenv as env

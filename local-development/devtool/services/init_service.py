@@ -39,12 +39,8 @@ class InitService:
 
         # 1. Prerequisites
         print("1/6  Checking prerequisites…")
-        try:
-            python, python_minor = self._venv_svc.detect_python()
-            print(f"  ✔ Python: {python} ({python_minor})")
-        except RuntimeError as exc:
-            print(f"  ✖ Python: {exc}")
-            raise SystemExit(1)
+        python, python_minor = self._venv_svc.detect_python()
+        print(f"  ✔ Python: {python} ({python_minor})")
 
         print(f"  ✔ Container runtime: {self._runtime.runtime_name}")
 

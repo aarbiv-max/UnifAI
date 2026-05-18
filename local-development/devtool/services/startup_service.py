@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -20,7 +19,6 @@ from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
 from devtool.ports.process_manager import ProcessManager
 from devtool.ports.session_manager import SessionManager
-from devtool.services import dotenv as env
 from devtool.services.constants import SESSION_NAME
 from devtool.services.env_service import EnvService
 from devtool.utils import resolve_bash
@@ -93,12 +91,7 @@ class StartupService:
             print()
 
         # 3. Env generation + auto-generate resolution
-        print("🔧 Generating .env files…")
-        _generated, _skipped, _updated, env_warnings = env.generate_all(
-            self._registry, self._root,
-        )
-        for w in env_warnings:
-            print(w)
+        self._env_svc.generate()
         self._env_svc.auto_resolve_generated_keys()
         print()
 
@@ -162,15 +155,15 @@ class StartupService:
         bash = resolve_bash()
         os.execvp(bash, [bash, "-c", shell_cmd])
 
-    def exec_in_context(self, service_name: str, command: list[str]) -> None:
-        """Run *command* inside the service's context, then exit."""
+    def exec_in_context(self, service_name: str, command: list[str]) -> int:
+        """Run *command* inside the service's context and return its exit code."""
         svc = self._registry.get_service(service_name)
         _, python_minor = self._venv_svc.detect_python()
         context = self._build_context_command(svc, python_minor)
         user_cmd = shlex.join(command)
         shell_cmd = f"{context} && {user_cmd}"
         bash = resolve_bash()
-        sys.exit(subprocess.run([bash, "-c", shell_cmd]).returncode)
+        return subprocess.run([bash, "-c", shell_cmd]).returncode
 
     # -- private helpers -----------------------------------------------------
 

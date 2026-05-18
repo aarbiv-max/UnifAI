@@ -59,11 +59,11 @@ class TestInit:
         assert "Setup complete" in captured.out
 
     @patch("shutil.which", return_value="/usr/bin/tmux")
-    def test_python_failure_exits(self, mock_which) -> None:
+    def test_python_failure_propagates(self, mock_which) -> None:
         init_svc = _make_init_service()
         init_svc._venv_svc.detect_python.side_effect = RuntimeError("no python")
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(RuntimeError, match="no python"):
             init_svc.init(non_interactive=True)
 
     @patch("shutil.which", return_value=None)

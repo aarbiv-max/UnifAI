@@ -8,7 +8,7 @@ from pathlib import Path
 from devtool.domain.models import ContainerStatus, ServiceType
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
-from devtool.ports.health_checker import HealthChecker
+from devtool.services.health_checker import HealthChecker
 from devtool.ports.session_manager import SessionManager
 from devtool.services.constants import SESSION_NAME
 from devtool.services.diagnostic_service import DiagnosticService
@@ -84,8 +84,8 @@ class Orchestrator:
     def shell(self, service_name: str) -> None:
         self._startup.shell(service_name)
 
-    def exec_in_context(self, service_name: str, command: list[str]) -> None:
-        self._startup.exec_in_context(service_name, command)
+    def exec_in_context(self, service_name: str, command: list[str]) -> int:
+        return self._startup.exec_in_context(service_name, command)
 
     # -- stop / destroy ------------------------------------------------------
 
