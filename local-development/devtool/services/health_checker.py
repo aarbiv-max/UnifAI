@@ -1,13 +1,11 @@
-"""Application service: health checking and status dashboard."""
+"""Application service: health checking and status dashboard.
+
+Orchestrates health probing via the HealthProbe port (no direct I/O).
+"""
 
 from __future__ import annotations
 
 import re
-import socket
-import time
-import urllib.error
-import urllib.request
-from pathlib import Path
 
 from devtool.domain.models import (
     ContainerStatus,
@@ -21,45 +19,51 @@ from devtool.domain.models import (
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
 from devtool.ports.health_checker import HealthChecker
+from devtool.ports.health_probe import HealthProbe
 from devtool.ports.session_manager import SessionManager
 from devtool.services.constants import SESSION_NAME
 
 
-# ---------------------------------------------------------------------------
-# Low-level probes
-# ---------------------------------------------------------------------------
+class DefaultHealthChecker(HealthChecker):
+    """Concrete implementation that uses a HealthProbe for network checks."""
 
-def check_port(host: str, port: int, timeout: float = 2.0) -> tuple[bool, float | None]:
-    """Probe a TCP port.  Returns (is_open, response_time_ms)."""
-    start = time.monotonic()
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            elapsed = (time.monotonic() - start) * 1000
-            return True, round(elapsed, 1)
-    except (ConnectionRefusedError, TimeoutError, OSError):
-        return False, None
+    def __init__(self, probe: HealthProbe) -> None:
+        self._probe = probe
 
+    def check_service(self, registry: Registry, service_name: str) -> ServiceHealth:
+        return _check_service(registry, service_name, self._probe)
 
-def check_http(
-    host: str, port: int, path: str = "/", timeout: float = 3.0,
-) -> tuple[bool, float | None]:
-    """HTTP GET against a health endpoint.  Returns (is_ok, response_time_ms)."""
-    url = f"http://{host}:{port}{path}"
-    start = time.monotonic()
-    try:
-        req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=timeout):
-            elapsed = (time.monotonic() - start) * 1000
-            return True, round(elapsed, 1)
-    except (urllib.error.URLError, OSError, TimeoutError):
-        return False, None
+    def build_dashboard(
+        self,
+        registry: Registry,
+        runtime: ContainerRuntime,
+        session: SessionManager,
+    ) -> tuple[list[InfraHealth], list[ServiceHealth], list[StatusIssue]]:
+        return _build_dashboard(registry, runtime, session, self._probe)
+
+    def render_dashboard(
+        self,
+        infra_results: list[InfraHealth],
+        service_results: list[ServiceHealth],
+        issues: list[StatusIssue],
+    ) -> None:
+        _render_dashboard(infra_results, service_results, issues)
+
+    def match_panes_to_services(
+        self,
+        services: list[Service],
+        pane_contents: dict[str, str],
+    ) -> dict[str, str]:
+        return _match_panes_to_services(services, pane_contents)
 
 
 # ---------------------------------------------------------------------------
 # Single-entity checks
 # ---------------------------------------------------------------------------
 
-def check_service(registry: Registry, service_name: str) -> ServiceHealth:
+def _check_service(
+    registry: Registry, service_name: str, probe: HealthProbe,
+) -> ServiceHealth:
     """Check if a single service's port is reachable."""
     svc = registry.get_service(service_name)
     if not svc.port:
@@ -68,7 +72,7 @@ def check_service(registry: Registry, service_name: str) -> ServiceHealth:
         )
 
     host = _resolve_host(svc)
-    is_open, tcp_ms = check_port(host, svc.port)
+    is_open, tcp_ms = probe.check_port(host, svc.port)
 
     if not is_open:
         return ServiceHealth(
@@ -78,7 +82,7 @@ def check_service(registry: Registry, service_name: str) -> ServiceHealth:
     http_ok = False
     response_ms = tcp_ms
     if svc.health_endpoint:
-        http_ok, http_ms = check_http(host, svc.port, svc.health_endpoint)
+        http_ok, http_ms = probe.check_http(host, svc.port, svc.health_endpoint)
         if http_ms is not None:
             response_ms = http_ms
 
@@ -93,7 +97,7 @@ def check_service(registry: Registry, service_name: str) -> ServiceHealth:
     )
 
 
-def check_infra(
+def _check_infra(
     component: InfraComponent, runtime: ContainerRuntime,
 ) -> InfraHealth:
     """Check a single infrastructure component."""
@@ -113,24 +117,25 @@ def check_infra(
 # Full dashboard
 # ---------------------------------------------------------------------------
 
-def build_dashboard(
+def _build_dashboard(
     registry: Registry,
     runtime: ContainerRuntime,
     session: SessionManager,
+    probe: HealthProbe,
 ) -> tuple[list[InfraHealth], list[ServiceHealth], list[StatusIssue]]:
     """Collect health for every component and produce actionable issues."""
 
     infra_results = [
-        check_infra(comp, runtime)
+        _check_infra(comp, runtime)
         for comp in registry.all_infra()
     ]
 
     pane_contents = session.pane_contents(SESSION_NAME)
-    pane_mapping = match_panes_to_services(registry.all_services(), pane_contents)
+    pane_mapping = _match_panes_to_services(registry.all_services(), pane_contents)
 
     service_results: list[ServiceHealth] = []
     for svc in registry.all_services():
-        health = check_service(registry, svc.name)
+        health = _check_service(registry, svc.name, probe)
         tmux_pane = pane_mapping.get(svc.name)
         service_results.append(ServiceHealth(
             name=health.name,
@@ -147,7 +152,7 @@ def build_dashboard(
     return infra_results, service_results, issues
 
 
-def render_dashboard(
+def _render_dashboard(
     infra_results: list[InfraHealth],
     service_results: list[ServiceHealth],
     issues: list[StatusIssue],
@@ -193,7 +198,7 @@ def render_dashboard(
 
 
 # ---------------------------------------------------------------------------
-# Issue analysis
+# Issue analysis (pure logic — no I/O)
 # ---------------------------------------------------------------------------
 
 def _analyze_issues(
@@ -251,7 +256,7 @@ def _analyze_issues(
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers (pure logic)
 # ---------------------------------------------------------------------------
 
 def _resolve_host(svc: Service) -> str:
@@ -269,7 +274,7 @@ def _parse_host_port(port_mapping: str) -> int | None:
         return None
 
 
-def match_panes_to_services(
+def _match_panes_to_services(
     services: list[Service],
     pane_contents: dict[str, str],
 ) -> dict[str, str]:
@@ -289,37 +294,3 @@ def match_panes_to_services(
                 used_panes.add(pane_ref)
                 break
     return mapping
-
-
-# ---------------------------------------------------------------------------
-# Port implementation
-# ---------------------------------------------------------------------------
-
-class DefaultHealthChecker(HealthChecker):
-    """Concrete implementation that delegates to the module-level functions."""
-
-    def check_service(self, registry: Registry, service_name: str) -> ServiceHealth:
-        return check_service(registry, service_name)
-
-    def build_dashboard(
-        self,
-        registry: Registry,
-        runtime: ContainerRuntime,
-        session: SessionManager,
-    ) -> tuple[list[InfraHealth], list[ServiceHealth], list[StatusIssue]]:
-        return build_dashboard(registry, runtime, session)
-
-    def render_dashboard(
-        self,
-        infra_results: list[InfraHealth],
-        service_results: list[ServiceHealth],
-        issues: list[StatusIssue],
-    ) -> None:
-        return render_dashboard(infra_results, service_results, issues)
-
-    def match_panes_to_services(
-        self,
-        services: list[Service],
-        pane_contents: dict[str, str],
-    ) -> dict[str, str]:
-        return match_panes_to_services(services, pane_contents)

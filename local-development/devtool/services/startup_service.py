@@ -181,8 +181,8 @@ class StartupService:
 
         if not primary and non_primary:
             names = ", ".join(s.name for s in non_primary)
-            raise SystemExit(
-                f"❌ Cannot start only non-primary services ({names}).\n"
+            raise RuntimeError(
+                f"Cannot start only non-primary services ({names}).\n"
                 f"   Non-primary services (workers) must be launched alongside "
                 f"their parent service.\n"
                 f"   Try a group like 'rag-stack' or 'agents' instead."
@@ -190,13 +190,13 @@ class StartupService:
 
         if fg:
             if len(services) != 1:
-                raise SystemExit(
-                    f"❌ Foreground mode (--fg) requires exactly one service, "
+                raise RuntimeError(
+                    f"Foreground mode (--fg) requires exactly one service, "
                     f"got {len(services)}."
                 )
             if not services[0].is_primary:
-                raise SystemExit(
-                    f"❌ Cannot run non-primary service '{services[0].name}' "
+                raise RuntimeError(
+                    f"Cannot run non-primary service '{services[0].name}' "
                     f"in foreground mode."
                 )
 

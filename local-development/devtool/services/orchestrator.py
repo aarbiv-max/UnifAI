@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
 from pathlib import Path
 
 from devtool.domain.models import ContainerStatus, ServiceType
@@ -79,15 +78,7 @@ class Orchestrator:
             print(f"Could not find a tmux pane for '{svc.name}'.")
             return
 
-        pane_target = f"{SESSION_NAME}:{pane_ref}"
-        subprocess.run(
-            ["tmux", "select-window", "-t", pane_target.rsplit(".", 1)[0]],
-            check=False,
-        )
-        subprocess.run(
-            ["tmux", "select-pane", "-t", pane_target],
-            check=False,
-        )
+        self._session.select_pane(SESSION_NAME, pane_ref)
         self._session.attach(SESSION_NAME)
 
     def shell(self, service_name: str) -> None:
@@ -143,10 +134,8 @@ class Orchestrator:
     def venv_sync(self, service_name: str | None = None) -> None:
         self._venv_svc.sync(service_name)
 
-    def venv_check(self) -> None:
-        errors = self._venv_svc.check()
-        if errors:
-            raise SystemExit(1)
+    def venv_check(self) -> list[str]:
+        return self._venv_svc.check()
 
     # -- env subcommands -----------------------------------------------------
 

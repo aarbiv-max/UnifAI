@@ -127,6 +127,18 @@ class TmuxSessionManager(SessionManager):
             panes[pane_ref] = capture.stdout
         return panes
 
+    def select_pane(self, session_name: str, pane_ref: str) -> None:
+        pane_target = f"{session_name}:{pane_ref}"
+        window_target = pane_target.rsplit(".", 1)[0]
+        subprocess.run(
+            ["tmux", "select-window", "-t", window_target],
+            check=False,
+        )
+        subprocess.run(
+            ["tmux", "select-pane", "-t", pane_target],
+            check=False,
+        )
+
     def restart_service(self, session_name: str, service_name: str) -> bool:
         if not self.is_running(session_name):
             return False

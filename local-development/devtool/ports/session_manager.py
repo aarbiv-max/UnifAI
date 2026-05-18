@@ -54,6 +54,14 @@ class SessionManager(ABC):
         """
 
     @abstractmethod
+    def select_pane(self, session_name: str, pane_ref: str) -> None:
+        """Focus the given pane (e.g. switch to its window and select it).
+
+        *pane_ref* is ``"<window_index>.<pane_index>"``.
+        No-op for session types that don't support panes.
+        """
+
+    @abstractmethod
     def restart_service(self, session_name: str, service_name: str) -> bool:
         """Send restart signal to the process running *service_name*.
 

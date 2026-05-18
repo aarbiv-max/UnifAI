@@ -54,5 +54,8 @@ class ForegroundSessionManager(SessionManager):
     def pane_contents(self, session_name: str) -> dict[str, str]:
         return {}
 
+    def select_pane(self, session_name: str, pane_ref: str) -> None:
+        pass
+
     def restart_service(self, session_name: str, service_name: str) -> bool:
         return False

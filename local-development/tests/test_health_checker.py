@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from devtool.adapters.health_probe import NetworkHealthProbe
 from devtool.adapters.registry_loader import YamlRegistryLoader
 from devtool.domain.models import (
     ContainerStatus,
@@ -22,15 +23,12 @@ from devtool.domain.models import (
     VenvStrategy,
 )
 from devtool.services.health_checker import (
+    DefaultHealthChecker,
     _analyze_issues,
-    match_panes_to_services,
+    _match_panes_to_services,
     _parse_host_port,
+    _render_dashboard,
     _resolve_host,
-    check_http,
-    check_infra,
-    check_port,
-    check_service,
-    render_dashboard,
 )
 
 
@@ -120,97 +118,109 @@ def yaml_path(tmp_path: Path) -> Path:
     return p
 
 
+@pytest.fixture()
+def mock_probe() -> MagicMock:
+    """A mock HealthProbe for injecting into DefaultHealthChecker."""
+    return MagicMock(spec=NetworkHealthProbe)
+
+
 # ---------------------------------------------------------------------------
-# check_port
+# NetworkHealthProbe (adapter)
 # ---------------------------------------------------------------------------
 
-class TestCheckPort:
+class TestNetworkHealthProbeCheckPort:
     def test_open_port(self) -> None:
-        with patch("devtool.services.health_checker.socket.create_connection") as mock_conn:
+        with patch("devtool.adapters.health_probe.socket.create_connection") as mock_conn:
             mock_conn.return_value.__enter__ = MagicMock()
             mock_conn.return_value.__exit__ = MagicMock(return_value=False)
-            is_open, ms = check_port("127.0.0.1", 8000)
+            probe = NetworkHealthProbe()
+            is_open, ms = probe.check_port("127.0.0.1", 8000)
             assert is_open is True
             assert ms is not None
 
     def test_closed_port(self) -> None:
-        with patch("devtool.services.health_checker.socket.create_connection") as mock_conn:
+        with patch("devtool.adapters.health_probe.socket.create_connection") as mock_conn:
             mock_conn.side_effect = ConnectionRefusedError
-            is_open, ms = check_port("127.0.0.1", 8000)
+            probe = NetworkHealthProbe()
+            is_open, ms = probe.check_port("127.0.0.1", 8000)
             assert is_open is False
             assert ms is None
 
     def test_timeout(self) -> None:
-        with patch("devtool.services.health_checker.socket.create_connection") as mock_conn:
+        with patch("devtool.adapters.health_probe.socket.create_connection") as mock_conn:
             mock_conn.side_effect = TimeoutError
-            is_open, ms = check_port("127.0.0.1", 8000)
+            probe = NetworkHealthProbe()
+            is_open, ms = probe.check_port("127.0.0.1", 8000)
             assert is_open is False
             assert ms is None
 
 
-# ---------------------------------------------------------------------------
-# check_http
-# ---------------------------------------------------------------------------
-
-class TestCheckHttp:
+class TestNetworkHealthProbeCheckHttp:
     def test_healthy_endpoint(self) -> None:
-        with patch("devtool.services.health_checker.urllib.request.urlopen") as mock_open:
+        with patch("devtool.adapters.health_probe.urllib.request.urlopen") as mock_open:
             mock_open.return_value.__enter__ = MagicMock()
             mock_open.return_value.__exit__ = MagicMock(return_value=False)
-            ok, ms = check_http("127.0.0.1", 8000, "/")
+            probe = NetworkHealthProbe()
+            ok, ms = probe.check_http("127.0.0.1", 8000, "/")
             assert ok is True
             assert ms is not None
 
     def test_unreachable_endpoint(self) -> None:
-        with patch("devtool.services.health_checker.urllib.request.urlopen") as mock_open:
+        with patch("devtool.adapters.health_probe.urllib.request.urlopen") as mock_open:
             mock_open.side_effect = OSError("Connection refused")
-            ok, ms = check_http("127.0.0.1", 8000, "/")
+            probe = NetworkHealthProbe()
+            ok, ms = probe.check_http("127.0.0.1", 8000, "/")
             assert ok is False
             assert ms is None
 
 
 # ---------------------------------------------------------------------------
-# check_service
+# DefaultHealthChecker.check_service (via mock probe)
 # ---------------------------------------------------------------------------
 
 class TestCheckService:
-    def test_no_port(self, yaml_path: Path) -> None:
+    def test_no_port(self, yaml_path: Path, mock_probe: MagicMock) -> None:
         reg = YamlRegistryLoader.load(yaml_path)
-        health = check_service(reg, "worker")
+        checker = DefaultHealthChecker(mock_probe)
+        health = checker.check_service(reg, "worker")
         assert health.status is ServiceStatus.NO_PORT
         assert health.port is None
         assert health.port_open is False
+        mock_probe.check_port.assert_not_called()
 
-    @patch("devtool.services.health_checker.check_http", return_value=(True, 5.2))
-    @patch("devtool.services.health_checker.check_port", return_value=(True, 3.1))
-    def test_healthy_with_http(self, mock_port, mock_http, yaml_path: Path) -> None:
+    def test_healthy_with_http(self, yaml_path: Path, mock_probe: MagicMock) -> None:
+        mock_probe.check_port.return_value = (True, 3.1)
+        mock_probe.check_http.return_value = (True, 5.2)
         reg = YamlRegistryLoader.load(yaml_path)
-        health = check_service(reg, "backend")
+        checker = DefaultHealthChecker(mock_probe)
+        health = checker.check_service(reg, "backend")
         assert health.status is ServiceStatus.HEALTHY
         assert health.port == 8005
         assert health.port_open is True
         assert health.http_healthy is True
         assert health.response_time_ms == 5.2
 
-    @patch("devtool.services.health_checker.check_port", return_value=(False, None))
-    def test_port_down(self, mock_port, yaml_path: Path) -> None:
+    def test_port_down(self, yaml_path: Path, mock_probe: MagicMock) -> None:
+        mock_probe.check_port.return_value = (False, None)
         reg = YamlRegistryLoader.load(yaml_path)
-        health = check_service(reg, "backend")
+        checker = DefaultHealthChecker(mock_probe)
+        health = checker.check_service(reg, "backend")
         assert health.status is ServiceStatus.DOWN
         assert health.port_open is False
 
-    @patch("devtool.services.health_checker.check_http", return_value=(False, None))
-    @patch("devtool.services.health_checker.check_port", return_value=(True, 3.0))
-    def test_port_open_but_http_fails(self, mock_port, mock_http, yaml_path: Path) -> None:
+    def test_port_open_but_http_fails(self, yaml_path: Path, mock_probe: MagicMock) -> None:
+        mock_probe.check_port.return_value = (True, 3.0)
+        mock_probe.check_http.return_value = (False, None)
         reg = YamlRegistryLoader.load(yaml_path)
-        health = check_service(reg, "backend")
+        checker = DefaultHealthChecker(mock_probe)
+        health = checker.check_service(reg, "backend")
         assert health.status is ServiceStatus.UNHEALTHY
         assert health.port_open is True
         assert health.http_healthy is False
 
 
 # ---------------------------------------------------------------------------
-# check_infra
+# _check_infra (via DefaultHealthChecker.build_dashboard internals)
 # ---------------------------------------------------------------------------
 
 class TestCheckInfra:
@@ -223,7 +233,8 @@ class TestCheckInfra:
         runtime.status.return_value = ContainerStatus.RUNNING
         runtime.container_uptime.return_value = "2h 15m"
 
-        result = check_infra(comp, runtime)
+        from devtool.services.health_checker import _check_infra
+        result = _check_infra(comp, runtime)
         assert result.status is ContainerStatus.RUNNING
         assert result.uptime == "2h 15m"
         assert result.port == 27017
@@ -236,7 +247,8 @@ class TestCheckInfra:
         runtime = MagicMock()
         runtime.status.return_value = ContainerStatus.STOPPED
 
-        result = check_infra(comp, runtime)
+        from devtool.services.health_checker import _check_infra
+        result = _check_infra(comp, runtime)
         assert result.status is ContainerStatus.STOPPED
         assert result.uptime is None
 
@@ -248,7 +260,8 @@ class TestCheckInfra:
         runtime = MagicMock()
         runtime.status.return_value = ContainerStatus.NOT_CREATED
 
-        result = check_infra(comp, runtime)
+        from devtool.services.health_checker import _check_infra
+        result = _check_infra(comp, runtime)
         assert result.status is ContainerStatus.NOT_CREATED
 
 
@@ -328,7 +341,7 @@ class TestAnalyzeIssues:
 
 
 # ---------------------------------------------------------------------------
-# match_panes_to_services
+# _match_panes_to_services
 # ---------------------------------------------------------------------------
 
 class TestMatchPanesToServices:
@@ -341,7 +354,7 @@ class TestMatchPanesToServices:
             "0.0": "cd /home/user/backend && source venv/bin/activate",
             "0.1": "cd /home/user/rag && python -m bootstrap",
         }
-        result = match_panes_to_services(services, pane_contents)
+        result = _match_panes_to_services(services, pane_contents)
         assert result == {"backend": "0.0", "rag": "0.1"}
 
     def test_matches_by_service_name(self) -> None:
@@ -349,7 +362,7 @@ class TestMatchPanesToServices:
         pane_contents = {
             "0.0": "starting multi-agent service...",
         }
-        result = match_panes_to_services(services, pane_contents)
+        result = _match_panes_to_services(services, pane_contents)
         assert result == {"multi-agent": "0.0"}
 
     def test_no_match_returns_empty(self) -> None:
@@ -357,12 +370,12 @@ class TestMatchPanesToServices:
         pane_contents = {
             "0.0": "some unrelated output",
         }
-        result = match_panes_to_services(services, pane_contents)
+        result = _match_panes_to_services(services, pane_contents)
         assert result == {}
 
     def test_empty_panes(self) -> None:
         services = [_make_service("backend")]
-        result = match_panes_to_services(services, {})
+        result = _match_panes_to_services(services, {})
         assert result == {}
 
     def test_pane_not_reused(self) -> None:
@@ -380,7 +393,7 @@ class TestMatchPanesToServices:
             "0.0": "cd /home/user/backend && python -m run.dev",
             "1.0": "cd /home/user/backend && celery worker",
         }
-        result = match_panes_to_services([svc_a, svc_b], pane_contents)
+        result = _match_panes_to_services([svc_a, svc_b], pane_contents)
         assert len(result) == 2
         assert result["backend"] != result["worker"]
 
@@ -391,15 +404,12 @@ class TestMatchPanesToServices:
 
 class TestResolveHost:
     def test_none_defaults_to_localhost(self) -> None:
-        svc = _make_service("x", host=None)
-        # host=None triggers default of "127.0.0.1" in _resolve_host
-        # but _make_service sets host, so build it manually
-        svc2 = Service(
+        svc = Service(
             name="x", directory=Path("x"), type=ServiceType.PYTHON,
             launch="echo", venv=VenvConfig(strategy=VenvStrategy.NONE),
             port=8000, host=None,
         )
-        assert _resolve_host(svc2) == "127.0.0.1"
+        assert _resolve_host(svc) == "127.0.0.1"
 
     def test_zero_addr_maps_to_localhost(self) -> None:
         svc = _make_service("x", host="0.0.0.0")
@@ -422,7 +432,7 @@ class TestParseHostPort:
 
 
 # ---------------------------------------------------------------------------
-# render_dashboard (smoke test — just verify it doesn't crash)
+# _render_dashboard (smoke test — just verify it doesn't crash)
 # ---------------------------------------------------------------------------
 
 class TestRenderDashboard:
@@ -444,7 +454,7 @@ class TestRenderDashboard:
             StatusIssue("Redis stopped → api affected", "unifai-dev infra start redis", ["api"]),
         ]
 
-        render_dashboard(infra, services, issues)
+        _render_dashboard(infra, services, issues)
 
         captured = capsys.readouterr()
         assert "INFRASTRUCTURE" in captured.out
@@ -465,7 +475,7 @@ class TestRenderDashboard:
             ServiceHealth("backend", ServiceStatus.HEALTHY, 8005, port_open=True, http_healthy=True),
         ]
 
-        render_dashboard(infra, services, [])
+        _render_dashboard(infra, services, [])
 
         captured = capsys.readouterr()
         assert "ISSUES" not in captured.out

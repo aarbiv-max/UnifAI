@@ -96,7 +96,7 @@ class TestValidateStart:
 
     def test_non_primary_alone_rejected(self) -> None:
         services = [_make_service("w", is_primary=False)]
-        with pytest.raises(SystemExit, match="non-primary"):
+        with pytest.raises(RuntimeError, match="non-primary"):
             StartupService._validate_start(services, fg=False)
 
     def test_non_primary_with_primary_passes(self) -> None:
@@ -112,12 +112,12 @@ class TestValidateStart:
 
     def test_fg_multiple_services_rejected(self) -> None:
         services = [_make_service("a"), _make_service("b")]
-        with pytest.raises(SystemExit, match="exactly one"):
+        with pytest.raises(RuntimeError, match="exactly one"):
             StartupService._validate_start(services, fg=True)
 
     def test_fg_non_primary_rejected(self) -> None:
         services = [_make_service("w", is_primary=False)]
-        with pytest.raises(SystemExit, match="non-primary"):
+        with pytest.raises(RuntimeError, match="non-primary"):
             StartupService._validate_start(services, fg=True)
 
 

@@ -201,7 +201,7 @@ def detect_runtime() -> SubprocessContainerRuntime:
     """
     env_override = os.environ.get("UNIFAI_CONTAINER_RUNTIME")
     if env_override:
-        cmd = env_override.split()
+        cmd = shlex.split(env_override)
         result = subprocess.run([*cmd, "info"], capture_output=True)
         if result.returncode == 0:
             return SubprocessContainerRuntime(cmd)

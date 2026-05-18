@@ -150,12 +150,13 @@ def _load_registry() -> Registry:
 
 def _create_orchestrator(*, fg: bool = False) -> Orchestrator:
     """Wire up adapters and return an Orchestrator."""
-    from devtool.adapters.registry_loader import YamlRegistryLoader
     from devtool.adapters.container_base import detect_runtime
+    from devtool.adapters.foreground import ForegroundSessionManager
+    from devtool.adapters.health_probe import NetworkHealthProbe
     from devtool.adapters.process import LocalProcessManager
     from devtool.adapters.python_detector import LocalPythonResolver
+    from devtool.adapters.registry_loader import YamlRegistryLoader
     from devtool.adapters.tmux import TmuxSessionManager
-    from devtool.adapters.foreground import ForegroundSessionManager
     from devtool.adapters.venv import LocalVenvManager
     from devtool.services.diagnostic_service import DiagnosticService
     from devtool.services.env_service import EnvService
@@ -184,7 +185,8 @@ def _create_orchestrator(*, fg: bool = False) -> Orchestrator:
     venv_mgr = LocalVenvManager()
     process_mgr = LocalProcessManager()
     python_resolver = LocalPythonResolver()
-    health = DefaultHealthChecker()
+    health_probe = NetworkHealthProbe()
+    health = DefaultHealthChecker(health_probe)
 
     infra_svc = InfraService(registry, runtime)
     venv_svc = VenvService(registry, root, venv_mgr, python_resolver)
@@ -581,7 +583,9 @@ def venv_sync(
 def venv_check():
     """Verify Python versions match across all venvs."""
     orch = _create_orchestrator()
-    orch.venv_check()
+    errors = orch.venv_check()
+    if errors:
+        raise SystemExit(1)
 
 
 # -- env subcommands ---------------------------------------------------------
