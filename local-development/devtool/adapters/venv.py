@@ -16,6 +16,11 @@ from devtool.ports.venv_manager import VenvManager
 class LocalVenvManager(VenvManager):
     """Creates and verifies venvs on the local filesystem."""
 
+    @staticmethod
+    def _venv_bin(svc_dir: Path, name: str) -> Path:
+        """Return path to a binary inside the service's venv."""
+        return svc_dir / "venv" / "bin" / name
+
     def create(
         self, service: Service, python: str, root: Path,
         *, log_dir: Path | None = None, force: bool = False,
@@ -49,7 +54,7 @@ class LocalVenvManager(VenvManager):
         if service.venv.strategy is VenvStrategy.NONE:
             return
 
-        venv_python = svc_dir / "venv" / "bin" / "python"
+        venv_python = self._venv_bin(svc_dir, "python")
         if not venv_python.exists():
             raise RuntimeError(
                 f"No venv found for {service.name} at {svc_dir / 'venv'}/"
@@ -82,7 +87,7 @@ class LocalVenvManager(VenvManager):
             return (svc_dir / "node_modules").exists()
         if service.venv.strategy is VenvStrategy.NONE:
             return True
-        return (svc_dir / "venv" / "bin" / "activate").exists()
+        return self._venv_bin(svc_dir, "activate").exists()
 
     def sync(
         self, service: Service, python: str, root: Path,
@@ -138,16 +143,17 @@ class LocalVenvManager(VenvManager):
             self._create_custom(service, python, svc_dir, log_file)
             return
 
+        pip = str(self._venv_bin(svc_dir, "pip"))
         global_utils_rel = os.path.relpath(root / "global_utils", svc_dir)
         if strategy is VenvStrategy.TOML:
             cmds: list[list[str]] = [
-                ["venv/bin/pip", "install", "-e", "."],
-                ["venv/bin/pip", "install", "-e", global_utils_rel],
+                [pip, "install", "-e", "."],
+                [pip, "install", "-e", global_utils_rel],
             ]
         else:
             cmds = [
-                ["venv/bin/pip", "install", "-r", "requirements.txt"],
-                ["venv/bin/pip", "install", "-e", global_utils_rel],
+                [pip, "install", "-r", "requirements.txt"],
+                [pip, "install", "-e", global_utils_rel],
             ]
         for cmd in cmds:
             self._run(cmd, svc_dir, log_file)

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import shlex
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -168,7 +170,7 @@ class StartupService:
         user_cmd = shlex.join(command)
         shell_cmd = f"{context} && {user_cmd}"
         bash = resolve_bash()
-        os.execvp(bash, [bash, "-c", shell_cmd])
+        sys.exit(subprocess.run([bash, "-c", shell_cmd]).returncode)
 
     # -- private helpers -----------------------------------------------------
 

@@ -600,6 +600,13 @@ def env_show(
 
 def main():
     """CLI entry point with clean error handling."""
+    if sys.platform == "win32":
+        print(
+            "❌ unifai-dev does not support Windows natively. "
+            "Please use WSL2.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
     try:
         app()
     except (KeyError, RuntimeError, FileNotFoundError) as exc:

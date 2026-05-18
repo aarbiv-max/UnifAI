@@ -130,6 +130,12 @@ All service definitions, infrastructure containers, port assignments, and servic
 
 ## 2. Prerequisites
 
+### Platform
+
+The `unifai-dev` CLI requires **Linux** or **macOS**. It depends on bash, tmux, and Unix process management and does not run natively on Windows.
+
+**Windows users:** install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) and run everything inside the Linux environment.
+
 ### Required
 
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -38,7 +37,7 @@ class ForegroundSessionManager(SessionManager):
         cmd = commands[svc.name]
         shell_cmd = f"{cmd} 2>&1 | tee {log_path}"
         bash = resolve_bash()
-        os.execvp(bash, [bash, "-c", shell_cmd])
+        sys.exit(subprocess.run([bash, "-c", shell_cmd]).returncode)
 
     def attach(self, session_name: str) -> None:
         pass

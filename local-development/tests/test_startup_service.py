@@ -314,25 +314,30 @@ class TestShell:
 # ---------------------------------------------------------------------------
 
 class TestExecInContext:
-    @patch("os.execvp")
-    def test_exec_runs_user_command(self, mock_execvp) -> None:
+    @patch("devtool.services.startup_service.resolve_bash", return_value="/usr/bin/bash")
+    @patch("devtool.services.startup_service.subprocess.run", return_value=MagicMock(returncode=0))
+    @patch("devtool.services.startup_service.sys.exit")
+    def test_exec_runs_user_command(self, mock_exit, mock_run, mock_bash) -> None:
         svc = _make_service("backend")
         ss = _make_startup_service([svc])
         ss._venv_svc.detect_python = MagicMock(return_value=("/usr/bin/python3.12", "3.12"))
 
         ss.exec_in_context("backend", ["pytest", "-x"])
 
-        mock_execvp.assert_called_once()
-        shell_cmd = mock_execvp.call_args[0][1][2]
+        mock_run.assert_called_once()
+        shell_cmd = mock_run.call_args[0][0][2]
         assert "pytest" in shell_cmd
+        mock_exit.assert_called_once_with(0)
 
-    @patch("os.execvp")
-    def test_exec_single_command(self, mock_execvp) -> None:
+    @patch("devtool.services.startup_service.resolve_bash", return_value="/usr/bin/bash")
+    @patch("devtool.services.startup_service.subprocess.run", return_value=MagicMock(returncode=0))
+    @patch("devtool.services.startup_service.sys.exit")
+    def test_exec_single_command(self, mock_exit, mock_run, mock_bash) -> None:
         svc = _make_service("backend")
         ss = _make_startup_service([svc])
         ss._venv_svc.detect_python = MagicMock(return_value=("/usr/bin/python3.12", "3.12"))
 
         ss.exec_in_context("backend", ["pip", "list"])
 
-        shell_cmd = mock_execvp.call_args[0][1][2]
+        shell_cmd = mock_run.call_args[0][0][2]
         assert "pip" in shell_cmd
