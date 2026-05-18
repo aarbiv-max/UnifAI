@@ -64,13 +64,14 @@ class LocalProcessManager(ProcessManager):
     def kill_processes(
         self, pids: list[int], *, graceful_timeout: float = 0.5,
     ) -> None:
-        for pid in pids:
+        unique_pids = dict.fromkeys(pids)
+        for pid in unique_pids:
             try:
                 os.kill(pid, signal.SIGTERM)
             except (ProcessLookupError, PermissionError):
                 pass
         time.sleep(graceful_timeout)
-        for pid in pids:
+        for pid in unique_pids:
             try:
                 os.kill(pid, 0)
                 os.kill(pid, signal.SIGKILL)

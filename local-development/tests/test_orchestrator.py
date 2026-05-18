@@ -1,4 +1,4 @@
-"""Tests for devtool.services.orchestrator validation and layout logic."""
+"""Tests for devtool.services.orchestrator (facade: attach, clean, delegation)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from devtool.domain.models import (
     ServiceType,
     VenvConfig,
     VenvStrategy,
-    WindowLayout,
 )
 from devtool.services.orchestrator import Orchestrator
 
@@ -48,11 +47,6 @@ def _make_orchestrator(
     *,
     infra: list[InfraComponent] | None = None,
 ):
-    """Build an Orchestrator with a mock registry wired to the given services.
-
-    Returns the orchestrator.  Access mocks via ``orch._registry``,
-    ``orch._runtime``, ``orch._session``, ``orch._venv``.
-    """
     registry = MagicMock()
     by_name = {s.name: s for s in services}
 
@@ -89,260 +83,14 @@ def _make_orchestrator(
         root=Path("/fake"),
         container_runtime=MagicMock(),
         session_manager=MagicMock(),
-        venv_manager=MagicMock(),
-        process_manager=MagicMock(),
+        health_checker=MagicMock(),
+        startup_service=MagicMock(),
+        infra_service=MagicMock(),
+        venv_service=MagicMock(),
+        env_service=MagicMock(),
+        diagnostic_service=MagicMock(),
+        init_service=MagicMock(),
     )
-
-
-class TestValidateStart:
-    def test_primary_only_passes(self) -> None:
-        services = [_make_service("a"), _make_service("b")]
-        Orchestrator._validate_start(services, fg=False)
-
-    def test_non_primary_alone_rejected(self) -> None:
-        services = [_make_service("w", is_primary=False)]
-        with pytest.raises(SystemExit, match="non-primary"):
-            Orchestrator._validate_start(services, fg=False)
-
-    def test_non_primary_with_primary_passes(self) -> None:
-        services = [
-            _make_service("a"),
-            _make_service("w", is_primary=False),
-        ]
-        Orchestrator._validate_start(services, fg=False)
-
-    def test_fg_single_primary_passes(self) -> None:
-        services = [_make_service("a")]
-        Orchestrator._validate_start(services, fg=True)
-
-    def test_fg_multiple_services_rejected(self) -> None:
-        services = [_make_service("a"), _make_service("b")]
-        with pytest.raises(SystemExit, match="exactly one"):
-            Orchestrator._validate_start(services, fg=True)
-
-    def test_fg_non_primary_rejected(self) -> None:
-        services = [_make_service("w", is_primary=False)]
-        with pytest.raises(SystemExit, match="non-primary"):
-            Orchestrator._validate_start(services, fg=True)
-
-
-class TestBuildDefaultLayout:
-    def test_primary_only(self) -> None:
-        svcs = [_make_service("a"), _make_service("b")]
-        layout = Orchestrator._build_default_layout(svcs)
-        assert len(layout) == 1
-        assert layout[0].name == "services"
-        assert [s.name for s in layout[0].services] == ["a", "b"]
-
-    def test_primary_and_workers(self) -> None:
-        svcs = [
-            _make_service("a"),
-            _make_service("b"),
-            _make_service("w1", is_primary=False),
-            _make_service("w2", is_primary=False),
-        ]
-        layout = Orchestrator._build_default_layout(svcs)
-        assert len(layout) == 2
-        assert layout[0].name == "services"
-        assert [s.name for s in layout[0].services] == ["a", "b"]
-        assert layout[1].name == "workers"
-        assert [s.name for s in layout[1].services] == ["w1", "w2"]
-
-    def test_workers_only(self) -> None:
-        svcs = [_make_service("w", is_primary=False)]
-        layout = Orchestrator._build_default_layout(svcs)
-        assert len(layout) == 1
-        assert layout[0].name == "workers"
-
-    def test_empty(self) -> None:
-        layout = Orchestrator._build_default_layout([])
-        assert layout == []
-
-
-class TestBuildCustomLayout:
-    def test_named_windows(self) -> None:
-        svc_a = _make_service("a")
-        svc_b = _make_service("b")
-        svc_c = _make_service("c")
-        orch = _make_orchestrator([svc_a, svc_b, svc_c])
-
-        layout = orch._build_custom_layout(
-            window_specs=[("win1", ["a", "b"]), ("win2", ["c"])],
-            bare_targets=[],
-            all_services=[svc_a, svc_b, svc_c],
-        )
-        assert len(layout) == 2
-        assert layout[0].name == "win1"
-        assert [s.name for s in layout[0].services] == ["a", "b"]
-        assert layout[1].name == "win2"
-        assert [s.name for s in layout[1].services] == ["c"]
-
-    def test_auto_named_single_service(self) -> None:
-        svc_a = _make_service("a")
-        orch = _make_orchestrator([svc_a])
-
-        layout = orch._build_custom_layout(
-            window_specs=[(None, ["a"])],
-            bare_targets=[],
-            all_services=[svc_a],
-        )
-        assert layout[0].name == "a"
-
-    def test_auto_named_multi_service(self) -> None:
-        svc_a = _make_service("a")
-        svc_b = _make_service("b")
-        orch = _make_orchestrator([svc_a, svc_b])
-
-        layout = orch._build_custom_layout(
-            window_specs=[(None, ["a", "b"])],
-            bare_targets=[],
-            all_services=[svc_a, svc_b],
-        )
-        assert layout[0].name == "window-0"
-
-    def test_bare_targets_in_services_window(self) -> None:
-        svc_a = _make_service("a")
-        svc_b = _make_service("b")
-        svc_w = _make_service("w", is_primary=False)
-        orch = _make_orchestrator([svc_a, svc_b, svc_w])
-
-        layout = orch._build_custom_layout(
-            window_specs=[("workers", ["w"])],
-            bare_targets=["a", "b"],
-            all_services=[svc_a, svc_b, svc_w],
-        )
-        assert len(layout) == 2
-        assert layout[0].name == "services"
-        assert [s.name for s in layout[0].services] == ["a", "b"]
-        assert layout[1].name == "workers"
-        assert [s.name for s in layout[1].services] == ["w"]
-
-    def test_remaining_services_in_other_window(self) -> None:
-        svc_a = _make_service("a")
-        svc_b = _make_service("b")
-        svc_c = _make_service("c")
-        orch = _make_orchestrator([svc_a, svc_b, svc_c])
-
-        layout = orch._build_custom_layout(
-            window_specs=[("mywin", ["a"])],
-            bare_targets=[],
-            all_services=[svc_a, svc_b, svc_c],
-        )
-        assert len(layout) == 2
-        assert layout[0].name == "mywin"
-        assert layout[1].name == "other"
-        assert [s.name for s in layout[1].services] == ["b", "c"]
-
-    def test_dedup_across_bare_and_window(self) -> None:
-        svc_a = _make_service("a")
-        orch = _make_orchestrator([svc_a])
-
-        layout = orch._build_custom_layout(
-            window_specs=[(None, ["a"])],
-            bare_targets=["a"],
-            all_services=[svc_a],
-        )
-        assert len(layout) == 1
-        assert layout[0].name == "services"
-        assert [s.name for s in layout[0].services] == ["a"]
-
-    def test_group_expansion(self) -> None:
-        svc_a = _make_service("a")
-        svc_w = _make_service("w", is_primary=False)
-        orch = _make_orchestrator(
-            [svc_a, svc_w],
-            groups={"mygroup": ["a", "w"]},
-        )
-
-        layout = orch._build_custom_layout(
-            window_specs=[("grp", ["mygroup"])],
-            bare_targets=[],
-            all_services=[svc_a, svc_w],
-        )
-        assert len(layout) == 1
-        assert layout[0].name == "grp"
-        assert [s.name for s in layout[0].services] == ["a", "w"]
-
-
-# ---------------------------------------------------------------------------
-# _build_context_command
-# ---------------------------------------------------------------------------
-
-class TestBuildContextCommand:
-    def test_python_service_includes_activate(self) -> None:
-        svc = _make_service("backend", env_file=".env")
-        orch = _make_orchestrator([svc])
-        ctx = orch._build_context_command(svc, "3.12")
-        assert "cd /fake/test" in ctx
-        assert "source venv/bin/activate" in ctx
-        assert "source /fake/test/.env" in ctx
-
-    def test_node_service_skips_activate(self) -> None:
-        svc = _make_service("ui", svc_type=ServiceType.NODE, env_file=".env.local")
-        orch = _make_orchestrator([svc])
-        ctx = orch._build_context_command(svc, "3.12")
-        assert "source venv/bin/activate" not in ctx
-        assert ".env.local" in ctx
-
-    def test_no_env_file(self) -> None:
-        svc = _make_service("svc")
-        orch = _make_orchestrator([svc])
-        ctx = orch._build_context_command(svc, "3.12")
-        assert "source" in ctx  # venv activate
-        assert "set -a" not in ctx
-
-
-# ---------------------------------------------------------------------------
-# shell
-# ---------------------------------------------------------------------------
-
-class TestShell:
-    @patch("devtool.services.shell_utils.resolve_bash", return_value="/usr/bin/bash")
-    @patch("os.execvp")
-    def test_shell_calls_execvp_with_bash(self, mock_execvp, mock_bash) -> None:
-        svc = _make_service("backend", env_file=".env")
-        orch = _make_orchestrator([svc])
-        orch._detect_python = MagicMock(return_value=("/usr/bin/python3.12", "3.12"))
-
-        orch.shell("backend")
-
-        mock_execvp.assert_called_once()
-        args = mock_execvp.call_args
-        assert args[0][0] == "/usr/bin/bash"
-        shell_cmd = args[0][1][2]
-        assert "exec bash" in shell_cmd
-        assert "source venv/bin/activate" in shell_cmd
-        assert "echo ok" not in shell_cmd
-
-
-# ---------------------------------------------------------------------------
-# exec_in_context
-# ---------------------------------------------------------------------------
-
-class TestExecInContext:
-    @patch("os.execvp")
-    def test_exec_runs_user_command(self, mock_execvp) -> None:
-        svc = _make_service("backend")
-        orch = _make_orchestrator([svc])
-        orch._detect_python = MagicMock(return_value=("/usr/bin/python3.12", "3.12"))
-
-        orch.exec_in_context("backend", ["pytest", "-x"])
-
-        mock_execvp.assert_called_once()
-        shell_cmd = mock_execvp.call_args[0][1][2]
-        assert "pytest -x" in shell_cmd
-        assert "cd /fake/test" in shell_cmd
-
-    @patch("os.execvp")
-    def test_exec_single_command(self, mock_execvp) -> None:
-        svc = _make_service("backend")
-        orch = _make_orchestrator([svc])
-        orch._detect_python = MagicMock(return_value=("/usr/bin/python3.12", "3.12"))
-
-        orch.exec_in_context("backend", ["pip", "list"])
-
-        shell_cmd = mock_execvp.call_args[0][1][2]
-        assert "pip list" in shell_cmd
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +116,7 @@ class TestAttach:
         orch._session.pane_contents.return_value = {
             "0.0": "cd /fake/backend && echo ok",
         }
+        orch._health.match_panes_to_services.return_value = {"backend": "0.0"}
 
         orch.attach("backend")
 
@@ -380,66 +129,12 @@ class TestAttach:
         orch._session.pane_contents.return_value = {
             "0.0": "something unrelated",
         }
+        orch._health.match_panes_to_services.return_value = {}
 
         orch.attach("backend")
 
         captured = capsys.readouterr()
         assert "Could not find" in captured.out
-
-
-# ---------------------------------------------------------------------------
-# infra_logs
-# ---------------------------------------------------------------------------
-
-class TestInfraLogs:
-    def test_calls_runtime_logs(self) -> None:
-        comp = InfraComponent(
-            name="mongo", image="mongo:latest", ports=["27017:27017"], label="MongoDB",
-        )
-        orch = _make_orchestrator([], infra=[comp])
-
-        orch.infra_logs("mongo", follow=True)
-
-        orch._runtime.logs.assert_called_once_with(comp, follow=True)
-
-    def test_logs_without_follow(self) -> None:
-        comp = InfraComponent(
-            name="redis", image="redis:latest", ports=["6379:6379"], label="Redis",
-        )
-        orch = _make_orchestrator([], infra=[comp])
-
-        orch.infra_logs("redis")
-
-        orch._runtime.logs.assert_called_once_with(comp, follow=False)
-
-
-# ---------------------------------------------------------------------------
-# infra_reset
-# ---------------------------------------------------------------------------
-
-class TestInfraReset:
-    def test_resets_specific_component(self) -> None:
-        comp = InfraComponent(
-            name="mongo", image="mongo:latest", ports=["27017:27017"], label="MongoDB",
-        )
-        orch = _make_orchestrator([], infra=[comp])
-
-        orch.infra_reset(targets=["mongo"])
-
-        orch._runtime.reset.assert_called_once_with(comp)
-
-    def test_resets_all_when_no_target(self) -> None:
-        comp_a = InfraComponent(
-            name="mongo", image="mongo:latest", ports=["27017:27017"], label="MongoDB",
-        )
-        comp_b = InfraComponent(
-            name="redis", image="redis:latest", ports=["6379:6379"], label="Redis",
-        )
-        orch = _make_orchestrator([], infra=[comp_a, comp_b])
-
-        orch.infra_reset()
-
-        assert orch._runtime.reset.call_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -503,51 +198,10 @@ class TestClean:
 
 
 # ---------------------------------------------------------------------------
-# init
+# _replace_placeholder (tests replace_env_value from env.resolver)
 # ---------------------------------------------------------------------------
 
-class TestInit:
-    def test_init_calls_all_steps(self) -> None:
-        svc = _make_service("backend")
-        orch = _make_orchestrator([svc])
-        orch._detect_python = MagicMock(return_value=("/usr/bin/python3.12", "3.12"))
-        orch.infra_start = MagicMock()
-        orch.venv_setup = MagicMock()
-        orch.env_generate = MagicMock()
-
-        orch.init(non_interactive=True)
-
-        orch.infra_start.assert_called_once()
-        orch.venv_setup.assert_called_once()
-        orch.env_generate.assert_called_once()
-
-    def test_init_non_interactive_warns_placeholders(self, capsys) -> None:
-        svc = _make_service(
-            "identity", env_file=".env",
-            env_entries={"client_id": "<REPLACE_WITH_YOUR_CLIENT_ID>"},
-        )
-        orch = _make_orchestrator([svc])
-        orch._detect_python = MagicMock(return_value=("/usr/bin/python3.12", "3.12"))
-        orch.infra_start = MagicMock()
-        orch.venv_setup = MagicMock()
-        orch.env_generate = MagicMock()
-
-        with patch(
-            "devtool.services.env_generator.check_unresolved",
-            return_value=({"client_id"}, set()),
-        ):
-            orch.init(non_interactive=True)
-
-        captured = capsys.readouterr()
-        assert "client_id" in captured.out
-        assert "placeholder" in captured.out
-
-
-# ---------------------------------------------------------------------------
-# _replace_placeholder
-# ---------------------------------------------------------------------------
-
-from devtool.services.env_generator import replace_env_value
+from devtool.services.env.resolver import replace_env_value
 
 class TestReplacePlaceholder:
     def test_replaces_placeholder_value(self, tmp_path) -> None:

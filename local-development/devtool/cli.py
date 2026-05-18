@@ -5,9 +5,13 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import typer
+
+if TYPE_CHECKING:
+    from devtool.domain.registry import Registry
+    from devtool.services.orchestrator import Orchestrator
 
 # -- Root app ----------------------------------------------------------------
 
@@ -111,20 +115,30 @@ def _resolve_root() -> Path:
     """Find the repo root (parent of local-development/)."""
     script_dir = Path(__file__).resolve().parent.parent
     root = script_dir.parent
-    if not (root / "rag").is_dir() or not (root / "ui").is_dir():
-        alt = os.environ.get("UNIFAI_ROOT", "").strip()
-        if alt:
-            return Path(alt).expanduser().resolve()
+    if (root / "rag").is_dir() and (root / "ui").is_dir():
+        return root
+
+    alt = os.environ.get("UNIFAI_ROOT", "").strip()
+    if alt:
+        root = Path(alt).expanduser().resolve()
+        if (root / "rag").is_dir() and (root / "ui").is_dir():
+            return root
         print(
-            f"❌ Cannot find UnifAI repo structure at {root}.\n"
-            f"   Set UNIFAI_ROOT or run from the repo root.",
+            f"❌ UNIFAI_ROOT='{alt}' does not contain expected "
+            f"repo structure (missing rag/ or ui/).",
             file=sys.stderr,
         )
         raise SystemExit(1)
-    return root
+
+    print(
+        f"❌ Cannot find UnifAI repo structure at {root}.\n"
+        f"   Set UNIFAI_ROOT or run from the repo root.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
 
 
-def _load_registry():
+def _load_registry() -> Registry:
     """Load the Registry without wiring adapters.
 
     Used by read-only commands (list, info) that only need the YAML data
@@ -134,7 +148,7 @@ def _load_registry():
     return YamlRegistryLoader.load()
 
 
-def _create_orchestrator(*, fg: bool = False):
+def _create_orchestrator(*, fg: bool = False) -> Orchestrator:
     """Wire up adapters and return an Orchestrator."""
     from devtool.adapters.registry_loader import YamlRegistryLoader
     from devtool.adapters.container_base import detect_runtime
@@ -165,7 +179,7 @@ def _create_orchestrator(*, fg: bool = False):
     venv_svc = VenvService(registry, root, venv_mgr, python_resolver)
     env_svc = EnvService(registry, root)
     startup_svc = StartupService(
-        registry, root, runtime, session, venv_mgr,
+        registry, root, runtime, session,
         process_mgr, venv_svc, env_svc,
     )
     diag_svc = DiagnosticService(
@@ -173,7 +187,7 @@ def _create_orchestrator(*, fg: bool = False):
         health, infra_svc, venv_svc,
     )
     init_svc = InitService(
-        registry, root, runtime, venv_mgr,
+        registry, root, runtime,
         infra_svc, venv_svc, env_svc,
     )
 
@@ -182,7 +196,6 @@ def _create_orchestrator(*, fg: bool = False):
         root=root,
         container_runtime=runtime,
         session_manager=session,
-        venv_manager=venv_mgr,
         health_checker=health,
         startup_service=startup_svc,
         infra_service=infra_svc,
@@ -581,3 +594,14 @@ def env_show(
     """Print the current env config for a service."""
     orch = _create_orchestrator()
     orch.env_show(service)
+
+
+# -- Entry point -------------------------------------------------------------
+
+def main():
+    """CLI entry point with clean error handling."""
+    try:
+        app()
+    except (KeyError, RuntimeError, FileNotFoundError) as exc:
+        print(f"❌ {exc}", file=sys.stderr)
+        raise SystemExit(1)

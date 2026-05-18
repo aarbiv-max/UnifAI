@@ -210,7 +210,7 @@ class AuthManager:
             if session.get('session_id'):      
                 self.redis_store.delete(identity_session_key(session.get('session_id')))
             refresh_token_val = (session_data or {}).get('refresh_token') if session_data else None
-            if refresh_token_val:
+            if refresh_token_val and not config.local_auth_enabled:
                 try:
                     keycloak_base_url = config.keycloak_base_url
                     realm = config.get('keycloak_realm', 'master')
@@ -224,7 +224,6 @@ class AuthManager:
                         },
                         timeout=10,
                     )
-                    # Keycloak returns 204 No Content (or 200) on successful token revocation
                     if resp.ok:
                         logger.info(f"Keycloak session revoked for user {username}")
                     else:

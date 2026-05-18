@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import socket
 import time
 import urllib.error
@@ -10,6 +11,7 @@ from pathlib import Path
 
 from devtool.domain.models import (
     ContainerStatus,
+    InfraComponent,
     InfraHealth,
     Service,
     ServiceHealth,
@@ -91,7 +93,7 @@ def check_service(registry: Registry, service_name: str) -> ServiceHealth:
 
 
 def check_infra(
-    component, runtime: ContainerRuntime,
+    component: InfraComponent, runtime: ContainerRuntime,
 ) -> InfraHealth:
     """Check a single infrastructure component."""
     st = runtime.status(component)
@@ -283,7 +285,8 @@ def match_panes_to_services(
         for pane_ref, content in pane_contents.items():
             if pane_ref in used_panes:
                 continue
-            if svc_dir in content or svc.name in content:
+            if re.search(rf"\b{re.escape(svc_dir)}\b", content) or \
+               re.search(rf"\b{re.escape(svc.name)}\b", content):
                 mapping[svc.name] = pane_ref
                 used_panes.add(pane_ref)
                 break

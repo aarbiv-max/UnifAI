@@ -8,18 +8,19 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from devtool.adapters.registry_loader import YamlRegistryLoader
 from devtool.domain.models import (
     ContainerStatus,
     InfraComponent,
     InfraHealth,
     Service,
     ServiceHealth,
+    ServiceStatus,
     ServiceType,
     StatusIssue,
     VenvConfig,
     VenvStrategy,
 )
-from devtool.domain.registry import Registry
 from devtool.services.health_checker import (
     _analyze_issues,
     match_panes_to_services,
@@ -174,18 +175,18 @@ class TestCheckHttp:
 
 class TestCheckService:
     def test_no_port(self, yaml_path: Path) -> None:
-        reg = Registry(yaml_path)
+        reg = YamlRegistryLoader.load(yaml_path)
         health = check_service(reg, "worker")
-        assert health.status == "no port"
+        assert health.status is ServiceStatus.NO_PORT
         assert health.port is None
         assert health.port_open is False
 
     @patch("devtool.services.health_checker.check_http", return_value=(True, 5.2))
     @patch("devtool.services.health_checker.check_port", return_value=(True, 3.1))
     def test_healthy_with_http(self, mock_port, mock_http, yaml_path: Path) -> None:
-        reg = Registry(yaml_path)
+        reg = YamlRegistryLoader.load(yaml_path)
         health = check_service(reg, "backend")
-        assert health.status == "healthy"
+        assert health.status is ServiceStatus.HEALTHY
         assert health.port == 8005
         assert health.port_open is True
         assert health.http_healthy is True
@@ -193,17 +194,17 @@ class TestCheckService:
 
     @patch("devtool.services.health_checker.check_port", return_value=(False, None))
     def test_port_down(self, mock_port, yaml_path: Path) -> None:
-        reg = Registry(yaml_path)
+        reg = YamlRegistryLoader.load(yaml_path)
         health = check_service(reg, "backend")
-        assert health.status == "DOWN"
+        assert health.status is ServiceStatus.DOWN
         assert health.port_open is False
 
     @patch("devtool.services.health_checker.check_http", return_value=(False, None))
     @patch("devtool.services.health_checker.check_port", return_value=(True, 3.0))
     def test_port_open_but_http_fails(self, mock_port, mock_http, yaml_path: Path) -> None:
-        reg = Registry(yaml_path)
+        reg = YamlRegistryLoader.load(yaml_path)
         health = check_service(reg, "backend")
-        assert health.status == "unhealthy"
+        assert health.status is ServiceStatus.UNHEALTHY
         assert health.port_open is True
         assert health.http_healthy is False
 
@@ -257,15 +258,15 @@ class TestCheckInfra:
 
 class TestAnalyzeIssues:
     def test_stopped_infra_identifies_affected_services(self, yaml_path: Path) -> None:
-        reg = Registry(yaml_path)
+        reg = YamlRegistryLoader.load(yaml_path)
         infra_results = [
             InfraHealth("mongo", "MongoDB", 27017, ContainerStatus.RUNNING, "1h"),
             InfraHealth("redis", "Redis", 6379, ContainerStatus.STOPPED),
         ]
         service_results = [
-            ServiceHealth("backend", "healthy", 8005, port_open=True, http_healthy=True),
-            ServiceHealth("worker", "no port", None, port_open=False),
-            ServiceHealth("api", "DOWN", 8002, port_open=False),
+            ServiceHealth("backend", ServiceStatus.HEALTHY, 8005, port_open=True, http_healthy=True),
+            ServiceHealth("worker", ServiceStatus.NO_PORT, None, port_open=False),
+            ServiceHealth("api", ServiceStatus.DOWN, 8002, port_open=False),
         ]
 
         issues = _analyze_issues(reg, infra_results, service_results)
@@ -276,15 +277,15 @@ class TestAnalyzeIssues:
         assert "infra start redis" in issues[0].fix
 
     def test_service_down_without_infra_cause(self, yaml_path: Path) -> None:
-        reg = Registry(yaml_path)
+        reg = YamlRegistryLoader.load(yaml_path)
         infra_results = [
             InfraHealth("mongo", "MongoDB", 27017, ContainerStatus.RUNNING, "1h"),
             InfraHealth("redis", "Redis", 6379, ContainerStatus.RUNNING, "1h"),
         ]
         service_results = [
-            ServiceHealth("backend", "DOWN", 8005, port_open=False),
-            ServiceHealth("worker", "no port", None, port_open=False),
-            ServiceHealth("api", "healthy", 8002, port_open=True, http_healthy=True),
+            ServiceHealth("backend", ServiceStatus.DOWN, 8005, port_open=False),
+            ServiceHealth("worker", ServiceStatus.NO_PORT, None, port_open=False),
+            ServiceHealth("api", ServiceStatus.HEALTHY, 8002, port_open=True, http_healthy=True),
         ]
 
         issues = _analyze_issues(reg, infra_results, service_results)
@@ -293,15 +294,15 @@ class TestAnalyzeIssues:
         assert "restart backend" in issues[0].fix
 
     def test_no_issues_when_all_healthy(self, yaml_path: Path) -> None:
-        reg = Registry(yaml_path)
+        reg = YamlRegistryLoader.load(yaml_path)
         infra_results = [
             InfraHealth("mongo", "MongoDB", 27017, ContainerStatus.RUNNING, "1h"),
             InfraHealth("redis", "Redis", 6379, ContainerStatus.RUNNING, "1h"),
         ]
         service_results = [
-            ServiceHealth("backend", "healthy", 8005, port_open=True, http_healthy=True),
-            ServiceHealth("worker", "no port", None, port_open=False),
-            ServiceHealth("api", "healthy", 8002, port_open=True, http_healthy=True),
+            ServiceHealth("backend", ServiceStatus.HEALTHY, 8005, port_open=True, http_healthy=True),
+            ServiceHealth("worker", ServiceStatus.NO_PORT, None, port_open=False),
+            ServiceHealth("api", ServiceStatus.HEALTHY, 8002, port_open=True, http_healthy=True),
         ]
 
         issues = _analyze_issues(reg, infra_results, service_results)
@@ -310,15 +311,15 @@ class TestAnalyzeIssues:
     def test_infra_caused_service_not_duplicated(self, yaml_path: Path) -> None:
         """A service affected by stopped infra should not also appear
         as an independent 'not responding' issue."""
-        reg = Registry(yaml_path)
+        reg = YamlRegistryLoader.load(yaml_path)
         infra_results = [
             InfraHealth("mongo", "MongoDB", 27017, ContainerStatus.RUNNING, "1h"),
             InfraHealth("redis", "Redis", 6379, ContainerStatus.STOPPED),
         ]
         service_results = [
-            ServiceHealth("backend", "healthy", 8005, port_open=True, http_healthy=True),
-            ServiceHealth("worker", "no port", None, port_open=False),
-            ServiceHealth("api", "DOWN", 8002, port_open=False),
+            ServiceHealth("backend", ServiceStatus.HEALTHY, 8005, port_open=True, http_healthy=True),
+            ServiceHealth("worker", ServiceStatus.NO_PORT, None, port_open=False),
+            ServiceHealth("api", ServiceStatus.DOWN, 8002, port_open=False),
         ]
 
         issues = _analyze_issues(reg, infra_results, service_results)
@@ -432,12 +433,12 @@ class TestRenderDashboard:
         ]
         services = [
             ServiceHealth(
-                "backend", "healthy", 8005,
+                "backend", ServiceStatus.HEALTHY, 8005,
                 port_open=True, http_healthy=True,
                 response_time_ms=4.2, tmux_pane="tmux:0.0",
             ),
-            ServiceHealth("worker", "no port", None, port_open=False, tmux_pane="tmux:1.0"),
-            ServiceHealth("api", "DOWN", 8002, port_open=False),
+            ServiceHealth("worker", ServiceStatus.NO_PORT, None, port_open=False, tmux_pane="tmux:1.0"),
+            ServiceHealth("api", ServiceStatus.DOWN, 8002, port_open=False),
         ]
         issues = [
             StatusIssue("Redis stopped → api affected", "unifai-dev infra start redis", ["api"]),
@@ -461,7 +462,7 @@ class TestRenderDashboard:
             InfraHealth("mongo", "MongoDB", 27017, ContainerStatus.RUNNING, "1h"),
         ]
         services = [
-            ServiceHealth("backend", "healthy", 8005, port_open=True, http_healthy=True),
+            ServiceHealth("backend", ServiceStatus.HEALTHY, 8005, port_open=True, http_healthy=True),
         ]
 
         render_dashboard(infra, services, [])

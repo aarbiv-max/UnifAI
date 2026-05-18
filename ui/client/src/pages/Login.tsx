@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,12 +17,17 @@ export default function Login() {
     login();
   };
   const [localAuth, setLocalAuth] = useState<boolean | null>(null);
+  const [configError, setConfigError] = useState(false);
 
-  useEffect(() => {
+  const fetchConfig = useCallback(() => {
+    setConfigError(false);
+    setLocalAuth(null);
     api.get('/auth/config')
       .then(res => setLocalAuth(res.data.local_auth))
-      .catch(() => setLocalAuth(false));
+      .catch(() => setConfigError(true));
   }, []);
+
+  useEffect(() => { fetchConfig(); }, [fetchConfig]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
@@ -59,7 +64,19 @@ export default function Login() {
         </div>
 
         <div className="w-full">
-          {localAuth === null ? (
+          {configError ? (
+            <div className="text-center space-y-3">
+              <p className="text-red-400 text-sm">Unable to reach the server. Please check that the backend is running.</p>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full h-12 border-0 bg-[#21262d] text-white shadow-none hover:bg-[#30363d]"
+                onClick={fetchConfig}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : localAuth === null ? (
             <Button
               type="button"
               variant="secondary"

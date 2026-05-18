@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
+import shlex
 import shutil
 import subprocess
 import time
@@ -45,7 +47,7 @@ class SubprocessContainerRuntime(ContainerRuntime):
                 cmd.extend(["-p", port_map])
             cmd.append(component.image)
             if component.command:
-                cmd.extend(component.command.split())
+                cmd.extend(shlex.split(component.command))
             self._run(cmd)
 
         self._verify_running(component)
@@ -155,24 +157,22 @@ class SubprocessContainerRuntime(ContainerRuntime):
         return name in result.stdout.splitlines()
 
     def _run(self, cmd: list[str]) -> None:
-        stderr_dest = subprocess.DEVNULL
-        if self._log_file:
-            stderr_dest = open(self._log_file, "a")  # noqa: SIM115
-        try:
-            subprocess.run(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=stderr_dest,
-                check=True,
-            )
-        except subprocess.CalledProcessError:
-            label = cmd[-1] if len(cmd) > 2 else " ".join(cmd)
-            log_hint = f" Check {self._log_file}" if self._log_file else ""
-            print(f"  ⚠ Command failed: {' '.join(cmd)}.{log_hint}")
-            raise
-        finally:
-            if self._log_file and hasattr(stderr_dest, "close"):
-                stderr_dest.close()
+        with contextlib.ExitStack() as stack:
+            if self._log_file:
+                stderr_dest = stack.enter_context(open(self._log_file, "a"))
+            else:
+                stderr_dest = subprocess.DEVNULL
+            try:
+                subprocess.run(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=stderr_dest,
+                    check=True,
+                )
+            except subprocess.CalledProcessError:
+                log_hint = f" Check {self._log_file}" if self._log_file else ""
+                print(f"  ⚠ Command failed: {' '.join(cmd)}.{log_hint}")
+                raise
 
 
 def _format_duration(delta) -> str:

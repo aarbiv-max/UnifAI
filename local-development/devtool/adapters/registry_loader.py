@@ -17,7 +17,7 @@ except ImportError:
 
 from devtool.domain.registry import Registry
 
-_DEFAULT_YAML = Path(__file__).resolve().parent.parent / "services.yaml"
+_DEFAULT_YAML = Path(__file__).resolve().parent.parent.parent / "services.yaml"
 
 
 class YamlRegistryLoader:

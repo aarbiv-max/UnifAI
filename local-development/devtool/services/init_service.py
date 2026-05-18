@@ -9,7 +9,6 @@ from pathlib import Path
 
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
-from devtool.ports.venv_manager import VenvManager
 from devtool.services import env
 from devtool.services.env_service import EnvService
 from devtool.services.infra_service import InfraService
@@ -23,7 +22,6 @@ class InitService:
         registry: Registry,
         root: Path,
         runtime: ContainerRuntime,
-        venv_manager: VenvManager,
         infra_service: InfraService,
         venv_service: VenvService,
         env_service: EnvService,
@@ -31,7 +29,6 @@ class InitService:
         self._registry = registry
         self._root = root
         self._runtime = runtime
-        self._venv = venv_manager
         self._infra_svc = infra_service
         self._venv_svc = venv_service
         self._env_svc = env_service
@@ -64,10 +61,9 @@ class InitService:
 
         # 3. Venvs
         print("3/6  Setting up virtual environments…")
-        existing_venvs = [
-            svc for svc in self._registry.primary_services()
-            if self._venv.exists(svc, self._root)
-        ]
+        existing_venvs = self._venv_svc.existing_venvs(
+            self._registry.primary_services(),
+        )
         if existing_venvs and not non_interactive:
             names = ", ".join(s.name for s in existing_venvs)
             print(f"  ℹ Existing venvs found: {names}")

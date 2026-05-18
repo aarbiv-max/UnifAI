@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+import shlex
 import time
 from pathlib import Path
 
 from devtool.domain.models import (
+    InfraComponent,
     PortOccupant,
     Service,
     ServiceType,
@@ -16,7 +18,6 @@ from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
 from devtool.ports.process_manager import ProcessManager
 from devtool.ports.session_manager import SessionManager
-from devtool.ports.venv_manager import VenvManager
 from devtool.services import env
 from devtool.services.constants import SESSION_NAME
 from devtool.services.env_service import EnvService
@@ -32,7 +33,6 @@ class StartupService:
         root: Path,
         container_runtime: ContainerRuntime,
         session_manager: SessionManager,
-        venv_manager: VenvManager,
         process_manager: ProcessManager,
         venv_service: VenvService,
         env_service: EnvService,
@@ -41,7 +41,6 @@ class StartupService:
         self._root = root
         self._runtime = container_runtime
         self._session = session_manager
-        self._venv = venv_manager
         self._process = process_manager
         self._venv_svc = venv_service
         self._env_svc = env_service
@@ -87,20 +86,8 @@ class StartupService:
         # 2. Venv setup (optional)
         if setup_venv:
             print("📦 Setting up virtual environments…\n")
-            log_dir = self._registry.log_dir
-            log_dir.mkdir(parents=True, exist_ok=True)
-            venv_errors: list[str] = []
-            for svc in services:
-                if svc.is_primary:
-                    try:
-                        self._venv.create(svc, python, self._root, log_dir=log_dir)
-                        print(f"  ✔ {svc.name}")
-                    except RuntimeError as exc:
-                        print(f"  ✖ {svc.name}: {exc}")
-                        venv_errors.append(svc.name)
-            if venv_errors:
-                print(f"\n⚠ Venv setup failed for: {', '.join(venv_errors)}")
-                print(f"  Check logs in {log_dir}/")
+            primaries = [s for s in services if s.is_primary]
+            self._venv_svc.setup_services(primaries, python)
             print()
 
         # 3. Env generation + auto-generate resolution
@@ -114,9 +101,11 @@ class StartupService:
         print()
 
         # 4. Verify venvs
-        for svc in services:
-            if svc.is_primary and svc.type is ServiceType.PYTHON:
-                self._venv.verify(svc, python_minor, self._root)
+        python_svcs = [
+            s for s in services
+            if s.is_primary and s.type is ServiceType.PYTHON
+        ]
+        self._venv_svc.verify_services(python_svcs, python_minor)
 
         # 5. Check/free ports
         conflicting = self._check_ports(services)
@@ -176,7 +165,7 @@ class StartupService:
         svc = self._registry.get_service(service_name)
         _, python_minor = self._venv_svc.detect_python()
         context = self._build_context_command(svc, python_minor)
-        user_cmd = " ".join(command)
+        user_cmd = shlex.join(command)
         shell_cmd = f"{context} && {user_cmd}"
         bash = resolve_bash()
         os.execvp(bash, [bash, "-c", shell_cmd])
@@ -213,13 +202,13 @@ class StartupService:
         """Build the cd + venv-activate + env-source prefix for a service."""
         parts: list[str] = []
         svc_dir = self._root / svc.directory
-        parts.append(f"cd {svc_dir}")
+        parts.append(f"cd {shlex.quote(str(svc_dir))}")
 
         if svc.type is ServiceType.PYTHON:
             parts.append("source venv/bin/activate")
 
         if svc.env_file:
-            parts.append(f"set -a && source {svc.env_file} 2>/dev/null; set +a")
+            parts.append(f"set -a && source {shlex.quote(svc.env_file)} 2>/dev/null; set +a")
 
         return " && ".join(parts)
 
@@ -323,7 +312,7 @@ class StartupService:
         return []
 
     def _print_summary(
-        self, services: list[Service], infra: list,
+        self, services: list[Service], infra: list[InfraComponent],
     ) -> None:
         print()
         print("╔══════════════════════════════════════════════════════════════╗")

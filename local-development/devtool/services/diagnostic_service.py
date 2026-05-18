@@ -58,7 +58,7 @@ class DiagnosticService:
         self._infra_svc.status()
 
         print("\nVirtual environments:")
-        self._venv_svc.check()
+        venv_errors = self._venv_svc.check()
 
         print("\nEnvironment files:")
         for svc in self._registry.all_services():
@@ -97,7 +97,5 @@ class DiagnosticService:
             print(f"No log file found at {log_path}")
             return
 
-        if follow:
-            subprocess.run(["tail", "-f", str(log_path)])
-        else:
-            print(log_path.read_text(), end="")
+        cmd = ["tail", "-f", str(log_path)] if follow else ["cat", str(log_path)]
+        subprocess.run(cmd)

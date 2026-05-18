@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import shlex
 import subprocess
 import time
 from pathlib import Path
@@ -143,7 +145,7 @@ class TmuxSessionManager(SessionManager):
                 ["tmux", "capture-pane", "-t", pane_id, "-p"],
                 capture_output=True, text=True,
             )
-            if service_name in capture.stdout:
+            if re.search(rf"\b{re.escape(service_name)}\b", capture.stdout):
                 subprocess.run(["tmux", "send-keys", "-t", pane_id, "C-c", ""])
                 subprocess.run(
                     ["tmux", "send-keys", "-t", pane_id, "Up", "C-m"],
@@ -175,7 +177,7 @@ class TmuxSessionManager(SessionManager):
 
             cmd = commands[svc.name]
             log_path = log_dir / f"{svc.name}.log"
-            wrapped = f"{cmd} 2>&1 | tee {log_path}"
+            wrapped = f"{cmd} 2>&1 | tee {shlex.quote(str(log_path))}"
             pane_target = f"{target}.{i}"
             subprocess.run(
                 ["tmux", "send-keys", "-t", pane_target, wrapped, "C-m"],

@@ -1,4 +1,4 @@
-"""Tests for devtool.services.env_generator."""
+"""Tests for devtool.services.env (environment file management)."""
 
 from __future__ import annotations
 
@@ -7,15 +7,16 @@ from pathlib import Path
 import pytest
 
 from devtool.domain.models import Service, ServiceType, VenvConfig, VenvStrategy
-from devtool.services.env_generator import (
+from devtool.services.env import (
     GenerateResult,
     align_local_auth,
     check_missing_keys,
     check_placeholders,
     check_unresolved,
     generate,
-    _ENV_HEADER,
+    replace_env_value,
 )
+from devtool.services.env.common import ENV_HEADER
 
 
 def _make_service(
@@ -46,7 +47,7 @@ class TestGenerate:
         env_path = svc_dir / ".env"
         assert env_path.exists()
         content = env_path.read_text()
-        assert content.startswith(_ENV_HEADER)
+        assert content.startswith(ENV_HEADER)
         assert "KEY=value\n" in content
         assert "OTHER=123\n" in content
 

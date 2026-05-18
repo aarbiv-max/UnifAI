@@ -11,7 +11,6 @@ from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
 from devtool.ports.health_checker import HealthChecker
 from devtool.ports.session_manager import SessionManager
-from devtool.ports.venv_manager import VenvManager
 from devtool.services.constants import SESSION_NAME
 from devtool.services.diagnostic_service import DiagnosticService
 from devtool.services.env_service import EnvService
@@ -31,7 +30,6 @@ class Orchestrator:
         root: Path,
         container_runtime: ContainerRuntime,
         session_manager: SessionManager,
-        venv_manager: VenvManager,
         health_checker: HealthChecker,
         startup_service: StartupService,
         infra_service: InfraService,
@@ -44,7 +42,6 @@ class Orchestrator:
         self._root = root
         self._runtime = container_runtime
         self._session = session_manager
-        self._venv = venv_manager
         self._health = health_checker
         self._startup = startup_service
         self._infra = infra_service
@@ -147,7 +144,9 @@ class Orchestrator:
         self._venv_svc.sync(service_name)
 
     def venv_check(self) -> None:
-        self._venv_svc.check()
+        errors = self._venv_svc.check()
+        if errors:
+            raise SystemExit(1)
 
     # -- env subcommands -----------------------------------------------------
 
@@ -229,9 +228,10 @@ class Orchestrator:
                     removed.append(label)
 
         if clean_venvs:
-            for svc in self._registry.primary_services():
-                if not self._venv.exists(svc, self._root):
-                    continue
+            existing = self._venv_svc.existing_venvs(
+                self._registry.primary_services(),
+            )
+            for svc in existing:
                 svc_dir = self._root / svc.directory
                 venv_dir = svc_dir / ("node_modules" if svc.type is ServiceType.NODE else "venv")
                 label = f"venv: {svc.name} ({venv_dir})"

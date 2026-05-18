@@ -64,35 +64,61 @@ local-development/
 ├── LOCAL_DEV_GUIDE.md       # This file
 │
 ├── devtool/                 # Python package
-│   ├── cli.py               # Typer CLI → orchestrator
-│   ├── domain/              # Core models + YAML registry
-│   │   ├── models.py        # Service, InfraComponent, ServiceGroup
-│   │   └── registry.py      # Loads services.yaml → typed lookups
+│   ├── cli.py               # Typer CLI → orchestrator (entry point: main())
+│   ├── domain/              # Pure domain — no I/O
+│   │   ├── models.py        # Service, InfraComponent, ServiceStatus, etc.
+│   │   └── registry.py      # Pure domain class: typed lookups, parsing helpers
 │   ├── ports/               # Interfaces (ABCs)
 │   │   ├── container_runtime.py
 │   │   ├── session_manager.py
 │   │   ├── process_manager.py
-│   │   └── venv_manager.py
+│   │   ├── venv_manager.py
+│   │   ├── python_resolver.py
+│   │   └── health_checker.py
 │   ├── adapters/            # Implementations
 │   │   ├── container_base.py   # Runtime auto-detection (Podman/Docker)
 │   │   ├── podman.py / docker.py
 │   │   ├── tmux.py / foreground.py
 │   │   ├── process.py          # Port detection + process killing
-│   │   └── venv.py
+│   │   ├── venv.py
+│   │   ├── python_detector.py  # Finds a suitable Python interpreter
+│   │   └── registry_loader.py  # Loads services.yaml → Registry
 │   └── services/            # Application services
-│       ├── orchestrator.py  # Composes ports for start/stop flows
-│       ├── env_generator.py
-│       ├── python_detector.py
+│       ├── orchestrator.py     # Thin facade delegating to focused services
+│       ├── startup_service.py  # Start flow, shell, exec
+│       ├── infra_service.py    # Infrastructure container management
+│       ├── venv_service.py     # Virtual environment management
+│       ├── env_service.py      # .env file orchestration
+│       ├── diagnostic_service.py # Health status + doctor
+│       ├── init_service.py     # First-time setup wizard
 │       ├── health_checker.py
 │       ├── recovery.py
-│       ├── constants.py     # Session name, shared constants
-│       └── shell_utils.py   # Bash resolution
+│       ├── constants.py        # Session name, shared constants
+│       ├── shell_utils.py      # Bash resolution
+│       └── env/                # .env file logic (decomposed)
+│           ├── __init__.py     # Facade re-exports
+│           ├── common.py       # Constants, enums, helpers
+│           ├── generator.py    # .env creation / update
+│           ├── inspector.py    # Read-only .env analysis
+│           ├── resolver.py     # .env mutation, shared secrets
+│           ├── local_auth.py   # Local auth alignment
+│           └── display.py      # .env display to stdout
 │
 └── tests/
-    ├── test_orchestrator.py
+    ├── test_orchestrator.py       # Orchestrator facade (attach, clean)
+    ├── test_startup_service.py    # StartupService (layout, shell, exec)
     ├── test_registry.py
-    ├── test_env_generator.py
+    ├── test_env.py                # .env generation, inspection, alignment
+    ├── test_env_service.py        # EnvService orchestration
     ├── test_health_checker.py
+    ├── test_venv_service.py       # VenvService (setup, check, sync)
+    ├── test_venv_adapter.py       # LocalVenvManager (create, verify, exists)
+    ├── test_python_detector.py    # LocalPythonResolver (find_python)
+    ├── test_infra_service.py      # InfraService (start, stop, reset, status)
+    ├── test_init_service.py       # InitService (first-time wizard)
+    ├── test_diagnostic_service.py # DiagnosticService (doctor, logs)
+    ├── test_recovery.py           # Recovery (restart, restart_failed)
+    ├── test_process_adapter.py    # LocalProcessManager (ports, kill)
     ├── test_container_runtime.py
     ├── test_graceful_stop.py
     └── test_cli_window_specs.py

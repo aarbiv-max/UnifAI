@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -34,15 +35,9 @@ class LocalVenvManager(VenvManager):
             if venv_dir.exists():
                 shutil.rmtree(venv_dir)
 
-        if strategy is VenvStrategy.NODE:
-            self._install_deps(service, python, root, svc_dir, log_file)
-            return
+        if strategy in (VenvStrategy.TOML, VenvStrategy.REQUIREMENTS):
+            self._create_venv_dir(service, python, svc_dir, log_file)
 
-        if strategy is VenvStrategy.CUSTOM:
-            self._install_deps(service, python, root, svc_dir, log_file)
-            return
-
-        self._create_venv_dir(service, python, svc_dir, log_file)
         self._install_deps(service, python, root, svc_dir, log_file)
 
     def verify(self, service: Service, python_minor: str, root: Path) -> None:
@@ -64,8 +59,14 @@ class LocalVenvManager(VenvManager):
             [str(venv_python), "--version"],
             capture_output=True, text=True,
         )
-        venv_ver = result.stdout.strip().split()[-1]
-        venv_minor = ".".join(venv_ver.split(".")[:2])
+        try:
+            venv_ver = result.stdout.strip().split()[-1]
+            venv_minor = ".".join(venv_ver.split(".")[:2])
+        except IndexError:
+            raise RuntimeError(
+                f"Could not determine Python version for {service.name} "
+                f"(unexpected output from {venv_python} --version)"
+            )
 
         if venv_minor != python_minor:
             raise RuntimeError(
@@ -157,7 +158,7 @@ class LocalVenvManager(VenvManager):
     ) -> None:
         for cmd_template in service.venv.commands:
             cmd_str = cmd_template.replace("{python}", python)
-            self._run(cmd_str.split(), svc_dir, log_file)
+            self._run(shlex.split(cmd_str), svc_dir, log_file)
 
     def _create_node(self, svc_dir: Path, log_file: Path | None) -> None:
         if shutil.which("pnpm"):

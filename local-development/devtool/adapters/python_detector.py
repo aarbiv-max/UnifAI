@@ -17,7 +17,7 @@ class LocalPythonResolver(PythonResolver):
         python_max: tuple[int, int],
         *,
         env_override: str | None = None,
-    ) -> str:
+    ) -> tuple[str, str]:
         candidates = (
             [env_override]
             if env_override
@@ -35,6 +35,11 @@ class LocalPythonResolver(PythonResolver):
 
             result = self._parse_version(path)
             if result is None:
+                if env_override:
+                    raise RuntimeError(
+                        f"Found Python at {env_override} but could not "
+                        f"determine its version."
+                    )
                 continue
             major, minor, ver_str = result
 
@@ -55,7 +60,8 @@ class LocalPythonResolver(PythonResolver):
                     )
                 continue
 
-            return path
+            minor_str = f"{major}.{minor}"
+            return path, minor_str
 
         raise RuntimeError(
             f"No suitable Python "
