@@ -25,10 +25,7 @@ class TmuxSessionManager(SessionManager):
         log_dir.mkdir(parents=True, exist_ok=True)
         self.kill_session(session_name)
 
-        subprocess.run(
-            ["tmux", "new-session", "-d", "-s", session_name],
-            check=True,
-        )
+        self._new_session(session_name)
 
         for i, window in enumerate(layout):
             if i == 0:
@@ -87,6 +84,20 @@ class TmuxSessionManager(SessionManager):
             time.sleep(1)
 
         self.kill_session(session_name)
+
+    def _new_session(self, session_name: str) -> None:
+        """Create a detached tmux session, retrying if the server is recovering."""
+        result = subprocess.run(
+            ["tmux", "new-session", "-d", "-s", session_name],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            return
+        time.sleep(0.5)
+        subprocess.run(
+            ["tmux", "new-session", "-d", "-s", session_name],
+            check=True,
+        )
 
     def _list_pane_ids(self, session_name: str) -> list[str]:
         result = subprocess.run(
