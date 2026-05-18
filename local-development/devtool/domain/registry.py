@@ -8,9 +8,6 @@ from .models import (
     InfraComponent,
     Service,
     ServiceGroup,
-    ServiceType,
-    VenvConfig,
-    VenvStrategy,
 )
 
 
@@ -138,68 +135,3 @@ class Registry:
     @property
     def log_dir(self) -> Path:
         return self._log_dir
-
-    # -- parsing helpers (pure dict → model transforms) ----------------------
-
-    @staticmethod
-    def parse_infra(raw: dict) -> dict[str, InfraComponent]:
-        result: dict[str, InfraComponent] = {}
-        for name, data in raw.items():
-            result[name] = InfraComponent(
-                name=name,
-                image=data["image"],
-                ports=data.get("ports", []),
-                label=data.get("label", name),
-                command=data.get("command"),
-                stop_timeout=data.get("stop_timeout"),
-            )
-        return result
-
-    @staticmethod
-    def parse_services(raw: dict) -> dict[str, Service]:
-        result: dict[str, Service] = {}
-        for name, data in raw.items():
-            venv_raw = data.get("venv", {})
-            venv = VenvConfig(
-                strategy=VenvStrategy(venv_raw.get("strategy", "none")),
-                commands=venv_raw.get("commands", []),
-            )
-            result[name] = Service(
-                name=name,
-                directory=Path(data["directory"]),
-                port=data.get("port"),
-                host=data.get("host"),
-                health_endpoint=data.get("health_endpoint"),
-                type=ServiceType(data.get("type", "python")),
-                infrastructure=data.get("infrastructure", []),
-                is_primary=data.get("is_primary", True),
-                env_file=data.get("env_file"),
-                env_entries=data.get("env_entries", {}),
-                venv=venv,
-                launch=data["launch"],
-            )
-        return result
-
-    @staticmethod
-    def parse_groups(raw: dict) -> dict[str, ServiceGroup]:
-        return {
-            name: ServiceGroup(name=name, services=svc_list)
-            for name, svc_list in raw.items()
-        }
-
-    @staticmethod
-    def parse_python_bounds(
-        raw: dict,
-        *,
-        min_override: str | None = None,
-        max_override: str | None = None,
-    ) -> tuple[tuple[int, int], tuple[int, int]]:
-        py = raw.get("python", {})
-        min_str = min_override or py.get("min", "3.11")
-        max_str = max_override or py.get("max", "3.13")
-        min_parts = min_str.split(".")
-        max_parts = max_str.split(".")
-        return (
-            (int(min_parts[0]), int(min_parts[1])),
-            (int(max_parts[0]), int(max_parts[1])),
-        )

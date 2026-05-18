@@ -6,9 +6,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from devtool.domain.models import Service, ServiceType, WindowLayout
+from devtool.domain.models import Service, WindowLayout
 from devtool.ports.session_manager import SessionManager
-from devtool.services.shell_utils import resolve_bash
+from devtool.utils import resolve_bash
 
 
 class ForegroundSessionManager(SessionManager):

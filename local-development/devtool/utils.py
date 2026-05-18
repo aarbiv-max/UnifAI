@@ -1,4 +1,4 @@
-"""Shared shell helpers for application services and adapters."""
+"""Shared utilities — layer-neutral helpers usable by both adapters and services."""
 
 from __future__ import annotations
 

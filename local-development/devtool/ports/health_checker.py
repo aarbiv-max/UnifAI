@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from devtool.domain.models import InfraHealth, ServiceHealth, StatusIssue
+from devtool.domain.models import InfraHealth, Service, ServiceHealth, StatusIssue
 from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
 from devtool.ports.session_manager import SessionManager
@@ -37,7 +37,7 @@ class HealthChecker(ABC):
     @abstractmethod
     def match_panes_to_services(
         self,
-        services: list,
+        services: list[Service],
         pane_contents: dict[str, str],
     ) -> dict[str, str]:
         """Match services to tmux pane refs by scanning pane content."""

@@ -22,6 +22,7 @@ from devtool.domain.registry import Registry
 from devtool.ports.container_runtime import ContainerRuntime
 from devtool.ports.health_checker import HealthChecker
 from devtool.ports.session_manager import SessionManager
+from devtool.services.constants import SESSION_NAME
 
 
 # ---------------------------------------------------------------------------
@@ -111,9 +112,6 @@ def check_infra(
 # ---------------------------------------------------------------------------
 # Full dashboard
 # ---------------------------------------------------------------------------
-
-from devtool.services.constants import SESSION_NAME
-
 
 def build_dashboard(
     registry: Registry,
@@ -321,7 +319,7 @@ class DefaultHealthChecker(HealthChecker):
 
     def match_panes_to_services(
         self,
-        services: list,
+        services: list[Service],
         pane_contents: dict[str, str],
     ) -> dict[str, str]:
         return match_panes_to_services(services, pane_contents)

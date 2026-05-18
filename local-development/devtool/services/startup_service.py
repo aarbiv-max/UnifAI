@@ -23,7 +23,7 @@ from devtool.ports.session_manager import SessionManager
 from devtool.services import env
 from devtool.services.constants import SESSION_NAME
 from devtool.services.env_service import EnvService
-from devtool.services.shell_utils import resolve_bash
+from devtool.utils import resolve_bash
 from devtool.services.venv_service import VenvService
 
 

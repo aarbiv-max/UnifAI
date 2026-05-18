@@ -166,9 +166,20 @@ def _create_orchestrator(*, fg: bool = False) -> Orchestrator:
     from devtool.services.startup_service import StartupService
     from devtool.services.venv_service import VenvService
 
+    import shutil
+
     root = _resolve_root()
     registry = YamlRegistryLoader.load()
     runtime = detect_runtime()
+
+    if not fg and not shutil.which("tmux"):
+        print(
+            "❌ tmux is not installed. Use --fg for single-service mode, "
+            "or install tmux for multi-service sessions.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
     session = ForegroundSessionManager() if fg else TmuxSessionManager()
     venv_mgr = LocalVenvManager()
     process_mgr = LocalProcessManager()
