@@ -47,6 +47,7 @@ class OpenAILLM(BaseLLM, SupportsStreaming):
             temperature: Optional[float] = None,
             max_tokens: Optional[int] = None,
             stream: bool = False,
+            langfuse_config: Optional[Dict[str, Any]] = None,
             **kwargs: Any
     ) -> ChatMessage:
         """
@@ -64,12 +65,13 @@ class OpenAILLM(BaseLLM, SupportsStreaming):
         # Convert to LangChain message objects
         lc_messages = LangChainConverter.to_lc(messages)
 
-        response = self.client.invoke(lc_messages, stream=stream, **call_params)
+        response = self.client.invoke(lc_messages, config=langfuse_config, stream=stream, **call_params)
         return LangChainConverter.from_lc_message(response)
 
     def stream(
             self,
             messages: List[ChatMessage],
+            langfuse_config: Optional[Dict[str, Any]] = None,
             **call_params: Any,
     ) -> Iterator[Union[str, ChatMessage]]:
         """
@@ -85,7 +87,7 @@ class OpenAILLM(BaseLLM, SupportsStreaming):
 
         aggregated: Any | None = None  # will hold the growing AIMessage
 
-        for chunk in self.client.stream(lc_history, stream=True, **call_params):
+        for chunk in self.client.stream(lc_history, config=langfuse_config, stream=True, **call_params):
             # Tool-call partials -------------------------------------------------
             if getattr(chunk, "tool_call_chunks", None):
                 aggregated = chunk if aggregated is None else aggregated + chunk

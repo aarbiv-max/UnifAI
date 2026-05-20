@@ -79,6 +79,7 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
             temperature: Optional[float] = None,
             max_tokens: Optional[int] = None,
             stream: bool = False,
+            langfuse_config: Optional[Dict[str, Any]] = None,
             **kwargs: Any
     ) -> ChatMessage:
         """
@@ -98,7 +99,7 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
         call_params.update(kwargs)
 
         lc_messages = LangChainConverter.to_lc(messages)
-        response = self.client.invoke(lc_messages, **call_params)
+        response = self.client.invoke(lc_messages, config=langfuse_config, **call_params)
 
         if hasattr(response, 'content') and isinstance(response.content, list):
             response.content = _extract_text_content(response.content)
@@ -108,6 +109,7 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
     def stream(
             self,
             messages: List[ChatMessage],
+            langfuse_config: Optional[Dict[str, Any]] = None,
             **call_params: Any,
     ) -> Iterator[Union[str, ChatMessage]]:
         """
@@ -121,7 +123,7 @@ class GoogleGenAILLM(BaseLLM, SupportsStreaming):
         lc_history = LangChainConverter.to_lc(messages)
         aggregated: Any | None = None
 
-        for chunk in self.client.stream(lc_history, **call_params):
+        for chunk in self.client.stream(lc_history, config=langfuse_config, **call_params):
             if getattr(chunk, "tool_call_chunks", None):
                 aggregated = chunk if aggregated is None else aggregated + chunk
                 continue

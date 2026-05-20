@@ -3,9 +3,22 @@ from typing import Any, TypeVar, Generic, List, ClassVar, Optional
 from mas.core.contracts import SupportsStreaming
 from mas.elements.llms.common.base_llm import BaseLLM
 from mas.elements.tools.common.base_tool import BaseTool
+from langfuse.callback import CallbackHandler
 
 TSupportStream = TypeVar("TSupportStream", bound=SupportsStreaming)
 
+def _get_langfuse_handler():
+    """Create Langfuse handler if credentials are configured."""
+    public_key = "pk-lf-ca93af52-14e6-4df7-af98-dc32123144bd"
+    secret_key = "sk-lf-9c359ba1-10d7-40b7-bc51-8a9b55c49384"
+    host = "https://us.cloud.langfuse.com"
+    if public_key and secret_key:
+        return CallbackHandler(
+            public_key=public_key,
+            secret_key=secret_key,
+            host=host or "https://cloud.langfuse.com"
+        )
+    return None
 
 class LlmCapableMixin(Generic[TSupportStream]):
     """
@@ -86,11 +99,12 @@ class LlmCapableMixin(Generic[TSupportStream]):
             print(f"   {i}. {role_icon} {content}")
         
         llm_instance = self.llm.bind_tools(tools)
-
+        langfuse_handler = _get_langfuse_handler()
+        langfuse_config = {"callbacks": [langfuse_handler]} if langfuse_handler else {}
         if self.is_streaming():
-            return self._stream_chat(messages, llm_instance)
+            return self._stream_chat(messages, llm_instance, langfuse_config=langfuse_config)
         else:
-            return llm_instance.chat(messages)
+            return llm_instance.chat(messages, langfuse_config=langfuse_config)
 
     def bind_tools(self, tools: List[BaseTool]) -> None:
         """
@@ -109,7 +123,8 @@ class LlmCapableMixin(Generic[TSupportStream]):
             messages: List[ChatMessage],
             llm_instance: BaseLLM,
             *,
-            event_type: str = "llm_token"
+            event_type: str = "llm_token",
+            langfuse_config: dict = None
     ) -> ChatMessage:
         """
         Handle streaming chat with any LLM instance.
@@ -128,7 +143,7 @@ class LlmCapableMixin(Generic[TSupportStream]):
         accumulated_text = ""
         final_message: Optional[ChatMessage] = None
 
-        for chunk in llm_instance.stream(messages):
+        for chunk in llm_instance.stream(messages, langfuse_config=langfuse_config or {}):
             if isinstance(chunk, str):
                 # Token chunk - accumulate and stream
                 accumulated_text += chunk
