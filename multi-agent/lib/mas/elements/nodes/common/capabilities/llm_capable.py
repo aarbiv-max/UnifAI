@@ -3,7 +3,7 @@ from typing import Any, TypeVar, Generic, List, ClassVar, Optional
 from mas.core.contracts import SupportsStreaming
 from mas.elements.llms.common.base_llm import BaseLLM
 from mas.elements.tools.common.base_tool import BaseTool
-from langfuse.callback import CallbackHandler
+from langfuse.langchain import CallbackHandler
 
 TSupportStream = TypeVar("TSupportStream", bound=SupportsStreaming)
 
