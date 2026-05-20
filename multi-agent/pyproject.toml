@@ -27,8 +27,9 @@ tools = ["paramiko", "openshift-client", "mcp", "httptools", "safehttpx", "html-
 a2a = ["a2a-sdk[all]<1.0", "typing-inspection"]
 rag = ["jsonschema"]
 redis = ["redis"]
+langfuse = ["langfuse"]
 all = [
-    "mas[flask,mongo,temporal,langgraph,llms,tools,a2a,rag,redis]",
+    "mas[flask,mongo,temporal,langgraph,llms,tools,a2a,rag,redis,langfuse]",
 ]
 test = ["pytest>=6.0"]
 
