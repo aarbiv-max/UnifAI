@@ -50,7 +50,7 @@ class VmSandboxManagerPort(ABC):
         worktree_path: str,
         branch: str,
     ) -> None:
-        """Create a git worktree from the bare repo."""
+        """Create a git worktree from the bare repo (idempotent)."""
         ...
 
     @abstractmethod
@@ -58,12 +58,13 @@ class VmSandboxManagerPort(ABC):
         self,
         host: str, port: int, username: str, password: str,
         container_name: str,
-        host_worktree_path: str,
+        host_workspace_path: str,
+        container_mount_path: str,
         image: str,
         timeout: int,
         network: str,
     ) -> None:
-        """Start a Podman container with the worktree mounted at /workspace."""
+        """Start a Podman container with the workspace mounted."""
         ...
 
     @abstractmethod

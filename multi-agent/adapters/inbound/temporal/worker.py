@@ -19,10 +19,15 @@ from temporalio.worker import Worker, UnsandboxedWorkflowRunner
 
 from config.app_config import AppConfig
 from mas.engine.distributed.node_executor import NodeExecutor
+from mas.elements.tools.sandbox_exec.service import SandboxLifecycleService
 from mas.session.execution.lifecycle_handler import BackgroundLifecycleHandler
 from mas.session.execution.lifecycle import SessionLifecycle
 from temporal.client import get_temporal_client
-from inbound.temporal.activities import GraphNodeActivities, SessionLifecycleActivities
+from inbound.temporal.activities import (
+    GraphNodeActivities,
+    SandboxActivities,
+    SessionLifecycleActivities,
+)
 from inbound.temporal.workflows import GraphTraversalWorkflow, SessionWorkflow
 
 
@@ -57,20 +62,36 @@ async def run_worker(
         handler=lifecycle_handler,
     )
 
+    sandbox_lifecycle = SandboxLifecycleService(
+        sandbox_manager=container.vm_sandbox_manager,
+    ) if getattr(container, "vm_sandbox_manager", None) else None
+
+    sandbox_activities = (
+        SandboxActivities(lifecycle_service=sandbox_lifecycle)
+        if sandbox_lifecycle else None
+    )
+
     client = await get_temporal_client()
+
+    activity_list = [
+        graph_activities.execute_node,
+        graph_activities.evaluate_condition,
+        lifecycle_activities.begin_session,
+        lifecycle_activities.complete_session,
+        lifecycle_activities.fail_session,
+        lifecycle_activities.cancel_session,
+    ]
+    if sandbox_activities:
+        activity_list.extend([
+            sandbox_activities.provision,
+            sandbox_activities.teardown,
+        ])
 
     worker = Worker(
         client,
         task_queue=cfg.temporal_task_queue,
         workflows=[GraphTraversalWorkflow, SessionWorkflow],
-        activities=[
-            graph_activities.execute_node,
-            graph_activities.evaluate_condition,
-            lifecycle_activities.begin_session,
-            lifecycle_activities.complete_session,
-            lifecycle_activities.fail_session,
-            lifecycle_activities.cancel_session,
-        ],
+        activities=activity_list,
         activity_executor=thread_pool,
         max_concurrent_activities=threads,
         max_concurrent_workflow_tasks=max_workflow_tasks,

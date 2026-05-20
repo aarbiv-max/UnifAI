@@ -1,11 +1,15 @@
 from abc import ABC, abstractmethod
+from typing import Optional, Any, ClassVar, TYPE_CHECKING
+
 from mas.graph.models import StepContext
 from mas.graph.state.graph_state import GraphState, Channel
 from mas.graph.state.state_view import StateView
-from typing import Optional, Any, Mapping, ClassVar
 from mas.elements.llms.common.chat.message import ChatMessage, Role
 from mas.core.contracts import SupportsStateContext
 from mas.elements.nodes.common.capabilities.streaming_capable import StreamingCapableMixin
+
+if TYPE_CHECKING:
+    from mas.core.execution_context import ExecutionContextHolder
 
 
 class BaseNode(StreamingCapableMixin, SupportsStateContext, ABC):
@@ -33,6 +37,11 @@ class BaseNode(StreamingCapableMixin, SupportsStateContext, ABC):
         super().__init__(**kwargs)  # MRO
         self.retries = retries
         self._ctx: Optional[StepContext] = None
+        self._execution_holder: Optional[ExecutionContextHolder] = None
+
+    def set_execution_holder(self, holder: "ExecutionContextHolder") -> None:
+        """Inject the shared execution context holder for per-node tag stamping."""
+        self._execution_holder = holder
 
     @abstractmethod
     def run(self, state: StateView) -> StateView:
@@ -41,6 +50,12 @@ class BaseNode(StreamingCapableMixin, SupportsStateContext, ABC):
     def __call__(self,
                  state: GraphState,
                  config) -> GraphState:
+        if self._execution_holder is not None and self._ctx is not None:
+            ctx = self._execution_holder.context
+            self._execution_holder.context = ctx.model_copy(update={
+                "tags": {**ctx.tags, "node_uid": self._ctx.uid},
+            })
+
         all_reads = self.total_reads()
         all_writes = self.total_writes()
         wrapped_state = StateView(state, reads=all_reads, writes=all_writes)

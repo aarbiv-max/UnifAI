@@ -89,3 +89,19 @@ class FailSessionParams(BaseModel):
 class CancelSessionParams(BaseModel):
     """Input to the cancel_session activity."""
     run_id: str
+
+
+# ── Sandbox lifecycle params ─────────────────────────────────────────
+
+class ProvisionSandboxParams(BaseModel):
+    """Input to the provision_sandbox activity."""
+    run_id: str
+    agent_ids: list[str] = Field(default_factory=list)
+    sandbox_config: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TeardownSandboxParams(BaseModel):
+    """Input to the teardown_sandbox activity."""
+    run_id: str
+    agent_ids: list[str] = Field(default_factory=list)
+    sandbox_config: Dict[str, Any] = Field(default_factory=dict)

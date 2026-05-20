@@ -9,7 +9,6 @@ import time
 from typing import Dict, List, Optional, Any, Callable, Awaitable
 
 from mas.elements.tools.common.base_tool import BaseTool
-from mas.elements.tools.common.execution.context import caller_uid_var
 from global_utils.utils.async_bridge import AsyncBridge
 
 from .interfaces import ErrorHandler, ExecutionValidator, ExecutionStrategy
@@ -170,9 +169,6 @@ class ToolExecutorManager:
             # Create enhanced context with tool_call_id for hooks
             enhanced_context = (request.context or {}).copy()
             enhanced_context['tool_call_id'] = request.tool_call_id
-
-            if "caller_uid" in enhanced_context:
-                caller_uid_var.set(enhanced_context["caller_uid"])
 
             # Pre-execution hooks
             await self._run_pre_execution_hooks(tool, request.args, enhanced_context)

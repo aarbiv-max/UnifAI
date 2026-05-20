@@ -5,6 +5,7 @@ at construction time — SSH connections are created lazily and cached
 per (host, port, username) key.
 """
 import logging
+import shlex
 from typing import Callable, Dict, Optional, Tuple
 
 from mas.elements.tools.sandbox_exec.ports import VmSandboxManagerPort
@@ -80,7 +81,7 @@ class VmSandboxManager(VmSandboxManagerPort):
             clone_url = git_repo_url
 
         exit_code, out, err = client.exec_command(
-            f"git clone --bare {clone_url} {bare_repo_path}",
+            f"git clone --bare {shlex.quote(clone_url)} {bare_repo_path}",
         )
         if exit_code != 0:
             raise RuntimeError(
@@ -96,20 +97,31 @@ class VmSandboxManager(VmSandboxManagerPort):
         branch: str,
     ) -> None:
         client = self._get_client(host, port, username, password)
+
+        exit_code, _, _ = client.exec_command(f"test -d {worktree_path}")
+        if exit_code == 0:
+            logger.info("Worktree already exists at %s", worktree_path)
+            return
+
         exit_code, out, err = client.exec_command(
-            f"cd {bare_repo_path} && git worktree add {worktree_path} {branch}",
+            f"cd {bare_repo_path} && "
+            f"git worktree add {shlex.quote(worktree_path)} "
+            f"-b {shlex.quote(branch)} HEAD",
         )
         if exit_code != 0:
-            raise RuntimeError(
-                f"git worktree add failed (exit {exit_code}): {err or out}"
+            logger.warning(
+                "git worktree add failed, falling back to mkdir: %s", err or out,
             )
-        logger.info("Created worktree at %s (branch: %s)", worktree_path, branch)
+            client.exec_command(f"mkdir -p {worktree_path}")
+
+        logger.info("Worktree ready at %s", worktree_path)
 
     def provision_container(
         self,
         host: str, port: int, username: str, password: str,
         container_name: str,
-        host_worktree_path: str,
+        host_workspace_path: str,
+        container_mount_path: str,
         image: str,
         timeout: int,
         network: str,
@@ -120,8 +132,8 @@ class VmSandboxManager(VmSandboxManagerPort):
             f" --name {container_name}"
             f" --timeout {timeout}"
             f" --network={network}"
-            f" -v {host_worktree_path}:/workspace:Z"
-            f" -w /workspace"
+            f" -v {host_workspace_path}:{container_mount_path}:Z"
+            f" -w {container_mount_path}"
             f" {image}"
             f" sleep infinity"
         )

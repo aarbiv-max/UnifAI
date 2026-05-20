@@ -210,11 +210,17 @@ class AppContainer(metaclass=SingletonMeta):
 
         # ── VM sandbox adapter (optional — requires paramiko) ────────
         vm_sandbox_manager = None
+        sandbox_lifecycle = None
         try:
             from outbound.vm import VmSandboxManager
+            from mas.elements.tools.sandbox_exec.service import SandboxLifecycleService
             vm_sandbox_manager = VmSandboxManager()
+            sandbox_lifecycle = SandboxLifecycleService(sandbox_manager=vm_sandbox_manager)
         except ImportError:
             logger.debug("paramiko not installed — sandbox_exec tool unavailable")
+
+        self.vm_sandbox_manager = vm_sandbox_manager
+        self.sandbox_lifecycle = sandbox_lifecycle
 
         # ── Session factory ───────────────────────────────────────────
         self.session_factory = WorkflowSessionFactory(
@@ -243,6 +249,7 @@ class AppContainer(metaclass=SingletonMeta):
         foreground_runner = ForegroundSessionRunner(
             lifecycle=self.session_lifecycle,
             channel_factory=self.channel_factory,
+            sandbox_lifecycle=sandbox_lifecycle,
         )
 
         background_engine = self._create_background_engine(cfg.engine_name)

@@ -118,7 +118,6 @@ class ToolCapableMixin(Generic[T]):
             args=tc.args,
             context={
                 "single_tool_execution": True,
-                "caller_uid": getattr(self, 'uid', 'unknown'),
             }
         )
 
@@ -148,7 +147,6 @@ class ToolCapableMixin(Generic[T]):
         if not calls:
             return []
 
-        caller_uid = getattr(self, 'uid', 'unknown')
         requests = [
             ToolExecutionRequest(
                 tool_name=tc.name,
@@ -156,7 +154,6 @@ class ToolCapableMixin(Generic[T]):
                 args=tc.args,
                 context={
                     "message_id": getattr(msg, 'id', None),
-                    "caller_uid": caller_uid,
                 }
             )
             for tc in calls

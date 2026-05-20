@@ -51,6 +51,11 @@ class NodeExecutor:
         """
         mini_bp = BlueprintSpec.model_validate(node_blueprint)
 
+        if execution_context:
+            execution_context = execution_context.model_copy(update={
+                "tags": {**execution_context.tags, "node_uid": node_uid},
+            })
+
         ctx_holder = ExecutionContextHolder()
         rt_plan = self._factory.build_runtime_plan(mini_bp, ctx_holder=ctx_holder)
 

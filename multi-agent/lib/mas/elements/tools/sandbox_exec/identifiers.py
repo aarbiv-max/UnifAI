@@ -18,8 +18,8 @@ class Meta:
 META = Meta(
     name="VM Sandbox Exec",
     description=(
-        "Execute commands in isolated per-agent Podman containers on a remote VM "
-        "with persistent git worktree workspaces"
+        "Execute commands in an isolated per-agent Podman container on a "
+        "remote VM with persistent git worktree workspaces"
     ),
     tags=["tool", "sandbox", "vm", "ssh", "podman", "exec", "container"],
 )

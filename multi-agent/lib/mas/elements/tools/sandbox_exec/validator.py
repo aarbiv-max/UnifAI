@@ -61,6 +61,9 @@ class SandboxExecToolValidator(BaseElementValidator):
             self._check_binary(ssh_client, "podman", messages)
             self._check_image_cache(ssh_client, config, messages)
 
+            if config.git_repo_url:
+                self._clone_repo_if_needed(ssh_client, config, messages)
+
         except paramiko.AuthenticationException:
             messages.append(self._error(
                 ValidationCode.INVALID_CREDENTIALS.value,
@@ -161,13 +164,57 @@ class SandboxExecToolValidator(BaseElementValidator):
                 f"Required binary '{binary}' not found on the VM",
             ))
 
+    def _clone_repo_if_needed(
+        self,
+        ssh_client: paramiko.SSHClient,
+        config: SandboxExecToolConfig,
+        messages: List[ValidationMessage],
+    ) -> None:
+        bare_path = f"{config.vm_workspace_path}/repo.git"
+        out, _ = self._exec(
+            ssh_client,
+            f"test -d {bare_path} && echo EXISTS",
+        )
+        if "EXISTS" in out:
+            messages.append(self._info(
+                "REPO_EXISTS",
+                f"Bare repo already cloned at {bare_path}",
+                field="git_repo_url",
+            ))
+            return
+
+        clone_url = config.git_repo_url
+        if config.git_token:
+            clone_url = clone_url.replace(
+                "https://", f"https://token:{config.git_token}@",
+            )
+
+        _, stdout, stderr = ssh_client.exec_command(
+            f"git clone --bare {clone_url} {bare_path}",
+            timeout=120,
+        )
+        exit_code = stdout.channel.recv_exit_status()
+        if exit_code == 0:
+            messages.append(self._info(
+                "REPO_CLONED",
+                f"Cloned bare repo to {bare_path}",
+                field="git_repo_url",
+            ))
+        else:
+            err = stderr.read().decode().strip()
+            messages.append(self._error(
+                "REPO_CLONE_FAILED",
+                f"Failed to clone bare repo: {err}",
+                field="git_repo_url",
+            ))
+
     def _check_image_cache(
         self,
         ssh_client: paramiko.SSHClient,
         config: SandboxExecToolConfig,
         messages: List[ValidationMessage],
     ) -> None:
-        image = config.vm_container_image
+        image = "python:3.11-slim"
         out, _ = self._exec(
             ssh_client,
             f"podman image exists {image} && echo CACHED || echo MISSING",

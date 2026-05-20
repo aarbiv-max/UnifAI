@@ -15,6 +15,7 @@ from typing import Optional
 from temporalio import activity
 
 from mas.core.channels import ChannelFactory
+from mas.core.execution_context import ExecutionContext
 from mas.engine.distributed.node_executor import NodeExecutor
 from mas.graph.state.graph_state import GraphState
 from inbound.temporal.activities.heartbeat import heartbeat
@@ -35,6 +36,17 @@ class GraphNodeActivities:
         self._executor = node_executor
         self._channel_factory = channel_factory
 
+    @staticmethod
+    def _enrich_context(params: ExecuteNodeParams) -> ExecutionContext:
+        """Stamp run_id + node_uid into execution context tags."""
+        return params.execution_context.model_copy(update={
+            "tags": {
+                **params.execution_context.tags,
+                "run_id": params.session_id,
+                "node_uid": params.node_uid,
+            },
+        })
+
     @activity.defn(name="execute_graph_node")
     @heartbeat(interval=3)
     def execute_node(self, params: ExecuteNodeParams) -> GraphState:
@@ -42,13 +54,15 @@ class GraphNodeActivities:
         if self._channel_factory and params.session_id:
             channel = self._channel_factory.create(params.session_id)
 
+        enriched_ctx = self._enrich_context(params)
+
         return self._executor.execute_node(
             node_uid=params.node_uid,
             node_blueprint=params.node_blueprint,
             step_context=params.step_context,
             state=params.state,
             channel=channel,
-            execution_context=params.execution_context,
+            execution_context=enriched_ctx,
         )
 
     @activity.defn(name="evaluate_condition")
