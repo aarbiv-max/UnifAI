@@ -76,7 +76,7 @@ services:
         - "{python} -m venv venv"
         - "venv/bin/pip install -e .[all]"
         - "venv/bin/pip install -e ../global_utils"
-    launch: "HOSTNAME=127.0.0.1 mas api dev"
+    launch: "HOSTNAME=0.0.0.0 mas api dev"
 
   identity:
     directory: "shared-resources/identity"
