@@ -29,6 +29,9 @@ class BaseTool(ABC):
         """Default async wrapper - runs sync method in thread pool."""
         return await asyncio.to_thread(self.run, *args, **kwargs)
 
+    def cleanup(self) -> None:
+        """Lifecycle hook called at session end. Override for resource cleanup."""
+
     def get_args_schema_json(self):
         return self.args_schema.model_json_schema()
 

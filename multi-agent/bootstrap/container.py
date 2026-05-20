@@ -208,11 +208,20 @@ class AppContainer(metaclass=SingletonMeta):
             auth_service=self.auth_service,
         ))
 
+        # ── VM sandbox adapter (optional — requires paramiko) ────────
+        vm_sandbox_manager = None
+        try:
+            from outbound.vm import VmSandboxManager
+            vm_sandbox_manager = VmSandboxManager()
+        except ImportError:
+            logger.debug("paramiko not installed — sandbox_exec tool unavailable")
+
         # ── Session factory ───────────────────────────────────────────
         self.session_factory = WorkflowSessionFactory(
             element_registry=self.element_registry,
             engine_name=cfg.engine_name,
             auth_service=self.auth_service,
+            vm_sandbox_manager=vm_sandbox_manager,
         )
         self.session_repo = MongoSessionRepository(
             mongodb_port=cfg.mongodb_port,

@@ -82,9 +82,11 @@ class ForegroundSessionRunner:
         except Exception as e:
             self._lifecycle.fail(session.record, e)
             raise
-
-        self._lifecycle.complete(session.record, final_state)
-        return final_state
+        else:
+            self._lifecycle.complete(session.record, final_state)
+            return final_state
+        finally:
+            self._cleanup_tools(session)
 
     # ── Streaming path ───────────────────────────────────────────
 
@@ -121,6 +123,7 @@ class ForegroundSessionRunner:
             channel.close()
             thread.join(timeout=60)
             self._inject_channel(session, None)
+            self._cleanup_tools(session)
 
             try:
                 if result["error"]:
@@ -137,3 +140,13 @@ class ForegroundSessionRunner:
         for node in session.session_registry.all_of(ResourceCategory.NODE).values():
             if hasattr(node, "set_streaming_channel"):
                 node.set_streaming_channel(channel)
+
+    @staticmethod
+    def _cleanup_tools(session: WorkflowSession) -> None:
+        """Call cleanup() on every tool that supports it (best-effort)."""
+        for rid, tool in session.session_registry.all_of(ResourceCategory.TOOL).items():
+            if hasattr(tool, "cleanup"):
+                try:
+                    tool.cleanup()
+                except Exception:
+                    logger.exception("Tool cleanup failed for %s", rid)

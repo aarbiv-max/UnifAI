@@ -112,12 +112,14 @@ class ToolCapableMixin(Generic[T]):
 
     async def _ainvoke_tool(self: T, tc: ToolCall) -> ChatMessage:
         """Async-invoke a single tool using the clean request/response API."""
-        # Create a clean execution request
         request = ToolExecutionRequest(
             tool_name=tc.name,
             tool_call_id=tc.tool_call_id,
             args=tc.args,
-            context={"single_tool_execution": True}
+            context={
+                "single_tool_execution": True,
+                "caller_uid": getattr(self, 'uid', 'unknown'),
+            }
         )
 
         # Execute using the clean request/response API
@@ -146,13 +148,16 @@ class ToolCapableMixin(Generic[T]):
         if not calls:
             return []
 
-        # Create clean execution requests
+        caller_uid = getattr(self, 'uid', 'unknown')
         requests = [
             ToolExecutionRequest(
                 tool_name=tc.name,
                 tool_call_id=tc.tool_call_id,
                 args=tc.args,
-                context={"message_id": getattr(msg, 'id', None)}
+                context={
+                    "message_id": getattr(msg, 'id', None),
+                    "caller_uid": caller_uid,
+                }
             )
             for tc in calls
         ]

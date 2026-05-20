@@ -34,10 +34,12 @@ class WorkflowSessionFactory:
             element_registry: ElementRegistry,
             engine_name: str,
             auth_service: Optional[AuthService] = None,
+            vm_sandbox_manager: Optional[object] = None,
     ):
         self._elements = element_registry
         self._engine_name = engine_name
         self._auth_service = auth_service
+        self._vm_sandbox_manager = vm_sandbox_manager
         self._session_builder = SessionElementBuilder(element_registry)
 
     @property
@@ -48,6 +50,7 @@ class WorkflowSessionFactory:
         self,
         blueprint_spec: BlueprintSpec,
         ctx_holder: Optional[ExecutionContextHolder] = None,
+        run_id: Optional[str] = None,
     ) -> RTGraphPlan:
         """
         Build an RTGraphPlan from a blueprint spec.
@@ -59,6 +62,8 @@ class WorkflowSessionFactory:
         deps = ElementDeps(
             execution_ctx=holder,
             auth_service=self._auth_service,
+            vm_sandbox_manager=self._vm_sandbox_manager,
+            run_id=run_id,
         )
         logical_plan = PlanBuilder(self._elements).build(blueprint_spec)
         registry = self._session_builder.build(blueprint_spec, deps=deps)
@@ -81,7 +86,9 @@ class WorkflowSessionFactory:
         session that shares the record by reference (mutations propagate).
         """
         ctx_holder = ExecutionContextHolder()
-        rt_graph_plan = self.build_runtime_plan(blueprint_spec, ctx_holder=ctx_holder)
+        rt_graph_plan = self.build_runtime_plan(
+            blueprint_spec, ctx_holder=ctx_holder, run_id=record.run_id,
+        )
         rt_graph_plan.pretty_print()
 
         engine_builder = GraphBuilderFactory(GraphState).create(self._engine_name)
