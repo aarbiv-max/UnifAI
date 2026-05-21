@@ -208,11 +208,21 @@ class AppContainer(metaclass=SingletonMeta):
             auth_service=self.auth_service,
         ))
 
+        # ── VM sandbox manager (optional) ─────────────────────────────
+        try:
+            from outbound.vm.sandbox_manager import VmSandboxManager
+            self.vm_sandbox_manager = VmSandboxManager()
+            import atexit
+            atexit.register(self.vm_sandbox_manager.close_all)
+        except ImportError:
+            self.vm_sandbox_manager = None
+
         # ── Session factory ───────────────────────────────────────────
         self.session_factory = WorkflowSessionFactory(
             element_registry=self.element_registry,
             engine_name=cfg.engine_name,
             auth_service=self.auth_service,
+            vm_sandbox_manager=self.vm_sandbox_manager,
         )
         self.session_repo = MongoSessionRepository(
             mongodb_port=cfg.mongodb_port,

@@ -17,6 +17,7 @@ from mas.blueprints.models.blueprint import BlueprintSpec
 
 if TYPE_CHECKING:
     from mas.core.auth.service import AuthService
+    from mas.core.sandbox.ports import VmSandboxManagerPort
 
 
 class WorkflowSessionFactory:
@@ -34,10 +35,12 @@ class WorkflowSessionFactory:
             element_registry: ElementRegistry,
             engine_name: str,
             auth_service: Optional[AuthService] = None,
+            vm_sandbox_manager: Optional[VmSandboxManagerPort] = None,
     ):
         self._elements = element_registry
         self._engine_name = engine_name
         self._auth_service = auth_service
+        self._vm_sandbox_manager = vm_sandbox_manager
         self._session_builder = SessionElementBuilder(element_registry)
 
     @property
@@ -59,6 +62,7 @@ class WorkflowSessionFactory:
         deps = ElementDeps(
             execution_ctx=holder,
             auth_service=self._auth_service,
+            vm_sandbox_manager=self._vm_sandbox_manager,
         )
         logical_plan = PlanBuilder(self._elements).build(blueprint_spec)
         registry = self._session_builder.build(blueprint_spec, deps=deps)
