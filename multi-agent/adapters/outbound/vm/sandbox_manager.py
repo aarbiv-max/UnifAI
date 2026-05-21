@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import posixpath
 import shlex
 import threading
 from typing import Dict, Tuple
@@ -155,6 +156,37 @@ class VmSandboxManager(VmSandboxManagerPort):
             )
         return stdout + stderr
 
+    def write_file(
+        self,
+        conn: VmConnectionInfo,
+        worktree_path: str,
+        relative_path: str,
+        content: str,
+    ) -> None:
+        """Write *content* to a file inside the worktree via SFTP."""
+        full_path = posixpath.join(worktree_path, relative_path)
+        dir_path = posixpath.dirname(full_path)
+        client = self._get_client(conn)
+        if dir_path:
+            client.exec_command(f"mkdir -p {shlex.quote(dir_path)}")
+        client.write_file_sftp(full_path, content)
+
+    def read_file(
+        self,
+        conn: VmConnectionInfo,
+        worktree_path: str,
+        relative_path: str,
+    ) -> str:
+        """Read a file from the worktree and return its content."""
+        full_path = posixpath.join(worktree_path, relative_path)
+        client = self._get_client(conn)
+        exit_code, stdout, stderr = client.exec_command(
+            f"cat {shlex.quote(full_path)}",
+        )
+        if exit_code != 0:
+            raise RuntimeError(f"read_file failed: {stderr}")
+        return stdout
+
     def close_all(self) -> None:
         """Close every cached SSH client."""
         with self._lock:
@@ -202,7 +234,7 @@ def _build_create_worktree_cmd(
     workspace: str, agent_id: str,
 ) -> str:
     ws = shlex.quote(workspace)
-    wt_path = f"{workspace}/worktrees/{agent_id}"
+    wt_path = f"{workspace}/wt-{agent_id}"
     wt = shlex.quote(wt_path)
     return (
         f"cd {ws}/repo.git && "

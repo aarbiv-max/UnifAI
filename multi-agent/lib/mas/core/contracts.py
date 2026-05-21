@@ -40,6 +40,13 @@ class LLMSupportsStreaming(ABC):
         ...
 
 
+@runtime_checkable
+class SupportsAgentScoping(Protocol):
+    """A tool that can produce a per-agent scoped proxy of itself."""
+
+    def scoped_for_agent(self, agent_uid: str) -> Any: ...
+
+
 class SessionRegistry(Protocol):
     def register(self, category: ResourceCategory, rid: str, 
                 instance: Any, config: Any, spec: Any) -> None: ...

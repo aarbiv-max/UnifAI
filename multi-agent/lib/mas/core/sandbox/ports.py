@@ -95,3 +95,24 @@ class VmSandboxManagerPort(ABC):
     ) -> str:
         """Run *cmd* inside an existing container and return combined output."""
         ...
+
+    @abstractmethod
+    def write_file(
+        self,
+        conn: VmConnectionInfo,
+        worktree_path: str,
+        relative_path: str,
+        content: str,
+    ) -> None:
+        """Write *content* to a file in the worktree via SFTP."""
+        ...
+
+    @abstractmethod
+    def read_file(
+        self,
+        conn: VmConnectionInfo,
+        worktree_path: str,
+        relative_path: str,
+    ) -> str:
+        """Read a file from the worktree and return its content."""
+        ...

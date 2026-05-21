@@ -82,6 +82,20 @@ class SshClient:
             callback(line.rstrip("\n"))
         return stdout.channel.recv_exit_status()
 
+    def write_file_sftp(self, remote_path: str, content: str) -> None:
+        """Write *content* to *remote_path* via SFTP.
+
+        Avoids shell-quoting issues that affect heredoc / echo approaches.
+        """
+        self.ensure_connected()
+        assert self._ssh is not None
+        sftp = self._ssh.open_sftp()
+        try:
+            with sftp.file(remote_path, "w") as f:
+                f.write(content)
+        finally:
+            sftp.close()
+
     def close(self) -> None:
         """Close the underlying SSH connection."""
         self._close_quietly()
