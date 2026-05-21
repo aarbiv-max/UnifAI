@@ -8,19 +8,14 @@ from langfuse.langchain import CallbackHandler
 
 TSupportStream = TypeVar("TSupportStream", bound=SupportsStreaming)
 
+Langfuse(
+    public_key="pk-lf-ca93af52-14e6-4df7-af98-dc32123144bd",
+    secret_key="sk-lf-9c359ba1-10d7-40b7-bc51-8a9b55c49384",
+    host="https://us.cloud.langfuse.com"
+)
+
 def _get_langfuse_handler():
-    """Create Langfuse handler if credentials are configured."""
-    public_key = "pk-lf-ca93af52-14e6-4df7-af98-dc32123144bd"
-    secret_key = "sk-lf-9c359ba1-10d7-40b7-bc51-8a9b55c49384"
-    host = "https://us.cloud.langfuse.com"
-    if public_key and secret_key:
-        langfuse = Langfuse(
-            public_key=public_key,
-            secret_key=secret_key,
-            host=host or "https://cloud.langfuse.com"
-        )
-        return CallbackHandler(langfuse_client=langfuse)
-    return None
+    return CallbackHandler()
 
 class LlmCapableMixin(Generic[TSupportStream]):
     """
