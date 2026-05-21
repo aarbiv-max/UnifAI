@@ -23,7 +23,7 @@ class SandboxExecToolConfig(BaseToolConfig):
         ).to_hints(),
     )
     vm_workspace_path: str = Field(
-        "/opt/sandbox",
+        "/home/lab-user",
         description="Workspace directory on the VM",
     )
     git_repo_url: str = Field(

@@ -68,6 +68,7 @@ class SandboxExecToolValidator(BaseElementValidator):
                 ssh_client, config.vm_workspace_path, messages,
             )
             self._check_podman(ssh_client, messages)
+            self._check_git(ssh_client, config, messages)
 
         except paramiko.AuthenticationException:
             messages.append(self._error(
@@ -170,4 +171,66 @@ class SandboxExecToolValidator(BaseElementValidator):
                 "PODMAN_NOT_FOUND",
                 "podman binary not found on the VM",
                 field="vm_host",
+            ))
+
+    def _check_git(
+        self,
+        ssh_client: "paramiko.SSHClient",
+        config: SandboxExecToolConfig,
+        messages: List[ValidationMessage],
+    ) -> None:
+        """Verify git is available and optionally clone the repo."""
+        _, stdout, stderr = ssh_client.exec_command("which git")
+        out = stdout.read().decode().strip()
+        if not out:
+            messages.append(self._error(
+                "GIT_NOT_FOUND",
+                "git binary not found on the VM",
+                field="vm_host",
+            ))
+            return
+
+        messages.append(self._info(
+            "GIT_OK",
+            f"Git found at {out}",
+            field="vm_host",
+        ))
+
+        if not config.git_repo_url:
+            return
+
+        import shlex
+        ws = shlex.quote(config.vm_workspace_path)
+        url = config.git_repo_url
+        if config.git_token:
+            url = url.replace("://", f"://oauth2:{config.git_token}@")
+
+        cmd = (
+            f"mkdir -p {ws} && cd {ws} && "
+            f"if [ -d repo.git ]; then "
+            f"cd repo.git && git fetch --all 2>&1; "
+            f"else git clone --bare {shlex.quote(url)} repo.git 2>&1; fi"
+        )
+        _, stdout, stderr = ssh_client.exec_command(cmd)
+        exit_code = stdout.channel.recv_exit_status()
+        clone_out = stdout.read().decode().strip()
+        clone_err = stderr.read().decode().strip()
+
+        if config.git_token:
+            clone_out = clone_out.replace(config.git_token, "***")
+            clone_err = clone_err.replace(config.git_token, "***")
+
+        if exit_code == 0:
+            messages.append(self._info(
+                "GIT_REPO_OK",
+                f"Repository cloned/fetched to "
+                f"{config.vm_workspace_path}/repo.git",
+                field="git_repo_url",
+            ))
+        else:
+            detail = clone_err or clone_out
+            messages.append(self._error(
+                "GIT_REPO_FAILED",
+                f"Failed to clone/fetch repository: {detail}",
+                field="git_repo_url",
             ))
