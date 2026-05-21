@@ -3,6 +3,7 @@ from typing import Any, TypeVar, Generic, List, ClassVar, Optional
 from mas.core.contracts import SupportsStreaming
 from mas.elements.llms.common.base_llm import BaseLLM
 from mas.elements.tools.common.base_tool import BaseTool
+from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 
 TSupportStream = TypeVar("TSupportStream", bound=SupportsStreaming)
@@ -13,11 +14,12 @@ def _get_langfuse_handler():
     secret_key = "sk-lf-9c359ba1-10d7-40b7-bc51-8a9b55c49384"
     host = "https://us.cloud.langfuse.com"
     if public_key and secret_key:
-        return CallbackHandler(
+        langfuse = Langfuse(
             public_key=public_key,
             secret_key=secret_key,
             host=host or "https://cloud.langfuse.com"
         )
+        return CallbackHandler(langfuse_client=langfuse)
     return None
 
 class LlmCapableMixin(Generic[TSupportStream]):
