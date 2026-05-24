@@ -3,6 +3,7 @@ from mas.resources.models import Resource, ResourceQuery
 from mas.resources.repository.base import ResourceRepository
 from mas.blueprints.repository.repository import BlueprintRepository
 from mas.resources.errors import ResourceInUseError
+from mas.core.identity import Identity
 from typing import List, Tuple, Dict, Any
 from mas.core.dto import GroupedCount
 from mas.core.ref import RefRemapper
@@ -26,14 +27,14 @@ class ResourcesRegistry:
     # ---------- write ----------
     def create(self, doc: Resource) -> Resource:
         # uniqueness guard
-        if self._repo.find_by_name(doc.user_id, doc.category, doc.type, doc.name):
+        if self._repo.find_by_name(doc.identity, doc.category, doc.type, doc.name):
             raise ValueError(f"{doc.category}:{doc.type}:{doc.name} exists for user")
         self._repo.save(doc)
         return doc
 
     def update(self, doc: Resource) -> Resource:
         # Guard against name conflicts with other resources
-        existing_with_name = self._repo.find_by_name(doc.user_id, doc.category, doc.type, doc.name)
+        existing_with_name = self._repo.find_by_name(doc.identity, doc.category, doc.type, doc.name)
         if existing_with_name and existing_with_name.rid != doc.rid:
             raise ValueError(f"{doc.category}:{doc.type}:{doc.name} exists for user")
         
@@ -101,27 +102,42 @@ class ResourcesRegistry:
     def exists(self, rid: str) -> bool:
         return self._repo.exists(rid)
 
+    def count_by_config_field(
+        self,
+        identity: Identity,
+        field: str,
+        value: str,
+        exclude_rid: str = "",
+    ) -> int:
+        """Count resources where cfg_dict.<field> == value for the given owner identity."""
+        return self._repo.count_by_config_field(identity, field, value, exclude_rid)
+
+    def exists_by_name(
+        self, identity: Identity, category: str, type_: str, name: str
+    ) -> bool:
+        return self._repo.find_by_name(identity, category, type_, name) is not None
+
     # ---------- statistics ----------
-    def count(self, user_id: str, filter: Dict[str, Any] = None) -> int:
-        """Count resources matching filter criteria for a user."""
-        return self._repo.count(user_id, filter or {})
+    def count(self, identity: Identity, filter: Dict[str, Any] | None = None) -> int:
+        """Count resources matching filter criteria for an identity."""
+        return self._repo.count(identity, filter or {})
 
     def group_count(
-        self, 
-        user_id: str, 
+        self,
+        identity: Identity,
         group_by: List[str],
-        filter: Dict[str, Any] = None
+        filter: Dict[str, Any] | None = None,
     ) -> List[GroupedCount]:
         """
         Group resources by specified fields and return counts.
         Performs efficient server-side grouping via the repository.
         
         Args:
-            user_id: The user ID to filter by
+            identity: The identity to filter by
             group_by: List of field names to group by (e.g., ["category", "type"])
             filter: Optional additional filter criteria
             
         Returns:
             List of GroupedCount DTOs with grouped field values and count.
         """
-        return self._repo.group_count(user_id, group_by, filter)
+        return self._repo.group_count(identity, group_by, filter)

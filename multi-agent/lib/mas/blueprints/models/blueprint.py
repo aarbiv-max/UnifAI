@@ -3,6 +3,7 @@ from uuid import uuid4
 from datetime import datetime
 from pydantic import BaseModel, Field, Extra
 
+from mas.core.identity import Identity
 # ─────────────────────────────────────────────────────────────────────────────
 #  Blueprint execution statistics (aggregated across all sessions)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -21,7 +22,7 @@ class BlueprintExecutionStats(BaseModel):
     failed_runs: int = Field(0, description="Number of FAILED executions")
     last_run: Optional[str] = Field(None, description="ISO timestamp of most recent execution")
     avg_duration_ms: Optional[float] = Field(None, description="Average duration in milliseconds")
-    users: List[str] = Field(default_factory=list, description="List of user IDs who ran this blueprint")
+    users: List[str] = Field(default_factory=list, description="Distinct runner identities as ``type:id`` strings (e.g. ``user:alice``, ``team:acme``)")
 
 # -----------------------------------------------------------------------------
 # Import the *catalog* specs (single source of truth for field validation)
@@ -32,6 +33,7 @@ from mas.elements.retrievers.types import RetrieversSpec
 from mas.elements.conditions.types import ConditionSpec
 from mas.elements.tools.types import ToolsSpec
 from mas.elements.providers.types import ProviderSpec
+from mas.elements.auths.types import AuthSpec
 from mas.core.ref.models import Ref, NodeRef, ConditionRef
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -91,9 +93,9 @@ class StepDef(BaseModel):
 #  Blueprint summary (lightweight view – no spec details)
 # ─────────────────────────────────────────────────────────────────────────────
 class BlueprintSummary(BaseModel):
-    """Lightweight view of a blueprint for listing – no spec details."""
+    """Lightweight view of a blueprint for listing -- no spec details."""
     blueprint_id: str
-    user_id: str
+    identity: Identity
     name: str = "Untitled blueprint"
     description: str = ""
     created_at: datetime
@@ -112,6 +114,7 @@ class BlueprintDraft(BaseModel):
     tools: List[BlueprintResource[ToolsSpec]] = []
     nodes: List[BlueprintResource[NodeSpec]] = []
     conditions: List[BlueprintResource[ConditionSpec]] = []
+    auths: List[BlueprintResource[AuthSpec]] = []
 
     plan: List[StepDef]
 
@@ -130,6 +133,7 @@ class BlueprintSpec(BaseModel):
     tools: List[ResourceSpec[ToolsSpec]]
     nodes: List[ResourceSpec[NodeSpec]]
     conditions: List[ResourceSpec[ConditionSpec]] = []
+    auths: List[ResourceSpec[AuthSpec]] = []
 
     plan: List[StepDef]
 
@@ -149,7 +153,7 @@ class BlueprintDocument(BaseModel):
     Wraps the spec_dict together with its database-level metadata.
     """
     blueprint_id: str
-    user_id: str
+    identity: Identity
     created_at: Any = None
     updated_at: Any = None
     spec_dict: Dict[str, Any]
@@ -157,4 +161,4 @@ class BlueprintDocument(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
     class Config:
-        extra = Extra.ignore  # silently drop extra Mongo fields like _id
+        extra = Extra.ignore
