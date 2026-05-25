@@ -11,13 +11,10 @@ import { HiSparkles } from 'react-icons/hi';
 export default function Login() {
   const { login, isLoading: authLoading } = useAuth();
   const { primaryHex } = useTheme();
-  const [primary, secondary] = generateColorPalette(primaryHex || "#A60000", 2);
-
-  const handleSSOLogin = () => {
-    login();
-  };
   const [localAuth, setLocalAuth] = useState<boolean | null>(null);
   const [configError, setConfigError] = useState(false);
+
+  const [primary, secondary] = generateColorPalette(primaryHex || "#A60000", 2);
 
   const fetchConfig = useCallback(() => {
     setConfigError(false);
@@ -85,17 +82,6 @@ export default function Login() {
             >
               Loading...
             </Button>
-          ) : localAuth ? (
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full h-12 border-0 bg-[#21262d] text-white shadow-none hover:bg-[#30363d]"
-              onClick={() => login()}
-              disabled={authLoading}
-            >
-              <FaUserCog className="mr-2 h-4 w-4 shrink-0 opacity-80" />
-              Login as Dev User
-            </Button>
           ) : (
             <Button
               type="button"
@@ -104,8 +90,11 @@ export default function Login() {
               onClick={() => login()}
               disabled={authLoading}
             >
-              <FaBuilding className="mr-2 h-4 w-4 shrink-0 opacity-80" />
-              Login using SSO
+              {localAuth ? (
+                <><FaUserCog className="mr-2 h-4 w-4 shrink-0 opacity-80" />Login as Dev User</>
+              ) : (
+                <><FaBuilding className="mr-2 h-4 w-4 shrink-0 opacity-80" />Login using SSO</>
+              )}
             </Button>
           )}
         </div>
