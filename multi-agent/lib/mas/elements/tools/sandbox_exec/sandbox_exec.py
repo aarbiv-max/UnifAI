@@ -18,16 +18,27 @@ _CONTAINER_NAME_SANITIZE = str.maketrans(".:- /", "_____")
 class SandboxExecInput(BaseModel):
     """Input schema for the multi-action sandbox tool."""
 
-    action: Literal["exec", "write_file", "read_file"] = Field(
+    action: Literal[
+        "exec", "write_file", "read_file", "list_files",
+    ] = Field(
         "exec",
         description=(
-            "Action: 'exec' runs a command in the container, "
-            "'write_file' writes content to a file, "
-            "'read_file' reads a file"
+            "Action to perform. "
+            "'exec' runs a command inside the container (requires 'cmd'). "
+            "'write_file' writes content to a file (requires 'path' and 'content'). "
+            "'read_file' reads a file and returns its content (requires 'path'). "
+            "'list_files' lists files in the workspace, optionally filtered by "
+            "a glob pattern (optional 'path' as glob, e.g. '*.sh' or 'src/**/*.py')."
         ),
     )
     cmd: str = Field("", description="Command to run (for action='exec')")
-    path: str = Field("", description="File path relative to /workspace")
+    path: str = Field(
+        "",
+        description=(
+            "File path relative to /workspace (for read_file, write_file), "
+            "or glob pattern (for list_files, e.g. '*.sh')"
+        ),
+    )
     content: str = Field(
         "", description="File content (for action='write_file')"
     )
@@ -39,7 +50,8 @@ class AgentSandboxState:
 
     worktree_path: str = ""
     container_name: str = ""
-    initialized: bool = False
+    worktree_ready: bool = False
+    container_ready: bool = False
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -84,16 +96,19 @@ class SandboxExecTool(BaseTool):
         self.description = (
             f"Interact with an isolated sandbox environment on "
             f"{host}:{port}.\n\n"
-            f"Supports three actions:\n"
-            f"• action='exec': Run a shell command in the container "
-            f"(requires 'cmd').\n"
+            f"Supports four actions:\n"
+            f"• action='list_files': List files in the workspace. "
+            f"Optionally pass 'path' as a glob pattern "
+            f"(e.g. '*.sh', 'src/**/*.py'). No pattern lists everything.\n"
+            f"• action='read_file': Read a file from /workspace "
+            f"(requires 'path', e.g. 'src/main.py').\n"
             f"• action='write_file': Write content to a file in "
             f"/workspace (requires 'path' and 'content').\n"
-            f"• action='read_file': Read a file from /workspace "
-            f"(requires 'path').\n\n"
-            f"The workspace is a git worktree mounted at /workspace. "
-            f"Files written via write_file are immediately visible "
-            f"to exec."
+            f"• action='exec': Run a shell command in the container "
+            f"(requires 'cmd'). Use for running code, tests, installs.\n\n"
+            f"Start with list_files to discover the repo structure, "
+            f"then read_file to inspect code. Use exec only when you "
+            f"need to run something."
         )
 
         self._agent_states: Dict[str, AgentSandboxState] = {}
@@ -141,15 +156,17 @@ class _SandboxAgentProxy(BaseTool):
             return "ERROR: 'path' is required for action='read_file'"
 
         state = self._parent._agent_states[self._agent_uid]
-
-        if not state.initialized:
-            with state.lock:
-                if not state.initialized:
-                    self._init_sandbox(state)
+        self._ensure_worktree(state)
 
         try:
-            if inp.action == "exec":
-                return self._exec_with_recovery(state, inp.cmd)
+            if inp.action == "list_files":
+                return self._list_files(state, inp.path)
+            elif inp.action == "read_file":
+                return self._parent._sandbox_manager.read_file(
+                    self._parent._conn,
+                    state.worktree_path,
+                    inp.path,
+                )
             elif inp.action == "write_file":
                 self._parent._sandbox_manager.write_file(
                     self._parent._conn,
@@ -158,36 +175,76 @@ class _SandboxAgentProxy(BaseTool):
                     inp.content,
                 )
                 return f"File written: {inp.path}"
-            elif inp.action == "read_file":
-                return self._parent._sandbox_manager.read_file(
-                    self._parent._conn,
-                    state.worktree_path,
-                    inp.path,
-                )
+            elif inp.action == "exec":
+                self._ensure_container(state)
+                return self._exec_with_recovery(state, inp.cmd)
         except Exception as exc:
             return f"ERROR: {exc}"
         return "ERROR: unknown action"
 
     # ------------------------------------------------------------------
 
-    def _init_sandbox(self, state: AgentSandboxState) -> None:
-        """Create the worktree and container for this agent."""
-        state.worktree_path = (
-            self._parent._sandbox_manager.create_worktree(
-                self._parent._conn,
-                self._parent._workspace_path,
-                self._agent_uid,
+    def _list_files(
+        self, state: AgentSandboxState, pattern: str,
+    ) -> str:
+        """List files in the worktree via SSH (no container needed)."""
+        import shlex
+
+        wt = shlex.quote(state.worktree_path)
+        if pattern:
+            cmd = f"find {wt} -name {shlex.quote(pattern)} -type f | sort"
+        else:
+            cmd = (
+                f"find {wt} -type f "
+                f"-not -path '*/.git/*' | sort"
+            )
+        exit_code, stdout, stderr = (
+            self._parent._sandbox_manager.run_command(
+                self._parent._conn, cmd,
             )
         )
-        safe_uid = self._agent_uid.translate(_CONTAINER_NAME_SANITIZE)
-        state.container_name = f"sandbox-{safe_uid}"
-        self._parent._sandbox_manager.provision_container(
-            self._parent._conn,
-            state.container_name,
-            state.worktree_path,
-            "/workspace",
-        )
-        state.initialized = True
+        if exit_code != 0:
+            return f"ERROR: {stderr}"
+        prefix = state.worktree_path.rstrip("/") + "/"
+        lines = stdout.strip().splitlines()
+        relative = [
+            ln[len(prefix):] if ln.startswith(prefix) else ln
+            for ln in lines
+        ]
+        return "\n".join(relative) if relative else "(no files found)"
+
+    def _ensure_worktree(self, state: AgentSandboxState) -> None:
+        """Create the worktree on first call (any action)."""
+        if state.worktree_ready:
+            return
+        with state.lock:
+            if state.worktree_ready:
+                return
+            state.worktree_path = (
+                self._parent._sandbox_manager.create_worktree(
+                    self._parent._conn,
+                    self._parent._workspace_path,
+                    self._agent_uid,
+                )
+            )
+            safe_uid = self._agent_uid.translate(_CONTAINER_NAME_SANITIZE)
+            state.container_name = f"sandbox-{safe_uid}"
+            state.worktree_ready = True
+
+    def _ensure_container(self, state: AgentSandboxState) -> None:
+        """Provision the container on first exec call."""
+        if state.container_ready:
+            return
+        with state.lock:
+            if state.container_ready:
+                return
+            self._parent._sandbox_manager.provision_container(
+                self._parent._conn,
+                state.container_name,
+                state.worktree_path,
+                "/workspace",
+            )
+            state.container_ready = True
 
     def _exec_with_recovery(
         self, state: AgentSandboxState, cmd: str,

@@ -255,7 +255,7 @@ def _build_provision_container_cmd(
     m = shlex.quote(mount)
     img = shlex.quote(image)
     return (
-        f"podman run -d --name {n} "
+        f"podman run -d --replace --name {n} "
         f"--timeout {int(timeout)} --network slirp4netns "
         f"-v {w}:{m}:Z "
         f"{img} sleep infinity"
