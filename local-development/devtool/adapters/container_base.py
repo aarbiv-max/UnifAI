@@ -13,6 +13,7 @@ from pathlib import Path
 
 from devtool.domain.models import ContainerStatus, InfraComponent
 from devtool.ports.container_runtime import ContainerRuntime
+from devtool.utils import format_duration
 
 
 class SubprocessContainerRuntime(ContainerRuntime):
@@ -90,7 +91,7 @@ class SubprocessContainerRuntime(ContainerRuntime):
             raw = result.stdout.strip()
             started = datetime.fromisoformat(raw.replace("Z", "+00:00"))
             delta = datetime.now(timezone.utc) - started
-            return _format_duration(delta)
+            return format_duration(delta)
         except (ValueError, TypeError):
             return None
 
@@ -173,23 +174,6 @@ class SubprocessContainerRuntime(ContainerRuntime):
                 log_hint = f" Check {self._log_file}" if self._log_file else ""
                 print(f"  ⚠ Command failed: {' '.join(cmd)}.{log_hint}")
                 raise
-
-
-def _format_duration(delta) -> str:
-    """Format a timedelta as a compact human-readable string like '2h 15m'."""
-    total_seconds = int(delta.total_seconds())
-    if total_seconds < 60:
-        return f"{total_seconds}s"
-    minutes = total_seconds // 60
-    if minutes < 60:
-        return f"{minutes}m"
-    hours = minutes // 60
-    remaining_min = minutes % 60
-    if hours < 24:
-        return f"{hours}h {remaining_min}m" if remaining_min else f"{hours}h"
-    days = hours // 24
-    remaining_hours = hours % 24
-    return f"{days}d {remaining_hours}h" if remaining_hours else f"{days}d"
 
 
 def detect_runtime() -> SubprocessContainerRuntime:
